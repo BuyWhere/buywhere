@@ -73,13 +73,13 @@ function FeaturedDealCard({ deal }: { deal: FeaturedDeal }) {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-3xl bg-white/80 p-4 ring-1 ring-slate-200/80 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Current price</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Current price</p>
               <p className="mt-3 text-3xl font-semibold text-slate-950">
                 {formatCurrency(deal.currentPrice, deal.currency)}
               </p>
             </div>
             <div className="rounded-3xl bg-white/80 p-4 ring-1 ring-slate-200/80 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{deal.referenceLabel}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{deal.referenceLabel}</p>
               <p className="mt-3 text-2xl font-semibold text-slate-950">
                 {deal.referencePrice !== null ? formatCurrency(deal.referencePrice, deal.currency) : "Updating"}
               </p>

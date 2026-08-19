@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
-const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const router = (0, express_1.Router)();
 function escHtml(s) {
     return String(s)
@@ -26,12 +25,11 @@ router.get('/', async (req, res) => {
         return;
     }
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
     const result = await config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
             name AS title, price, original_price, currency, image_url,
             brand, description, category_path, rating, review_count,
             availability, updated_at, mpn
-     FROM products WHERE id IN (${placeholders})${urlCondition}`, ids).catch(() => null);
+     FROM products WHERE id IN (${placeholders})`, ids).catch(() => null);
     if (!result || result.rows.length === 0) {
         res.status(404).send('<h1>Products not found</h1>');
         return;

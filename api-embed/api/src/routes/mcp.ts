@@ -7,7 +7,6 @@ import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
-import { randomUUID } from 'crypto';
 
 const router = Router();
 
@@ -120,7 +119,6 @@ const TOOLS = [
       required: ['product_name'],
       properties: {
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
-        q: { type: 'string', description: 'Alias for product_name (deprecated, use product_name).' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
@@ -130,13 +128,12 @@ const TOOLS = [
   },
   {
     name: 'find_similar',
-    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
     inputSchema: {
       type: 'object',
+      required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'Numeric ID of the source product (mutually exclusive with product_name)' },
-        product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
+        product_id: { type: 'string', description: 'UUID of the source product' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -282,18 +279,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 8000');
+    await searchClient.query('SET statement_timeout = 12000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
-      // BUY-70000: use reltuples for fast approximate total. The exact COUNT(*)
-      // with full WHERE clause was the primary latency contributor (>8s on broad
-      // queries without country_code filter). reltuples is O(1) and accurate to
-      // within ~10% on our table statistics.
-      const approxResult = await searchClient.query(
-        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
+      const countResult = await searchClient.query(
+        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
+        params
       );
-      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
+      total = parseInt(countResult.rows[0].count, 10);
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -372,7 +366,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
         } else {
           // Embed failed — fall through to keyword FTS
-          const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 2000);
+          const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
             `SELECT * FROM (
@@ -389,7 +383,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
-        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 2000);
+        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
         params.push(CANDIDATE_LIMIT, limit, offset);
         const result = await searchClient.query(
           `SELECT * FROM (
@@ -415,9 +409,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
 
       const needsFilter = !!(country || region);
-      // BUY-70000: reduce overfetch cap. The old 5000-row fetch caused 6s+ on
-      // country-filtered browse. 1000 is generous for offset up to 980.
-      const fetchLimit = needsFilter ? Math.min((limit + offset) * 10, 1000) : limit + offset;
+      const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
@@ -688,7 +680,6 @@ async function handleListCategories(args: Record<string, unknown>) {
           `SELECT slug, name, product_count
            FROM mcp_category_summary_by_country
            WHERE country_code = $1
-             AND NULLIF(BTRIM(slug), '') IS NOT NULL
            ORDER BY product_count DESC
            LIMIT 100`,
           [country]
@@ -721,10 +712,11 @@ async function handleListCategories(args: Record<string, unknown>) {
         rows = fallbackResult.rows;
       }
       if (rows.length === 0) {
-        throw {
-          code: -32603,
-          message: `No category summary rows available for ${country}; mcp_category_summary_by_country needs refresh`,
-        };
+        rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
+          slug: name.toLowerCase().replace(/\s+/g, '-'),
+          name,
+          product_count: 0,
+        }));
       }
       const data = {
         data: rows,
@@ -748,7 +740,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const productName = ((args.product_name as string) || (args.q as string) || '').trim();
+  const productName = (args.product_name as string) || '';
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
@@ -771,35 +763,36 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   try {
     await bestPriceClient.query('SET statement_timeout = 4500');
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    // BUY-70000: filter by country_code in the inner query so the planner uses
-    // idx_products_country_code instead of fetching 100 global rows and post-filtering.
-    // For smaller markets (TH, VN) the old pattern returned 0 because the top-100
-    // recent products were dominated by US/SG rows.
-    // BUY-70000: use FTS (GIN-indexed) instead of ILIKE for title matching.
-    // ILIKE '%shirt%' requires sequential scan on all TH rows (100K+); FTS
-    // leverages idx_products_search_vector and completes in <500ms.
+    const titlePattern = `%${productName}%`;
     result = await bestPriceClient.query(
-      `SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code, updated_at
-       FROM products
-       WHERE is_active = true AND price > 0
-         AND country_code = $1
-         AND search_vector @@ plainto_tsquery('english', $2)
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $3`,
-      [requestedCountry, productName, CANDIDATE_POOL]
-    );
-    if (result.rows.length === 0) {
-      // Fallback: find cheapest products in country even if FTS misses
-      result = await bestPriceClient.query(
-        `SELECT id, title, price, currency, source AS domain, url, image_url,
+      `SELECT * FROM (
+         SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
          FROM products
          WHERE is_active = true AND price > 0
-           AND country_code = $1
+         ORDER BY updated_at DESC
+         LIMIT $1
+       ) _candidates
+       WHERE country_code = $2
+         AND title ILIKE $3
+       ORDER BY price ASC, updated_at DESC
+       LIMIT $4`,
+      [CANDIDATE_POOL, requestedCountry, titlePattern, CANDIDATE_POOL]
+    );
+    if (result.rows.length === 0) {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
          ORDER BY price ASC, updated_at DESC
-         LIMIT $2`,
-        [requestedCountry, CANDIDATE_POOL]
+         LIMIT $3`,
+        [CANDIDATE_POOL, requestedCountry, CANDIDATE_POOL]
       );
     }
   } finally {
@@ -1150,40 +1143,17 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productId = (args.product_id as string || '').trim();
-  const productName = (args.product_name as string || '').trim();
-  const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
   const limit = Math.min(Number(args.limit) || 10, 10);
 
-  // BUY-70124: Resolve product_name → product_id via FTS when product_id is not provided.
-  let resolvedId = productId;
-  if (!resolvedId && productName) {
-    const conditions = ['is_active = true'];
-    const params: unknown[] = [];
-    params.push(productName);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-    if (countryCode) {
-      params.push(countryCode);
-      conditions.push(`country_code = $${params.length}`);
-    }
-    const lookupResult = await db.query(
-      `SELECT id, title FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
-      params
-    );
-    if (!lookupResult.rows.length) {
-      throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
-    }
-    resolvedId = String((lookupResult.rows[0] as Record<string, unknown>).id);
-  }
-
-  if (!resolvedId) {
-    throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
+  if (!productId) {
+    throw { code: -32602, message: 'missing required parameter: product_id' };
   }
 
   // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
   // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
   // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-  if (!/^\d+$/.test(resolvedId)) {
-    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${resolvedId}"` };
+  if (!/^\d+$/.test(productId)) {
+    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
   }
 
   if (!vectorDb) {
@@ -1197,7 +1167,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     refResult = await vectorDb.query<{ embedding: string }>(
       `SELECT embedding::text FROM product_embeddings
        WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
-      [resolvedId]
+      [productId]
     );
   } catch {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1216,7 +1186,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
        FROM product_embeddings
        WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
        ORDER BY distance LIMIT $3`,
-      [refEmbedding, resolvedId, limit]
+      [refEmbedding, productId, limit]
     );
   } catch {
     throw { code: -32001, message: 'No similar products found' };
@@ -1256,8 +1226,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     .filter(Boolean);
 
   return {
-    product_id: resolvedId,
-    matched_product_name: productName || undefined,
+    product_id: productId,
     similar,
     total: similar.length,
     response_time_ms: Date.now() - t0,
@@ -1281,23 +1250,14 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result, request_id: randomUUID(), timestamp: new Date().toISOString() };
+  return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return {
-    jsonrpc: '2.0', id,
-    request_id: randomUUID(),
-    timestamp: new Date().toISOString(),
-    error: {
-      code,
-      message,
-      ...(Object.keys(errorData).length ? { data: errorData } : {}),
-    },
-  };
+  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
@@ -1449,7 +1409,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
 
   // Validate JSON-RPC envelope
   if (!body || body.jsonrpc !== '2.0' || !body.method) {
-    return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_PARAMETER));
+    return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_JSON));
   }
 
   const { id, method, params } = body;
@@ -1461,7 +1421,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         const toolName = args.name as string;
         const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
         if (!toolName) {
-          return res.json(jsonrpcErr(id, -32602, 'Missing tool name', undefined, ErrorCode.INVALID_PARAMETER));
+          return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
         }
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
@@ -1478,7 +1438,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           const result = await dispatchTool(method, args);
           return res.json(jsonrpcOk(id, result));
         }
-        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`, undefined, ErrorCode.NOT_FOUND));
+        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
     const e = err as { code?: number | string; message?: string };

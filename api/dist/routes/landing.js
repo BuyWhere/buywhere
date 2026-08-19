@@ -4,16 +4,6 @@ const express_1 = require("express");
 const config_1 = require("../config");
 const response_1 = require("../lib/response");
 const router = (0, express_1.Router)();
-// BUY-71129: caller identity thread-through. Landing routes are usually
-// unauthenticated, so this returns null in 99% of cases — but if a logged-in
-// agent hits the marketing landing page, the conversion event still joins.
-function callerContextForUrl(req) {
-    const rec = req.apiKeyRecord;
-    if (!rec || !rec.id || !rec.key)
-        return null;
-    const { createHash } = require('crypto');
-    return { apiKeyId: rec.id, keyHash: createHash('sha256').update(rec.key).digest('hex') };
-}
 function baseUrl(req) {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
     const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
@@ -595,7 +585,7 @@ router.get('/demo/search', async (req, res) => {
             config_1.db.query(dataQuery, params),
         ]);
         const total = parseInt(countResult.rows[0].count, 10);
-        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, callerContextForUrl(req)));
+        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
         const responseTimeMs = Date.now() - start;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, 0, responseTimeMs, false);
         res.json({ ...responseBody, demo: true });

@@ -25,7 +25,6 @@ import ingestRouter from './routes/ingest';
 import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
-import publicStatsRouter from './routes/publicStats';
 import webhooksRouter from './routes/webhooks';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
@@ -33,13 +32,13 @@ import { histogramLatencyMiddleware } from './middleware/latency';
 import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
-import adminProbesRouter from './routes/admin/probes';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
 MCP: https://api.buywhere.ai/mcp/sse
+A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
 Auth: X-API-Key
@@ -153,16 +152,6 @@ export function createApp() {
 
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
-  // BUY-71169: serve agent descriptors at root for Wave and other AI agent probes
-  const { AI_AGENT_DESCRIPTOR, A2A_AGENT_CARD } = require('./routes/wellknown');
-  app.get('/agent', (_req, res) => {
-    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
-    res.json(A2A_AGENT_CARD);
-  });
-  app.get('/ai-agent', (_req, res) => {
-    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
-    res.json(AI_AGENT_DESCRIPTOR);
-  });
   const serveOpenApi = (_req: express.Request, res: express.Response) => {
     sendOpenApiSpec(res);
   };
@@ -228,26 +217,7 @@ export function createApp() {
   // /api/mcp — backwards-compatible alias (BUY-30153)
   app.use('/api/mcp', mcpRouter);
 
-  // v1 API — root descriptor for /v1 discovery
-  app.get('/v1', (_req, res) => {
-    res.json({
-      name: 'BuyWhere REST API',
-      description: 'Agent-native product catalog API: product search, price comparison, and merchant data.',
-      version: '1.0.0',
-      openapi: 'https://api.buywhere.ai/openapi.json',
-      docs: 'https://api.buywhere.ai/docs',
-      auth: 'X-API-Key or Bearer token',
-      register: 'POST https://api.buywhere.ai/v1/auth/register',
-      routes: {
-        products: '/v1/products',
-        search: '/v1/products/search',
-        bestPrice: '/v1/products/best-price',
-        categories: '/v1/categories',
-        merchants: '/v1/merchants',
-      },
-      contact: 'hello@buywhere.ai',
-    });
-  });
+  // v1 API
   app.use('/v1/billing/webhook', express.raw({ type: 'application/json' }));
   app.use('/v1/billing', billingRouter);
   app.use('/v1/auth', authRouter);
@@ -269,7 +239,6 @@ export function createApp() {
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/catalog', catalogRouter);
-  app.use('/v1/stats', publicStatsRouter);
   app.use('/v1/keys', keysRouter);
   app.use('/v1/usage', usageRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
@@ -313,19 +282,6 @@ export function createApp() {
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page
   app.use('/c', aiCrawlerHeaders, publicCategoriesRouter); // /c/:slug — category page
   app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
-
-  // BUY-66004: keep the legacy API-host blog discovery path public. The full
-  // blog lives on the web app, but monitors probe api.buywhere.ai/blog and must
-  // never be intercepted by root-mounted admin auth middleware.
-  app.get('/blog', (_req, res) => {
-    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
-    res.set('X-Robots-Tag', 'ai-index');
-    res.set('Link', '<https://buywhere.ai/blog>; rel="canonical"');
-    res.type('text/markdown; charset=utf-8').send(
-      '# BuyWhere Blog\n\n' +
-      'Read BuyWhere product comparison guides, shopping research, and AI commerce updates at https://buywhere.ai/blog\n'
-    );
-  });
 
   // Sitemaps
   app.use('/sitemap-compare.xml', sitemapCompareRouter);
@@ -515,9 +471,6 @@ export function createApp() {
   // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
   // Auth is handled inside the router via Authorization: Bearer <admin key>.
   app.use(adminFxRefreshRouter);
-
-  // BUY-70776: outbound-link probe status debug endpoint.
-  app.use(adminProbesRouter);
 
   // 404 fallback
   app.use((_req, res) => {

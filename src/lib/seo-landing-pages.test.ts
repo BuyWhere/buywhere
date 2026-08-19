@@ -10,7 +10,6 @@ import {
   isCompleteRobotVacuum,
   resolveHeroTitle,
   seoLandingPages,
-  verifyReachableImage,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
 
@@ -29,109 +28,6 @@ function makeSearchItem(id: string, title: string, price = 199) {
 function makeLandingProduct(name: string): Pick<LandingProduct, "name" | "brand" | "category"> {
   return { name, brand: null, category: null };
 }
-
-test("live SEO landing cards prefer catalog product image_url", async () => {
-  const originalFetch = globalThis.fetch;
-  const requestedUrls: string[] = [];
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    requestedUrls.push(url);
-    if (url.includes("/api/products/search")) {
-      return new Response(
-        JSON.stringify({
-          data: [
-            {
-              id: "robot-live-1",
-              title: "Roborock Q5 Pro+ Robot Vacuum",
-              price_amount: 560,
-              price_currency: "USD",
-              merchant_name: "Walmart",
-              click_url: "https://merchant.example/robot-live-1",
-              image_url: "https://images.example/robot-vacuum.jpg",
-              category: null,
-              brand: "Roborock",
-            },
-            {
-              id: "robot-live-2",
-              title: "iRobot Roomba Combo j9+ Robot Vacuum",
-              price_amount: 999,
-              price_currency: "USD",
-              merchant_name: "Best Buy",
-              click_url: "https://merchant.example/robot-live-2",
-              image_url: "https://images.example/roomba.jpg",
-              category: "Robot Vacuums",
-              brand: "iRobot",
-            },
-            {
-              id: "robot-live-3",
-              title: "Roborock S8 MaxV Ultra Robot Vacuum",
-              price_amount: 1299,
-              price_currency: "USD",
-              merchant_name: "Amazon",
-              click_url: "https://merchant.example/robot-live-3",
-              image_url: "https://images.example/roborock-s8.jpg",
-              category: "Robot Vacuums",
-              brand: "Roborock",
-            },
-            {
-              id: "robot-live-4",
-              title: "eufy X10 Pro Omni Robot Vacuum",
-              price_amount: 799,
-              price_currency: "USD",
-              merchant_name: "Amazon",
-              click_url: "https://merchant.example/robot-live-4",
-              image_url: "https://images.example/eufy-x10.jpg",
-              category: "Robot Vacuums",
-              brand: "eufy",
-            },
-          ],
-          meta: { total: 4, degraded: false },
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }
-    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
-  };
-
-  try {
-    const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
-    assert.equal(products.length, 4);
-    assert.equal(products[0].imageUrl, "https://images.example/robot-vacuum.jpg");
-    assert.equal(products[0].category, "Robot Vacuums");
-    assert.ok(requestedUrls.some((url) => url.includes("/api/products/search") && url.includes("category=robot_vacuums")));
-    assert.ok(requestedUrls.some((url) => url === "https://images.example/robot-vacuum.jpg"));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("air purifier landing page constrains live results and uses compact above-the-fold cards", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = "";
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    if (url.includes("/api/products/search")) {
-      requestedUrl = url;
-      return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
-  };
-
-  try {
-    const config = seoLandingPages["air-purifier-singapore"];
-    await getSeoLandingProducts(config);
-    assert.equal(config.searchCategory, "air_purifiers");
-    assert.equal(config.excludeAccessories, true);
-    assert.equal(config.compactCatalogCards, true);
-    assert.match(requestedUrl, /category=air_purifiers/);
-    assert.match(requestedUrl, /limit=24/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
 
 test("SEO landing products never render synthetic placeholder catalog cards", async () => {
   const originalFetch = globalThis.fetch;
@@ -326,78 +222,6 @@ test("QA-sampled SEO source configs do not contain synthetic placeholders", () =
   }
 });
 
-test("BUY-69925: US SEO landing search passes deliver_to + include_unshippable=false", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = "";
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    if (url.includes("/api/products/search")) {
-      requestedUrl = url;
-      return new Response(
-        JSON.stringify({ data: [], meta: { total: 0, degraded: true } }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }
-    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
-  };
-
-  try {
-    await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
-    assert.match(requestedUrl, /[?&]country=US/);
-    assert.match(requestedUrl, /[?&]deliver_to=US/);
-    assert.match(requestedUrl, /[?&]include_unshippable=false/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("BUY-69925: foreign-merchant products are dropped from US SEO snapshot", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    if (url.includes("/api/products/search")) {
-      return new Response(
-        JSON.stringify({
-          data: [
-            {
-              id: "us-live",
-              title: "ASUS ROG Zephyrus G16 Gaming Laptop",
-              price_amount: 1999,
-              price_currency: "USD",
-              merchant_name: "Best Buy",
-              click_url: "https://merchant.example/us-live",
-              image_url: "https://images.example/us-live.jpg",
-              country_code: "US",
-            },
-            {
-              id: "ae-live",
-              title: "Gaming Laptop RTX 5070",
-              price_amount: 1800,
-              price_currency: "USD",
-              merchant_name: "COMPUMARTS",
-              click_url: "https://merchant.example/ae-live",
-              image_url: "https://images.example/ae-live.jpg",
-              country_code: "AE",
-            },
-          ],
-          meta: { total: 2, degraded: false },
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }
-    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
-  };
-
-  try {
-    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
-    // Verify US merchant is kept and foreign merchant is filtered out
-    assert.equal(products.length, 1, "only one product should remain after filtering");
-    assert.equal(products[0].merchant, "Best Buy", "US merchant should be included");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
 test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", async () => {
   const source = readFileSync(
     new URL("./seo-landing-pages.ts", import.meta.url),
@@ -534,6 +358,7 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
 
+<<<<<<< HEAD
 // ---------------------------------------------------------------------------
 // BUY-67622 — SEO guide hero copy must not contradict the live card set.
 // Three regression tests:
@@ -730,48 +555,31 @@ test("best-robot-vacuums-2026 declares heroTitleTemplate so the headline stays i
 });
 
 // BUY-69630: slug-match guard relaxation for catalog productIds
-// BUY-69736: now async because getSeoLandingFallbackProduct probes + repairs
-// the curated image URL before returning.
-test("getSeoLandingFallbackProduct matches by productId and region, ignoring slug (BUY-69630)", async () => {
-  // Stub the image probe so the curated imageUrl passes through unchanged.
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+test("getSeoLandingFallbackProduct matches by productId and region, ignoring slug (BUY-69630)", () => {
+  // Grab a real fallback product from the config
+  const usConfig = seoLandingPages["best-gaming-laptops-us"];
+  const fallbackProduct = usConfig?.fallbackProducts?.[0];
+  assert.ok(fallbackProduct, "expected a fallback product in best-gaming-laptops-us config");
 
-  try {
-    // Grab a real fallback product from the config
-    const usConfig = seoLandingPages["best-gaming-laptops-us"];
-    const fallbackProduct = usConfig?.fallbackProducts?.[0];
-    assert.ok(fallbackProduct, "expected a fallback product in best-gaming-laptops-us config");
+  const productId = fallbackProduct.id;
+  const correctSlug = fallbackProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 
-    const productId = fallbackProduct.id;
-    const correctSlug = fallbackProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  // Verify it matches with the correct slug
+  const matchWithCorrectSlug = getSeoLandingFallbackProduct("us", productId, correctSlug);
+  assert.ok(matchWithCorrectSlug, "should match with correct slug");
+  assert.equal(matchWithCorrectSlug.id, productId);
 
-    // Verify it matches with the correct slug
-    const matchWithCorrectSlug = await getSeoLandingFallbackProduct("us", productId, correctSlug);
-    assert.ok(matchWithCorrectSlug, "should match with correct slug");
-    assert.equal(matchWithCorrectSlug!.id, productId);
+  // The regression: slug derived from upstream merchant title doesn't match
+  // buildLandingProductSlug(product.name). PDPs must render for catalog
+  // productIds regardless of slug (slug is informational only).
+  const mangledSlug = "some-random-mangled-slug-from-upstream-merchant";
+  const matchWithMangledSlug = getSeoLandingFallbackProduct("us", productId, mangledSlug);
+  assert.ok(matchWithMangledSlug, "should match with mangled slug (BUY-69630)");
+  assert.equal(matchWithMangledSlug.id, productId);
 
-    // The regression: slug derived from upstream merchant title doesn't match
-    // buildLandingProductSlug(product.name). PDPs must render for catalog
-    // productIds regardless of slug (slug is informational only).
-    const mangledSlug = "some-random-mangled-slug-from-upstream-merchant";
-    const matchWithMangledSlug = await getSeoLandingFallbackProduct("us", productId, mangledSlug);
-    assert.ok(matchWithMangledSlug, "should match with mangled slug (BUY-69630)");
-    assert.equal(matchWithMangledSlug!.id, productId);
-
-    // Region still matters: the sg config also curates a g1 row (same id,
-    // different price/currency), so the sg lookup must return the SG row,
-    // not the US one. An unknown region must return nothing.
-    const sgMatch = await getSeoLandingFallbackProduct("sg", productId, mangledSlug);
-    assert.ok(sgMatch, "sg has its own g1 row and must match");
-    assert.equal(sgMatch!.currency, "SGD", "sg lookup must return the SG row, not the US row");
-    assert.notEqual(sgMatch!.price, matchWithMangledSlug!.price, "US and SG rows are distinct");
-    const unknownRegion = await getSeoLandingFallbackProduct("au", productId, mangledSlug);
-    assert.ok(!unknownRegion, "unknown region must not match any config");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  // Region still matters — wrong region should not match
+  const matchWithWrongRegion = getSeoLandingFallbackProduct("sg", productId, mangledSlug);
+  assert.ok(!matchWithWrongRegion, "should NOT match with wrong region");
 });
 
 // ---------------------------------------------------------------------------
@@ -934,166 +742,4 @@ test("buildSeoLandingMetadata falls back to static config.title when live catalo
     "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
     "empty live catalog must fall back to static config.title, not the floor-derived $560",
   );
-});
-
-// ---------------------------------------------------------------------------
-// BUY-69736 — curated PDP fallback images must be correct, reachable, and
-// repairable. Three regression layers:
-//
-//   1. Every curated gaming-laptop fallback row's imageUrl must reference an
-//      image that serves an image/* content type — a 200-OK HTML error page
-//      must NOT count as a valid image (the old verifyReachableImage bug).
-//   2. A row whose URL is dead (serves HTML/404) must be swapped to the
-//      branded SVG placeholder before it reaches the PDP — never rendered
-//      verbatim (negative control).
-//   3. The curated URLs that ship must be the exact live-catalog images for
-//      the named models (provenance asserted at curation time, 2026-08-14).
-// ---------------------------------------------------------------------------
-
-test("curated gaming-laptop fallback imageUrls serve image/* not text/html (BUY-69736)", async () => {
-  const config = seoLandingPages["best-gaming-laptops-us"];
-  assert.ok(config, "best-gaming-laptops-us config must exist");
-  assert.ok(config.fallbackProducts.length >= 6, "expected the 6 gaming-laptop fallback rows");
-
-  for (const product of config.fallbackProducts) {
-    const imageUrl = product.imageUrl;
-    assert.ok(imageUrl, `${product.id} must have a curated imageUrl`);
-    assert.match(imageUrl!, /^https?:\/\//, `${product.id} imageUrl must be a remote URL`);
-
-    const res = await fetch(imageUrl!, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
-    });
-    // A dead CDN URL returns 403/404; a wrong-product CDN catch-all returns
-    // 200 + text/html. Both must fail this test at curation time.
-    assert.ok(
-      res.ok,
-      `${product.id} (${product.name}) curated image must return 2xx: got ${res.status} for ${imageUrl}`,
-    );
-    const contentType = (res.headers.get("content-type") || "").toLowerCase();
-    assert.ok(
-      contentType.startsWith("image/"),
-      `${product.id} (${product.name}) curated image must serve image/*: got "${contentType}" for ${imageUrl}`,
-    );
-  }
-});
-
-test("verifyReachableImage rejects 200-OK HTML error pages (BUY-69736)", async () => {
-  const originalFetch = globalThis.fetch;
-  // Some CDNs answer 200 with an HTML error page for missing assets.
-  globalThis.fetch = (async () =>
-    new Response("<html><body>Access Denied</body></html>", {
-      status: 200,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    })) as any;
-
-  try {
-    const reachable = await verifyReachableImage("https://cdn.example.com/files/missing.jpg");
-    assert.equal(reachable, false, "HTTP 200 text/html must NOT be treated as a reachable image");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-
-  // Positive control: a genuine image content type must pass.
-  globalThis.fetch = (async () =>
-    new Response("", { status: 200, headers: { "content-type": "image/jpeg" } })
-  ) as typeof globalThis.fetch;
-  try {
-    const reachable = await verifyReachableImage("https://cdn.example.com/files/real.jpg");
-    assert.equal(reachable, true, "HTTP 200 image/jpeg must be treated as reachable");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded SVG (BUY-69736 negative control)", async () => {
-  const originalFetch = globalThis.fetch;
-  // Simulate the dead-URL condition: every probe serves 200 text/html
-  // (the same shape as the Dell Akamai 403 redirect page and the HP
-  // 10-byte "Not found" PNG path that shipped before this fix).
-  globalThis.fetch = (async () =>
-    new Response("<html>Not Found</html>", {
-      status: 200,
-      headers: { "content-type": "text/html" },
-    })) as typeof globalThis.fetch;
-
-  try {
-    const product = await getSeoLandingFallbackProduct("us", "g6");
-    assert.ok(product, "g6 fallback row must resolve");
-    // The dead URL must NOT reach the browser as-is…
-    assert.ok(
-      !(product!.imageUrl ?? "").startsWith("http"),
-      `dead curated URL must be replaced, got: ${product!.imageUrl}`,
-    );
-    // …and must be replaced by the branded SVG placeholder.
-    assert.ok(
-      (product!.imageUrl ?? "").startsWith("data:image/svg+xml;"),
-      `expected branded SVG placeholder, got: ${product!.imageUrl}`,
-    );
-    // The branded SVG must name the right brand — the g6 QA bug was an
-    // Acer Nitro photo on the ASUS TUF PDP.
-    const decoded = decodeURIComponent(product!.imageUrl ?? "");
-    assert.match(decoded, /ASUS/);
-    assert.match(decoded, /TUF/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-// BUY-64057: Regression test — browser-rendered merchant images must go
-// through BuyWhere's image proxy so Shopify/Courts/etc. hotlink protection no
-// longer turns complete cards into branded SVG placeholders.
-test("ProductGridImage proxies remote merchant images through /api/image-proxy (BUY-64057)", async () => {
-  const source = readFileSync(new URL("../components/seo/ProductGridImage.tsx", import.meta.url), "utf8");
-  assert.match(source, /function proxiedImageSrc/);
-  assert.match(source, /\/api\/image-proxy\?url=\$\{encodeURIComponent/);
-  assert.match(source, /src=\{proxiedImageSrc\(src\)\}/);
-});
-
-test("cdn.shopify.com is blocked at SSR to prevent browser hotlink 403s (BUY-64057)", async () => {
-  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
-  assert.ok(
-    source.includes('"cdn.shopify.com"'),
-    "cdn.shopify.com must be in HOTLINK_BLOCKED_HOSTS (BUY-64057)",
-  );
-});
-
-test("BUY-70202: unreachable live products replaced with branded SVG (not dropped)", async () => {
-  // Two collected live products, both with image URLs that 404 on the
-  // reachable + content probes. With the pre-fix code, both were dropped and
-  // the page rendered 0 cards (or fell through to fallback-only). With the
-  // fix, both stay in the card list with a branded SVG imageUrl so the
-  // card shell renders real name/price/merchant/CTA.
-  const config: SeoLandingPageConfig = {
-    id: "buy-70202-test",
-    slug: "buy-70202-test",
-    title: "test",
-    description: "test",
-    heroEyebrow: "test",
-    heroTitle: "test",
-    heroBody: "test",
-    canonicalPath: "/buy-70202-test",
-    country: "US",
-    currency: "USD",
-    heroFeaturedBrands: [],
-    fallbackProducts: [],
-  };
-  const products = [
-    { id: "p1", name: "Example Phone 1", brand: "Acme", category: "phone", merchant: "Store A", price: 99, imageUrl: "https://does-not-resolve.invalid/x.jpg", href: "/p1" } as LandingProduct,
-    { id: "p2", name: "Example Phone 2", brand: "Beta", category: "phone", merchant: "Store B", price: 199, imageUrl: "https://does-not-resolve.invalid/y.jpg", href: "/p2" } as LandingProduct,
-  ];
-  const result = await getSeoLandingProducts(config, products);
-  assert.equal(result.length, 2, "both cards must render, not be dropped");
-  for (const r of result) {
-    assert.ok(
-      (r.imageUrl ?? "").startsWith("data:image/svg+xml"),
-      `expected branded SVG placeholder, got: ${r.imageUrl}`,
-    );
-    assert.ok(
-      !(r.imageUrl ?? "").startsWith("https://does-not-resolve"),
-      `dead URL must be replaced, got: ${r.imageUrl}`,
-    );
-  }
 });

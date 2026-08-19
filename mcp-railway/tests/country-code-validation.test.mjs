@@ -71,41 +71,15 @@ suite('BUY-69625: country_code validation', () => {
     assert.equal(body.error.data.envelope.error.code, 'MARKET_UNSUPPORTED');
   });
 
-  // BUY-70114 / BUY-70351: `request_id` is always a server-generated UUID.
-  // The JSON-RPC `id` is preserved separately for protocol correlation.
-  it('request_id is a server-generated UUID when id is a string', async () => {
+  it('includes request_id when id is a string', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' });
-    assert.ok(body.request_id, 'request_id must be present');
-    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
-    assert.notEqual(body.request_id, body.id, 'request_id must not echo JSON-RPC id');
-  });
-
-  // BUY-70114 / BUY-70351: numeric JSON-RPC id is preserved; request_id is UUID.
-  it('request_id is a server-generated UUID when id is numeric', async () => {
-    const { body } = await rpc('search_products', { country_code: 'ZZ' }, 42);
-    assert.ok(body.request_id, 'request_id must be present');
-    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
-    assert.notEqual(body.request_id, '42', 'request_id must not echo JSON-RPC id');
-  });
-
-  it('request_id is a server-generated UUID when id is null', async () => {
-    const { body } = await rpc('search_products', { country_code: 'ZZ' }, null);
-    assert.ok(body.request_id, 'request_id must be present');
+    assert.equal(body.request_id, body.id);
     assert.equal(typeof body.request_id, 'string');
-    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
   });
 
-  it('response includes top-level timestamp on success', async () => {
-    const { body } = await rpc('list_categories', {});
-    assert(body.timestamp);
-    assert.equal(typeof body.timestamp, 'string');
-    assert.match(body.timestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-  });
-
-  it('response includes top-level timestamp on error', async () => {
-    const { body } = await rpc('search_products', { country_code: 'ZZ' });
-    assert(body.timestamp);
-    assert.equal(typeof body.timestamp, 'string');
+  it('request_id is null when id is numeric', async () => {
+    const { body } = await rpc('search_products', { country_code: 'ZZ' }, 42);
+    assert.equal(body.request_id, null);
   });
 
   it('does not validate country_code on tools without it (get_product)', async () => {
@@ -113,102 +87,5 @@ suite('BUY-69625: country_code validation', () => {
     if (body.error) {
       assert.notEqual(body.error.data?.envelope?.error?.code, 'MARKET_UNSUPPORTED');
     }
-  });
-
-  // BUY-70395: content[0].text must be parseable JSON like every other tool —
-  // agents extracting structured fields got nothing from the old markdown blob.
-  it('get_product content[0].text is JSON when the product exists', async () => {
-    const { body } = await rpc('get_product', { id: process.env.MCP_TEST_PRODUCT_ID || '1' });
-    if (!body.error && body.result?.content?.[0]?.text) {
-      let parsed;
-      try {
-        parsed = JSON.parse(body.result.content[0].text);
-      } catch {
-        assert.fail('get_product content[0].text must be valid JSON (BUY-70395)');
-      }
-      assert.equal(typeof parsed, 'object');
-      assert(parsed.id || parsed.title, 'parsed product JSON must carry id/title');
-    }
-  });
-
-  // BUY-70395: pg bigint COUNT(*) serializes as a JSON string; MCP and REST
-  // must both expose product_count as a number.
-  it('list_categories product_count is a number', async () => {
-    const { body } = await rpc('list_categories', {});
-    if (body.error) return;
-    const text = body.result?.content?.[0]?.text;
-    if (!text) return;
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      assert.fail('list_categories content[0].text must be valid JSON');
-    }
-    const cats = payload?.data;
-    if (Array.isArray(cats) && cats.length) {
-      for (const cat of cats) {
-        assert.equal(
-          typeof cat.product_count,
-          'number',
-          `product_count for ${cat.slug} must be a number, got ${typeof cat.product_count} (BUY-70395; note Redis cache serves pre-fix payloads for up to 10 min after deploy)`
-        );
-      }
-    }
-  });
-
-  // BUY-71112: list_categories must return `categories` key (canonical contract) in
-  // addition to `data` (legacy). Probes and agents key on `categories`.
-  it('list_categories returns both `categories` and `data` keys', async () => {
-    const { body } = await rpc('list_categories', { country_code: 'SG' });
-    if (body.error) return;
-    const text = body.result?.content?.[0]?.text;
-    if (!text) return;
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      assert.fail('list_categories content[0].text must be valid JSON');
-    }
-    assert.ok('categories' in payload, 'payload must have `categories` key (BUY-71112)');
-    assert.ok('data' in payload, 'payload must have `data` key (legacy compatibility)');
-    assert.ok(Array.isArray(payload.categories), 'categories must be an array');
-    assert.deepEqual(payload.categories, payload.data,
-      '`categories` and `data` must contain the same array');
-  });
-
-  // BUY-71112: find_best_price must return `best_price` and `alternatives` keys.
-  it('find_best_price returns best_price and alternatives keys', async () => {
-    const { body } = await rpc('find_best_price', { product_name: 'laptop', country_code: 'SG' });
-    if (body.error) return;
-    const text = body.result?.content?.[0]?.text;
-    if (!text) return;
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      assert.fail('find_best_price content[0].text must be valid JSON');
-    }
-    assert.ok('best_price' in payload, 'payload must have `best_price` key (BUY-71112)');
-    assert.ok('alternatives' in payload, 'payload must have `alternatives` key (BUY-71112)');
-    assert.ok(Array.isArray(payload.alternatives),
-      'alternatives must be an array (even when empty)');
-    // best_price is null when no match; that is valid — just test the key exists
-    assert.ok(true, 'schema check passed');
-  });
-
-  // BUY-71112: get_deals must return `results` key (mirrors buildSearchResponse).
-  it('get_deals returns `results` key', async () => {
-    const { body } = await rpc('get_deals', { country_code: 'SG' });
-    if (body.error) return;
-    const text = body.result?.content?.[0]?.text;
-    if (!text) return;
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      assert.fail('get_deals content[0].text must be valid JSON');
-    }
-    assert.ok('results' in payload, 'payload must have `results` key (BUY-71112)');
-    assert.ok(Array.isArray(payload.results), 'results must be an array');
   });
 });

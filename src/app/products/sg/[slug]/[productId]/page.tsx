@@ -3,8 +3,11 @@ import { permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildSGLegacyProductRedirect } from "@/lib/legacy-product-redirect";
-import { buildProductDetailGraph } from "@/lib/product-schema";
-import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
+
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://buywhere.ai";
 
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
@@ -98,8 +101,7 @@ function pickPrimaryCtaUrl(detail: ProductDetail | null | undefined): string | n
   return null;
 }
 
-// BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
-function landingProductToDetail(product: Awaited<ReturnType<typeof getSeoLandingFallbackProduct>>): ProductDetail | null {
+function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
   if (!product) return null;
 
   return {
@@ -152,7 +154,7 @@ async function getProduct(
   }
 
   // Fallback to curated SEO landing page fallback products
-  return landingProductToDetail(await getSeoLandingFallbackProduct("sg", productId, merchantSlug));
+  return landingProductToDetail(getSeoLandingFallbackProduct("sg", productId, merchantSlug));
 }
 
 interface PageProps {
@@ -207,61 +209,53 @@ export default async function SGProductDetailPage({ params }: PageProps) {
   const merchantName =
     product.merchant_name ??
     merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const canonicalUrl = `https://buywhere.ai/products/sg/${merchantSlug}/${productId}/`;
 
-  // BUY-69663: shared JSON-LD graph replaces the duplicated inline Product +
-  // Breadcrumb blocks — publisher-anchored @graph, ratings only from real data.
-  const pagePath = `/products/sg/${merchantSlug}/${productId}/`;
-  const description =
-    product.description ?? `${productName} available from ${merchantName} in Singapore.`;
-  const schema = buildProductDetailGraph({
-    product: {
-      path: pagePath,
-      name: productName,
-      description,
-      image: product.image_url ?? null,
-      brand: product.brand ?? null,
-      category: product.category ?? null,
-      sku: product.id != null ? String(product.id) : null,
-      offer:
-        product.price != null
-          ? {
-              price: product.price,
-              priceCurrency: "SGD",
-              sellerName: merchantName,
-            }
-          : null,
-    },
-    breadcrumb: [
-      { name: "Home", path: "/" },
-      { name: `${merchantName} Products`, path: `/sg/${merchantSlug}/products/` },
-      { name: productName, path: pagePath },
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: productName,
+    description:
+      product.description ??
+      `${productName} available from ${merchantName} in Singapore.`,
+    url: canonicalUrl,
+    ...(product.image_url && { image: product.image_url }),
+    ...(product.brand && { brand: { "@type": "Brand", name: product.brand } }),
+    ...(product.price != null && {
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "SGD",
+        price: product.price,
+        availability: "https://schema.org/InStock",
+        seller: { "@type": "Organization", name: merchantName },
+      },
+    }),
+  };
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `${merchantName} Products`,
+        item: `https://buywhere.ai/sg/${merchantSlug}/products/`,
+      },
+      { "@type": "ListItem", position: 3, name: productName, item: canonicalUrl },
     ],
-  });
-  const llmsSnippet = renderProductLlmsSnippet({
-    country: "sg",
-    productId,
-    title: productName,
-    description,
-    currency: "SGD",
-    price: product.price ?? null,
-    availability: "local",
-    brand: product.brand ?? "",
-    category: product.category ?? "",
-    merchantSlug,
-    merchantName,
-    url: `https://buywhere.ai${pagePath}`,
-    imageUrl: product.image_url ?? "",
-  });
+  };
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
       />
       <script
-        type="text/llms.txt"
-        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
@@ -367,7 +361,7 @@ export default async function SGProductDetailPage({ params }: PageProps) {
             )}
 
             {product.category && (
-              <p className="mt-4 text-xs text-gray-500">
+              <p className="mt-4 text-xs text-gray-400">
                 Category: {product.category}
               </p>
             )}

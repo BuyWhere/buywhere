@@ -3,16 +3,32 @@
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
-import { formatPrice } from "@/lib/format-price";
+
+function formatPrice(price: number | null, currency: string) {
+  if (price === null) {
+    return "Price unavailable";
+  }
+
+  return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(price);
+}
 
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
 
-  // Prefer the internal product detail page when available, so SEO catalog
-  // cards land on /products/{region}/{slug}/{id}. Keep the direct merchant
-  // href for the explicit "Buy at <merchant>" button below.
-  const detailUrl = product.productUrl || product.href || `/search?q=${encodeURIComponent(product.name)}`;
+  // Prefer a verified internal product page, but never let the card link land
+  // on a 404-prone synthetic URL when a working external merchant URL is
+  // available. `buildUSProductSlug` appends `-<id>` and the /products route
+  // can only resolve that when the API is reachable (BUY-52332 cutover). If
+  // the card already has a merchant offer, send the click straight to it —
+  // that's the same destination the explicit "Buy at <merchant>" button uses.
+  const detailUrl = isMerchantOffer
+    ? product.href
+    : product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
 
   function handleMerchantClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -32,8 +48,8 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
     <Link
       href={detailUrl}
       prefetch={false}
-      target={isMerchantOffer && !product.productUrl ? "_blank" : undefined}
-      rel={isMerchantOffer && !product.productUrl ? "noopener noreferrer" : undefined}
+      target={isMerchantOffer ? "_blank" : undefined}
+      rel={isMerchantOffer ? "noopener noreferrer" : undefined}
       className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
@@ -100,9 +116,6 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               {formatPrice(product.price, product.currency)}
             </p>
           </div>
-          {/* BUY-70352: unify CTA shape — both branches get identical pill geometry.
-              Merchant rows get the interactive button with external link.
-              Non-merchant rows get a passive span (no nested interactive element). */}
           {isMerchantOffer ? (
             <span
               role="button"
@@ -114,10 +127,8 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               Buy at {product.merchant}
             </span>
           ) : (
-            <span
-              className={`inline-flex min-h-11 items-center justify-center rounded-full bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
-            >
-              Compare prices
+            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
+              View details
             </span>
           )}
         </div>

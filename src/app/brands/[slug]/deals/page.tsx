@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getCommerceBrand } from '@/lib/commerce-routes';
-import { toSiteUrl } from '@/lib/site-url';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -19,25 +17,12 @@ interface BrandData {
 }
 
 async function getBrandData(slug: string): Promise<BrandData | null> {
-  const knownBrand = getCommerceBrand(slug);
-
-  if (!knownBrand) {
-    return null;
-  }
-
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
       next: { revalidate: 900 },
     });
-    if (!res.ok) {
-      return {
-        slug: knownBrand.slug,
-        name: knownBrand.name,
-        description: `Compare ${knownBrand.name} deals across BuyWhere's indexed retailers.`,
-        product_count: knownBrand.productCount ?? 0,
-      };
-    }
+    if (!res.ok) return null;
     const data = await res.json();
     return {
       slug: data.slug,
@@ -47,12 +32,7 @@ async function getBrandData(slug: string): Promise<BrandData | null> {
       product_count: data.product_count || 0,
     };
   } catch {
-    return {
-      slug: knownBrand.slug,
-      name: knownBrand.name,
-      description: `Compare ${knownBrand.name} deals across BuyWhere's indexed retailers.`,
-      product_count: knownBrand.productCount ?? 0,
-    };
+    return null;
   }
 }
 
@@ -69,7 +49,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
     '@type': 'CollectionPage',
     name: `${brand.name} Deals — BuyWhere`,
     description: `Find the best ${brand.name} deals and discounts. Compare prices across retailers.`,
-    url: toSiteUrl(`/brands/${slug}/deals`),
+    url: `/brands/brand/${slug}/deals`,
   };
 
   return (
@@ -86,7 +66,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/${slug}`}
+              href={`/brands/brand/${slug}`}
               className="text-blue-600 hover:underline"
             >
               {brand.name}
@@ -112,7 +92,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
               Check back soon for the latest {brand.name} discounts.
             </p>
             <Link
-              href={`/brands/${slug}`}
+              href={`/brands/brand/${slug}`}
               className="text-blue-600 hover:underline mt-4 inline-block"
             >
               View all {brand.name} products
@@ -129,16 +109,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const brand = await getBrandData(slug);
 
   if (!brand) {
-    return {
-      title: 'Brand Deals Not Found',
-      robots: { index: false, follow: false },
-    };
+    return { title: 'Brand Deals Not Found' };
   }
 
   return {
     title: `${brand.name} Deals — Compare Prices | BuyWhere`,
     description: `Find the best ${brand.name} deals and discounts. Compare prices across retailers.`,
-    alternates: { canonical: `/brands/${slug}/deals` },
+    alternates: { canonical: `/brands/brand/${slug}/deals` },
   };
 }
 

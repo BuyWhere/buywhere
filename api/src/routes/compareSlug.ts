@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
-import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 import { trackComparePageView, trackCompareRetailerClick } from '../analytics/posthog';
 
 const router = Router();
@@ -128,7 +127,6 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
   const normalizedSlug = slugifyCategory(slug);
   const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
-  const categoryLabel = aliasNames[0];
 
   if (aliasNames.length === 0) {
     return false;
@@ -141,7 +139,6 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
   // Build ILIKE conditions for each alias name with leading wildcard
   // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
   const pattern = `%${normalizedSlug}%`;
-  const urlCondition = outboundProbeEnabled() ? ` AND ${liveUrlCondition()}` : '';
   const productsResult = await db.query<{
     id: string; title: string; brand: string | null; image_url: string | null;
     price: string | null; currency: string; url: string; source: string;
@@ -150,17 +147,19 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category ILIKE $2${urlCondition}
+     WHERE currency = $1 AND category ILIKE $2
      ORDER BY updated_at DESC
      LIMIT $3 OFFSET $4`,
     [currency, pattern, limit, offset]
   ).catch(() => null);
 
-  const rows = productsResult?.rows ?? [];
+  if (!productsResult || productsResult.rows.length === 0) {
+    return false;
+  }
 
   // Group products by SKU / title — each unique product row becomes a product entry
   // with its prices[] array containing this one merchant listing
-  const products = rows.map((row) => ({
+  const products = productsResult.rows.map((row) => ({
     id: row.id,
     name: row.title,
     brand: row.brand || '',
@@ -177,7 +176,7 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
 
   const payload = {
     slug: normalizedSlug,
-    category: categoryLabel,
+    category: normalizedSlug,
     products,
     meta: {
       limit,
@@ -253,8 +252,6 @@ router.get('/:slug', async (req: Request, res: Response) => {
   }
 
   // Fetch all products in this comparison group, ordered by SGD price ascending
-  // BUY-70776: when the probe flag is on, exclude rows whose URL has been confirmed dead.
-  const urlCondition = outboundProbeEnabled() ? ` AND ${liveUrlCondition()}` : '';
   const productsResult = await db.query<{
     id: string; title: string; brand: string | null; image_url: string | null;
     description: string | null; category_path: string[] | null;
@@ -266,7 +263,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
             price, currency, url, source, is_active, updated_at, gtin,
             sku, mpn
      FROM products
-     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL${urlCondition}
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
      ORDER BY price::numeric ASC NULLS LAST`,
     [productIds]
   ).catch(() => null);

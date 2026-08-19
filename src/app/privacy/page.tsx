@@ -1,9 +1,7 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import Schema from "@/components/Schema";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
-import { buildWebPageSchema } from "@/lib/page-schema";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — BuyWhere",
@@ -11,42 +9,11 @@ export const metadata: Metadata = {
   alternates: {
     canonical: toSiteUrl("/privacy/"),
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  openGraph: {
-    title: "Privacy Policy — BuyWhere",
-    description: "BuyWhere Privacy Policy",
-    url: toSiteUrl("/privacy/"),
-    type: "website",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "BuyWhere Privacy Policy",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Privacy Policy — BuyWhere",
-    description: "BuyWhere Privacy Policy",
-    images: ["/og-image.png"],
-  },
 };
-
-const privacySchema = buildWebPageSchema({
-  path: "/privacy/",
-  name: "Privacy Policy",
-  description: "BuyWhere Privacy Policy",
-});
 
 export default function PrivacyPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Schema data={privacySchema} />
       <Nav />
 
       <main id="main-content" className="flex-1 py-16">

@@ -14,26 +14,14 @@ export async function GET(): Promise<Response> {
 
   const sitemapEntries = [
     { url: `${SITEMAP_BASE_URL}/sitemap-pages.xml`, lastModified: now },
-    { url: `${SITEMAP_BASE_URL}/sitemap-brands.xml`, lastModified: now },
-    { url: `${SITEMAP_BASE_URL}/sitemap-stores.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-categories.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-compare.xml`, lastModified: now },
-    // BUY-70324: historical /sitemap-comparisons.xml path — same corpus as
-    // sitemap-compare.xml, exposed for crawlers / GSC configs that reference
-    // the legacy filename.
-    { url: `${SITEMAP_BASE_URL}/sitemap-comparisons.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-products.xml`, lastModified: now },
     // SG product slug pages return 410 (BUY-37747/BUY-37750), so the
     // dedicated SG product sitemap is intentionally gone. Don't list it in
     // the index to avoid GSC "Sitemap could not be read" coverage errors.
     // Removed from the index per BUY-67478.
     { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
-    // BUY-70024: dedicated docs sitemap for explicit crawler discovery of
-    // developer/API docs pages (already included in sitemap-pages.xml too).
-    { url: `${SITEMAP_BASE_URL}/sitemap-docs.xml`, lastModified: now },
-    // BUY-70466: dedicated blog sitemap for explicit crawler discovery of
-    // blog article pages (already included in sitemap-pages.xml too).
-    { url: `${SITEMAP_BASE_URL}/sitemap-blog.xml`, lastModified: now },
   ];
 
   const response = buildSitemapResponse(renderSitemapIndex(sitemapEntries));

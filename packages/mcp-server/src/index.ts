@@ -282,19 +282,12 @@ const TOOLS: Tool[] = [
       "Use this whenever a user asks about prices, wants to find the cheapest option, or asks \"what's the best price for X\" or \"where can I buy X for the lowest price\". This finds the best current price across all merchants.",
     inputSchema: {
       type: 'object',
+      required: ['product_name'],
       properties: {
-        q: {
-          type: 'string',
-          description: 'Keyword search query — alias for product_name',
-        },
         product_name: {
           type: 'string',
           description:
             'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
-        },
-        q: {
-          type: 'string',
-          description: 'Alias for product_name (deprecated, use product_name).',
         },
         category: { type: 'string', description: 'Category to filter by' },
         country_code: {
@@ -317,23 +310,12 @@ const TOOLS: Tool[] = [
   {
     name: 'find_similar',
     description:
-      'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
+      'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
     inputSchema: {
       type: 'object',
+      required: ['product_id'],
       properties: {
-        product_id: {
-          type: 'string',
-          description: 'Numeric ID of the source product (mutually exclusive with product_name)',
-        },
-        product_name: {
-          type: 'string',
-          description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.',
-        },
-        country_code: {
-          type: 'string',
-          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
-          description: 'Country to scope product_name lookup (defaults to SG)',
-        },
+        product_id: { type: 'string', description: 'UUID of the source product' },
         limit: {
           type: 'integer',
           description: 'Number of similar products to return (1-10, default 10)',

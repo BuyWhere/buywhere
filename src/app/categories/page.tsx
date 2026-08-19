@@ -90,7 +90,7 @@ export default function CategoriesPage() {
                 <span className="font-semibold text-gray-900 dark:text-white text-base">
                   {category.name}
                 </span>
-                <span className="block text-sm text-gray-600 dark:text-gray-500 mt-0.5">
+                <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                   {category.count} products
                 </span>
               </div>
@@ -99,7 +99,7 @@ export default function CategoriesPage() {
                 height="20"
                 viewBox="0 0 20 20"
                 fill="none"
-                className="text-gray-500 flex-shrink-0"
+                className="text-gray-400 flex-shrink-0"
               >
                 <path
                   d="M7 4l6 6-6 6"

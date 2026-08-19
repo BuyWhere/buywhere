@@ -7,7 +7,6 @@ import mcpRouter from './routes/mcp';
 import wellknownRouter from './routes/wellknown';
 import { db, redis } from './config';
 import { shutdownPostHog } from './analytics/posthog';
-import { refreshCategorySummaries } from './lib/mcpWarmup';
 
 const MCP_PORT = parseInt(process.env.MCP_PORT || process.env.PORT || '8081');
 
@@ -191,15 +190,6 @@ const server = app.listen(MCP_PORT, () => {
   console.log(`  MCP:    http://localhost:${MCP_PORT}/mcp`);
   // Ensure discount_pct column exists and pre-warm list_categories cache after startup.
   warmupMcpCaches().catch(err => console.warn('[mcp-warmup] failed:', err.message));
-  // BUY-70286: refresh category matviews + Redis caches every 5 min, matching
-  // index.ts. Without this, a static-defaults payload cached during an I/O
-  // contention window (e.g. deploy-time REFRESH MATERIALIZED VIEW) stays in
-  // Redis for the full TTL and re-caches itself on every cold miss until a
-  // DB read finally succeeds — list_categories can serve placeholder rows for
-  // hours on the canonical MCP.
-  setInterval(() => {
-    refreshCategorySummaries().catch(err => console.warn('[category-refresh] failed:', err?.message));
-  }, 5 * 60 * 1000);
 });
 
 const shutdown = async () => {

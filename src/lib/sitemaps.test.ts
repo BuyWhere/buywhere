@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
-import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
 test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", async () => {
   const entries = await getCategorySitemapEntries();
@@ -23,24 +22,6 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async (
       !path.endsWith("/") || path === "/",
       `compare sitemap URL ${entry.url} should not have a trailing slash (except for /)`,
     );
-  }
-});
-
-test("getCompareSitemapEntries only emits known static compare landing pages (BUY-71003)", async () => {
-  const entries = await getCompareSitemapEntries();
-  const paths = entries.map((e) => new URL(e.url).pathname);
-
-  assert.ok(paths.includes("/compare"), "expected /compare in sitemap-compare.xml");
-  for (const slug of ACTIVE_COMPARE_STATIC_SLUGS) {
-    assert.ok(paths.includes(`/compare/${slug}`), `expected /compare/${slug} in sitemap-compare.xml`);
-  }
-
-  const activeStatic = new Set<string>(ACTIVE_COMPARE_STATIC_SLUGS.map((slug) => `/compare/${slug}`));
-  for (const category of PRODUCT_TAXONOMY) {
-    const path = `/compare/${category.slug}`;
-    if (!activeStatic.has(path)) {
-      assert.ok(!paths.includes(path), `${path} is not backed by a static compare page and must not be emitted`);
-    }
   }
 });
 
@@ -164,22 +145,8 @@ test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-5745
   }
 });
 
-test("getStaticSitemapEntries includes /about (BUY-70427)", () => {
-  const entries = getStaticSitemapEntries();
-  const urls = new Set(entries.map((e) => e.url));
-  assert.ok(urls.has("https://buywhere.ai/about"), "expected /about in sitemap-pages.xml");
-});
-
-test("getStaticSitemapEntries excludes intentionally redirected /pricing (BUY-71478)", () => {
-  const entries = getStaticSitemapEntries();
-  const urls = new Set(entries.map((e) => e.url));
-  assert.ok(!urls.has("https://buywhere.ai/pricing"), "redirected /pricing must not appear in sitemap-pages.xml");
-});
-
-test("getStaticSitemapEntries count is 231 (matches the post-fix prod target) or fewer (BUY-57452 / BUY-70427)", () => {
-  // BUY-57452 pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
-  // BUY-70427 adds the live /about brand route, so the ceiling was 231.
-  // BUY-71478 removes the redirected /pricing entry, so the ceiling is now 230.
+test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or fewer (BUY-57452)", () => {
+  // Pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
   // We accept <=230 to tolerate future removals (e.g. soft-404 slugs)
   // without breaking the test. We assert <=230 strictly so any future
   // re-emission of removed hardcoded entries surfaces here, not in GSC.

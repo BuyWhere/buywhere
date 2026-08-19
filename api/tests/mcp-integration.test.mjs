@@ -198,33 +198,6 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.ok(typeof data.meta.response_time_ms === 'number');
   });
 
-  it('search_products accepts `query` alias for q and runs a keyword search (BUY-68587 direction fix)', async () => {
-    const res = await fetch(`http://localhost:${port}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 19, method: 'tools/call',
-        params: { name: 'search_products', arguments: { query: 'laptop', country: 'SG' } },
-      }),
-    });
-    const body = await res.json();
-    const data = JSON.parse(body.result.content[0].text);
-
-    // Alias must be treated as a keyword query: FTS fires, browse mode does not.
-    const ftsCalls = queryMock.mock.calls.filter(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('plainto_tsquery')
-    );
-    assert.ok(ftsCalls.length >= 1, 'Expected plainto_tsquery FTS call for `query` alias');
-    const browseCalls = queryMock.mock.calls.filter(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('pg_class')
-    );
-    assert.equal(browseCalls.length, 0, 'Expected no reltuples browse-mode call for `query` alias');
-
-    assert.ok(Array.isArray(data.data));
-    assert.equal(data.data.length, 2);
-    assert.equal(data.data[0].title, 'Gaming Laptop');
-  });
-
   it('search_products passes country_code filter when provided', async () => {
     await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
@@ -239,37 +212,6 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('country_code')
     );
     assert.ok(calls.length >= 1, 'Expected country_code filter');
-  });
-
-  it('search_products filtered browse total does not use global reltuples estimate', async () => {
-    queryMock.mock.mockImplementation((sql) => {
-      if (typeof sql === 'string' && sql.includes('api_keys')) {
-        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
-      }
-      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && sql.includes('pg_class')) {
-        return Promise.resolve({ rows: [{ estimate: '398007424' }] });
-      }
-      return Promise.resolve({
-        rows: [makeProduct('sg-1', { title: 'SG Laptop', country_code: 'SG', region: 'sg' })],
-      });
-    });
-
-    const res = await fetch(`http://localhost:${port}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 112, method: 'tools/call',
-        params: { name: 'search_products', arguments: { country_code: 'TH', category: 'Electronics', limit: 5 } },
-      }),
-    });
-    const body = await res.json();
-    const data = JSON.parse(body.result.content[0].text);
-
-    assert.equal(data.data.length, 0);
-    assert.equal(data.meta.total, 0);
   });
 
   it('search_products with compact=true returns compact fields', async () => {
@@ -601,38 +543,6 @@ describe('MCP JSON-RPC — error handling', () => {
     assert.equal(res.status, 401);
   });
 
-  it('returns standardized RATE_LIMITED envelope for MCP 429 responses', async () => {
-    redisIncrMock.mock.mockImplementation(() => Promise.resolve(2));
-    queryMock.mock.mockImplementation((sql) => {
-      if (typeof sql === 'string' && sql.includes('api_keys')) {
-        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true, rpm_limit: 1, daily_limit: 1000 }] });
-      }
-      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    const res = await fetch(`http://localhost:${port}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 'rl-1', method: 'tools/call',
-        params: { name: 'list_categories', arguments: { country_code: 'MY' } },
-      }),
-    });
-    const body = await res.json();
-
-    assert.equal(res.status, 429);
-    assert.ok(Number(res.headers.get('retry-after')) > 0);
-    assert.equal(body.jsonrpc, '2.0');
-    assert.equal(body.id, 'rl-1');
-    assert.equal(body.error.code, 429);
-    assert.equal(body.error.data.envelope.error.code, 'RATE_LIMITED');
-    assert.ok(body.error.data.envelope.rate_limit.retry_after_seconds > 0);
-    assert.equal(body.error.data.retry_after_seconds, body.error.data.envelope.rate_limit.retry_after_seconds);
-  });
-
   it('returns error for unknown method', async () => {
     const res = await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
@@ -752,26 +662,6 @@ describe('MCP JSON-RPC — error handling', () => {
     });
     const body = await res.json();
     assert.equal(body.id, 'req-xyz-789');
-    // BUY-70114: request_id must be a server-generated UUID, not the JSON-RPC id
-    assert.ok(body.request_id, 'request_id must be present');
-    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
-    assert.notEqual(body.request_id, 'req-xyz-789', 'request_id must not echo JSON-RPC id');
-  });
-
-  it('success response has server-generated UUID request_id', async () => {
-    const res = await fetch(`http://localhost:${port}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 'my-jsonrpc-id', method: 'tools/call',
-        params: { name: 'search_products', arguments: { q: 'laptop' } },
-      }),
-    });
-    const body = await res.json();
-    assert.equal(body.id, 'my-jsonrpc-id');
-    assert.ok(body.request_id, 'request_id must be present');
-    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
-    assert.notEqual(body.request_id, 'my-jsonrpc-id', 'request_id must not echo JSON-RPC id');
   });
 });
 

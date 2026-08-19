@@ -253,7 +253,9 @@ export class BuyWhereClient {
   async compare(params: string | CompareParams): Promise<CompareResponse>;
   async compare(params: ProductId[] | string | CompareParams): Promise<CompareResponse> {
     if (Array.isArray(params)) {
-      return this.compareByIds(params);
+      return this.post<CompareResponse>('/v1/products/compare', {
+        product_ids: params,
+      });
     }
 
     if (typeof params === 'string') {
@@ -270,23 +272,9 @@ export class BuyWhereClient {
       return this.request<CompareResponse>(path);
     }
 
-    return this.compareByIds(params.product_ids ?? []);
-  }
-
-  // BUY-70605: prod route is GET /v1/products/compare?ids=id1,id2 — not POST.
-  // See api/src/routes/products.ts:1796 for the on-disk handler.
-  private async compareByIds(productIds: ProductId[]): Promise<CompareResponse> {
-    if (productIds.length < 2) {
-      throw new BuyWhereError(
-        'compare() requires at least 2 product IDs (prod returns "Provide at least 2 product IDs via ?ids=id1,id2" otherwise).',
-        400,
-        undefined,
-        'compare_ids_too_few'
-      );
-    }
-
-    const ids = productIds.map((id) => String(id)).join(',');
-    return this.request<CompareResponse>(`/v1/products/compare?ids=${encodeURIComponent(ids)}`);
+    return this.post<CompareResponse>('/v1/products/compare', {
+      product_ids: params.product_ids,
+    });
   }
 
   async deals(params?: DealsParams): Promise<DealsResponse> {
@@ -310,10 +298,7 @@ export class BuyWhereClient {
       query.set('offset', String(params.offset));
     }
 
-    // BUY-70605: prod route is /v1/products/deals (mounted under productsRouter),
-    // NOT /v1/deals — that path has been 404 since at least 2026-08-16.
-    // See api/src/routes/products.ts:1600.
-    return this.request<DealsResponse>(`/v1/products/deals?${query.toString()}`);
+    return this.request<DealsResponse>(`/v1/deals?${query.toString()}`);
   }
 
   async getProduct(productId: number): Promise<ProductDetail> {
@@ -384,16 +369,7 @@ export class BuyWhereClient {
       query.set('min_discount_pct', String(params.min_discount_pct));
     }
 
-    // BUY-70605: /v1/deals/feed was a phantom route — never implemented server-side
-    // (api/src/routes/products.ts has no /deals/feed handler). Replaced with a clear
-    // runtime error pointing callers at client.deals() instead. Removed in the next
-    // major version; tracked in BUY-70605 for Aria/DevRel doc alignment.
-    throw new BuyWhereError(
-      'getDealsFeed() is no longer supported — the /v1/deals/feed route was never deployed. Use client.deals({ country, category, limit, offset }) instead. (BUY-70605)',
-      410,
-      undefined,
-      'getDealsFeed_removed'
-    );
+    return this.request<DealsFeedResponse>(`/v1/deals/feed?${query.toString()}`);
   }
 
   async getProductReviewsSummary(params: GetProductReviewsParams): Promise<ReviewSummary> {

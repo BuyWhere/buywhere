@@ -1,6 +1,7 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ContactForm from "@/components/ContactForm";
+import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";

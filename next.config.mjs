@@ -33,25 +33,6 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      // BUY-71531: sitemap rename backward-compat — old <name>.xml paths now
-      // return 404 after the sitemap-*.xml rename. Add 301 redirects so
-      // crawlers that cached the old names get permanent redirects instead
-      // of HTML 404 shells (which GSC treats as soft 404 / sitemap errors).
-      { source: '/pages.xml', destination: '/sitemap-pages.xml', permanent: true },
-      { source: '/products.xml', destination: '/sitemap-products.xml', permanent: true },
-      { source: '/categories.xml', destination: '/sitemap-categories.xml', permanent: true },
-      { source: '/merchants.xml', destination: '/sitemap-merchants.xml', permanent: true },
-      { source: '/compare.xml', destination: '/sitemap-compare.xml', permanent: true },
-      { source: '/comparisons.xml', destination: '/sitemap-comparisons.xml', permanent: true },
-      { source: '/blog.xml', destination: '/sitemap-blog.xml', permanent: true },
-      { source: '/brands.xml', destination: '/sitemap-brands.xml', permanent: true },
-      { source: '/stores.xml', destination: '/sitemap-stores.xml', permanent: true },
-      { source: '/docs.xml', destination: '/sitemap-docs.xml', permanent: true },
-      // BUY-71531: also redirect the legacy sitemap-index.xml name
-      { source: '/sitemap-index.xml', destination: '/sitemap.xml', permanent: true },
-
-      // 2026-08-18 (Richmond): pricing removed — free under fair use
-      { source: '/pricing', destination: '/developers', permanent: true },
       // BUY-68319/BUY-67102: keep root-domain MCP clients on the
       // canonical API-host MCP endpoint instead of the human docs page.
       {
@@ -64,21 +45,9 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
       },
-      // BUY-71170: /trending was returning 404 (App Router page unbuilt due to root
-      // Python app/ shadowing src/app). Redirect to /compare as the closest live surface.
-      {
-        source: '/trending',
-        destination: '/compare',
-        permanent: false,
-      },
-      // BUY-68368/BUY-69843: high-intent developer/API/auth aliases should not
-      // fall through to homepage-branded 404 HTML shells. Route them to canonical
+      // BUY-68368: high-intent developer/API aliases should not fall through
+      // to homepage-branded 404 HTML shells. Route them to canonical docs/API
       // resources before the App Router renders the generic not-found page.
-      {
-        source: '/signup',
-        destination: '/login',
-        permanent: true,
-      },
       {
         source: '/developer',
         destination: '/developers',
@@ -87,51 +56,6 @@ const nextConfig = {
       {
         source: '/api-docs',
         destination: '/docs',
-        permanent: true,
-      },
-      // BUY-70180: docs.buywhere.ai now redirects to the root domain while
-      // preserving paths, so keep common legacy docs API URLs recoverable before
-      // the root-domain /api/* proxy rewrites them to the JSON API service.
-      {
-        source: '/api/reference',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      {
-        source: '/api/get-product',
-        destination: '/docs/api-reference/get-product',
-        permanent: true,
-      },
-      {
-        source: '/api-reference',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      // BUY-70738: legacy /api-reference/{slug} aliases returning 200 skeleton shells.
-      // Redirect to canonical /docs/ or /docs/api-reference/ pages.
-      {
-        source: '/api-reference/authentication',
-        destination: '/docs/authentication',
-        permanent: true,
-      },
-      {
-        source: '/api-reference/errors',
-        destination: '/docs/errors',
-        permanent: true,
-      },
-      {
-        source: '/api-reference/search',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      {
-        source: '/api-reference/products',
-        destination: '/docs/api-reference/get-product',
-        permanent: true,
-      },
-      {
-        source: '/api-reference/recommendations',
-        destination: '/docs/api-reference/similar',
         permanent: true,
       },
       {
@@ -144,46 +68,9 @@ const nextConfig = {
         destination: '/docs/api-reference/search',
         permanent: true,
       },
-      // BUY-69805/BUY-69843: legacy docs/API guide aliases that previously
-      // 410'd now reconcile to canonical live docs pages so users and crawlers
-      // don't hit gone URLs.  Next.js redirects are evaluated before middleware,
-      // so these win over the middleware's __GONE__.
-      {
-        source: '/docs/guides',
-        destination: '/docs',
-        permanent: true,
-      },
-      {
-        source: '/docs/api-reference',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      {
-        source: '/docs/api-reference/search-products',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      {
-        source: '/docs/api-reference/find-best-price',
-        destination: '/docs/api-reference/search',
-        permanent: true,
-      },
-      {
-        source: '/docs/api-reference/get-deals',
-        destination: '/docs/api-reference/deals',
-        permanent: true,
-      },
       {
         source: '/swagger.json',
         destination: 'https://api.buywhere.ai/openapi.json',
-        permanent: true,
-      },
-      // BUY-69843: top-level product index is intentionally consolidated into
-      // the compare hub. Configure the redirect here (not page.tsx) so production
-      // probes receive a true redirect instead of an App Router shell.
-      {
-        source: '/products',
-        destination: '/compare',
         permanent: true,
       },
       // BUY-68406: common feed-discovery aliases at the site root previously
@@ -306,6 +193,12 @@ const nextConfig = {
         destination: '/account?tab=subscription',
         permanent: true,
       },
+      // BUY-68422: surface existing status page infrastructure at apex domain
+      {
+        source: '/status',
+        destination: 'https://status.buywhere.ai/',
+        permanent: true,
+      },
       // BUY-68422: redirect help/support routes to docs
       {
         source: '/help',
@@ -340,125 +233,6 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
-      // BUY-70467: affiliate-intent URL aliases were returning the homepage 404
-      // shell, losing creator/partner search traffic. Redirect them to the live
-      // /partnership funnel so affiliates and influencers land on a real page.
-      {
-        source: '/affiliate',
-        destination: '/partnership',
-        permanent: true,
-      },
-      {
-        source: '/affiliate-program',
-        destination: '/partnership',
-        permanent: true,
-      },
-      {
-        source: '/partner',
-        destination: '/partnership',
-        permanent: true,
-      },
-      {
-        source: '/referrals',
-        destination: '/partnership',
-        permanent: true,
-      },
-      {
-        source: '/creators',
-        destination: '/partnership',
-        permanent: true,
-      },
-      {
-        source: '/influencers',
-        destination: '/partnership',
-        permanent: true,
-      },
-      // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
-      // permanentRedirect) so production probes receive a true HTTP 308 instead of
-      // the App Router shell-render trick.
-      {
-        source: '/legal',
-        destination: '/privacy',
-        permanent: true,
-      },
-      {
-        source: '/sign-up',
-        destination: '/register',
-        permanent: true,
-      },
-      // BUY-71380: /agent is the canonical AEO agent-discovery citation surface;
-      // recover it to the human-readable /agents page so answer engines and editors
-      // get a real 308 instead of a homepage-branded 404 shell.
-      {
-        source: '/agent',
-        destination: '/agents',
-        permanent: true,
-      },
-      // BUY-69692: developer-intent route aliases should redirect to canonical pages
-      // or return branded 404/410 with recovery hints instead of thin/empty shells.
-      {
-        source: '/api-reference/pricing',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/developers/pricing',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/sdk',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/agent',
-        destination: '/agents',
-        permanent: true,
-      },
-      {
-        source: '/ai-agents',
-        destination: '/agents',
-        permanent: true,
-      },
-      {
-        source: '/llms',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/docs/pricing',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/docs/sdk',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/docs/mcp',
-        destination: '/docs',
-        permanent: true,
-      },
-      // BUY-70145: legacy MCP server docs URL should recover to the canonical
-      // MCP integration guide instead of the branded 410 recovery page.
-      {
-        source: '/docs/mcp-server',
-        destination: '/docs/guides/mcp-integration',
-        permanent: true,
-      },
-      // BUY-70108: /docs/sdks and /docs/examples are returning 410s; redirect to canonical pages
-      {
-        source: '/docs/sdks',
-        destination: '/developers',
-        permanent: true,
-      },
-      {
-        source: '/docs/examples',
-        destination: '/docs',
-        permanent: true,
-      },
       {
         source: '/:path*',
         has: [
@@ -471,74 +245,6 @@ const nextConfig = {
         permanent: true,
       },
     ];
-  },
-  async headers() {
-    // BUY-71735: P2.3 agent-discovery HTTP headers.
-    // - X-Agent-Protocol + X-Agent-Card + X-LLMs-Txt on every response.
-    // - X-Agent-Index only on 200 catalog responses (catalog route matchers).
-    // - Access-Control-Expose-Headers lists all five so browser agents
-    //   (LangChain in-browser, etc.) can read them.
-    const ALL_AGENT_HEADERS = {
-      "X-Agent-Protocol": "buywhere/v1",
-      "X-Agent-Card": "https://api.buywhere.ai/.well-known/agent.json",
-      "X-LLMs-Txt": "https://api.buywhere.ai/llms.txt",
-      "Access-Control-Expose-Headers":
-        "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth",
-    };
-
-    const HEADERS_FOR_ALL = Object.entries(ALL_AGENT_HEADERS).map(
-      ([key, value]) => ({ key, value }),
-    );
-
-    // Base headers applied to every route under the matcher below.
-    const baseHeaders = [
-      // Apply to every route EXCEPT Next.js static/_next assets.
-      {
-        source: "/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap.*\\.xml).*)",
-        headers: HEADERS_FOR_ALL,
-      },
-    ];
-
-    // Catalog-only: add X-Agent-Index. The 200-only gate is enforced upstream by
-    // Vercel/edge; if a non-200 slips through (rare), the value still points at
-    // the canonical search endpoint, which is non-leaky.
-    const X_AGENT_INDEX = "https://api.buywhere.ai/v1/products/search?q={q}&country_code={cc}";
-    const catalogHeaders = [
-      {
-        source: "/search",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/search/:path*",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/products",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/products/:path*",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/p",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/p/:path*",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/compare",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-      {
-        source: "/compare/:path*",
-        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
-      },
-    ];
-
-    return [...baseHeaders, ...catalogHeaders];
   },
   async rewrites() {
     return [

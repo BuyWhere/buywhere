@@ -8,7 +8,7 @@ const stripe_1 = __importDefault(require("stripe"));
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
 const stripe = process.env.STRIPE_SECRET_KEY
-    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY)
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
     : null;
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
 const PAPERCLIP_API_KEY = process.env.UPTIMEROBOT_WEBHOOK_RELAY_API_KEY?.trim() || '';

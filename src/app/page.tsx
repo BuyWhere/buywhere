@@ -3,15 +3,10 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
-import { LiveStats } from "@/components/LiveStats";
 import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
 
 export const metadata: Metadata = {
-  robots: {
-    index: true,
-    follow: true,
-  },
   alternates: {
     canonical: "/",
   },
@@ -291,9 +286,9 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-6">
-            <div className="hero-badge mx-auto inline-flex max-w-[22rem] flex-col items-center justify-center gap-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold leading-tight text-indigo-900 shadow-sm sm:max-w-none sm:flex-row sm:flex-nowrap sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
-              <span className="inline-flex shrink-0 items-center justify-center gap-x-1.5">
-                <span className="status-dot inline-block h-2 w-2 shrink-0 rounded-full bg-green-600" aria-hidden="true"></span>
+            <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
+              <span className="inline-flex shrink-0 items-center gap-x-1.5">
+                <span className="status-dot inline-block h-2 w-2 shrink-0 self-center rounded-full bg-green-600" aria-hidden="true"></span>
                 <span className="whitespace-nowrap">300M+ products</span>
               </span>
               <span className="hidden sm:inline" aria-hidden="true">·</span>
@@ -310,18 +305,18 @@ export default function HomePage() {
           </div>
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
-            <div className="flex flex-col gap-3 justify-center mb-6 md:flex-row md:gap-4">
+            <div className="flex flex-col gap-3 justify-center mb-6 sm:flex-row sm:gap-4">
               <Link
                 href="/compare"
-                className="inline-flex w-full items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors sm:w-auto"
+                className="inline-flex w-full items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors sm:w-auto"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex w-full items-center justify-center rounded-xl border-2 border-white bg-white/20 px-5 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
+                className="inline-flex w-full items-center justify-center rounded-xl border-2 border-white bg-indigo-700 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
               >
-                For developers →
+                Developers: Get API access
               </Link>
             </div>
             <p className="text-base font-semibold text-white">
@@ -332,7 +327,6 @@ export default function HomePage() {
       </section>
 
       {/* Trust strip */}
-      <LiveStats />
       <TrustLayer />
       <section role="region" aria-label="Content section" className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -459,7 +453,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 238,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 238,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"

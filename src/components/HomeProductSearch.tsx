@@ -55,21 +55,18 @@ export function HomeProductSearch() {
   return (
     <div className="max-w-3xl mx-auto mb-10">
       <form
-        action="/search"
-        method="get"
         onSubmit={handleSubmit}
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 md:flex-row md:flex-wrap md:items-stretch md:gap-3">
-          <div className="relative min-w-0 flex-1 md:basis-0">
+        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 md:flex-row md:items-stretch md:gap-3">
+          <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
               aria-hidden="true"
             />
             <input
               type="search"
-              name="q"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -87,13 +84,12 @@ export function HomeProductSearch() {
           </div>
 
           <select
-            name="country"
             value={country}
             onChange={(event) => {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-auto md:min-w-[6rem] xl:min-w-[8rem]"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -105,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[58px] w-full shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem]"
+            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem]"
           >
             Search catalog
           </button>
@@ -117,9 +113,9 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-col items-center justify-center gap-2 text-center text-sm text-indigo-100 md:flex-row md:gap-x-2">
-              <span className="shrink-0 font-semibold text-white">Try</span>
-              <div className="grid w-full grid-cols-1 gap-2 min-[420px]:grid-cols-3 md:w-auto md:flex md:flex-wrap md:justify-center">
+            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
+              <span className="inline-flex items-center self-center rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm sm:shrink-0">Try</span>
+              <div className="chip-group flex flex-wrap items-center justify-center gap-2">
                 {exampleQueries.map((example) => (
                   <button
                     key={example}

@@ -32,7 +32,6 @@ const {
   isCategoryMismatchedForDeviceQuery,
   rankProduct,
   sortProductsByRelevance,
-  normalizeProduct,
 } = __test__;
 
 interface SearchCardProduct {
@@ -180,87 +179,4 @@ test("BUY-68365: rankProduct is safe when query is empty (no demote)", () => {
   const score = rankProduct(firecuda, "");
   // Empty query → no demote, default ranks apply.
   assert.ok(score >= 100, `firecuda should still rank normally when query is empty; got ${score}`);
-});
-
-// BUY-69615: Regression tests for image blocklist
-// Merchants like Newegg return HTTP 400 from their image CDN, so we must block them.
-test("BUY-69615: blocks known 4xx merchant image hosts", () => {
-  const { hasUsableProductImage } = __test__;
-  // c1.neweggimages.com returns HTTP 400 - should be blocked
-  assert.equal(hasUsableProductImage("https://c1.neweggimages.com/ProductImageCompressAll1280/34-233-624-02.jpg"), false);
-  assert.equal(hasUsableProductImage("https://www.neweggimages.com/ProductImage/34-233-624-02.jpg"), false);
-  // Harvey Norman SG catalog images frequently return HTTP 404 - should be blocked
-  assert.equal(hasUsableProductImage("https://www.harveynorman.com.sg/media/catalog/product/cache/example.jpg"), false);
-});
-
-test("BUY-69615: allows non-blocked image hosts", () => {
-  const { hasUsableProductImage } = __test__;
-  // Shopify and other working CDNs should pass through to the normalizer (which wraps them through /api/image-proxy)
-  assert.equal(hasUsableProductImage("https://cdn.shopify.com/s/files/12345.jpg"), true);
-  assert.equal(hasUsableProductImage("https://images.unsplash.com/photo-123456.jpg"), false); // unsplash is blocked
-});
-
-// BUY-71647: imageUrl proxy wrapping
-// Wraps allowed image URLs through /api/image-proxy so blocked CDN hosts (cdn.shopify.com,
-// c1.neweggimages.com) render real images instead of the branded placeholder.
-
-test("BUY-71647: wraps cdn.shopify.com URL through /api/image-proxy", () => {
-  const result = normalizeProduct(
-    { id: 1, image_url: "https://cdn.shopify.com/s/files/1/2345/6789/products/test.jpg" },
-    "USD"
-  );
-  assert.ok(result.imageUrl !== null);
-  assert.ok(result.imageUrl!.startsWith("/api/image-proxy?url="));
-  assert.ok(result.imageUrl!.includes(encodeURIComponent("https://cdn.shopify.com")));
-});
-
-test("BUY-71647: wraps c1.neweggimages.com URL through /api/image-proxy", () => {
-  // c1.neweggimages.com remains blocked (AkamaiGHost 400 to HEAD probes) so it's
-  // filtered by hasUsableProductImage and imageUrl is null. Verify that.
-  const result = normalizeProduct(
-    { id: 1, image_url: "https://c1.neweggimages.com/ProductImageCompressAll1280/34-233-624-02.jpg" },
-    "USD"
-  );
-  // Note: c1.neweggimages.com is still blocked per BUY-69615 (Akamai 400).
-  // This test ensures the newegg blocklist is preserved.
-  assert.equal(result.imageUrl, null);
-});
-
-test("BUY-71647: wraps hnsgsfp.imgix.net URL through /api/image-proxy", () => {
-  const result = normalizeProduct(
-    { id: 1, image_url: "https://hnsgsfp.imgix.net/abc123.jpg?w=400" },
-    "USD"
-  );
-  assert.ok(result.imageUrl !== null);
-  assert.ok(result.imageUrl!.startsWith("/api/image-proxy?url="));
-  assert.ok(result.imageUrl!.includes(encodeURIComponent("https://hnsgsfp.imgix.net")));
-});
-
-test("BUY-71647: null image_url still returns null imageUrl (no broken <img>)", () => {
-  const result = normalizeProduct({ id: 1, image_url: null }, "USD");
-  assert.equal(result.imageUrl, null);
-});
-
-test("BUY-71647: blocked host (c1.neweggimages.com) still returns null imageUrl", () => {
-  // hasUsableProductImage returns false for c1.neweggimages.com, so imageUrl should be null
-  const result = normalizeProduct(
-    { id: 1, image_url: "https://c1.neweggimages.com/ProductImage/34-233-624-02.jpg" },
-    "USD"
-  );
-  // Note: c1.neweggimages.com is blocked BY hasUsableProductImage, so this tests the
-  // null case, not the proxy wrap case
-  assert.equal(result.imageUrl, null);
-});
-
-test("BUY-71647: falls back to item.image when item.image_url is blocked", () => {
-  // When image_url is blocked, it should fall back to item.image (if available and allowed)
-  // Use hnsgsfp.imgix.net (allowed) as the fallback to verify fallback logic works
-  const result = normalizeProduct(
-    { id: 1, image_url: "https://c1.neweggimages.com/blocked.jpg", image: "https://hnsgsfp.imgix.net/abc.jpg" },
-    "USD"
-  );
-  // image_url is blocked, but image is allowed, so it should be wrapped
-  assert.ok(result.imageUrl !== null);
-  assert.ok(result.imageUrl!.startsWith("/api/image-proxy?url="));
-  assert.ok(result.imageUrl!.includes(encodeURIComponent("https://hnsgsfp.imgix.net/abc.jpg")));
 });

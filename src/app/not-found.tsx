@@ -39,8 +39,8 @@ export default function NotFound() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main id="main-content" className="flex-1 px-4 py-16">
-        <div className="max-w-3xl w-full text-center">
+      <main id="main-content" className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="max-w-2xl w-full text-center">
           <div className="mb-10">
             <svg
               width="120"
@@ -124,12 +124,12 @@ export default function NotFound() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mt-12 mb-12">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/">
-              <Button variant="primary" size="md">Go home</Button>
+              <Button>Go home</Button>
             </Link>
             <Link href="/deals/us">
-              <Button variant="secondary" size="md">View today&apos;s deals</Button>
+              <Button variant="secondary">View today&apos;s deals</Button>
             </Link>
           </div>
         </div>

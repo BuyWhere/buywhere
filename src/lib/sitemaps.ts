@@ -1,10 +1,9 @@
 import { getAllBlogPosts } from "@/lib/blog";
-import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
+import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
-import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
 import fs from "node:fs";
 
 function safeGetBlogPosts() {
@@ -290,8 +289,6 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/developers", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/agents", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/blog", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/brands", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/stores", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/best", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/cheapest", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/quickstart", priority: 0.9, changeFrequency: "weekly" as const },
@@ -304,10 +301,7 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/partnership", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
-  // BUY-71478: /pricing intentionally redirects to /developers after pricing was removed,
-  // so do not advertise it as a distinct canonical page in sitemap-pages.xml.
-  { path: "/about", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/accessibility", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
   // BUY-56627 / BUY-57452: /best-* URLs and the 6 blog + 3 product
   // dupes (cheapest-iphone-singapore-2026, best-laptop-deals-singapore,
@@ -322,6 +316,12 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
+  // BUY-66281: ChatGPT plugin manifest. Already served at
+  // /.well-known/ai-plugin.json with HTTP 200, but zero sitemap references
+  // meant zero indexable URL graph signal. Add it here so Google + agent
+  // crawlers can find it via sitemap-pages.xml. robots.txt also declares
+  // `Plugin: /.well-known/ai-plugin.json`.
+  { path: "/.well-known/ai-plugin.json", priority: 0.8, changeFrequency: "monthly" as const },
 ] as const;
 
 function xmlEscape(value: string): string {
@@ -452,22 +452,6 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
       priority,
     });
   }
-  for (const brand of commerceBrands) {
-    upsert({
-      url: toSiteUrl(`/brands/${brand.slug}`),
-      lastModified: now,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    });
-  }
-  for (const store of commerceStores) {
-    upsert({
-      url: toSiteUrl(`/stores/${store.slug}`),
-      lastModified: now,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    });
-  }
   for (const slug of DOC_SLUGS) {
     upsert({
       url: toSiteUrl(`/docs/${slug}`),
@@ -560,9 +544,10 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   };
 
   addEntry("/compare", 0.9);
+  addEntry("/compare/us", 0.9);
 
-  for (const slug of ACTIVE_COMPARE_STATIC_SLUGS) {
-    addEntry(`/compare/${slug}`, slug === "us" ? 0.9 : 0.8);
+  for (const category of PRODUCT_TAXONOMY) {
+    addEntry(`/compare/${category.slug}`, 0.8);
   }
 
   for (const pair of await getCompareCategoryPairs()) {

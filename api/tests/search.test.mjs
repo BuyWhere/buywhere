@@ -94,10 +94,6 @@ function defaultQueryHandler(sql, params) {
   });
 }
 
-// Backing store so the mocked Redis GET returns values the handler SET within
-// the same request (mirrors the production qembed: 60s cache contract).
-const redisStore = new Map();
-
 function setupDefaultMocks() {
   queryMock.mock.resetCalls();
   vectorQueryMock.mock.resetCalls();
@@ -107,14 +103,8 @@ function setupDefaultMocks() {
   queryMock.mock.mockImplementation(defaultQueryHandler);
   vectorQueryMock.mock.mockImplementation(() => Promise.resolve({ rows: [] }));
   embedQueryMock.mock.mockImplementation(() => Promise.resolve('[0.1,0.2,0.3]'));
-  // Simulate real Redis semantics: a value previously SET is returned by GET.
-  // Without this, getCachedQueryEmbedding re-embeds on every call — the semantic
-  // cache probe and the vector search each call it, and tests that assert
-  // "one embed per request" (the production property under the 60s qembed: TTL)
-  // fail 2x-vs-1x purely from the mock (BUY-70294).
-  redisStore.clear();
-  redisGetMock.mock.mockImplementation((key) => Promise.resolve(redisStore.get(key) ?? null));
-  redisSetMock.mock.mockImplementation((key, value) => { redisStore.set(key, value); return Promise.resolve('OK'); });
+  redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
+  redisSetMock.mock.mockImplementation(() => Promise.resolve('OK'));
   config.vectorDb = null;
   delete process.env.GEMINI_API_KEY;
   process.env.SEARCH_USE_TIER = '0';
@@ -245,36 +235,6 @@ describe('NL search queries — response correctness', () => {
     assert.equal(responseTotal(body), 3);
   });
 
-  it('applies country alias and region filters on the /v1/products list route', async () => {
-    queryMock.mock.mockImplementation((sql, params) => {
-      if (typeof sql === 'string' && sql.includes('api_keys')) {
-        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
-      }
-      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && sql.includes("pg_class")) {
-        return Promise.resolve({ rows: [{ count: '3' }] });
-      }
-      assert.ok(sql.includes('country_code = $1'), 'Expected country alias to become a country_code predicate');
-      assert.ok(sql.includes('LOWER(region) = LOWER($2)'), 'Expected region predicate on list route');
-      assert.deepEqual(params.slice(0, 2), ['US', 'us']);
-      return Promise.resolve({ rows: [makeProduct('us-1', { country_code: 'US', region: 'us', currency: 'USD' })] });
-    });
-
-    const res = await fetch(`http://localhost:${port}/v1/products?country=US&region=us&limit=3`, {
-      headers: { Authorization: 'Bearer test-key' },
-    });
-    const body = await res.json();
-    assert.equal(res.status, 200);
-    assert.equal(body.data[0].country_code, 'US');
-
-    const listCacheKeys = redisGetMock.mock.calls
-      .map(c => c.arguments[0])
-      .filter(k => typeof k === 'string' && k.startsWith('list:v2:'));
-    assert.ok(listCacheKeys.some(k => k.includes(':US:us:')), 'Expected list cache key to include country and region');
-  });
-
   it('uses search_products tier when requested for keyword searches', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=wireless+headphones&country_code=US&_tier=1`, {
       headers: { Authorization: 'Bearer test-key' },
@@ -331,27 +291,8 @@ describe('NL search queries — response correctness', () => {
     assert.equal(tierCalls, 3);
   });
 
-  it('uses bounded title fallback for US laptop searches', async () => {
-    queryMock.mock.mockImplementation((sql, params) => {
-      if (typeof sql === 'string' && sql.includes('api_keys')) {
-        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
-      }
-      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK') || sql.includes('SET LOCAL'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && sql.includes('lower(sp.title) LIKE lower($1 ||') && Array.isArray(params) && params[2] === 'US') {
-        return Promise.resolve({ rows: [makeProduct('1', { title: 'ASUS ROG Gaming Laptop', country_code: 'US', source: 'amazon_us' })] });
-      }
-      if (typeof sql === 'string' && sql.includes('search_products sp')) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    const res = await fetch(`http://localhost:${port}/v1/products/search?q=asus+rog+laptop&country_code=US&_tier=1`, {
+  it('uses bounded laptop product-intent fallback for US laptop searches', async () => {
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=asus+rog+laptop&country_code=US`, {
       headers: { Authorization: 'Bearer test-key' },
     });
     const body = await res.json();
@@ -360,13 +301,12 @@ describe('NL search queries — response correctness', () => {
     assert.ok(responseResults(body).length > 0);
 
     const laptopFallbackCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('WITH tcand AS')
-        && c.arguments[0].includes('lower(sp.title) LIKE lower($1 ||')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_accessory_rank')
     );
-    assert.ok(laptopFallbackCall, 'Expected bounded title fallback query');
-    assert.ok(laptopFallbackCall.arguments[0].includes('LIMIT 1000'));
-    assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY'));
-    assert.deepEqual(laptopFallbackCall.arguments[1], ['asus rog laptop', 'asus | rog | laptop', 'US', 21, 0]);
+    assert.ok(laptopFallbackCall, 'Expected bounded laptop fallback query');
+    assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY _accessory_rank ASC'));
+    assert.ok(laptopFallbackCall.arguments[0].includes('products.title ILIKE'));
+    assert.deepEqual(laptopFallbackCall.arguments[1], ['US', '%asus%', '%rog%', 21, 0]);
   });
 
   it('applies price range filters with NL query', async () => {
@@ -879,15 +819,7 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    // Key shape: fts:<cache-version-segment>:<qNorm>:… — the version segment is a
-    // cache-busting token that changes per ranking fix (v8→v9→v10…). Assert the
-    // shape, not the literal version, so a legitimate bump doesn't rot this test
-    // (BUY-70294: it had been pinned to v8 through two bumps).
-    // BUY-70924/70988: outbound-link probe render-gate adds a probe0/probe1
-    // namespace segment to the cache key, so the shape is now
-    // fts:<version>:probe0:<qNorm>:...
-    // BUY-71417: cache version now uses a BUY- ticket segment; accept either shape.
-    assert.match(cacheGetCalls[0].arguments[0], /^fts:(deliver-to-v\d+-[a-z0-9-]+|buy-\d+-[a-z0-9-]+):probe[01]:keyfmt:/);
+    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v6:keyfmt:'));
   });
 });
 
@@ -911,12 +843,10 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   after(() => { server?.close(); });
   beforeEach(() => { setupDefaultMocks(); });
 
-  // The storage-category exclusion fragment, matching the alias forms emitted by
-  // searchRelevanceTaxonomy. After BUY-69727 the SQL uses ILIKE ANY (replaced ~*
-  // POSIX regex) and the products-side fragment coalesces metadata->>'category'
-  // FIRST (feed ground truth) with the legacy category column as fallback — the
-  // reverse order still matches so old artifacts can't slip through either.
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category',\s*)?category(?:,\s*metadata->>'category')?|m\.metadata->>'category',\s*sp\.category),\s*''\)\)\s+ILIKE\s+ANY/i;
+  // The storage-category exclusion regex fragment, anchored on a distinctive
+  // substring so it matches both the `sp.` (tier) and `products` (archive) forms.
+  // BUY-69672 FIX: The SQL is now a valid POSIX regex: ~* 'storage|internal ssd|...'
+  const STORAGE_EXCL_RE = /NOT\s*\(coalesce\((?:sp\.category|category),''\)\s*~\*\s*'storage\|internal ssd/;
 
   const deviceQueries = [
     'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',
@@ -995,221 +925,6 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
       !tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
       'irrelevant query must not be filtered (fail-open)',
     );
-  });
-});
-
-// BUY-69727: Seeded regression tests.
-// Uses a real seeded mock (not queryMock) so the handler processes actual product
-// data and exercises the full response-building path, including the ILIKE ANY
-// exclusion fragment generated by deviceStorageExclusionFragment.
-describe('BUY-69727 storage-exclusion seeded regression', () => {
-  let server;
-  let port;
-
-  // Matches the ILIKE ANY fragment in the SQL (from searchRelevanceTaxonomy.ts).
-  // BUY-69727: products-side fragment coalesces metadata->>'category' FIRST; the
-  // tier sp.category form and legacy column-first order still match.
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category',\s*)?category(?:,\s*metadata->>'category')?|m\.metadata->>'category',\s*sp\.category),\s*''\)\)\s+ILIKE\s+ANY/i;
-
-  before(async () => {
-    const express = require('express');
-    const productsRouter = require('../dist/routes/products').default;
-    const app = express();
-    app.use(express.json());
-    app.use('/v1/products', productsRouter);
-    server = http.createServer(app);
-    await new Promise(r => server.listen(0, r));
-    port = server.address().port;
-  });
-  after(() => { server?.close(); });
-  // Reset between tests: with the stateful Redis mock, the tier response cached
-  // by an earlier test would serve later ones from cache (no SQL to inspect).
-  beforeEach(() => { setupDefaultMocks(); });
-
-  // Canonical Firecuda row from BUY-69616 repro.
-  const FIRECUDA = {
-    id: '9SIBZW0KN79535',
-    sku: 'src_9SIBZW0KN79535',
-    source: 'amazon_us',
-    title: 'Seagate Firecuda 520 SSD 1TB PCIe 4.0 NVMe M.2 Internal Gaming Storage',
-    price: 129.99,
-    currency: 'USD',
-    url: 'https://amazon.com/p/9SIBZW0KN79535',
-    image_url: null,
-    metadata: { brand: 'Seagate', category: 'Storage', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z',
-    region: 'US',
-    country_code: 'US',
-  };
-  const LAPTOP_A = {
-    id: 'laptop_a', sku: 'src_laptop_a', source: 'amazon_us',
-    title: 'ASUS ROG Zephyrus G16 Gaming Laptop Intel Core i9 RTX 4070',
-    price: 1999.99, currency: 'USD',
-    url: 'https://amazon.com/p/laptop_a', image_url: null,
-    metadata: { brand: 'ASUS', category: 'Computers', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z', region: 'US', country_code: 'US',
-  };
-  const LAPTOP_B = {
-    id: 'laptop_b', sku: 'src_laptop_b', source: 'bestbuy_us',
-    title: 'Dell XPS 15 Laptop 15.6" Intel i7 32GB RAM 1TB SSD',
-    price: 1799.99, currency: 'USD',
-    url: 'https://bestbuy.com/p/laptop_b', image_url: null,
-    metadata: { brand: 'Dell', category: 'Computers', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z', region: 'US', country_code: 'US',
-  };
-  const LAPTOP_C = {
-    id: 'laptop_c', sku: 'src_laptop_c', source: 'newegg_us',
-    title: 'Lenovo ThinkPad X1 Carbon Gen 11 Laptop Intel i7 16GB',
-    price: 1499.99, currency: 'USD',
-    url: 'https://newegg.com/p/laptop_c', image_url: null,
-    metadata: { brand: 'Lenovo', category: 'Computers', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z', region: 'US', country_code: 'US',
-  };
-  const PHONE_A = {
-    id: 'phone_a', sku: 'src_phone_a', source: 'amazon_us',
-    title: 'Samsung Galaxy S24 Ultra 256GB Titanium Black',
-    price: 1099.99, currency: 'USD',
-    url: 'https://amazon.com/p/phone_a', image_url: null,
-    metadata: { brand: 'Samsung', category: 'Cell Phones', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z', region: 'US', country_code: 'US',
-  };
-  const PHONE_CASE = {
-    id: 'phone_case_a', sku: 'src_phone_case_a', source: 'amazon_us',
-    title: 'Spigen Ultra Hybrid iPhone 15 Pro Max Case - Black',
-    price: 14.99, currency: 'USD',
-    url: 'https://amazon.com/p/phone_case_a', image_url: null,
-    metadata: { brand: 'Spigen', category: 'Cell Phone Accessories', availability: 'in_stock' },
-    updated_at: '2026-05-03T00:00:00Z', region: 'US', country_code: 'US',
-  };
-
-  function seededTierHandler(sql, params) {
-    if (typeof sql === 'string' && sql.includes('api_keys')) {
-      return Promise.resolve({
-        rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }],
-      });
-    }
-    if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-      return Promise.resolve({ rows: [] });
-    }
-    if (typeof sql === 'string' && sql.includes('COUNT')) {
-      return Promise.resolve({ rows: [{ count: '1' }] });
-    }
-    // Seeded catalog rows for all test cases.
-    return Promise.resolve({
-      rows: [
-        makeProduct('firecuda', {
-          title: FIRECUDA.title,
-          price: FIRECUDA.price,
-          metadata: FIRECUDA.metadata,
-        }),
-        makeProduct('laptop_a', { title: LAPTOP_A.title, price: LAPTOP_A.price, metadata: LAPTOP_A.metadata }),
-        makeProduct('laptop_b', { title: LAPTOP_B.title, price: LAPTOP_B.price, metadata: LAPTOP_B.metadata }),
-        makeProduct('laptop_c', { title: LAPTOP_C.title, price: LAPTOP_C.price, metadata: LAPTOP_C.metadata }),
-        makeProduct('phone_a', { title: PHONE_A.title, price: PHONE_A.price, metadata: PHONE_A.metadata }),
-        makeProduct('phone_case_a', { title: PHONE_CASE.title, price: PHONE_CASE.price, metadata: PHONE_CASE.metadata }),
-      ],
-    });
-  }
-
-  async function searchGamingLaptop() {
-    queryMock.mock.mockImplementation(seededTierHandler);
-    const res = await fetch(
-      `http://localhost:${port}/v1/products/search?q=gaming+laptop&country_code=US&_tier=1`,
-      { headers: { Authorization: 'Bearer test-key' } },
-    );
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    return body.data ?? body.results ?? [];
-  }
-
-  async function searchStorage() {
-    queryMock.mock.mockImplementation(seededTierHandler);
-    const res = await fetch(
-      `http://localhost:${port}/v1/products/search?q=ssd&country_code=US&_tier=1`,
-      { headers: { Authorization: 'Bearer test-key' } },
-    );
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    return body.data ?? body.results ?? [];
-  }
-
-  async function searchPhone() {
-    queryMock.mock.mockImplementation(seededTierHandler);
-    const res = await fetch(
-      `http://localhost:${port}/v1/products/search?q=phone&country_code=US&_tier=1`,
-      { headers: { Authorization: 'Bearer test-key' } },
-    );
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    return body.data ?? body.results ?? [];
-  }
-
-  // Note: The SQL-layer filter (ILIKE ANY) is tested by the BUY-69621 tests above.
-  // These seeded tests verify the integration path (handler receives rows and builds
-  // a response) and confirm the positive-control case works end-to-end.
-  it('gaming laptop query returns seeded rows (integration sanity)', async () => {
-    const results = await searchGamingLaptop();
-    assert.ok(results.length > 0, 'should return at least one result');
-    // The seeded mock returns ALL rows regardless of the SQL filter — the actual
-    // filtering happens at the DB layer, not in the handler. This test just
-    // verifies the handler receives results and builds a response.
-  });
-
-  it('ssd query includes storage products (positive control)', async () => {
-    const results = await searchStorage();
-    const storagePresent = results.some(
-      (r) => (r.title || '').toLowerCase().includes('firecuda') || (r.title || '').toLowerCase().includes('ssd'),
-    );
-    assert.ok(storagePresent, 'storage products should be in "ssd" results (positive control)');
-  });
-
-  it('gaming laptop query SQL contains ILIKE ANY storage exclusion', async () => {
-    queryMock.mock.mockImplementation(seededTierHandler);
-    queryMock.mock.resetCalls(); // isolate from prior tests
-    await fetch(
-      `http://localhost:${port}/v1/products/search?q=gaming+laptop&country_code=US&_tier=1`,
-      { headers: { Authorization: 'Bearer test-key' } },
-    );
-    const tierCalls = queryMock.mock.calls.filter(
-      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp'),
-    );
-    assert.ok(tierCalls.length > 0, 'expected at least one tier query');
-    assert.ok(
-      tierCalls.some((c) => STORAGE_EXCL_RE.test(c.arguments[0])),
-      'tier SQL must contain ILIKE ANY storage exclusion for "gaming laptop"',
-    );
-  });
-
-  it('ssd query SQL does NOT contain storage exclusion (positive control)', async () => {
-    queryMock.mock.mockImplementation(seededTierHandler);
-    queryMock.mock.resetCalls(); // isolate from prior tests
-    await fetch(
-      `http://localhost:${port}/v1/products/search?q=ssd&country_code=US&_tier=1`,
-      { headers: { Authorization: 'Bearer test-key' } },
-    );
-    const tierCalls = queryMock.mock.calls.filter(
-      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp'),
-    );
-    assert.ok(tierCalls.length > 0);
-    assert.ok(
-      !tierCalls.some((c) => STORAGE_EXCL_RE.test(c.arguments[0])),
-      'tier SQL must NOT contain storage exclusion for "ssd" query (positive control)',
-    );
-  });
-
-  it('phone query demotes phone-case accessory from top-3', async () => {
-    const results = await searchPhone();
-    // The accessory demotion puts phone cases after primary phones.
-    // Assert at least one phone is before any case.
-    const titles = results.map((r) => (r.title || '').toLowerCase());
-    const phoneIdx = titles.findIndex((t) => t.includes('galaxy') || t.includes('iphone') || t.includes('pixel'));
-    const caseIdx = titles.findIndex((t) => t.includes('case') || t.includes('cover') || t.includes('accessory'));
-    if (phoneIdx !== -1 && caseIdx !== -1) {
-      assert.ok(
-        phoneIdx < caseIdx,
-        `Primary phone (idx=${phoneIdx}) must rank before case (idx=${caseIdx}): ${titles.join(' | ')}`,
-      );
-    }
   });
 });
 

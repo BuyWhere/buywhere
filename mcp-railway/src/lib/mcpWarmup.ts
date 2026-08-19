@@ -169,10 +169,6 @@ export async function warmupMcpCaches(): Promise<void> {
     }
     if (countrySummaryHasData) {
       await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
-      // BUY-70428: keep category summary reads hot after startup refresh; cold
-      // cache reads timed out at the old 2s budget and served placeholder rows.
-      await queryWithWarmupBudget(client, `SELECT pg_prewarm('mcp_category_summary_by_country', mode => 'read')`);
-      await queryWithWarmupBudget(client, `SELECT pg_prewarm('idx_mcp_catsum_cc_count', mode => 'read')`);
     }
 
     for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
@@ -220,20 +216,6 @@ export async function refreshCategorySummaries(): Promise<void> {
     const summaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
     const countrySummaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
     if (!summaryRefresh || !countrySummaryRefresh) return;
-
-    // BUY-70428: the REFRESH CONCURRENTLY evicts the matview/index from the small
-    // Railway shared_buffers (127MB). The next category read then incurs all I/O
-    // and can time out under I/O contention, cascading to placeholder stubs.
-    // pg_prewarm the matview back into the buffer cache immediately after refresh
-    // so the next read is fast. Use 'read' mode (reads existing data into cache).
-    // Do this in a separate statement with its own timeout — failures are non-fatal.
-    try {
-      await client.query(`SET statement_timeout = 10000`);
-      await client.query(`SELECT pg_prewarm('mcp_category_summary_by_country', mode => 'read')`);
-      await client.query(`SELECT pg_prewarm('idx_mcp_catsum_cc_count', mode => 'read')`);
-    } catch (e) {
-      console.warn('[category-refresh] pg_prewarm failed:', (e as Error).message);
-    }
 
     for (const country of CATEGORY_REFRESH_COUNTRIES) {
       const t0 = Date.now();

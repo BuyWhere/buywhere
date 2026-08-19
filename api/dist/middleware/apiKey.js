@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.hashKey = hashKey;
 exports.requireApiKey = requireApiKey;
-exports.isMcpJsonRpcRequest = isMcpJsonRpcRequest;
 exports.checkRateLimit = checkRateLimit;
 const crypto_1 = require("crypto");
 const http_1 = require("http");
@@ -285,37 +284,6 @@ async function requireApiKey(req, res, next) {
     config_1.db.query('UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1', [row.id]).catch(() => { });
     next();
 }
-function isMcpJsonRpcRequest(req) {
-    return typeof req.body === 'object'
-        && req.body !== null
-        && req.body.jsonrpc === '2.0'
-        && typeof req.body.method === 'string';
-}
-// BUY-70114: request_id is always a server-generated UUID for traceability.
-function mcpRequestId(_id) {
-    return (0, crypto_1.randomUUID)();
-}
-function sendMcpPerMinuteLimitError(req, res, tier, limit) {
-    const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
-    const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
-    const message = `Rate limit of ${limit} requests/min exceeded for ${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier.`;
-    const id = req.body.id ?? null;
-    res.set('Retry-After', String(retryAfter));
-    res.status(429).json({
-        jsonrpc: '2.0',
-        id,
-        request_id: mcpRequestId(id),
-        timestamp: new Date().toISOString(),
-        error: {
-            code: 429,
-            message,
-            data: {
-                envelope: (0, errors_2.buildRateLimitEnvelope)(retryAfter, limit, 0, resetAt, message),
-                retry_after_seconds: retryAfter,
-            },
-        },
-    });
-}
 async function checkRateLimit(req, res, next) {
     if (!req.apiKeyRecord) {
         next();
@@ -337,12 +305,7 @@ async function checkRateLimit(req, res, next) {
         return;
     }
     if (rpmCount > req.apiKeyRecord.rpmLimit) {
-        if (isMcpJsonRpcRequest(req)) {
-            sendMcpPerMinuteLimitError(req, res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
-        }
-        else {
-            (0, errors_2.sendPerMinuteLimitError)(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
-        }
+        (0, errors_2.sendPerMinuteLimitError)(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
         return;
     }
     next();

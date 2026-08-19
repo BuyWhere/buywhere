@@ -54,56 +54,20 @@ type ComparePageProps = {
   }>;
 };
 
-// BUY-69732: same CollectionPage entity as before, now inside a @graph so the
-// route also carries a BreadcrumbList (Home > Compare) alongside it.
 const schemaMarkup = {
   "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "BreadcrumbList",
-      "@id": `${toSiteUrl("/compare")}#breadcrumb`,
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "Home",
-          item: toSiteUrl("/"),
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "Compare",
-          item: toSiteUrl("/compare"),
-        },
-      ],
-    },
-    {
-      "@type": "CollectionPage",
-      "@id": `${toSiteUrl("/compare/")}#collection`,
-      name: "Compare Product Prices by Market",
-      description:
-        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-      url: toSiteUrl("/compare/"),
-      mainEntityOfPage: toSiteUrl("/compare/"),
-      isPartOf: { "@id": `${toSiteUrl("/compare")}#webpage` },
-      publisher: {
-        "@type": "Organization",
-        "@id": `${toSiteUrl("/#organization")}`,
-        name: "BuyWhere",
-      },
-    },
-    {
-      "@type": "WebPage",
-      "@id": `${toSiteUrl("/compare")}#webpage`,
-      url: toSiteUrl("/compare"),
-      name: "Compare Product Prices by Market",
-      description:
-        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-      inLanguage: "en-US",
-      isPartOf: { "@id": "https://buywhere.ai/#website" },
-      breadcrumb: { "@id": `${toSiteUrl("/compare")}#breadcrumb` },
-    },
-  ],
+  "@type": "CollectionPage",
+  "@id": `${toSiteUrl("/compare/")}#collection`,
+  name: "Compare Product Prices by Market",
+  description:
+    "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+  url: toSiteUrl("/compare/"),
+  mainEntityOfPage: toSiteUrl("/compare/"),
+  publisher: {
+    "@type": "Organization",
+    "@id": `${toSiteUrl("/#organization")}`,
+    name: "BuyWhere",
+  },
 };
 
 async function fetchJson(url: string) {
@@ -614,9 +578,9 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-600">Comparison workspace</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Comparison workspace</p>
             <h1 className="mt-4 text-4xl sm:text-5xl font-bold">
-              Side-by-side retailer pricing at <span className="text-amber-600">/compare</span>
+              Side-by-side retailer pricing at <span className="text-amber-300">/compare</span>
             </h1>
             <p className="mt-5 text-lg text-indigo-100">
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.

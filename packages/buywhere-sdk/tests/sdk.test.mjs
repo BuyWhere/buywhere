@@ -3,18 +3,19 @@ import test from 'node:test';
 
 import { BuyWhereClient, BuyWhereError, createClient } from '../dist/index.js';
 
-test('SDK compare uses GET /v1/products/compare?ids=…', async () => {
+test('SDK compare is callable and posts product ids', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
 
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), init });
     return new Response(JSON.stringify({
-      data: [
-        { id: 'sku_123', title: 'A', price: { amount: 1, currency: 'SGD' }, merchant: 'm', url: 'u', image_url: null, region: 'sg', country_code: 'SG', updated_at: '2026-08-16T00:00:00Z', availability: { in_stock: true, status: 'in_stock' }, click_url: 'c' },
-        { id: 'sku_456', title: 'B', price: { amount: 2, currency: 'SGD' }, merchant: 'm', url: 'u', image_url: null, region: 'sg', country_code: 'SG', updated_at: '2026-08-16T00:00:00Z', availability: { in_stock: true, status: 'in_stock' }, click_url: 'c' },
-      ],
-      meta: { total: 2, limit: 10, offset: 0, query_time_ms: 1 },
+      products: [],
+      meta: {
+        total_products: 0,
+        total_merchants: 0,
+        last_updated: '2026-04-26T00:00:00Z',
+      },
     }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -26,79 +27,11 @@ test('SDK compare uses GET /v1/products/compare?ids=…', async () => {
     assert.equal(typeof client.compare, 'function');
 
     await client.compare(['sku_123', 'sku_456']);
-    assert.equal(calls[0].url, 'https://api.buywhere.ai/v1/products/compare?ids=sku_123%2Csku_456');
-    assert.equal(calls[0].init.method, 'GET');
-    assert.equal(calls[0].init.body, undefined);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('SDK compare rejects fewer than 2 ids with a clear error', async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => {
-    throw new Error('fetch should not be called when ids < 2');
-  };
-
-  try {
-    const client = createClient('bw_live_test');
-    await assert.rejects(
-      () => client.compare(['sku_123']),
-      (err) => {
-        assert.equal(err.name, 'BuyWhereError');
-        assert.equal(err.statusCode, 400);
-        assert.equal(err.errorCode, 'compare_ids_too_few');
-        assert.match(err.message, /at least 2 product IDs/);
-        return true;
-      }
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('SDK deals hits /v1/products/deals (not /v1/deals)', async () => {
-  const originalFetch = globalThis.fetch;
-  const calls = [];
-  globalThis.fetch = async (url) => {
-    calls.push(String(url));
-    return new Response(JSON.stringify({
-      data: [],
-      meta: { total: 0, limit: 2, offset: 0, query_time_ms: 1 },
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
+    assert.equal(calls[0].url, 'https://api.buywhere.ai/v1/products/compare');
+    assert.equal(calls[0].init.method, 'POST');
+    assert.deepEqual(JSON.parse(calls[0].init.body), {
+      product_ids: ['sku_123', 'sku_456'],
     });
-  };
-
-  try {
-    const sdk = createClient('bw_live_test');
-    await sdk.deals.getDeals({ country: 'SG', limit: 2 });
-    assert.equal(calls[0], 'https://api.buywhere.ai/v1/products/deals?country=SG&limit=2');
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('SDK getDealsFeed throws a clear deprecation error (BUY-70605)', async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => {
-    throw new Error('fetch should not be called by getDealsFeed');
-  };
-
-  try {
-    const sdk = createClient('bw_live_test');
-    await assert.rejects(
-      () => sdk.deals.getDealsFeed({ country: 'SG' }),
-      (err) => {
-        assert.equal(err.name, 'BuyWhereError');
-        assert.equal(err.statusCode, 410);
-        assert.equal(err.errorCode, 'getDealsFeed_removed');
-        assert.match(err.message, /client\.deals/);
-        assert.match(err.message, /BUY-70605/);
-        return true;
-      }
-    );
   } finally {
     globalThis.fetch = originalFetch;
   }

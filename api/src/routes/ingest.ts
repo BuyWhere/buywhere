@@ -324,19 +324,12 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   }
   if (!p.url || typeof p.url !== 'string') return { valid: null, error: err('Missing url', 'validation_url_invalid') };
 
-  // BUY-71608 fix: read currency from metadata.currency fallback (mirrors country_code pattern)
-  const meta_currency = (p.metadata && typeof p.metadata === 'object')
-    ? (p.metadata as Record<string, unknown>).currency as string | undefined
-    : undefined;
-  const currency = typeof p.currency === 'string' ? p.currency
-    : (typeof meta_currency === 'string' ? meta_currency : 'SGD');
-
   const product: IngestProductItem = {
     sku,
     merchant_id: String(p.merchant_id),
     title: String(p.title).slice(0, 1000),
     price: p.price,
-    currency,
+    currency: typeof p.currency === 'string' ? p.currency : 'SGD',
     url: String(p.url),
   };
 
@@ -352,10 +345,10 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.availability === 'string') product.availability = p.availability;
   if (p.last_checked && typeof p.last_checked === 'string') product.last_checked = p.last_checked;
   if (p.metadata && typeof p.metadata === 'object') product.metadata = p.metadata as Record<string, unknown>;
-  if (typeof p.country_code === 'string' && p.country_code.trim() !== '') product.country_code = p.country_code.trim().toUpperCase();
+  if (typeof p.country_code === 'string') product.country_code = p.country_code;
   else if (p.metadata && typeof p.metadata === 'object') {
     const meta = p.metadata as Record<string, unknown>;
-    if (typeof meta.country_code === 'string' && meta.country_code.trim() !== '') product.country_code = meta.country_code.trim().toUpperCase();
+    if (typeof meta.country_code === 'string') product.country_code = meta.country_code;
   }
   if (typeof p.region === 'string') product.region = p.region;
   else if (p.metadata && typeof p.metadata === 'object') {

@@ -1,6 +1,6 @@
 from sqlalchemy import (
     BigInteger, Boolean, Column, Date, DateTime, Numeric, String, Text,
-    func, UniqueConstraint, Integer, ARRAY, Index, text
+    func, UniqueConstraint, Integer, ARRAY, Index
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from app.database import Base
@@ -97,14 +97,6 @@ class Product(Base):
         Index("idx_products_title_search_vector_gin", "title_search_vector", postgresql_using="gin"),
         # Trigram GIN index for fast prefix/fuzzy category matching
         Index("idx_products_category_trigram", "category", postgresql_using="gin", postgresql_ops={"category": "gin_trgm_ops"}),
-        # BUY-71334: country-aware deals index so get_deals can prune to a single
-        # partition and avoid scanning all 392M discounted rows across markets.
-        Index(
-            "idx_products_country_code_discount",
-            "country_code",
-            text("discount_pct DESC"),
-            postgresql_where=text("is_active = true AND discount_pct IS NOT NULL"),
-        ),
     )
 
 

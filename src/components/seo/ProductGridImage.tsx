@@ -151,20 +151,6 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   );
 }
 
-function proxiedImageSrc(src: string): string {
-  if (!src || src.startsWith("data:")) return src;
-
-  try {
-    const url = new URL(src);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return src;
-    // BUY-64057: Route merchant images through BuyWhere so Shopify/Courts/etc.
-    // hotlink protection sees a server-side fetch instead of a browser Referer.
-    return `/api/image-proxy?url=${encodeURIComponent(url.toString())}`;
-  } catch {
-    return src;
-  }
-}
-
 export function ProductGridImage({ src, alt, brand, merchant, category, className }: ProductGridImageProps) {
   const [hasError, setHasError] = useState(false);
 
@@ -180,7 +166,7 @@ export function ProductGridImage({ src, alt, brand, merchant, category, classNam
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={proxiedImageSrc(src)}
+      src={src}
       alt={alt}
       loading="lazy"
       decoding="async"

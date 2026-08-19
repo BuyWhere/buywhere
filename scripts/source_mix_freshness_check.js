@@ -104,41 +104,19 @@ async function getHourSourceMix(client, hourStart) {
 }
 
 async function getCandidateFreshness(client) {
-  let row = {};
-  try {
-    const result = await client.query(`
-      SELECT
-        (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
-        (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
-        (SELECT COUNT(*) FROM merchant_candidates)                         AS total_candidates,
-        (SELECT COUNT(*) FROM merchant_candidates WHERE validated)        AS validated_candidates,
-        (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
-        (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
-        (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
-                AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
-        NOW()                                                              AS now_ts
-    `);
-    row = result.rows[0] || {};
-  } catch (err) {
-    if (err.code === '42P01') {
-      console.error('[freshness-check:warn] merchant_candidates table missing, using merchants-only fallback');
-    } else {
-      console.error('[freshness-check:warn] candidate freshness query failed:', err.message || err);
-    }
-    try {
-      const fallback = await client.query(`
-        SELECT
-          (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
-          (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
-          (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
-                  AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
-          NOW()                                                              AS now_ts
-      `);
-      row = fallback.rows[0] || {};
-    } catch (fallbackErr) {
-      console.error('[freshness-check:warn] fallback merchants query also failed:', fallbackErr.message || fallbackErr);
-    }
-  }
+  const result = await client.query(`
+    SELECT
+      (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
+      (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
+      (SELECT COUNT(*) FROM merchant_candidates)                         AS total_candidates,
+      (SELECT COUNT(*) FROM merchant_candidates WHERE validated)        AS validated_candidates,
+      (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
+      (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
+      (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
+              AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
+      NOW()                                                              AS now_ts
+  `);
+  const row = result.rows[0] || {};
   const hoursSince = (col) => {
     const ts = row[col];
     if (!ts) return null;
@@ -172,10 +150,6 @@ async function getCounterProductsReconciliation(client, hourStart) {
   let productsCount = null;
   let productsCountTimedOut = false;
   try {
-    // This guardrail is invoked inside the hourly dispatcher with a 30s child-process
-    // timeout. Bound the large products-table probes below that ceiling so a slow
-    // COUNT stamps UNKNOWN instead of leaving reconciliation_status blank.
-    await client.query(`SET statement_timeout = 10000`);
     const products = await client.query(`
       SELECT COUNT(*)::bigint AS rows
       FROM products
@@ -187,26 +161,12 @@ async function getCounterProductsReconciliation(client, hourStart) {
     productsCountTimedOut = true;
   }
 
-  let newestCreatedAt = null;
-  let productsMaxTimedOut = false;
-  if (!productsCountTimedOut) {
-    try {
-      await client.query(`SET statement_timeout = 10000`);
-      const newest = await client.query(`SELECT MAX(created_at) AS max FROM products`);
-      newestCreatedAt = newest.rows[0]?.max || null;
-    } catch (err) {
-      productsMaxTimedOut = true;
-    }
-  } else {
-    productsMaxTimedOut = true;
-  }
-
+  const newestCreatedAt = await client.query(`SELECT MAX(created_at) AS max FROM products`);
   return {
     canonical_ing_inserted: ingInserted,
     products_created_in_hour: productsCount,
     products_count_timed_out: productsCountTimedOut,
-    products_created_at_max: newestCreatedAt,
-    products_max_timed_out: productsMaxTimedOut,
+    products_created_at_max: newestCreatedAt.rows[0]?.max,
     gap_inserted_minus_products: ingInserted !== null && productsCount !== null
       ? ingInserted - productsCount
       : null,
@@ -311,7 +271,7 @@ function buildReport(hourStart, mix, guardrail, freshness, freshState, recon, dr
     `## 3. Counters vs products reconciliation (BUY-64988)\n` +
     `- canonical_throughput_hourly.ing_inserted: ${recon.canonical_ing_inserted}\n` +
     `- COUNT(products.created_at in hour): ${recon.products_created_in_hour}${recon.products_count_timed_out ? ' (timed out — best-effort)' : ''}\n` +
-    `- products.created_at MAX: ${recon.products_created_at_max}${recon.products_max_timed_out ? ' (timed out — best-effort)' : ''}\n` +
+    `- products.created_at MAX: ${recon.products_created_at_max}\n` +
     `- Gap (ing_inserted - products_count): ${drift.gap_inserted_minus_products}\n` +
     `- Alignment verdict: **${drift.status}**\n` +
     `- Reason: ${drift.reason}\n` +
@@ -485,12 +445,10 @@ async function run(options = {}) {
     const drift = evaluateCountersReconciliation(recon);
     let window = null;
     if (options.write) {
-      if (!drift.products_count_timed_out) {
-        try {
-          window = await get24hAlignmentWindow(client, hourStart);
-        } catch (err) {
-          window = null;
-        }
+      try {
+        window = await get24hAlignmentWindow(client, hourStart);
+      } catch (err) {
+        window = null;
       }
       await writeReconciliationStatus(client, hourStart, drift, window);
     }

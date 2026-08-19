@@ -190,31 +190,6 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
-// BUY-69615: Centralized blocklist of known-bad image hosts that return 4xx/5xx
-// even with valid browser User-Agents. Mirrors the HOTLINK_BLOCKED_HOSTS set in
-// src/lib/seo-landing-pages.ts. These hosts cause console noise and broken-image
-// fallbacks when included in search cards.
-const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
-  // Generic test/synthetic hosts (existing)
-  'example.sg', 'example.com', 'example.net', 'example.org',
-  // Unsplash placeholder (existing)
-  'source.unsplash.com', 'images.unsplash.com',
-  // Hotlink-protected merchant CDNs (added for BUY-69615)
-  'c1.neweggimages.com', // Returns HTTP 400 for all requests (AkamaiGHost)
-  'www.neweggimages.com',
-  'www.harveynorman.com.sg', // Returns HTTP 404 for most images
-  'harveynorman.com.sg',
-  // BUY-67241: mediadecathlon content host returns hard 410 (max-age=2592000)
-  'contents.mediadecathlon.com',
-  'www.mediadecathlon.com',
-  // BUY-71647: cdn.shopify.com was previously blocked here because direct browser
-  // requests returned mixed 200/404/410. Now /api/image-proxy successfully fetches
-  // these images (HTTP 200), so we allow it through to be wrapped by the proxy.
-  // The proxy wraps it as /api/image-proxy?url=<encoded> and our hostname bypasses
-  // the CDN blocklist. Shopify hosts are NOT added to the subdomain wildcards below.
-  // 'cdn.shopify.com', 'shopify.com', 'www.shopify.com',
-]);
-
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -225,39 +200,15 @@ function hasUsableProductImage(value?: string | null) {
     const search = imageUrl.search.toLowerCase();
     const fullUrl = `${hostname}${pathname}${search}`;
 
-    // BUY-69615: Check centralized blocklist first
-    if (SEARCH_IMAGE_BLOCKED_HOSTS.has(hostname)) return false;
     if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
     if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
     if (hostname.includes('unsplash.com')) return false;
-    // BUY-69614: Some Amazon catalog rows carry ASIN-like placeholders in the
-    // image path (for example /images/I/B10162807901._AC_SY360_.jpg). Amazon
-    // returns HTTP 400 for those assets, which creates QA console noise before
-    // our render-side onError fallback can hide the broken image.
-    if (hostname === 'm.media-amazon.com' && /\/images\/i\/b\d{10,}\._/.test(pathname)) return false;
-    // BUY-68364: synthetic fixture image hosts must never reach the browser in
-    // production search cards. They resolve as NXDOMAIN (for example,
-    // images.example.sg/products/SYNTH_08012/1.jpg), which creates visible broken
-    // image noise before the render-side fallback can take over.
-    if (hostname === 'example.sg' || hostname.endsWith('.example.sg')) return false;
-    if (hostname === 'example.com' || hostname.endsWith('.example.com')) return false;
-    if (hostname === 'example.net' || hostname.endsWith('.example.net')) return false;
-    if (hostname === 'example.org' || hostname.endsWith('.example.org')) return false;
     if (fullUrl.includes('placeholder')) return false;
     if (fullUrl.includes('image-unavailable')) return false;
     if (fullUrl.includes('no-image')) return false;
     if (fullUrl.includes('no_image')) return false;
     if (fullUrl.includes('missing-image')) return false;
     if (fullUrl.includes('generic')) return false;
-
-    // BUY-67241: subdomain wildcards for the always-410 / mixed-410 hosts.
-    // The Set above catches apex + www; matches here catch subdomains like
-    // burst.shopifycdn.com and static.mediadecathlon.com.
-    if (hostname.endsWith('.mediadecathlon.com')) return false;
-    // BUY-71647: .shopify.com is no longer blocked because /api/image-proxy fetches
-    // cdn.shopify.com images successfully. Other shopify subdomains will also be
-    // wrapped through the proxy. shopifycdn.com remains blocked (different host).
-    if (hostname.endsWith('.shopifycdn.com')) return false;
 
     return true;
   } catch {
@@ -543,6 +494,10 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     item.price && typeof item.price === 'object' && 'amount' in item.price
       ? item.price.amount
       : item.price_amount ?? item.price;
+  const priceCurrency =
+    item.price && typeof item.price === 'object' && 'currency' in item.price
+      ? item.price.currency
+      : item.price_currency ?? item.currency;
   const numericPrice =
     typeof priceValue === 'number'
       ? priceValue
@@ -552,15 +507,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
   const specs = item.structured_specs || item.metadata || null;
   const specBrand = typeof specs?.brand === 'string' ? specs.brand : null;
   const specCategory = typeof specs?.category === 'string' ? specs.category : null;
-  // BUY-71647: wrap blocked image URLs through /api/image-proxy so they render
-  // real images instead of the branded placeholder. The proxy hostname
-  // (buywhere.ai) bypasses S()'s CDN blocklist.
-  const u = hasUsableProductImage(item.image_url)
+  const imageUrl = hasUsableProductImage(item.image_url)
     ? item.image_url || null
     : hasUsableProductImage(item.image)
       ? item.image || null
       : null;
-  const imageUrl = u ? `/api/image-proxy?url=${encodeURIComponent(u)}` : null;
 
   const name = item.name || item.title || 'Untitled product';
   const category = item.category || specCategory;
@@ -572,9 +523,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // BUY-65559: drop implausible sentinel prices to null so the card renders
     // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
     price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
-    // BUY-71638: use selected-country currency (activeCountry.currency passed as fallbackCurrency)
-    // so all products display in the user's selected country currency, not their native currency.
-    currency: fallbackCurrency,
+    currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
@@ -599,7 +548,6 @@ export const __test__ = {
   isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
-  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
@@ -1177,7 +1125,7 @@ export default function SearchResultsClient({
             <span>
               {loadingInitial
                 ? 'Searching...'
-                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                : `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`}
             </span>
           </div>
         ) : null}
@@ -1407,8 +1355,8 @@ export default function SearchResultsClient({
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
                   {hasHydrated && !loadingInitial
-                    ? `${total.toLocaleString()} results for “${debouncedQuery}”`
-                    : `${initialQuery ? `Search results for “${initialQuery}”` : 'Search Products — BuyWhere'}`}
+                    ? `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`
+                    : `${initialQuery ? `Search results for &ldquo;${initialQuery}&rdquo;` : 'Search Products — BuyWhere'}`}
                 </h1>
               </div>
 
@@ -1430,7 +1378,7 @@ export default function SearchResultsClient({
                 >
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    Live results for “{debouncedQuery}” are temporarily unavailable
+                    Live results for &ldquo;{debouncedQuery}&rdquo; are temporarily unavailable
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-700">
                     {degradedHint
@@ -1462,7 +1410,7 @@ export default function SearchResultsClient({
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm" data-testid="search-no-matches">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    No products found for “{debouncedQuery}”
+                    No products found for &ldquo;{debouncedQuery}&rdquo;
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-600">
                     Try a broader term, switch countries, or start with one of these popular searches.

@@ -16,21 +16,7 @@ const queryPreprocessor_1 = require("../lib/queryPreprocessor");
 const shipsTo_1 = require("../lib/shipsTo");
 const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
-const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const embedProducts_1 = require("../jobs/embedProducts");
-const PRICE_MIN_USD = 5;
-const PRICE_MAX_USD = 10000;
-function sanitizedPriceSortExpression(alias) {
-    const cases = Object.entries(response_1.CURRENCY_RATES)
-        .filter(([, rate]) => Number.isFinite(rate) && rate > 0)
-        .map(([currency, rate]) => {
-        const min = PRICE_MIN_USD / rate;
-        const max = PRICE_MAX_USD / rate;
-        return `WHEN ${alias}.currency = '${currency}' AND ${alias}.price BETWEEN ${min} AND ${max} THEN ${alias}.price`;
-    })
-        .join(' ');
-    return `(CASE ${cases} END)`;
-}
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
@@ -49,7 +35,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v4'; // BUY-71417 v4: archive fresh-hits CTE guarantees fresh candidates
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -118,36 +104,12 @@ async function tryTierSearch(req, res, p) {
     const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
     if (lexemes.length === 0)
         return false;
-    // BUY-67275 durable (2026-08-16): serve explicit sorts from the tier — the
-    // archive sorted path flaps to degraded-empty whenever dedupe/replica
-    // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
-    // the bounded top-200 relevance candidates (same trade as archive sort_hits).
-    const tierPriceSort = sanitizedPriceSortExpression('sp');
-    const TIER_SORT = {
-        // BUY-71393: match the USD-normalized response price sanitizer — invalid prices sort as NULL
-        price_asc: `${tierPriceSort} ASC NULLS LAST`,
-        price_desc: `${tierPriceSort} DESC NULLS LAST`,
-        newest: 'sp.updated_at DESC',
-        highest_rated: 'sp.avg_rating DESC NULLS LAST',
-        most_reviewed: 'sp.review_count DESC NULLS LAST',
-    };
-    const tierSort = p.sort ? TIER_SORT[p.sort] : undefined;
-    const sortPrefix = tierSort ? `${tierSort}, ` : '';
     const tsOr = lexemes.join(' | ');
     // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
     // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
     // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
     // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
     const storageExcl = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragment)(p.q);
-    // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
-    // writes 'home-living' for electronics) while products.metadata carries the
-    // true category. The cand-CTE exclusion above cannot see metadata; this
-    // post-rank join filter runs over the bounded top set (≤200 rows) only, so
-    // the PK join to products is cheap. It fires for the same query set as
-    // storageExcl (both derive from the same device/storage gates).
-    const storageJoinFilter = (0, searchRelevanceTaxonomy_1.tierStorageExclusionNeeded)(p.q)
-        ? ` JOIN products m ON m.id = sp.id AND NOT ${searchRelevanceTaxonomy_1.STORAGE_CATEGORY_SQL_TIER_JOIN}`
-        : '';
     const conds = [];
     const params = [];
     let i = 1;
@@ -202,7 +164,6 @@ async function tryTierSearch(req, res, p) {
         i++;
     } // rank-only: local-first ordering, never filters
     const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
-    const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
     const limitIdx = i;
     params.push(p.limit + 1);
     i++;
@@ -210,144 +171,26 @@ async function tryTierSearch(req, res, p) {
     params.push(p.offset);
     i++;
     const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
-    // BUY-70776: tier path must respect outbound-link probe results. Because
-    // search_products does not carry url_status, we join products on id (PK)
-    // and filter out rows verified dead. The join is applied in the small final
-    // SELECTs so it does not inflate the FTS bitmap scan.
-    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
-    const urlStatusJoin = probeEnabled
-        ? ' JOIN products p ON p.id = sp.id AND (p.url_status IS NULL OR p.url_status <> \'dead\')'
-        : '';
     const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
-    // BUY-63738 + BUY-71667: add laptop accessory demotion and boost to tier search results.
-    // Accessories (backpacks, skins, cases, sleeves, desks, tables, trays) should rank
-    // lower for laptop queries. Also boost products that contain "laptop" in title/category.
-    // BUY-71667: added desk/table/tray keywords so "Laptop Desk" / "Study Laptop Table"
-    // products are treated as accessories (not furniture) for bare laptop searches.
+    // BUY-63738: add laptop accessory demotion and boost to tier search results.
+    // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
+    // Also boost products that contain "laptop" in title/category.
     const laptopAccessoryPenalty = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0.25 ELSE 1.0
     END`;
-    // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
-    // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
-    // plainto_tsquery('english','phone')), so the query falls through to title LIKE
-    // '%phone%' — which matches "Cell Phone Holder" before actual handsets. Apply a
-    // handset brand boost (2x) for titles containing known phone brand names, and a
-    // strong demotion (0.15x) for titles containing phone-accessory keywords.
-    const phoneHandsetBoost = `
-    CASE
-      WHEN lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
-        OR lower(sp.category) ~* '\\m(smartphone|phone|android)\\M'
-      THEN 2.0 ELSE 1.0
-    END`;
-    // BUY-69753 / BUY-65550: phone accessory penalty mirrors the laptop accessory
-    // penalty above. Match the Apple shorthand too: "iPhone 15 Pro Case" does not
-    // contain the standalone word "phone", but it is still an accessory and must
-    // rank below actual handsets for high-intent iPhone searches.
-    const phoneAccessoryPenalty = `
-    CASE
-      WHEN (lower(sp.title) ~* '\\m(phone|iphone)\\M'
-          OR lower(coalesce(sp.category,'')) ~* '\\m(phone|iphone)\\M')
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cases|cover|covers|protector|protectors|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|lens|screen)\\M'
-          OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers|protector|protectors)\\M')
-      THEN 0.15 ELSE 1.0
-    END`;
-    // BUY-71653 + BUY-71667: Primary-product laptop scoring.
-    // Boost actual laptops (HP Laptop, Dell Inspiron, MacBook Pro, ASUS VivoBook)
-    // above desk/table/accessory products. The old 2.0x blanket boost was insufficient —
-    // "Laptop Desk" and "Study Laptop Table" also got 2.0x, drowning real laptops.
-    //
-    // Scoring tiers:
-    //   3.0x  — actual laptops WITH known laptop brand names (HP/ASUS/Lenovo/Dell/etc.)
-    //   2.5x  — actual laptops without brand name in title
-    //   0.25x — laptop bags/cases/sleeves/covers and stands/arms/coolers (accessories)
-    //   0.25x — laptop desk/table/tray (BUY-71667: reclassified from 0.75 — a "Study
-    //           Laptop Table" is an accessory with laptop as use-case modifier, not furniture)
-    //   0.10x — laptop chargers/batteries/cables (power accessories)
-    //   0.05x — laptop repair/soldering materials (laptop is the repair TARGET)
-    //   1.5x  — category-only match (no title match) — keep category signals active
-    //   1.0x  — no laptop signal at all
-    //
-    // ORDER MATTERS: repair → charger → bag/case/cover → stand/arm/cooler → desk/table/bed
-    // THEN actual laptop (nested brand-boost CASE differentiates branded vs generic).
     const laptopBoost = `
     CASE
-      WHEN lower(sp.title) ~* '\mlaptop\M'
-        OR lower(sp.title) ~* '\mnotebook\M'
-        OR lower(sp.title) ~* '\mmacbook\M'
-        OR lower(sp.title) ~* '\mchromebook\M'
-      THEN
-        CASE
-          -- Repair materials: soldering, paste, tools — laptop is the REPAIR TARGET
-          WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\M'
-            AND (lower(sp.title) ~* '\mlaptop\M' OR lower(sp.title) ~* '\mnotebook\M')
-          THEN 0.05
-          -- Chargers, power banks, batteries, cables — laptop is the POWER/CONNECT target
-          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\M'
-            AND (lower(sp.title) ~* '\mlaptop\M' OR lower(sp.title) ~* '\mnotebook\M')
-          THEN 0.10
-          -- Bags, backpacks, sleeves, cases, covers
-          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
-            OR lower(sp.category) ~* '\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\M'
-          THEN 0.25
-          -- Stands, arms, coolers, risers
-          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
-          THEN 0.25
-          -- Desk/table/tray/bed: laptop is the USE-CASE modifier, not the product type
-          -- BUY-71667: reclassified from 0.75 — a "Study Laptop Table" is an accessory
-          WHEN lower(sp.title) ~* 'laptop\M.*(desk|table|tray|shelf|bed)'
-            OR lower(sp.title) ~* '\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\M.*\m(laptop|desk|table|tray)\M'
-            OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\M'
-          THEN 0.25
-          -- ACTUAL LAPTOP: title contains laptop/notebook/macbook as the product type
-          -- BUY-71667: brand boost — laptops with a known laptop-brand family name
-          -- (HP/ASUS/Lenovo/Dell/Surface/Acer/MSI/Samsung/...) outrank generic
-          -- "Business Laptop" listings for bare laptop queries.
-          ELSE
-            CASE
-              WHEN lower(sp.title) ~ '(hp|hewlett[- ]packard|elitebook|pavilion|probook|envy|spectre|victus|omen)[[:space:]]'
-                OR lower(sp.title) ~ '\m(asus|vivobook|zenbook|expertbook|proart|rog|tuf)\M'
-                OR lower(sp.title) ~ '\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex)\M'
-                OR lower(sp.title) ~ '\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\M'
-                OR lower(sp.title) ~ '\m(surface|macbook|chromebook)\M'
-                OR lower(sp.title) ~ '\m(acer|aspire|swift|spin|predator|nitro)\M'
-                OR lower(sp.title) ~ '\m(msi|gigabyte|aorus)\M'
-                OR lower(sp.title) ~ '\m(toshiba|dynabook|portege|satellite)\M'
-                OR lower(sp.title) ~ '\m(galaxy book|matebook|razer blade|vaio)\M'
-              THEN 3.0
-              ELSE 2.5
-            END
-        END
-      -- Category-only match (no title match) — keep category signal active but not as strong
-      WHEN lower(sp.category) LIKE '%laptop%'
+      WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
+        OR lower(sp.category) LIKE '%laptop%'
         OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
-      THEN 1.5
-      ELSE 1.0
-    END`;
-    // BUY-70592: boost in-stock products for VN/TH laptop and phone queries
-    const inStockBoost = `
-    CASE
-      WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
-    END`;
-    // BUY-71417 v2: stronger freshness multiplier. v1's 1.0/0.5/0.25/0.1 was
-    // insufficient — stale rows with title matching the query twice still outranked
-    // fresh rows with a single match by >4x. v2: fresh (<=30d) gets 10x, 30-90d
-    // gets 1.0, 90-180d gets 0.1, post-2024 0.05, pre-2024 0.01. This gives
-    // fresh rows a clear priority while preserving recall for broad queries that have
-    // no fresh candidates.
-    const freshnessBoost = `
-    CASE
-      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 10.0
-      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 1.0
-      WHEN sp.updated_at >= NOW() - INTERVAL '180 days' THEN 0.1
-      WHEN sp.updated_at >= '2024-01-01' THEN 0.05
-      ELSE 0.01
+      THEN 2.0 ELSE 1.0
     END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
@@ -363,28 +206,23 @@ async function tryTierSearch(req, res, p) {
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
-            (${laptopAccessoryPenalty}) *
-            (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) *
-            (${inStockBoost}) *
-            (${freshnessBoost}) AS rank
+            (${laptopAccessoryPenalty}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}${urlStatusJoin}
+    FROM top JOIN search_products sp ON sp.id = top.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
+    ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
     const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
-    // BUY-63738 + BUY-71667: add accessory penalty to title fallback queries so accessories
-    // don't dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
-    // BUY-71667: added desk/table/tray to match the tier path changes.
+    // BUY-63738: add accessory penalty to title fallback queries so accessories don't
+    // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
     const laptopAccessoryPenaltyTitle = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0 ELSE 1
     END`;
     // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
@@ -397,9 +235,9 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}((${laptopBoost}) * (${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -408,28 +246,9 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}((${laptopBoost}) * (${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
-    const phoneCategoryFallbackQuery = `
-    WITH pcand AS (
-      SELECT sp.id FROM search_products sp
-      WHERE (
-        lower(coalesce(sp.category,'')) ~* '\\m(smartphone|smartphones|cell phone|cell phones|mobile phone|mobile phones)\\M'
-        OR lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
-      )
-      AND NOT (
-        lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
-        OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers)\\M'
-      )${filterSql}${storageExcl}
-      ORDER BY sp.id DESC
-      LIMIT 1000
-    )
-    SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}${urlStatusJoin}
-    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
     try {
@@ -450,18 +269,13 @@ async function tryTierSearch(req, res, p) {
         // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
         // eating 4s of the 10s handler budget before the archive even starts. FTS
         // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
-        let rows = isGenericPhoneQuery
-            ? (await client.query(phoneCategoryFallbackQuery, params)).rows
-            : (await client.query(mkQuery(andMatch), params)).rows;
-        if (rows.length === 0 && !isGenericPhoneQuery && lexemes.length === 1) {
+        let rows = (await client.query(mkQuery(andMatch), params)).rows;
+        if (rows.length === 0 && lexemes.length === 1) {
             rows = (await client.query(titleFallbackQuery, params)).rows;
         }
         if (rows.length === 0) {
             if (rows.length === 0 && lexemes.length > 1) {
                 rows = (await client.query(mkQuery(orMatch), params)).rows; // recall fallback
-            }
-            if (rows.length === 0 && isGenericPhoneQuery) {
-                rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
             }
             if (rows.length === 0) {
                 rows = (await client.query(titleFallbackQuery, params)).rows;
@@ -505,7 +319,7 @@ async function tryTierSearch(req, res, p) {
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
         if ((0, semanticCache_1.semanticEnabled)() && p.offset === 0) {
             const rp = p.cacheKey.split(':');
-            (0, semanticCache_1.semanticRegister)(config_1.redis, `a1:${rp[1]}:${rp[2]}|${rp.slice(4).join(':')}`, rp[3], res.locals.semVec ?? null, p.cacheKey).catch(() => { });
+            (0, semanticCache_1.semanticRegister)(config_1.redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2], res.locals.semVec ?? null, p.cacheKey).catch(() => { });
         }
         res.set('X-Search-Tier', '1');
         res.json(responseBody);
@@ -819,7 +633,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const qNorm = q.toLowerCase().trim().split(/\s+/)
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
         || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${(0, outboundLinkHealth_1.outboundProbeEnabled)() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
@@ -846,7 +660,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
         if ((0, semanticCache_1.semanticEnabled)() && q && offset === 0) {
             const semParts = cacheKey.split(':');
-            const semScope = `a1:${semParts[1]}:${semParts[2]}|${semParts.slice(4).join(':')}`;
+            const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
             let semVec = null;
             const semGk = process.env.GEMINI_API_KEY ?? '';
             if (semGk)
@@ -885,34 +699,20 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // common cold broad queries across SG+US. Tier-first preserves Richmond's
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
-    // BUY-71417 v3: re-enable the tier under the outbound-link probe. The tier
-    // already applies the BUY-70776 dead-url filter via urlStatusJoin (PK join
-    // on the bounded final SELECT), so disabling it under the probe only routed
-    // 100% of traffic to the archive path — where the BUY-71417 freshness
-    // multiplier never ran, leaving the stale-rate probe at 82.6% after v2
-    // shipped. Tier errors still fall through to the archive path unchanged.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    // BUY-67275 durable (2026-08-16): the tier now honors sort directly
-    // (TIER_SORT in tryTierSearch), so sorted queries take the fast RAM path
-    // and no longer flap to degraded-empty under replica pressure. Tier miss
-    // still falls through to the archive sorted path.
-    if (q && searchMode === 'keyword' && useSearchTier) {
+    // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
+    // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
+    // tier so the archive path (which honors buildSortOrder) serves it ordered.
+    if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
-            category, brand, domain, compact, requestStart, cacheKey, sort,
+            category, brand, domain, compact, requestStart, cacheKey,
             deliverTo, includeUnshippable,
         });
         if (handled)
             return;
     }
     const baseConditions = ['is_active = true', 'price > 0'];
-    // BUY-70776: when the outbound-link probe sweep is active, exclude rows whose
-    // URL has been verified dead. The probe flips url_status to 'dead' on confirmed
-    // 404/410/etc. Dead rows remain in the DB so they can reappear if the probe
-    // later finds the URL healthy; the filter only gates the read path.
-    if ((0, outboundLinkHealth_1.outboundProbeEnabled)()) {
-        baseConditions.push((0, outboundLinkHealth_1.liveUrlCondition)());
-    }
     // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
     // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
     // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
@@ -1088,9 +888,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
         switch (effectiveSort) {
-            // BUY-71393: match the USD-normalized response price sanitizer
-            case 'price_asc': return `${sanitizedPriceSortExpression('products')} ASC NULLS LAST, products.updated_at DESC`;
-            case 'price_desc': return `${sanitizedPriceSortExpression('products')} DESC NULLS LAST, products.updated_at DESC`;
+            case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
+            case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
             case 'newest': return 'products.updated_at DESC';
             case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
             case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -1159,15 +958,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // and was timing out at the 15s edge. Bound first by the partition-pruned id
         // index, then rank that small slice for response relevance.
         const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
-        // BUY-71417 v4: a separate fresh-hits CTE guarantees that recently-updated rows
-        // are always in the candidate pool. The unbounded recent_hits CTE stops at the
-        // first 200 GIN matches in physical order, which can miss fresh rows entirely
-        // on head terms with millions of stale matches. fresh_hits adds at most 200
-        // rows filtered by updated_at; the planner can bitmap-and the GIN index with
-        // idx_products_updated_at, so the extra scan is cheap. Rows from both CTEs are
-        // deduplicated with UNION, ranked with the v3 freshness multiplier, and the
-        // top 200 advance to the final SELECT.
-        const archiveFreshCondition = `${rankedWhereClause.replace(/^WHERE /, '')} AND products.updated_at >= NOW() - INTERVAL '30 days'`;
         dataQuery = `
         WITH recent_hits AS MATERIALIZED (
           SELECT id, country_code
@@ -1177,74 +967,23 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
           -- (67K–millions of rows) forced a heap scan of every match (nike cold 8.2s->0.14s,
           -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
           LIMIT ${CANDIDATE_CAP}
-        ), fresh_hits AS MATERIALIZED (
-          SELECT id, country_code
-          FROM products
-          WHERE ${archiveFreshCondition}
-          LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                 -- BUY-71653 + BUY-71667: refined laptop scoring (same as tier path).
-                 -- ORDER MATTERS: repair → charger → bag/case/cover → stand/arm/cooler → desk/table/bed.
+                 -- BUY-63738: boost laptop products and penalize accessories
                  CASE
-                   WHEN lower(rhp.title) ~* '\\mlaptop\\M'
-                     OR lower(rhp.title) ~* '\\mnotebook\\M'
-                     OR lower(rhp.title) ~* '\\mmacbook\\M'
-                     OR lower(rhp.title) ~* '\\mchromebook\\M'
-                   THEN
-                     CASE
-                       -- BUY-71667: added nested brand-boost CASE for actual laptops
-                       WHEN lower(rhp.title) ~* '(hp|hewlett|elitebook|pavilion|envy|spectre|probook|omen|asus|vivobook|zenbook|rog|tuf|lenovo|thinkpad|ideapad|yoga|legion|flex|loq|dell|inspiron|latitude|xps|precision|alienware|surface|macbook|acer|aspire|swift|predator|msi|gigabyte|toshiba|dynabook|samsung|galaxy|razer|huawei|matebook|vaio)\\M'
-                       THEN 3.0
-                       WHEN lower(rhp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
-                         AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
-                       THEN 0.05
-                       WHEN lower(rhp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\\M'
-                         AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
-                       THEN 0.10
-                       WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
-                         OR lower(rhp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
-                       THEN 0.25
-                       WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
-                       THEN 0.25
-                       -- BUY-71667: reclassified desk/table from 0.75 to 0.25 (they're accessories)
-                       WHEN lower(rhp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
-                         OR lower(rhp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
-                         OR lower(rhp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
-                       THEN 0.25
-                       ELSE 2.5
-                     END
-                   WHEN lower(rhp.category) LIKE '%laptop%'
+                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
+                     OR lower(rhp.category) LIKE '%laptop%'
                      OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
-                   THEN 1.5
-                   ELSE 1.0
+                   THEN 2.0 ELSE 1.0
                  END *
                  CASE
-                   -- BUY-71667: added desk/table/tray to match tier path changes
-                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
-                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
-                 END *
-                 CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END *
-                 -- BUY-71417 v3: same freshness multiplier as the tier path. v2 only
-                 -- touched tryTierSearch, but the tier is disabled under the outbound
-                 -- probe (pre-v3), so every /v1/products/search row came from this
-                 -- archive query with no freshness signal — the stale-rate probe stayed
-                 -- at 82.6% after the v2 deploy.
-                 CASE
-                   WHEN rhp.updated_at >= NOW() - INTERVAL '30 days' THEN 10.0
-                   WHEN rhp.updated_at >= NOW() - INTERVAL '90 days' THEN 1.0
-                   WHEN rhp.updated_at >= NOW() - INTERVAL '180 days' THEN 0.1
-                   WHEN rhp.updated_at >= '2024-01-01' THEN 0.05
-                   ELSE 0.01
                  END AS rank
-          FROM (
-            SELECT id, country_code FROM fresh_hits
-            UNION
-            SELECT id, country_code FROM recent_hits
-          ) rh
+          FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
         )
@@ -1352,9 +1091,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code,
-                       ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                       CASE WHEN COALESCE(rcp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
+                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
@@ -2251,14 +1988,12 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
         res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
         return;
     }
-    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
     let result;
     try {
         result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
-                ${probeEnabled ? ', url_status' : ''}
          FROM products WHERE id = $1`, [id]);
     }
     catch (err) {
@@ -2267,10 +2002,6 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
         return;
     }
     if (result.rows.length === 0) {
-        res.status(404).json({ error: 'Product not found' });
-        return;
-    }
-    if (probeEnabled && result.rows[0].url_status === 'dead') {
         res.status(404).json({ error: 'Product not found' });
         return;
     }

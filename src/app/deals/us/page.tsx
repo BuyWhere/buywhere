@@ -3,10 +3,8 @@ import Footer from "@/components/Footer";
 import { DealOfTheDay } from "@/components/DealOfTheDay";
 import CategoryFilterSection from "@/components/CategoryFilterSection";
 import { TrendingDealsGrid } from "@/components/TrendingDealsGrid";
-import Schema from "@/components/Schema";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
-import { buildCollectionPageSchema } from "@/lib/page-schema";
 
 export const metadata: Metadata = {
   title: "Top US Deals - Price Drops from Amazon, Walmart, Target & Best Buy | BuyWhere",
@@ -33,10 +31,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: toSiteUrl("/deals/us"),
-  },
-  robots: {
-    index: true,
-    follow: true,
   },
 };
 
@@ -93,16 +87,6 @@ async function getDeals(): Promise<Deal[]> {
 
 export default async function DealsPage() {
   const deals = await getDeals();
-  const schema = buildCollectionPageSchema({
-    path: "/deals/us",
-    name: "Top US Deals | BuyWhere",
-    description:
-      "Find the latest price drops and deals on electronics, home goods, fashion, and more from Amazon, Walmart, Target, and Best Buy.",
-    breadcrumb: [
-      { name: "Home", path: "/" },
-      { name: "Deals", path: "/deals/us" },
-    ],
-  });
   const dealOfTheDay = deals.length > 0
     ? deals.reduce<Deal | null>((best, deal) => {
         if (!best) return deal;
@@ -114,7 +98,6 @@ export default async function DealsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Schema data={schema} />
       <Nav />
 
       <main id="main-content" className="flex-1">

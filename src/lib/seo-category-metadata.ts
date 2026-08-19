@@ -41,10 +41,6 @@ function buildCollectionPageMetadata({
         },
       ],
     },
-    robots: {
-      index: true,
-      follow: true,
-    },
     twitter: {
       card: "summary_large_image",
       title,

@@ -115,8 +115,7 @@ def get_mcp_server() -> Server:
                         description=(
                             "Find products with significant price drops compared to their original "
                             "price. Returns deals sorted by discount percentage with current price, "
-                            "original price, and savings. Strongly recommend passing country_code to "
-                            "scope the scan to a single partition and avoid cross-market timeouts."
+                            "original price, and savings."
                         ),
                         inputSchema={
                             "type": "object",
@@ -138,10 +137,6 @@ def get_mcp_server() -> Server:
                                     "default": 10,
                                     "minimum": 1,
                                     "maximum": 50,
-                                },
-                                "country_code": {
-                                    "type": "string",
-                                    "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses.",
                                 },
                             },
                             "required": [],
@@ -299,10 +294,14 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
     params = {"min_discount_pct": min_discount_pct, "limit": limit}
     if args.get("category"):
         params["category"] = args["category"]
-    # BUY-71334: propagate country_code to scope the deals query to a single partition
-    # and avoid cross-market statement_timeout.
     if args.get("country_code"):
         params["country_code"] = str(args["country_code"]).upper()
+    elif args.get("country"):
+        params["country_code"] = str(args["country"]).upper()
+    elif args.get("region"):
+        region = str(args["region"]).lower()
+        if region in {"sg", "us", "my", "th", "vn", "ph"}:
+            params["country_code"] = region.upper()
 
     try:
         data = await _api_get("/v1/deals", params)

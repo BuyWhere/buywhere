@@ -58,7 +58,6 @@ export const serverCard = {
         type: "object",
         properties: {
           product_name: { type: "string", description: "Product name to search for" },
-          q: { type: "string", description: "Alias for product_name (deprecated, use product_name)." },
           category: { type: "string", description: "Category slug filter" },
           deliver_to: { type: "string", description: "End-user ISO country code for availability-aware ranking" },
         },

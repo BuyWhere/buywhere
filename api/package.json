@@ -29,9 +29,7 @@
     "start:embed": "node dist/jobs/embedRunner.js",
     "embed": "ts-node src/jobs/embedRunner.ts",
     "fx-refresh": "ts-node src/jobs/fxRefreshRunner.ts",
-    "start:fx-refresh": "node dist/jobs/fxRefreshRunner.js",
-    "outbound-probe": "ts-node src/jobs/outboundLinkProbeRunner.ts",
-    "start:outbound-probe": "node dist/jobs/outboundLinkProbeRunner.js"
+    "start:fx-refresh": "node dist/jobs/fxRefreshRunner.js"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",

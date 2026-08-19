@@ -14,7 +14,6 @@ const crypto_1 = require("crypto");
 const uuid_1 = require("uuid");
 const express_1 = require("express");
 const config_1 = require("../config");
-const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 // ---------------------------------------------------------------------------
 // Allowed-domains whitelist (mirrors redirect.ts)
@@ -88,15 +87,6 @@ router.get('/click', async (req, res) => {
     const merchantId = req.query.merchant || merchantFromUrl(url);
     const auth = req.headers['authorization'] || '';
     const apiKey = auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
-    // BUY-71129: thread-through attribution. Same logic as redirect.ts — the
-    // upstream API call embeds ?k=<keyHash>&aid=<agentId> on /api/click URLs so
-    // a browser click (no Bearer header) can still be tied back to an agent.
-    const keyHashQuery = req.query.k || null;
-    const agentIdQuery = req.query.aid || null;
-    let resolvedAgentId = agentIdQuery;
-    let resolvedKeyHash = apiKey ? (0, crypto_1.createHash)('sha256').update(apiKey).digest('hex') : null;
-    if (!resolvedKeyHash && keyHashQuery)
-        resolvedKeyHash = keyHashQuery;
     const referrer = req.headers['referer'] || req.headers['referrer'] || null;
     const clientIp = req.ip || req.socket?.remoteAddress || '';
     const ipHash = clientIp
@@ -105,24 +95,11 @@ router.get('/click', async (req, res) => {
     try {
         await config_1.db.query(`INSERT INTO clicks
          (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, resolvedAgentId, req.headers['user-agent'] || null, referrer, merchantId]);
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, null, req.headers['user-agent'] || null, referrer, merchantId]);
     }
     catch (err) {
         // Log but don't block the redirect
         console.error('[clicks] insert error:', err);
-    }
-    // BUY-71129: emit affiliate_click for /api/click path too. Same distinct_id
-    // priority (apiKeyId → apiKey → anonymous) as redirect.ts so the funnel join
-    // works for both code paths.
-    if (productId) {
-        (0, posthog_1.trackAffiliateClick)({
-            apiKeyId: resolvedAgentId,
-            apiKey: resolvedKeyHash,
-            productId,
-            merchantId: merchantId || 'unknown',
-            affiliateLinkId: 'unknown',
-            source: 'product_card',
-        });
     }
     res.redirect(302, url);
 });

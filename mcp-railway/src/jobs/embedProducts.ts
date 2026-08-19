@@ -128,15 +128,7 @@ export async function runEmbedBatch(
   // (~37M cost, ~3 min wall clock); `updated_at DESC` flips to an Index Scan
   // (cost ~91) and the CTE/SELECT finishes in well under the 60s
   // statement_timeout on the replica.
-  //
-  // BUY-68453: after one full tick embeds the recent window, subsequent
-  // ticks overscan the same recent rows and hit `skipped >= batchLimit`
-  // in the hash gate, returning 0. The overscan must be large enough to
-  // step PAST the recent embedded window so the gate can find
-  // un-embedded candidates deeper in the catalog. 200x overscan (capped
-  // at 200k) lets the worker chew through the full ~394M catalog across
-  // the recurring interval without plateauing on already-embedded rows.
-  const overscan = Math.min(Math.max(batchLimit * 200, 64_000), 200_000);
+  const overscan = Math.max(batchLimit * 2, 64);
   const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
     `WITH active_ids AS (
        SELECT id

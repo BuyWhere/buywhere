@@ -728,63 +728,6 @@ export async function runMigrations() {
     console.warn(`[migration] search_vector backfill timed out or failed (non-fatal, trigger covers new rows): ${err.message?.slice(0, 200)}`);
   }
 
-
-  // BUY-69363: Ensure category summary materialized views exist.
-  // These are required by MCP list_categories. If missing, all categories return zero.
-  // CREATE MATERIALIZED VIEW IF NOT EXISTS is idempotent; first population takes ~10 min
-  // on ~127M rows so we use an extended statement_timeout (same as discount_pct).
-  try {
-    const mcClient = await db.connect();
-    try {
-      await mcClient.query('SET statement_timeout = 600000'); // 10 min for initial population
-      await mcClient.query('SET lock_timeout = 10000');
-
-      await mcClient.query(`
-        CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary AS
-          SELECT category_path[1] AS slug,
-                 category_path[1] AS name,
-                 COUNT(*)         AS product_count
-          FROM products
-          WHERE category_path[1] IS NOT NULL
-          GROUP BY category_path[1]
-          ORDER BY product_count DESC
-      `);
-      await mcClient.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_slug_idx
-          ON mcp_category_summary (slug)
-      `);
-      await mcClient.query(`
-        CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
-          SELECT country_code,
-                 category_path[1] AS slug,
-                 category_path[1] AS name,
-                 COUNT(*)         AS product_count
-          FROM products
-          WHERE country_code IS NOT NULL
-            AND category_path[1] IS NOT NULL
-          GROUP BY country_code, category_path[1]
-          ORDER BY country_code, product_count DESC
-      `);
-      await mcClient.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
-          ON mcp_category_summary_by_country (country_code, slug)
-      `);
-
-      const { rows: [{ cnt }] } = await mcClient.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
-      if (parseInt(cnt, 10) > 0) {
-        await mcClient.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
-        await mcClient.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
-      }
-      console.log(`[migration] mcp_category_summary_by_country ensured (BUY-69363), ${cnt} rows.`);
-    } finally {
-      await mcClient.query('RESET statement_timeout').catch(() => {});
-      await mcClient.query('RESET lock_timeout').catch(() => {});
-      mcClient.release();
-    }
-  } catch (err: any) {
-    console.warn(`[migration] category summary matview creation failed (non-fatal, MCP warmup will retry): ${err.message?.slice(0, 200)}`);
-
-  }
   // BUY-32082: P95 monitoring schema — stores latency samples and alert history for
   // all 5 markets (SG, US, MY, VN, TH). The p95_latency table is written by the
   // monitoring job every 5 minutes; alert_history tracks threshold breaches.

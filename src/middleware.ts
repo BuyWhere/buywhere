@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
-import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
-import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY } from "@/lib/taxonomy";
-import { COMPARE_DOC_SLUGS } from "@/lib/compare-doc-slugs";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -75,43 +71,10 @@ function withBaselineSecurityHeaders(
   return response;
 }
 
-// BUY-71735: P2.3 — Add X-Agent-Auth header on 401/403 auth failures.
-// Also ensures Access-Control-Expose-Headers includes all five agent headers.
-function withAgentAuthHeader(request: NextRequest, response: NextResponse): NextResponse {
-  const status = response.status;
-  if (status === 401 || status === 403) {
-    response.headers.set(
-      "X-Agent-Auth",
-      "Bearer; register=https://buywhere.ai/api-keys"
-    );
-  }
-
-  // Ensure Access-Control-Expose-Headers includes all five headers for browser agents.
-  const existingExpose = response.headers.get("Access-Control-Expose-Headers");
-  const allFive = "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth";
-  if (existingExpose) {
-    // Append if not already present
-    if (!existingExpose.includes("X-Agent-Protocol")) {
-      response.headers.set("Access-Control-Expose-Headers", `${existingExpose}, ${allFive}`);
-    }
-  } else {
-    response.headers.set("Access-Control-Expose-Headers", allFive);
-  }
-
-  return response;
-}
-
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
 const BOT_PATTERNS: [RegExp, string][] = [
-  // BUY-70970: Expanded bot patterns for is_bot classifier accuracy
-  // Priority: specific crawlers first, then generic patterns
-  [/\bUptimeRobot\b/i, "UptimeRobot"], // 38% of "human" traffic - primary noise source
-  [/\bHeadlessChrome\b/i, "HeadlessChrome"], // Common testing/automation tool
-  [/\bChrome-Headless\b/i, "HeadlessChrome"],
-  [/\bPaperclip-Heartbeat\b/i, "Paperclip"],
-  [/\bSketchAudit\b/i, "SketchAudit"],
   [/\bChatGPT-User\//i, "ChatGPT-User"],
   [/\bClaudeBot\//i, "ClaudeBot"],
   [/\bPerplexityBot\//i, "PerplexityBot"],
@@ -127,25 +90,11 @@ const BOT_PATTERNS: [RegExp, string][] = [
   [/\bYandexBot\b/i, "other_bot"],
   [/\bAhrefsBot\b/i, "other_bot"],
   [/\bSemrushBot\b/i, "other_bot"],
-  [/\bfacebookexternalhit\b/i, "other_bot"],
-  [/\bTwitterbot\b/i, "other_bot"],
-  [/\bLinkedInBot\b/i, "other_bot"],
-  [/\bMJ12bot\b/i, "other_bot"],
-  [/\bDotBot\b/i, "other_bot"],
-  [/\bBytespider\b/i, "other_bot"],
-  [/\bApplebot\b/i, "other_bot"],
-  [/\bPetalBot\b/i, "other_bot"],
 ];
 
-// BUY-70970: generic catch-all for *bot*, *Bot*, *crawler*, *spider*, etc. Does NOT require a
-// leading word boundary so "FooBarBot" and "FooBot/1.0" are still caught.
-const GENERIC_BOT_RE = /(bot|crawl|spider|fetch|scrape|headless|selenium|puppeteer|playwright|curl|wget|python-requests|python-urllib|node-fetch|axios|java|go-http|http\.rb|okhttp|postman|insomnia)/i;
+const GENERIC_BOT_RE = /\b(bot|crawl|spider|fetch|scrape|headless|selenium|puppeteer|playwright|curl|wget|python-requests|node-fetch|axios)\b/i;
 
 function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
-  // BUY-70970: Bare "Mozilla/5.0" with no product token is a synthetic default UA
-  if (ua.trim() === "Mozilla/5.0") {
-    return { is_bot: true, agent_family: "bare_ua" };
-  }
   for (const [re, family] of BOT_PATTERNS) {
     if (re.test(ua)) return { is_bot: true, agent_family: family };
   }
@@ -160,11 +109,6 @@ async function capturePageviewServer(
   ip: string | null
 ) {
   const { is_bot, agent_family } = classifyUa(ua);
-  // BUY-70970: collapse trailing slashes so /developers and /developers/ aggregate together
-  const pathname =
-    url.pathname !== "/" && url.pathname.endsWith("/")
-      ? url.pathname.slice(0, -1)
-      : url.pathname;
   try {
     await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
@@ -175,8 +119,8 @@ async function capturePageviewServer(
         distinct_id: distinctId,
         properties: {
           $current_url: url.toString(),
-          pathname,
-          path: pathname + url.search,
+          pathname: url.pathname,
+          path: url.pathname + url.search,
           host: url.host,
           $raw_user_agent: ua,
           $ip: ip,
@@ -236,6 +180,10 @@ const OPTIONAL_METADATA_MISSES: Record<string, { body: string; contentType: stri
   "/.well-known/apple-app-site-association": {
     body: '{"error":"apple-app-site-association is not published for this site."}\n',
     contentType: "application/json; charset=utf-8",
+  },
+  "/browserconfig.xml": {
+    body: '<?xml version="1.0" encoding="utf-8"?>\n<browserconfig><msapplication /></browserconfig>\n',
+    contentType: "application/xml; charset=utf-8",
   },
 };
 
@@ -327,17 +275,33 @@ function normalizePathname(pathname: string): string {
  * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
  * tells Google to drop the URL cleanly.
  */
-// ⚠️ GUARD (BUY-57626 postmortem): this is the ONLY list allowed to 410 blog
-// URLs, and it must stay short, explicit, and human-reviewed. Adding a slug
-// here tells Google to PERMANENTLY drop the page. The 2026-06..08 incident:
-// a default-deny allowlist deindexed 33 commercial pages for 2 months. Do not
-// "optimise" the blog gate back to an allowlist.
-//
-// BUY-71017 (tier 2, 2026-08-18): all 17 commercial where-to-buy-* slugs now
-// have content under content/blog/, so the App Router will serve 200. Pruned
-// the entire DEAD set to allow Google to re-crawl them. If a future restore
-// is needed, add the slug here ONLY if content cannot be recovered.
-const DEAD_BLOG_SLUGS: Set<string> = new Set([]);
+const DEAD_BLOG_SLUGS = new Set([
+  "where-to-buy-airpods-singapore",
+  "where-to-buy-apple-watch-singapore",
+  "where-to-buy-bose-qc45-singapore",
+  "where-to-buy-dji-mini-4-pro-singapore",
+  "where-to-buy-dyson-singapore",
+  "where-to-buy-dyson-v15-singapore",
+  "where-to-buy-fitbit-singapore",
+  "where-to-buy-gopro-singapore",
+  "where-to-buy-ipad-singapore",
+  "where-to-buy-iphone-16-singapore",
+  "where-to-buy-iphone-singapore",
+  "where-to-buy-kindle-singapore",
+  "where-to-buy-laptop-singapore",
+  "where-to-buy-logitech-mx-master-singapore",
+  "where-to-buy-macbook-air-m3-singapore",
+  "where-to-buy-macbook-singapore",
+  "where-to-buy-meta-quest-3-singapore",
+  "where-to-buy-nintendo-switch-singapore",
+  "where-to-buy-ps5-singapore",
+  "where-to-buy-roborock-singapore",
+  "where-to-buy-samsung-galaxy-s-singapore",
+  "where-to-buy-samsung-tv-singapore",
+  "where-to-buy-sony-wh-1000xm5-singapore",
+  "where-to-buy-steam-deck-singapore",
+  "where-to-buy-xbox-series-x-singapore",
+]);
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
@@ -349,30 +313,6 @@ function isDeadBlogSlug(pathname: string): boolean {
 function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
-
-  // BUY-31b6ae66: legal/auth aliases should redirect before the App Router
-  // homepage-branded 404 shell can render. Keep here because middleware is the
-  // established production redirect path for this app.
-  if (normalizedPath === "/legal") {
-    return "/privacy";
-  }
-
-  if (normalizedPath === "/sign-up") {
-    return "/register";
-  }
-
-  // BUY-70738: legacy /api-reference/{slug} aliases were returning 200 skeleton shells.
-  // Redirect to canonical /docs/ or /docs/api-reference/ pages.
-  const apiReferenceSlug = {
-    "/api-reference/authentication": "/docs/authentication",
-    "/api-reference/errors": "/docs/errors",
-    "/api-reference/search": "/docs/api-reference/search",
-    "/api-reference/products": "/docs/api-reference/get-product",
-    "/api-reference/recommendations": "/docs/api-reference/similar",
-  }[normalizedPath];
-  if (apiReferenceSlug) {
-    return apiReferenceSlug;
-  }
 
   if (normalizedPath === "/api-keys-keys") {
     return "/api-keys";
@@ -419,15 +359,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    // ⚠️ GUARD (BUY-57626 postmortem, 2026-08-18): DO NOT reintroduce
-    // default-deny here. A previous version 410'd every slug not on the static
-    // ACTIVE_BLOG_SLUGS list — but posts are also published OUTSIDE this repo
-    // (4seen publishing system, generated commercial pages), so 33 live
-    // commercial/developer posts returned 410 for ~2 months and were deindexed
-    // by Google. Explicit DEAD_BLOG_SLUGS (checked via isDeadBlogSlug) is the
-    // ONLY thing allowed to 410 a blog URL. Unknown slugs MUST fall through to
-    // the app, which hard-404s naturally (BUY-70666) if truly absent.
-    return isDocsHost ? normalizedPath : null;
+    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "__DEAD_BLOG_SLUG__");
   }
 
   // Real published docs (in ACTIVE_DOC_PATHS) serve directly — checked FIRST so they are not caught by the
@@ -454,19 +386,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
     const slug = normalizedPath.slice("/docs/blog/posts/".length);
-    // BUY-57626 guard: redirect every non-dead slug to /blog/<slug>; the app
-    // 404s unknowns. Never default-deny (see the /blog/ branch above).
-    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : `/blog/${slug}`;
-  }
-
-  const apiReferenceAlias = {
-    "/docs/api-reference": "/docs/api-reference/search",
-    "/docs/api-reference/search-products": "/docs/api-reference/search",
-    "/docs/api-reference/find-best-price": "/docs/api-reference/search",
-    "/docs/api-reference/get-deals": "/docs/api-reference/deals",
-  }[normalizedPath];
-  if (apiReferenceAlias) {
-    return apiReferenceAlias;
+    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
   }
 
   if (
@@ -505,17 +425,6 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "__GONE__";
   }
 
-  // BUY-70108: explicit redirects for /docs/sdks and /docs/examples
-  // These were returning 410 because the catch-all /docs check below fires
-  // before next.config.mjs redirects. Handle them here with 301 redirects.
-  const docsRedirectAlias = {
-    "/docs/sdks": "/developers",
-    "/docs/examples": "/docs",
-  }[normalizedPath];
-  if (docsRedirectAlias) {
-    return docsRedirectAlias;
-}
-
   if (normalizedPath.startsWith("/docs")) {
     if (ACTIVE_DOC_PATHS.has(normalizedPath)) {
       return isDocsHost ? normalizedPath : null;
@@ -531,35 +440,8 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   return null;
 }
 
-// BUY-67074: strip a non-canonical `Next-Router-State-Tree` header before it
-// reaches the dynamic renderer. See src/lib/router-state-tree.ts for the full
-// root-cause writeup.
-const ROUTER_STATE_TREE_HEADER = "next-router-state-tree";
-
-// Only the dynamically rendered routes are affected: every other route is
-// served from the full-route cache without re-rendering, so a bad tree never
-// reaches the renderer there. Keeping this list tight means the early return
-// below cannot bypass the redirect/rewrite logic for any other path.
-const DYNAMIC_RSC_ROUTES = new Set(["/search", "/compare"]);
-
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // BUY-67074: sanitise a malformed/non-canonical router state tree before it
-  // can reach the dynamic renderer and surface as a 500.
-  const routerStateTree = request.headers.get(ROUTER_STATE_TREE_HEADER);
-  if (
-    routerStateTree &&
-    DYNAMIC_RSC_ROUTES.has(pathname) &&
-    !isCanonicalRouterStateTree(routerStateTree)
-  ) {
-    const sanitized = new Headers(request.headers);
-    sanitized.delete(ROUTER_STATE_TREE_HEADER);
-    // Force a full (non-partial) render, which is what a cold navigation does.
-    sanitized.delete("next-router-prefetch");
-    return NextResponse.next({ request: { headers: sanitized } });
-  }
-
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || request.headers.get("host") || "";
   const accept = request.headers.get("accept") ?? "";
@@ -572,47 +454,23 @@ export async function middleware(request: NextRequest) {
     pathname === "/developers/robots.txt" ||
     pathname === "/developers/robots" ||
     pathname === "/developers/sitemap.xml" ||
-    pathname === "/developers/sitemap";
+    pathname === "/developers/sitemap" ||
+    pathname === "/developers/sitemap-index.xml" ||
+    pathname === "/developers/sitemap-index";
   const metadataMiss = optionalMetadataMiss(pathname);
   if (metadataMiss) {
     return metadataMiss;
   }
 
-  // BUY-71735: For /api/v1/* and /api/dashboard/* routes, enforce auth at the middleware
-// layer with X-Agent-Auth on 401, so agent probes see the auth signal even before the
-// route handler runs. We bypass all other /api/* traffic (revalidate, auth, login, etc.).
-const AGENT_AUTH_API_PREFIXES = [
-  "/api/dashboard/",
-  "/api/v1/developer/",
-  "/api/v1/stripe/",
-  "/api/auth/me/",
-];
-
-if (pathname.startsWith("/api/")) {
-  const needsAuth = AGENT_AUTH_API_PREFIXES.some((p) => pathname.startsWith(p));
-  if (needsAuth) {
-    const apiKey =
-      request.cookies.get("bw_dashboard_key")?.value ||
-      request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-    if (!apiKey) {
-      const res = new NextResponse(
-        JSON.stringify({ error: "API key required" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-      return withAgentAuthHeader(request, res);
-    }
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/assets/") ||
+    (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
+    pathname === "/.well-known/"
+  ) {
+    return NextResponse.next();
   }
-  return NextResponse.next();
-}
-
-if (
-  pathname.startsWith("/_next/") ||
-  pathname.startsWith("/assets/") ||
-  (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
-  pathname === "/.well-known/"
-) {
-  return NextResponse.next();
-}
 
   // BUY-69260: Next.js 14.2.35 throws
   //   "The router state header was sent but could not be parsed."
@@ -646,7 +504,12 @@ if (
     url.pathname = "/robots.txt";
     return NextResponse.rewrite(url);
   }
-  if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
+  if (
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/sitemap" ||
+    pathname === "/developers/sitemap-index.xml" ||
+    pathname === "/developers/sitemap-index"
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
     return NextResponse.rewrite(url);
@@ -672,104 +535,18 @@ if (
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
   }
 
-  // BUY-70666: invalid detail routes (/brands/{slug}, /stores/{slug}, /compare/{...}) must return
-  // a hard 404 instead of streaming a soft-200 fallback shell. We resolve the static registry here
-  // (same source the page handlers consult) so the missing-entity decision is made BEFORE Next.js
-  // begins streaming the App Router HTML — generateMetadata/Page.tsx notFound() in the page body
-  // runs too late and the response already commits as 200 with the not-found UI shell.
-  if (normalizedForDead.startsWith("/brands/")) {
-    const slug = normalizedForDead.slice("/brands/".length).split("/")[0];
-    if (slug && !commerceBrands.some((b) => b.slug === slug)) {
-      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
-    }
-  }
-  if (normalizedForDead.startsWith("/stores/")) {
-    const slug = normalizedForDead.slice("/stores/".length).split("/")[0];
-    if (slug && !commerceStores.some((s) => s.slug === slug)) {
-      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
-    }
-  }
-
-  // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
-  // treats numeric ids as "region" and calls getProduct(). When the product is not found,
-  // it calls notFound() which returns HTTP 200 (soft-404) - a false-success pattern.
-  // This middleware catches numeric-only /products/{id} segments BEFORE Next.js streams
-  // the soft-200, and returns a hard 404. The /p/{id} route now serves these products.
-  const productsNumericMatch = /^\/products\/(\d{8,})\/?$/.exec(normalizedForDead);
-  if (productsNumericMatch) {
-    // Let the page handler determine if it's a real product - this is a known Next.js
-    // issue where notFound() doesn't set HTTP status correctly. For now, redirect
-    // to the canonical /p/{id} alias where the new route handles it properly.
-    // TODO: revert to hard 404 once the [region]/page.tsx notFound() is fixed.
-    const productId = productsNumericMatch[1];
+  // Moved content: product index pages now redirect to their country pages
+  if (normalizedForDead === "/products/us") {
     const url = request.nextUrl.clone();
-    url.pathname = `/p/${productId}`;
-    return NextResponse.redirect(url, 308);
-  }
-
-  // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
-  // notFound() for missing products but Next.js App Router streams the not-found
-  // shell as HTTP 200 (soft-404). Middleware runs BEFORE streaming, so we can
-  // return a real 404 here. This pre-check bypasses the entire page render.
-  const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(normalizedForDead);
-  if (pIdMatch) {
-    const productId = pIdMatch[1];
-    // Check via internal API - if 404, return hard 404 before page streams.
-    try {
-      const apiRes = await fetch(
-        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
-        {
-          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
-          signal: AbortSignal.timeout(3000),
-        }
-      );
-      if (!apiRes.ok) {
-        return new NextResponse(null, { status: 404, statusText: "Product Not Found" });
-      }
-    } catch {
-      // Network error - let page render (will show its own error state)
-    }
-  }
-
-  // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
-  // to the page handler (no middleware redirect/rewrite needed).
-  // This is already handled by the static file bypass above.
-
-  // BUY-70653: all single-segment /compare/{slug} routes must resolve to a real
-  // static markdown doc or a valid taxonomy category pair. Anything else is a
-  // soft-200 fallback shell that crawlers should see as a hard 404. This also
-  // prevents the category-pair regex from accidentally 404ing valid compare docs
-  // whose filenames contain "-vs-".
-  const compareSingleMatch = /^\/compare\/([a-z0-9-]+)\/?$/.exec(normalizedForDead);
-  if (compareSingleMatch) {
-    const slug = compareSingleMatch[1];
-    if (COMPARE_DOC_SLUGS.has(slug) || ACTIVE_COMPARE_STATIC_SLUGS.includes(slug as typeof ACTIVE_COMPARE_STATIC_SLUGS[number])) {
-      // valid compare doc or static compare landing page; let the page handler render it
-    } else if (/^[a-z0-9-]+-vs-[a-z0-9-]+$/.test(slug)) {
-      const [left, right] = slug.split("-vs-");
-      const validCategory = PRODUCT_TAXONOMY.some((c) => c.slug === left) &&
-                           PRODUCT_TAXONOMY.some((c) => c.slug === right);
-      if (!validCategory) {
-        return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
-      }
-    } else {
-      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
-    }
-  }
-
-  // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
-  // Redirect known utility comparison paths to their canonical, structured pages.
-  if (normalizedForDead === "/compare/us/electronics") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/compare/electronics";
+    url.pathname = "/us";
     return NextResponse.redirect(url, 301);
   }
-  if (normalizedForDead === "/compare/us/amazon/walmart") {
+  if (normalizedForDead === "/products/sg") {
     const url = request.nextUrl.clone();
-    url.pathname = "/compare";
-    url.search = "country_code=us&q=amazon%20walmart";
+    url.pathname = "/";
     return NextResponse.redirect(url, 301);
   }
+
   // /about now renders src/app/about/page.tsx with title + meta description
   // (see BUY-58440).  Previously this middleware returned 410 (BUY-57869), which
   // suppressed the page even though the page itself shipped the correct metadata.
@@ -895,6 +672,7 @@ if (
   }
   if (
     pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/sitemap-index.xml" ||
     pathname === "/developers/robots/sitemap/us" ||
     pathname === "/us/robots/sitemap/us"
   ) {
@@ -938,13 +716,10 @@ if (
     if (docsCanonicalLink) linkParts.push(docsCanonicalLink);
     response.headers.set("Link", linkParts.join(", "));
     if (isDiscoveryRoute) response.headers.set("Vary", "Accept");
-    return withAgentAuthHeader(request, withBaselineSecurityHeaders(request, response));
+    return withBaselineSecurityHeaders(request, response);
   }
 
-  return withAgentAuthHeader(
-    request,
-    withBaselineSecurityHeaders(request, NextResponse.next())
-  );
+  return withBaselineSecurityHeaders(request, NextResponse.next());
 }
 
 export const config = {

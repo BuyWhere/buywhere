@@ -76,7 +76,7 @@ export default function GroceryCategoryPage() {
   };
 
   return (
-    <main id="main-content" className="min-h-[60vh] py-12">
+    <div className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
@@ -266,6 +266,6 @@ export default function GroceryCategoryPage() {
           </Link>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

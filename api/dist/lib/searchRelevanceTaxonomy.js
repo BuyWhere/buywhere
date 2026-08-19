@@ -17,8 +17,7 @@
 // (no bind params) so it can be concatenated into any candidate WHERE clause
 // exactly like the existing laptop-accessory penalty expressions.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.STORAGE_CATEGORY_SQL_TIER_JOIN = exports.STORAGE_QUERY_TOKENS = exports.DEVICE_FAMILY_TOKENS = void 0;
-exports.tierStorageExclusionNeeded = tierStorageExclusionNeeded;
+exports.STORAGE_QUERY_TOKENS = exports.DEVICE_FAMILY_TOKENS = void 0;
 exports.isDeviceQuery = isDeviceQuery;
 exports.isStorageQuery = isStorageQuery;
 exports.deviceStorageExclusionFragment = deviceStorageExclusionFragment;
@@ -64,8 +63,6 @@ exports.STORAGE_QUERY_TOKENS = new Set([
 // mentions "1TB SSD" stays eligible. Substring match (not word-boundary)
 // because stored categories are inconsistent ("Internal SSD", "Solid State
 // Drives", "Computer Components & Storage", …) and the spec allows substring.
-// BUY-69727 FIX: metadata->>'category' fallback for the products table (archive
-// path), where some products have NULL category but store it in the JSONB metadata column.
 const STORAGE_CATEGORY_SUBSTRINGS = [
     'storage',
     'internal ssd',
@@ -78,27 +75,14 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
     'usb drive',
     'memory card',
 ];
-// BUY-69727 FIX: Use ILIKE ANY instead of POSIX regex. The live repro leaked
-// Seagate Firecuda 520 SSD (cat="Storage") into "gaming laptop" results; ILIKE
-// ANY is unambiguous substring containment for categories with spaces.
-const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
-// BUY-69727 live-probe: on the products (archive) table the newegg_us feed
-// mis-tags `category` as 'home-living'/'groceries' while the JSONB
-// metadata->>'category' carries the true value ('Storage'/'Laptops'). The
-// metadata value is the feed-sourced ground truth, so it takes precedence —
-// coalesce(metadata first), falling back to the column only when absent.
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(metadata->>'category', category, '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
-// BUY-69727 tier-path helper: search_products has no metadata column, so the
-// category-only exclusion cannot see the true category of mis-tagged rows
-// (Firecuda: sp.category='home-living'). Callers join `products m ON
-// m.id = <sp-alias>.id` over the BOUNDED candidate set (≤200 ranked rows) and
-// apply this predicate as a post-join filter — a PK join at that scale is
-// cheap, unlike a join inside the 115M-row candidate WHERE clause.
-exports.STORAGE_CATEGORY_SQL_TIER_JOIN = `(lower(coalesce(m.metadata->>'category', sp.category, '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
-/** True when the tier path needs the metadata join filter for this query. */
-function tierStorageExclusionNeeded(q) {
-    return deviceStorageExclusionFragment(q) !== '';
-}
+// Pre-built SQL regex alternation for the category column. Matches if the
+// lowercased category contains any storage substring. NULL/empty categories
+// never match → fail-open (the product is kept), per spec.
+// BUGFIX BUY-69672: PostgreSQL ~* takes a SINGLE regex string literal, NOT
+// SQL string literals joined by |. The old code generated invalid SQL like
+// ('storage'|'internal ssd'|...) which caused HTTP 500 on device queries.
+const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
 function normalizeQueryTokens(q) {
     return new Set(q
         .toLowerCase()

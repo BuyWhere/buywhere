@@ -21,10 +21,6 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS avg_rating     NUMERIC;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status     TEXT NOT NULL DEFAULT 'ok';
-ALTER TABLE products ADD COLUMN IF NOT EXISTS url_last_checked_at TIMESTAMPTZ;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS url_dead_at     TIMESTAMPTZ;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
@@ -128,84 +124,10 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   destination_url TEXT NOT NULL,
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
-
--- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
-CREATE TABLE IF NOT EXISTS url_probe_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id TEXT NOT NULL,
-  merchant_id TEXT,
-  url TEXT NOT NULL,
-  status TEXT NOT NULL,
-  reason TEXT,
-  http_status INTEGER,
-  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  latency_ms INTEGER,
-  error TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
-CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
--- BUY-71331: checked_at-leading index for the /v1/admin/probes/logs cursor pagination.
-CREATE INDEX IF NOT EXISTS idx_url_probe_log_checked_at_id ON url_probe_log(checked_at DESC, id DESC);
--- BUY-70924: products URL status indexes are created CONCURRENTLY in
--- runMigrations() (ensureUrlProbeIndexes) so the build does not lock the live
--- ingest pipeline. Do not add non-CONCURRENT product indexes to this transaction.
-
--- BUY-70932: merchant-adapter recheck queue for dead->ok URL flips.
--- Oracle consumes this queue to re-ingest / re-map merchant URLs. A trigger
--- below auto-enqueues whenever products.url_status flips from 'dead' to 'ok',
--- so the probe worker (Cart) does not need to know the queue schema.
-CREATE TABLE IF NOT EXISTS merchant_adapter_recheck_queue (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id        BIGINT NOT NULL,
-  merchant_id       TEXT NOT NULL,
-  old_status        TEXT NOT NULL,
-  new_status        TEXT NOT NULL,
-  url               TEXT,
-  detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  processed_at      TIMESTAMPTZ,
-  processed_by      TEXT,
-  result            TEXT,
-  retry_count       INTEGER NOT NULL DEFAULT 0,
-  quarantined_at    TIMESTAMPTZ,
-  quarantine_reason TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_unprocessed
-  ON merchant_adapter_recheck_queue (detected_at ASC)
-  WHERE processed_at IS NULL AND quarantined_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_product
-  ON merchant_adapter_recheck_queue (product_id, detected_at DESC);
-CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_merchant
-  ON merchant_adapter_recheck_queue (merchant_id, detected_at DESC)
-  WHERE processed_at IS NULL AND quarantined_at IS NULL;
-
--- Trigger function: enqueue dead->ok flips.
-CREATE OR REPLACE FUNCTION trg_products_url_status_dead_to_ok_queue()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF OLD.url_status IS DISTINCT FROM NEW.url_status
-     AND OLD.url_status = 'dead'
-     AND NEW.url_status = 'ok' THEN
-    INSERT INTO merchant_adapter_recheck_queue (
-      product_id, merchant_id, old_status, new_status, url, detected_at
-    ) VALUES (
-      NEW.id, NEW.merchant_id, OLD.url_status, NEW.url_status, NEW.url,
-      COALESCE(NEW.url_last_checked_at, NOW())
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS products_url_status_dead_to_ok_queue ON products;
-CREATE TRIGGER products_url_status_dead_to_ok_queue
-  AFTER UPDATE OF url_status ON products
-  FOR EACH ROW
-  EXECUTE FUNCTION trg_products_url_status_dead_to_ok_queue();
 
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
@@ -536,45 +458,6 @@ function quoteIdentifier(identifier) {
 function quoteQualifiedIdentifier(qualifiedIdentifier) {
     return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
 }
-async function ensureUrlProbeIndexes() {
-    const targetTable = 'public.products';
-    const indexes = [
-        {
-            name: 'idx_products_url_probe_due',
-            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_probe_due
-                    ON ${targetTable} (url_last_checked_at)
-                    WHERE is_active = true AND url IS NOT NULL`,
-        },
-        {
-            name: 'idx_products_url_status',
-            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_status
-                    ON ${targetTable} (url_status)`,
-        },
-    ];
-    for (const idx of indexes) {
-        try {
-            const existsValid = await config_1.db.query(`SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
-          WHERE i.indrelid = '${targetTable}'::regclass AND c.relname = $1 AND i.indisvalid`, [idx.name]);
-            if (existsValid.rows.length > 0) {
-                console.log(`[migration] ${idx.name} already valid.`);
-                continue;
-            }
-            const client = await config_1.db.connect();
-            try {
-                await client.query('SET statement_timeout = 1800000');
-                await client.query('SET lock_timeout = 60000');
-                await client.query(idx.createSql);
-                console.log(`[migration] ${idx.name} created.`);
-            }
-            finally {
-                client.release();
-            }
-        }
-        catch (err) {
-            console.warn(`[migration] ${idx.name} create failed (non-fatal): ${err.message?.slice(0, 200)}`);
-        }
-    }
-}
 async function ensureStrictDealsIndexes() {
     const partitions = await config_1.db.query(`SELECT c.oid::regclass::text AS table_name
        FROM pg_inherits i
@@ -805,11 +688,6 @@ async function runMigrations() {
     // it to GENERATED is deferred/fails, strict get_deals must still use the column
     // index path instead of seq-scanning the live products table.
     await ensureStrictDealsIndexes();
-    // BUY-70924: outbound-link probe indexes on products must be built CONCURRENTLY
-    // to avoid locking the live ingest pipeline. Each index gets its own checkout
-    // with a long statement_timeout and short lock_timeout so a transient lock wait
-    // fails this step but does not block startup or ingest.
-    await ensureUrlProbeIndexes();
     // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
     // (non-generated) column left by a prior migration failure.
     // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.

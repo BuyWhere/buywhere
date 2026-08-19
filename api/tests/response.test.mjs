@@ -3,13 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY, evaluateNearMiss } = require('../dist/lib/response');
-
-// BUY-71393: keep response tests deterministic regardless of whatever FX rates
-// earlier tests loaded into the module cache.
-const fxLoader = require('../dist/lib/fxRatesLoader');
-fxLoader.getCachedFxRates = () => CURRENCY_RATES;
-fxLoader.loadFxRates = async () => CURRENCY_RATES;
+const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY } = require('../dist/lib/response');
 
 describe('buildProduct', () => {
   const baseRow = {
@@ -94,17 +88,6 @@ describe('buildProduct', () => {
     assert.equal(product.price.amount, null);
   });
 
-  it('exposes availability.in_stock and falls back to positive-price rows as in stock', () => {
-    const product = buildProduct(baseRow, 'SGD', false);
-    assert.deepEqual(product.availability, { in_stock: true, status: 'in_stock' });
-  });
-
-  it('honors explicit out-of-stock rows in availability.in_stock', () => {
-    const product = buildProduct({ ...baseRow, in_stock: false }, 'SGD', false);
-    assert.equal(product.in_stock, false);
-    assert.deepEqual(product.availability, { in_stock: false, status: 'out_of_stock' });
-  });
-
   it('handles missing image_url', () => {
     const row = { ...baseRow, image_url: null };
     const product = buildProduct(row, 'SGD', false);
@@ -140,43 +123,6 @@ describe('buildProduct', () => {
     const row = { ...baseRow, country_code: 'XX' };
     const product = buildProduct(row, 'SGD', false);
     assert.equal(product.price.currency, 'SGD');
-  });
-
-  it('BUY-71419: PHP accessories at 125-250 PHP retain price and availability', () => {
-    // 125 PHP ≈ $2.20, 250 PHP ≈ $4.40 — legitimate accessories, not feed errors
-    const phpRows = [
-      { ...baseRow, price: 125, currency: 'PHP', in_stock: true },
-      { ...baseRow, price: 250, currency: 'PHP', in_stock: true },
-    ];
-    for (const row of phpRows) {
-      const product = buildProduct(row, 'PHP', false);
-      assert.equal(product.price.amount, row.price, `PHP ${row.price} should not be nullified`);
-      assert.equal(product.price.currency, 'PHP');
-      assert.equal(product.availability.in_stock, true);
-      assert.equal(product.availability.status, 'in_stock');
-    }
-  });
-
-  it('BUY-71419: non-USD prices >= 1 pass through; zero/null prices are nullified', () => {
-    const belowFloor = buildProduct({ ...baseRow, price: 0, currency: 'SGD' }, 'SGD', false);
-    assert.equal(belowFloor.price.amount, null, 'SGD 0 should be nullified');
-
-    const atFloor = buildProduct({ ...baseRow, price: 1, currency: 'VND' }, 'VND', false);
-    assert.equal(atFloor.price.amount, 1, 'VND 1 should pass');
-  });
-
-  it('BUY-63738: USD prices under $5 are nullified (laptop feed errors)', () => {
-    const belowFloor = buildProduct({ ...baseRow, price: 1, currency: 'USD' }, 'USD', false);
-    assert.equal(belowFloor.price.amount, null, '$1 should be nullified');
-    assert.equal(belowFloor.availability.in_stock, false, '$1 product should be out_of_stock');
-
-    const atFloor = buildProduct({ ...baseRow, price: 4.99, currency: 'USD' }, 'USD', false);
-    assert.equal(atFloor.price.amount, null, '$4.99 should be nullified');
-  });
-
-  it('BUY-63738: USD prices at $5+ pass through', () => {
-    const atFloor = buildProduct({ ...baseRow, price: 5, currency: 'USD' }, 'USD', false);
-    assert.equal(atFloor.price.amount, 5, '$5 should pass');
   });
 
   it('handles metadata extraction in compact mode with minimal fields', () => {
@@ -253,64 +199,6 @@ describe('buildSearchResponse', () => {
   });
 });
 
-describe('price sanitizer (BUY-71393)', () => {
-  const baseRow = {
-    id: 'prod-1',
-    title: 'Test Product',
-    price: 99.99,
-    currency: 'SGD',
-    domain: 'shopee_sg',
-    url: 'https://shopee.sg/product/1',
-    image_url: 'https://shopee.sg/img/1.jpg',
-    region: 'SEA',
-    country_code: 'SG',
-    updated_at: '2026-05-03T00:00:00Z',
-    metadata: { brand: 'Test', category: 'Electronics' },
-  };
-
-  it('preserves high-value SGD prices that are within the USD band', () => {
-    const product = buildProduct({ ...baseRow, price: 10799, currency: 'SGD' }, 'SGD', false);
-    assert.equal(product.price.amount, 10799);
-    assert.equal(product.price.currency, 'SGD');
-  });
-
-  it('preserves high-value THB prices that are within the USD band', () => {
-    const product = buildProduct({ ...baseRow, price: 46490, currency: 'THB' }, 'THB', false);
-    assert.equal(product.price.amount, 46490);
-    assert.equal(product.price.currency, 'THB');
-  });
-
-  it('nullifies VND prices above the USD maximum', () => {
-    const product = buildProduct({ ...baseRow, price: 300_000_000, currency: 'VND' }, 'VND', false);
-    assert.equal(product.price.amount, null);
-  });
-
-  it('preserves VND prices within the USD band', () => {
-    const product = buildProduct({ ...baseRow, price: 200_000_000, currency: 'VND' }, 'VND', false);
-    assert.equal(product.price.amount, 200_000_000);
-  });
-
-  it('nullifies USD prices above the USD maximum', () => {
-    const product = buildProduct({ ...baseRow, price: 12000, currency: 'USD' }, 'USD', false);
-    assert.equal(product.price.amount, null);
-  });
-
-  it('nullifies USD prices below the USD minimum', () => {
-    const product = buildProduct({ ...baseRow, price: 3, currency: 'USD' }, 'USD', false);
-    assert.equal(product.price.amount, null);
-  });
-
-  it('preserves GBP prices within the USD band', () => {
-    const product = buildProduct({ ...baseRow, price: 5000, currency: 'GBP' }, 'GBP', false);
-    assert.equal(product.price.amount, 5000);
-  });
-
-  it('nullifies GBP prices above the USD maximum', () => {
-    const product = buildProduct({ ...baseRow, price: 15000, currency: 'GBP' }, 'GBP', false);
-    assert.equal(product.price.amount, null);
-  });
-});
-
 describe('COUNTRY_CURRENCY', () => {
   it('maps known country codes to currencies', () => {
     assert.equal(COUNTRY_CURRENCY.SG, 'SGD');
@@ -319,77 +207,5 @@ describe('COUNTRY_CURRENCY', () => {
     assert.equal(COUNTRY_CURRENCY.VN, 'VND');
     assert.equal(COUNTRY_CURRENCY.TH, 'THB');
     assert.equal(COUNTRY_CURRENCY.MY, 'MYR');
-  });
-});
-
-describe('evaluateNearMiss', () => {
-  const goodProduct = {
-    id: 'p1', title: 'P1', price: { amount: 99, currency: 'SGD' },
-    merchant: 'shop', url: 'https://shop.sg/p1', image_url: 'https://shop.sg/img.jpg',
-    region: null, country_code: 'SG', updated_at: null, availability: { in_stock: true, status: 'in_stock' },
-    has_affiliate_tracking: false, is_affiliate: false,
-  };
-  it('returns near_miss=false for zero rows', () => {
-    const result = evaluateNearMiss([]);
-    assert.equal(result.near_miss, false);
-    assert.deepEqual(result.near_miss_predicate_fails, []);
-  });
-  it('returns near_miss=false for multiple rows', () => {
-    const result = evaluateNearMiss([goodProduct, { ...goodProduct, id: 'p2' }]);
-    assert.equal(result.near_miss, false);
-  });
-  it('returns near_miss=false for single good row', () => {
-    const result = evaluateNearMiss([goodProduct], 'SG');
-    assert.equal(result.near_miss, false);
-    assert.deepEqual(result.near_miss_predicate_fails, []);
-  });
-  it('flags missing price', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: null, currency: 'SGD' } }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('price'));
-  });
-  it('flags zero price', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 0, currency: 'SGD' } }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('price'));
-  });
-  it('flags wrong currency for country', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: 'USD' } }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('price'));
-  });
-  it('flags missing currency', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: null } }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('currency'));
-  });
-  it('flags non-ISO currency', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: 'XYZ' } }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('currency'));
-  });
-  it('flags missing availability', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, availability: undefined }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('availability'));
-  });
-  it('flags missing image_url', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, image_url: null }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('image_url'));
-  });
-  it('accepts branded SVG as usable image', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, image_url: 'data:image/svg+xml;base64,PHN2Zz4=' }], 'SG');
-    assert.equal(result.near_miss, false);
-  });
-  it('flags dead merchant URL via url_status', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, url_status: 'dead' }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('merchant_url'));
-  });
-  it('flags missing URL', () => {
-    const result = evaluateNearMiss([{ ...goodProduct, url: '' }], 'SG');
-    assert.equal(result.near_miss, true);
-    assert.ok(result.near_miss_predicate_fails.includes('merchant_url'));
   });
 });

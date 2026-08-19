@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { getAllBlogPosts, getBlogPostBySlug, type BlogPost } from "@/lib/blog";
+import { getAllBlogPosts, getBlogPostBySlug } from "@/lib/blog";
 import { toSiteUrl } from "@/lib/site-url";
 
 type PageProps = {
@@ -21,55 +21,6 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
-function articleImage(post: BlogPost) {
-  // Use dynamic OG image endpoint with article title
-  return post.coverImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(post.title)}`);
-}
-
-function articleJsonLd(post: BlogPost) {
-  if (post.jsonLd) {
-    return post.jsonLd;
-  }
-
-  const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
-  const image = articleImage(post);
-
-  return JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": `${canonical}#article`,
-    headline: post.title,
-    description: post.description,
-    image,
-    datePublished: post.publishedAt,
-    dateModified: post.lastUpdatedAt ?? post.publishedAt,
-    author: {
-      "@type": "Organization",
-      name: post.author,
-    },
-    publisher: {
-      "@type": "Organization",
-      "@id": "https://buywhere.ai/#organization",
-      name: "BuyWhere",
-      logo: {
-        "@type": "ImageObject",
-        url: toSiteUrl("/logo.png"),
-      },
-    },
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": canonical,
-    },
-  });
-}
-
-// BUY-57626 follow-up (2026-08-18): with the middleware allowlist gate removed,
-// unknown slugs must 404 HERE. dynamicParams=false makes unknown slugs 404 at
-// the routing layer — the root loading.tsx streaming bug (which turns runtime
-// notFound() into a 200 shell) cannot affect routing-layer 404s. Same fix as
-// categories/[slug] and docs/[...slug] (2026-06-17 soft-404 audit).
-export const dynamicParams = false;
-
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
 }
@@ -82,15 +33,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
-  const image = articleImage(post);
 
   return {
     title: post.title,
     description: post.description,
-    robots: {
-      index: true,
-      follow: true,
-    },
     alternates: {
       canonical,
     },
@@ -100,15 +46,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "article",
       url: canonical,
       publishedTime: post.publishedAt,
-      modifiedTime: post.lastUpdatedAt,
       authors: [post.author],
-      images: [{ url: image, width: 1200, height: 630, alt: post.title }],
+      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
-      images: [image],
+      images: post.coverImage ? [post.coverImage] : undefined,
     },
   };
 }
@@ -123,12 +68,12 @@ export default function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
-  const jsonLd = (
+  const jsonLd = post.jsonLd ? (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: articleJsonLd(post) }}
+      dangerouslySetInnerHTML={{ __html: post.jsonLd }}
     />
-  );
+  ) : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -176,9 +121,9 @@ export default function BlogPostPage({ params }: PageProps) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   h1: ({ children }) => (
-                    <h2 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
+                    <h1 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
                       {children}
-                    </h2>
+                    </h1>
                   ),
                   h2: ({ children }) => (
                     <h2 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">

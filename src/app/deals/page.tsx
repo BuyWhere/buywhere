@@ -46,11 +46,6 @@ export default async function DealsPage() {
     path: '/deals',
     name: DEALS_TITLE,
     description: DEALS_DESCRIPTION,
-    // BUY-69732: Home > Deals breadcrumb for the deals route.
-    breadcrumb: [
-      { name: 'Home', path: '/' },
-      { name: 'Deals', path: '/deals' },
-    ],
   });
 
   return (

@@ -117,8 +117,8 @@ See [Pricing](https://buywhere.ai/pricing) for full details.
 
 ## What's Next
 
-- [Authentication](/docs/authentication) — API key usage, rate limits, and headers
-- [API Reference](/docs/api-reference/search) — full endpoint documentation
-- [Error Reference](/docs/errors) — all error codes and responses
+- [Authentication](/authentication) — API key usage, rate limits, and headers
+- [API Reference](/api-reference/search) — full endpoint documentation
+- [Error Reference](/errors) — all error codes and responses
 - [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart guide
 - [MCP Integration](/guides/mcp-integration) — connect BuyWhere to Claude Desktop, Cursor, and other AI tools

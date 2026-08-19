@@ -4,12 +4,13 @@ import { API_BASE_URL } from '../config';
 const router = Router();
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 
-export const AI_AGENT_DESCRIPTOR = {
+const AI_AGENT_DESCRIPTOR = {
   name: 'BuyWhere',
   description: 'Agent-native product catalog API — 300M+ products, 238,000+ direct merchants worldwide, location-aware deliver_to ranking',
   version: '1.0',
   protocols: {
     mcp: 'https://api.buywhere.ai/mcp/sse',
+    a2a: 'https://api.buywhere.ai/.well-known/agent.json',
     rest: 'https://api.buywhere.ai/v1',
   },
   auth: {
@@ -21,7 +22,7 @@ export const AI_AGENT_DESCRIPTOR = {
   llms_txt: 'https://buywhere.ai/llms.txt',
 };
 
-export const A2A_AGENT_CARD = {
+const A2A_AGENT_CARD = {
   name: 'BuyWhere',
   description: 'Agent-native product catalog API for AI agent commerce',
   url: 'https://buywhere.ai',
@@ -64,6 +65,10 @@ export const A2A_AGENT_CARD = {
       serverUrl: 'https://api.buywhere.ai/mcp/sse',
       transport: 'sse',
       note: 'Use /mcp/sse for SSE clients; https://api.buywhere.ai/mcp is the canonical MCP endpoint in llms.txt and remains valid.',
+    },
+    a2a: {
+      serverUrl: 'https://api.buywhere.ai/a2a',
+      transport: 'json',
     },
   },
   contact: {
@@ -180,7 +185,7 @@ router.get('/ai-agent.json', (_req: Request, res: Response) => {
   res.json(AI_AGENT_DESCRIPTOR);
 });
 
-// GET /.well-known/agent.json — agent card
+// GET /.well-known/agent.json — A2A agent card
 router.get('/agent.json', (_req: Request, res: Response) => {
   res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
   res.json(A2A_AGENT_CARD);
@@ -397,7 +402,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
       { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
       { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
-      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'Keyword search query — alias for product_name' }, product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
+      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
     ],
     authentication: {
       required: true,

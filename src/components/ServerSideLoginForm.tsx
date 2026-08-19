@@ -34,7 +34,7 @@ export default function ServerSideLoginForm() {
       } else {
         setError("Invalid API key. Please check and try again.");
       }
-    } catch {
+    } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -43,10 +43,9 @@ export default function ServerSideLoginForm() {
 
   return (
     <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-      <label htmlFor="api-key-input" className="block">
+      <label className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">API key</span>
         <input
-          id="api-key-input"
           type="password"
           autoComplete="off"
           spellCheck={false}

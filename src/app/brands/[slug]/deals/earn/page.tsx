@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getCommerceBrand } from '@/lib/commerce-routes';
-import { toSiteUrl } from '@/lib/site-url';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -19,26 +17,12 @@ interface BrandData {
 }
 
 async function getBrandData(slug: string): Promise<BrandData | null> {
-  const knownBrand = getCommerceBrand(slug);
-
-  if (!knownBrand) {
-    return null;
-  }
-
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
       next: { revalidate: 900 },
     });
-    if (!res.ok) {
-      return {
-        slug: knownBrand.slug,
-        name: knownBrand.name,
-        logo_url: undefined,
-        description: `Earn rewards on ${knownBrand.name} purchases through BuyWhere.`,
-        product_count: knownBrand.productCount ?? 0,
-      };
-    }
+    if (!res.ok) return null;
     const data = await res.json();
     return {
       slug: data.slug,
@@ -48,13 +32,7 @@ async function getBrandData(slug: string): Promise<BrandData | null> {
       product_count: data.product_count || 0,
     };
   } catch {
-    return {
-      slug: knownBrand.slug,
-      name: knownBrand.name,
-      logo_url: undefined,
-      description: `Earn rewards on ${knownBrand.name} purchases through BuyWhere.`,
-      product_count: knownBrand.productCount ?? 0,
-    };
+    return null;
   }
 }
 
@@ -71,7 +49,7 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
     '@type': 'WebPage',
     name: `${brand.name} Cashback — BuyWhere`,
     description: `Earn cashback on ${brand.name} purchases. Shop through BuyWhere and get rewards back.`,
-    url: toSiteUrl(`/brands/${slug}/deals/earn`),
+    url: `/brands/brand/${slug}/deals/earn`,
   };
 
   return (
@@ -88,14 +66,14 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/${slug}`}
+              href={`/brands/brand/${slug}`}
               className="text-blue-600 hover:underline"
             >
               {brand.name}
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/${slug}/deals`}
+              href={`/brands/brand/${slug}/deals`}
               className="text-blue-600 hover:underline"
             >
               Deals
@@ -145,7 +123,7 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
 
           <section className="text-center">
             <Link
-              href={`/brands/${slug}`}
+              href={`/brands/brand/${slug}`}
               className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               Browse {brand.name} Products
@@ -162,16 +140,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const brand = await getBrandData(slug);
 
   if (!brand) {
-    return {
-      title: 'Brand Cashback Not Found',
-      robots: { index: false, follow: false },
-    };
+    return { title: 'Brand Cashback Not Found' };
   }
 
   return {
     title: `Earn Cashback on ${brand.name} — BuyWhere`,
     description: `Earn cashback on ${brand.name} purchases. Shop through BuyWhere and get rewards back.`,
-    alternates: { canonical: `/brands/${slug}/deals/earn` },
+    alternates: { canonical: `/brands/brand/${slug}/deals/earn` },
   };
 }
 

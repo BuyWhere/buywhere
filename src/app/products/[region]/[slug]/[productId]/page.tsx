@@ -3,9 +3,11 @@ import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-landing-pages";
 import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
-import { buildProductDetailGraph } from "@/lib/product-schema";
-import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
-import { toSiteUrl } from "@/lib/site-url";
+
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://buywhere.ai";
 
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
@@ -169,8 +171,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const apiProduct = await getProduct(productId);
-  // BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
-  const fallbackProduct = apiProduct ? null : await getSeoLandingFallbackProduct(region, productId, merchantSlug);
+  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
   if (!apiProduct && !fallbackProduct) {
     return { title: "Product Not Found" };
   }
@@ -197,14 +198,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         ? [{ url: product.image_url, width: 800, height: 800, alt: productName }]
         : [{ url: "/og-image.png", width: 1200, height: 630, alt: productName }],
     },
-    twitter: {
-      card: "summary_large_image",
-      title: `${productName} — ${merchantName} | BuyWhere ${region.toUpperCase()}`,
-      description: `Buy ${productName} from ${merchantName} in ${regionConfig.countryName}.`,
-      images: product.image_url
-        ? [toSiteUrl(product.image_url)]
-        : [toSiteUrl("/og-image.png")],
-    },
   };
 }
 
@@ -215,8 +208,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   if (!regionConfig) notFound();
 
   const apiProduct = await getProduct(productId);
-  // BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
-  const fallbackProduct = apiProduct ? null : await getSeoLandingFallbackProduct(region, productId, merchantSlug);
+  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
   if (!apiProduct && !fallbackProduct) {
     // Unknown region-specific product id. Bounce to a search page derived from
     // the slug so the SEO landing-page card CTA still lands somewhere useful
@@ -232,64 +224,53 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   const merchantName =
     product.merchant_name ??
     merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const canonicalUrl = `https://buywhere.ai/products/${region}/${merchantSlug}/${productId}/`;
 
-  // BUY-69663: shared JSON-LD graph (Organization/WebSite publisher anchor +
-  // Breadcrumb + Product with real-data-only rating rule) replaces the two
-  // duplicated inline blocks. Answer engines resolve the full @graph, so the
-  // publisher attribution now travels with every PDP.
-  const pagePath = `/products/${region}/${merchantSlug}/${productId}/`;
-  const description =
-    product.description ??
-    `${productName} available from ${merchantName} in ${regionConfig.countryName}.`;
-  const schema = buildProductDetailGraph({
-    product: {
-      path: pagePath,
-      name: productName,
-      description,
-      image: product.image_url ?? null,
-      brand: product.brand ?? null,
-      category: product.category ?? null,
-      sku: product.id != null ? String(product.id) : null,
-      offer:
-        product.price != null
-          ? {
-              price: product.price,
-              priceCurrency: regionConfig.currency,
-              sellerName: merchantName,
-            }
-          : null,
-    },
-    breadcrumb: [
-      { name: "Home", path: "/" },
-      { name: `${merchantName} Products`, path: `/${region}/${merchantSlug}/products/` },
-      { name: productName, path: pagePath },
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: productName,
+    description:
+      product.description ??
+      `${productName} available from ${merchantName} in ${regionConfig.countryName}.`,
+    url: canonicalUrl,
+    ...(product.image_url && { image: product.image_url }),
+    ...(product.brand && { brand: { "@type": "Brand", name: product.brand } }),
+    ...(product.price != null && {
+      offers: {
+        "@type": "Offer",
+        priceCurrency: regionConfig.currency,
+        price: product.price,
+        availability: "https://schema.org/InStock",
+        seller: { "@type": "Organization", name: merchantName },
+      },
+    }),
+  };
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `${merchantName} Products`,
+        item: `https://buywhere.ai/${region}/${merchantSlug}/products/`,
+      },
+      { "@type": "ListItem", position: 3, name: productName, item: canonicalUrl },
     ],
-  });
-  const llmsSnippet = renderProductLlmsSnippet({
-    country: region,
-    productId,
-    title: productName,
-    description,
-    currency: regionConfig.currency,
-    price: product.price ?? null,
-    availability: "local",
-    brand: product.brand ?? "",
-    category: product.category ?? "",
-    merchantSlug,
-    merchantName,
-    url: `https://buywhere.ai${pagePath}`,
-    imageUrl: product.image_url ?? "",
-  });
+  };
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
       />
       <script
-        type="text/llms.txt"
-        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
@@ -390,7 +371,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
             )}
 
             {product.category && (
-              <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>
+              <p className="mt-4 text-xs text-gray-400">Category: {product.category}</p>
             )}
           </div>
         </div>

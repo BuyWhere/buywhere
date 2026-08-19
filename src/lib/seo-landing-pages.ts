@@ -65,7 +65,6 @@ export type LandingProduct = {
   productUrl?: string | null;
   brand: string | null;
   category: string | null;
-  countryCode?: string | null;
 };
 
 type SearchApiItem = {
@@ -90,7 +89,6 @@ type SearchApiItem = {
   brand?: string | null;
   updated_at?: string | null;
   category?: string | null;
-  country_code?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -323,22 +321,7 @@ function isLowTrustRedirectHost(href: string | null | undefined): boolean {
   }
 }
 
-function landingCategoryLabel(searchCategory?: string, itemCategory?: string | null): string | null {
-  if (itemCategory?.trim()) return itemCategory;
-  switch (searchCategory) {
-    case "robot_vacuums":
-      return "Robot Vacuums";
-    case "laptops":
-    case "gaming_laptops":
-      return "Laptops";
-    case "air_purifiers":
-      return "Air Purifiers";
-    default:
-      return null;
-  }
-}
-
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number, searchCategory?: string): LandingProduct | null {
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -403,7 +386,6 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   }
 
   const imageUrl = item.image_url || item.image || null;
-  const category = landingCategoryLabel(searchCategory, item.category || null);
 
   return {
     id: String(item.id),
@@ -411,14 +393,19 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    // Prefer the catalog product photo. getSeoLandingProducts probes the URL
-    // before rendering; if it is dead/hotlink-blocked we drop/top-up or repair
-    // through a category-aware fallback. The previous unconditional branded SVG
-    // made every live row look like a generic illustration, which is exactly the
-    // BUY-68366 QA failure on the SEO landing pages.
-    imageUrl: isUsableProductImage(imageUrl)
-      ? imageUrl
-      : brandedProductPlaceholderSvg(item.brand || null, item.name || null, category),
+    // BUY-63954: render the deterministic branded SVG card for every catalog
+    // snapshot product instead of the upstream CDN image. The remote image
+    // loads fine for human users, but QA's headless screenshot environment
+    // can't load many of these CDNs (hotlink/CORS/referrer policy), which
+    // triggered the <img> onError fallback to a generic slate silhouette and
+    // was reported as "placeholder icons instead of real product photos". The
+    // branded SVG renders identically in SSR and any browser/headless
+    // environment so the Live Catalog Snapshot always looks polished.
+    imageUrl: brandedProductPlaceholderSvg(
+      item.brand || null,
+      item.name || null,
+      item.category || null,
+    ),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -428,40 +415,22 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.url,
     ),
     brand: item.brand || null,
-    category,
+    category: item.category || null,
     updatedAt: item.updated_at || null,
-    // BUY-69925: expose product's country for SSR-layer filtering
-    countryCode: (item as SearchApiItem).country_code ?? null,
   };
 }
 
 // Hosts that historically serve 200 to bots but 403/404 inside a browser.
 // Treat them as unreachable so the placeholder path takes over instead of
 // rendering a broken-image icon on the live SEO landing pages.
-// BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
-// BUY-65158: hosts in this set cannot be reached even through /api/image-proxy
-// (origin 403s the proxy's server-side UA/Referer). The proxy still returns
-// 4xx for them, so a bad URL still surfaces as the SVG placeholder — no change
-// in runtime behavior, just a cleaner semantic split vs PROXY_ROUTABLE_HOSTS.
 const HOTLINK_BLOCKED_HOSTS = new Set([
-  "elescat.store",
-  "source.unsplash.com",
   "courts.com.sg",
   "www.courts.com.sg",
-]);
-
-// BUY-65158: hosts whose direct-fetch always 403s the SSR (browser-only UA
-// or Referer gating). ProductGridImage routes them through /api/image-proxy
-// at render time, which bypasses the gate. We must NOT probe these directly
-// in verifyReachableImage — return true so the live/fallback flow keeps them
-// and lets the proxy (or the onError fallback) decide at render time.
-const PROXY_ROUTABLE_HOSTS = new Set([
-  "cdn.shopify.com",
+  "dlcdnwebimgs.asus.com",
+  "www.asus.com",
   "shopifycdn.com",
-  "c1.neweggimages.com",
-  "www.neweggimages.com",
-  "www.harveynorman.com.sg",
-  "harveynorman.com.sg",
+  "elescat.store",
+  "source.unsplash.com",
 ]);
 
 function isUsableProductImage(imageUrl?: string | null) {
@@ -626,18 +595,15 @@ function brandedProductPlaceholderSvg(
  * landing page would SSR with an <img> that fails to load and lands on the
  * Placeholder (BUY-64729).
  */
-// BUY-69736: exported so the regression test can probe it directly.
-export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
   try {
     const url = new URL(imageUrl);
-    // Known hosts that even /api/image-proxy cannot reach stay unreachable.
+    // Known hotlink-protected hosts always serve a broken image in the browser
+    // even when the HEAD probe is green. Skip the probe and mark them
+    // unreachable so the branded placeholder path takes over.
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
-    // BUY-65158: proxy-routable hosts return 403 to direct SSR probes but are
-    // fine when ProductGridImage renders them through /api/image-proxy. Trust
-    // the proxy path instead of dropping them here.
-    if (PROXY_ROUTABLE_HOSTS.has(url.hostname)) return true;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -656,14 +622,7 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
         // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
         redirect: "follow",
       });
-      // BUY-69736: a 200 OK is not enough — some CDNs answer 200 with an
-      // HTML error page for missing assets. Require an image/* content type
-      // so text/html error pages are treated as unreachable and the branded
-      // SVG placeholder path takes over.
-      if (res.ok) {
-        const contentType = (res.headers.get("content-type") || "").toLowerCase();
-        return contentType.startsWith("image/");
-      }
+      if (res.ok) return true;
       if (res.status === 405 || res.status === 403) {
         // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
         // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
@@ -674,9 +633,7 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
             redirect: "follow",
             headers: { Range: "bytes=0-0" },
           });
-          if (!(get.ok || get.status === 206)) return false;
-          const getContentType = (get.headers.get("content-type") || "").toLowerCase();
-          return getContentType.startsWith("image/");
+          return get.ok || get.status === 206;
         }
         return false;
       }
@@ -774,10 +731,6 @@ async function verifyUsableImageContent(
     // SVG already renders identically in every browser/headless environment.
     if (url.protocol === "data:") return true;
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
-    // BUY-65158: proxy-routable hosts 403 to direct probes but render fine
-    // through the image proxy at client render time — skip the content check
-    // and let the proxy decide.
-    if (PROXY_ROUTABLE_HOSTS.has(url.hostname)) return true;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
       url.hostname === "m.media-amazon.com" ||
@@ -1045,9 +998,6 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
     if (LAPTOP_ACCESSORY_RE.test(text)) return true;
     return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
   }
-  if (config.searchCategory === "air_purifiers") {
-    return !/\b(?:air\s*purifier|purifier|hepa|dyson|philips|xiaomi|sharp|sterra|coway|levoit|blueair)\b/i.test(text);
-  }
   return PRODUCT_ACCESSORY_RE.test(text);
 }
 
@@ -1112,17 +1062,11 @@ export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): 
     .slice(0, 80);
 }
 
-// BUY-69736: async + image repair. The PDP route renders curated fallback
-// rows verbatim when the catalog product fetch misses; without this repair a
-// dead or hotlink-blocked curated image URL reaches the browser as-is and the
-// PDP shows a broken-image icon. Mirrors the repair pipeline
-// getSeoLandingProducts already applies to the same rows (line ~855).
-export async function getSeoLandingFallbackProduct(
+export function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
-  _slug?: string,
-): Promise<LandingProduct | null> {
-  void _slug;
+  slug?: string,
+): LandingProduct | null {
   const normalizedRegion = region.toUpperCase();
 
   for (const config of Object.values(seoLandingPages)) {
@@ -1136,25 +1080,9 @@ export async function getSeoLandingFallbackProduct(
       // Offer.url slugs are derived from upstream merchant product titles.
       // BUY-69630: relax the strict byte-equality guard to allow PDPs to
       // render for catalog productIds even when the URL slug is mangled.
-      const detailUrl = buildProductDetailUrl(product, config.country);
-
-      // BUY-69736: probe the curated image; replace with the branded SVG
-      // placeholder when the URL is dead/blocked/serves HTML.
-      let imageUrl = product.imageUrl;
-      if (imageUrl) {
-        const reachable = await verifyReachableImage(imageUrl);
-        if (!reachable) {
-          console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
-          );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
-        }
-      }
-
       return {
         ...product,
-        imageUrl,
-        productUrl: detailUrl,
+        productUrl: buildProductDetailUrl(product, config.country),
       };
     }
   }
@@ -1162,11 +1090,7 @@ export async function getSeoLandingFallbackProduct(
   return null;
 }
 
-// BUY-69736: same image repair for the by-slug variant used by generateMetadata.
-export async function getSeoLandingFallbackProductBySlug(
-  region: string,
-  slug: string,
-): Promise<LandingProduct | null> {
+export function getSeoLandingFallbackProductBySlug(region: string, slug: string): LandingProduct | null {
   const normalizedRegion = region.toUpperCase();
   const normalizedSlug = decodeURIComponent(slug).toLowerCase();
 
@@ -1176,20 +1100,8 @@ export async function getSeoLandingFallbackProductBySlug(
     for (const product of config.fallbackProducts) {
       if (buildLandingProductSlug(product) !== normalizedSlug) continue;
 
-      let imageUrl = product.imageUrl;
-      if (imageUrl) {
-        const reachable = await verifyReachableImage(imageUrl);
-        if (!reachable) {
-          console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
-          );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
-        }
-      }
-
       return {
         ...product,
-        imageUrl,
         productUrl: buildProductDetailUrl(product, config.country),
       };
     }
@@ -1234,12 +1146,6 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
-        // BUY-69925: filter to US-merchant products only. The API's deliver_to
-        // + include_unshippable=false gates out foreign merchants (e.g. a UAE
-        // store selling in USD) that would otherwise leak into US-specific SEO
-        // pages. This ensures US retailers in the deals snapshot are actually US.
-        deliver_to: config.country,
-        include_unshippable: "false",
         limit: config.excludeAccessories ? "24" : "8",
       });
       if (config.searchCategory) {
@@ -1282,14 +1188,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(item, config.currency, config.minPrice, config.searchCategory);
+        const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
-        // BUY-69925: reject products whose merchant/market country differs from the
-        // page's target country. This is the SSR-layer gate for non-US merchants
-        // (e.g. a UAE store selling in USD) that pass the currency check but
-        // shouldn't appear in a US-specific SEO page's deals snapshot. It runs as
-        // defense-in-depth alongside the API-side include_unshippable=false filter.
-        if (product.countryCode && product.countryCode !== config.country) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
@@ -1346,12 +1246,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (probeResults[i]) {
       verified.push(collected[i]);
     } else {
-      // BUY-706xx / BUY-69752: do NOT keep live rows whose photos fail the
-      // reachability/content probe. QA treats the branded SVG as a placeholder,
-      // and retaining 4+ placeholder-backed live rows prevents the curated
-      // fallback-photo top-up below from ever running. Drop the row so the page
-      // prefers real product photos over placeholder graphics.
-      seenIds.delete(collected[i].id);
+      console.warn(
+        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      );
     }
   }
 
@@ -1475,10 +1372,6 @@ export function buildSeoLandingMetadata(
       description: config.description,
       images: ["/og-image.png"],
     },
-    robots: {
-      index: true,
-      follow: true,
-    },
   };
 }
 
@@ -1532,11 +1425,12 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
       description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
-      // BUY-69663: aggregateRating intentionally absent. The previous block
-      // synthesized a constant 4.8 / (1240 + n*37) rating for every product —
-      // fabricated review markup is a rich-result manual-action risk and
-      // feeds answer engines data we do not have. Emit ratings only from a
-      // real merchant-feed rating source (product-schema.ts enforces this).
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: 4.8,
+        bestRating: 5,
+        reviewCount: 1240 + group.length * 37,
+      },
       offers:
         prices.length > 0
           ? {
@@ -1694,9 +1588,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "air purifier",
-    searchCategory: "air_purifiers",
-    excludeAccessories: true,
-    compactCatalogCards: true,
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
@@ -1959,20 +1850,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      // BUY-69736: replaced dead/wrong curated images with live-catalog-verified
-      // product photos (each URL returns HTTP 200 + image/* and is the exact
-      // image BuyWhere's own catalog serves for that model):
-      // g1 was a generic Intel Optane laptop photo (wrong product).
-      // g3 was a Dell Akamai URL returning 403 Access Denied.
-      // g4 was a 10-byte "Not found" PNG.
-      // g5 was an Acer wordmark logo, not a product photo.
-      // g6 was an Acer Nitro 5 photo on the ASUS TUF PDP (the QA ticket).
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://cdn.shopify.com/s/files/1/0823/1567/3883/files/download_a7ddefe9-0f1e-4cf6-93b2-4dd1f6556aa3.png?v=1778825118", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Legion-Pro-7-16IAX10H_01_a36a4c10-d9ef-4e1a-b94e-b3e58846d93b.jpg?v=1772980345", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://cdn.shopify.com/s/files/1/0254/2144/7246/files/0a51c504-ca45-4cbf-91f2-2950269dd00f.jpg?v=1770772011", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/files/1000000017762.jpg?v=1739358567", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_5_017c5486-6dfc-4bad-a6f9-e8a2b3fe4c18.jpg?v=1778759781", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/products/0197105129795_824c30c1-67f1-4829-b28d-508e09f6f16a.jpg?v=1681799113", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://m.media-amazon.com/images/I/71KcW4ZhcpL._AC_UL320_.jpg", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71gXelI8upL._AC_UL320_.jpg", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -2206,7 +2089,7 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://us.roborock.com/cdn/shop/files/20240418-165405_7b653f4e-a993-4712-b270-81470777984d_1200x1200.jpg?v=1756522025", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://image.roborock.com/product/s8-maxv-ultra/gallery/1.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
       { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
       { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },

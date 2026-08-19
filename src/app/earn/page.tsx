@@ -7,33 +7,6 @@ export const metadata: Metadata = {
   description:
     'Earn cashback on every purchase. Shop through BuyWhere and get rewards back on your everyday spending.',
   alternates: { canonical: '/earn' },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  openGraph: {
-    title: 'Earn Cashback — BuyWhere AI',
-    description:
-      'Earn cashback on every purchase. Shop through BuyWhere and get rewards back on your everyday spending.',
-    url: '/earn',
-    type: 'website',
-    siteName: 'BuyWhere',
-    images: [
-      {
-        url: '/earn/opengraph-image',
-        width: 1200,
-        height: 630,
-        alt: 'Earn Cashback — BuyWhere',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Earn Cashback — BuyWhere AI',
-    description:
-      'Earn cashback on every purchase. Shop through BuyWhere and get rewards back on your everyday spending.',
-    images: ['/earn/opengraph-image'],
-  },
 };
 
 export default async function EarnPage() {
@@ -52,7 +25,7 @@ export default async function EarnPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main id="main-content" tabIndex={-1} className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">

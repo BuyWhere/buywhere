@@ -11,7 +11,6 @@ import { useCompare } from "@/lib/compare-context";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { useWishlist } from "@/lib/wishlist-context";
 import { buildUSProductSlug, normalizeUSMerchantPrice, type USProductOfferApiItem } from "@/lib/us-products";
-import { toSiteUrl } from "@/lib/site-url";
 import WishlistButton from "@/components/WishlistButton";
 
 import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
@@ -598,12 +597,6 @@ function ReviewsSection({ summary }: { summary: ReviewSummary }) {
 interface USProductDetailProps {
   productId: string;
   initialData?: USProduct;
-  /**
-   * Pre-resolved absolute product image URL for structured data. The server-side
-   * `page.tsx` computes this from the API og-image fallback so JSON-LD always
-   * carries a crawlable absolute URL instead of the generic /og-image.png stub.
-   */
-  jsonLdImageUrl?: string;
 }
 
 function ProductLoadingSkeleton() {
@@ -704,7 +697,7 @@ function ProductNotFoundState() {
   );
 }
 
-export default function USProductDetail({ productId, initialData, jsonLdImageUrl }: USProductDetailProps) {
+export default function USProductDetail({ productId, initialData }: USProductDetailProps) {
   const [product, setProduct] = useState<USProduct | null>(initialData ?? null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
@@ -884,47 +877,35 @@ export default function USProductDetail({ productId, initialData, jsonLdImageUrl
     return <ProductNotFoundState />;
   }
 
-  // Compute image for JSON-LD: use server-provided absolute URL if available,
-  // otherwise fall back to product.image if it's a real URL (not empty stub).
-  const schemaImage = jsonLdImageUrl || (product.image && product.image.startsWith("http") ? product.image : undefined);
-
-  // Only include brand when we have a non-empty brand name.
-  const schemaBrand = product.brand ? { "@type": "Brand" as const, name: product.brand } : undefined;
-
-  // Build offers only from prices that have actual values.
-  const validPrices = product.prices.filter((p) => p.price !== null);
-  const schemaOffers = validPrices.length > 0
-    ? validPrices.map((p) => ({
-        "@type": "Offer" as const,
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.image,
+    brand: {
+      "@type": "Brand",
+      name: product.brand,
+    },
+    aggregateRating: product.overallRating > 0 ? {
+      "@type": "AggregateRating",
+      ratingValue: product.overallRating.toFixed(1),
+      reviewCount: product.reviewCount,
+    } : undefined,
+    offers: product.prices
+      .filter((p) => p.price !== null)
+      .map((p) => ({
+        "@type": "Offer",
         price: p.price,
         priceCurrency: "USD",
         availability: p.inStock
           ? "https://schema.org/InStock"
           : "https://schema.org/OutOfStock",
         seller: {
-          "@type": "Organization" as const,
+          "@type": "Organization",
           name: p.merchant,
         },
-        url: p.url,
-      }))
-    : undefined;
-
-  const productSchema = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.name,
-    description: product.description,
-    ...(schemaImage ? { image: schemaImage } : {}),
-    ...(schemaBrand ? { brand: schemaBrand } : {}),
-    ...(product.sku ? { sku: product.sku } : {}),
-    ...(product.asin ? { mpn: product.asin } : {}),
-    url: toSiteUrl(`/products/us/${productSlug}/`),
-    aggregateRating: product.overallRating > 0 ? {
-      "@type": "AggregateRating",
-      ratingValue: product.overallRating.toFixed(1),
-      reviewCount: product.reviewCount,
-    } : undefined,
-    ...(schemaOffers ? { offers: schemaOffers } : {}),
+      })),
   };
 
   return (

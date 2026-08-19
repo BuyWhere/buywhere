@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CheckoutSuccessClient from "@/components/CheckoutSuccessClient";
@@ -8,7 +8,7 @@ export default function CheckoutSuccessPage() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <section id="main-content" className="flex-1 py-16">
+      <section className="flex-1 py-16">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="rounded-[32px] border border-emerald-200 bg-white p-8 shadow-sm sm:p-10">
             <div className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
@@ -28,9 +28,7 @@ export default function CheckoutSuccessPage() {
               No Stripe session ID was present in the URL. You can still open the dashboard to verify your current plan.
             </div>
 
-            <Suspense fallback={null}>
-              <CheckoutSuccessClient />
-            </Suspense>
+            <CheckoutSuccessClient />
           </div>
         </div>
       </section>
