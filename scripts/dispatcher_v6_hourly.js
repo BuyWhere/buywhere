@@ -442,7 +442,7 @@ function buildReport(metrics, decision, target = TARGET_INSERTS_PER_HOUR) {
 async function run(options = {}) {
   const hourStart = options.hourStart || completedHour();
   const target = options.target || TARGET_INSERTS_PER_HOUR;
-  const client = options.client || buildClient();
+  let client = options.client || buildClient();
   const ownsClient = !options.client;
 
   try {
