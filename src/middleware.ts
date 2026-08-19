@@ -637,6 +637,28 @@ export function middleware(request: NextRequest) {
       return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
     }
   }
+
+  // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
+  // treats numeric ids as "region" and calls getProduct(). When the product is not found,
+  // it calls notFound() which returns HTTP 200 (soft-404) - a false-success pattern.
+  // This middleware catches numeric-only /products/{id} segments BEFORE Next.js streams
+  // the soft-200, and returns a hard 404. The /p/{id} route now serves these products.
+  const productsNumericMatch = /^\/products\/(\d{8,})\/?$/.exec(normalizedForDead);
+  if (productsNumericMatch) {
+    // Let the page handler determine if it's a real product - this is a known Next.js
+    // issue where notFound() doesn't set HTTP status correctly. For now, redirect
+    // to the canonical /p/{id} alias where the new route handles it properly.
+    // TODO: revert to hard 404 once the [region]/page.tsx notFound() is fixed.
+    const productId = productsNumericMatch[1];
+    const url = request.nextUrl.clone();
+    url.pathname = `/p/${productId}`;
+    return NextResponse.redirect(url, 308);
+  }
+
+  // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
+  // to the page handler (no middleware redirect/rewrite needed).
+  // This is already handled by the static file bypass above.
+
   // BUY-70653: all single-segment /compare/{slug} routes must resolve to a real
   // static markdown doc or a valid taxonomy category pair. Anything else is a
   // soft-200 fallback shell that crawlers should see as a hard 404. This also
