@@ -196,9 +196,35 @@ function buildClient() {
   });
 }
 
+
+const RETRYABLE_CODES = new Set(['EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND']);
+const CONNECT_RETRY_ATTEMPTS = 3;
+const CONNECT_RETRY_BASE_MS = 2000;
+
+async function connectWithRetry(clientFactory, attempts = CONNECT_RETRY_ATTEMPTS) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const client = clientFactory();
+    try {
+      await client.connect();
+      return client;
+    } catch (err) {
+      const code = err?.code;
+      const isRetryable = RETRYABLE_CODES.has(code) || /timeout|ECONNR/i.test(err?.message || '');
+      if (attempt < attempts && isRetryable) {
+        const delay = CONNECT_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+        console.error('[connect-retry]', 'attempt ' + attempt + '/' + attempts + ' failed (' + (code || err?.message) + '), retrying in ' + delay + 'ms');
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 async function ensureCanonicalTable(client) {
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS canonical_throughput_hourly (
+  const DDL_PERMISSION_ERR = '42501';
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS canonical_throughput_hourly (
       hour_start timestamptz PRIMARY KEY,
       n_tup_ins bigint,
       n_tup_upd bigint,
@@ -237,7 +263,17 @@ async function ensureCanonicalTable(client) {
   ];
 
   for (const [name, definition] of optionalColumns) {
-    await client.query(`ALTER TABLE canonical_throughput_hourly ADD COLUMN IF NOT EXISTS ${name} ${definition}`);
+      await client.query(`ALTER TABLE canonical_throughput_hourly ADD COLUMN IF NOT EXISTS ${name} ${definition}`);
+    }
+  } catch (err) {
+    if (err.code !== DDL_PERMISSION_ERR) throw err;
+    const check = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='canonical_throughput_hourly'`
+    );
+    if (check.rows.length === 0) {
+      throw new Error('canonical_throughput_hourly missing and CREATE permission denied — cannot proceed');
+    }
+    console.error('[ensureCanonicalTable] DDL permission denied but table exists — continuing');
   }
 }
 
@@ -418,11 +454,13 @@ function buildReport(metrics, decision, target = TARGET_INSERTS_PER_HOUR) {
 async function run(options = {}) {
   const hourStart = options.hourStart || completedHour();
   const target = options.target || TARGET_INSERTS_PER_HOUR;
-  const client = options.client || buildClient();
+  let client = options.client || buildClient();
   const ownsClient = !options.client;
 
   try {
-    if (ownsClient) await client.connect();
+    if (ownsClient) {
+      client = await connectWithRetry(buildClient);
+    }
     await client.query(`SET statement_timeout = ${Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS)}`);
     await ensureCanonicalTable(client);
     await upsertSnapshot(client, hourStart, { skipLiveCount: options.skipLiveCount !== false });
@@ -497,7 +535,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.2 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.2 uses n_live_tup_delta as the no-scan stale-counter guard.`);
+  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.4 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.2 uses n_live_tup_delta as the no-scan stale-counter guard.`);
 }
 
 function assertEqual(actual, expected, message) {
