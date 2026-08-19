@@ -71,6 +71,35 @@ function withBaselineSecurityHeaders(
   return response;
 }
 
+// BUY-71735: P2.3 — Add X-Agent-Auth header on 401/403 auth failures.
+// Also ensures Access-Control-Expose-Headers includes all five agent headers.
+//
+// NOTE: re-applied on top of BUY-71746 (Hex, 2026-08-19 11:06 UTC) which
+// incidentally dropped this function during its sitemap-index rewrite.
+function withAgentAuthHeader(request: NextRequest, response: NextResponse): NextResponse {
+  const status = response.status;
+  if (status === 401 || status === 403) {
+    response.headers.set(
+      "X-Agent-Auth",
+      "Bearer; register=https://buywhere.ai/api-keys"
+    );
+  }
+
+  // Ensure Access-Control-Expose-Headers includes all five headers for browser agents.
+  const existingExpose = response.headers.get("Access-Control-Expose-Headers");
+  const allFive = "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth";
+  if (existingExpose) {
+    // Append if not already present
+    if (!existingExpose.includes("X-Agent-Protocol")) {
+      response.headers.set("Access-Control-Expose-Headers", `${existingExpose}, ${allFive}`);
+    }
+  } else {
+    response.headers.set("Access-Control-Expose-Headers", allFive);
+  }
+
+  return response;
+}
+
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
@@ -719,7 +748,11 @@ export function middleware(request: NextRequest) {
     return withBaselineSecurityHeaders(request, response);
   }
 
-  return withBaselineSecurityHeaders(request, NextResponse.next());
+  // BUY-71735: also run withAgentAuthHeader on the final fall-through to ensure
+  // Access-Control-Expose-Headers is populated for non-401/403 responses too
+  // (the static headers() in next.config.mjs already covers the 4 main headers,
+  // but this keeps the X-Agent-Auth signal consistent for browser agents).
+  return withAgentAuthHeader(request, withBaselineSecurityHeaders(request, NextResponse.next()));
 }
 
 export const config = {
