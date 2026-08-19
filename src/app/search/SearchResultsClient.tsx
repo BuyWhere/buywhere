@@ -180,11 +180,13 @@ function formatPrice(price: number | null, currency: string) {
   if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
   try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
+    const formattedPrice = new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
     }).format(price);
+
+    return currency === 'SGD' ? formattedPrice.replace(/^\$/, 'S$') : formattedPrice;
   } catch {
     return `${currency} ${price.toFixed(2)}`;
   }
