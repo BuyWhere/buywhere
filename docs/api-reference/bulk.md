@@ -4,8 +4,6 @@ description: "Batch fetch multiple products by their IDs in a single request. Us
 public: true
 ---
 
-# Bulk Lookup
-
 **Info:**
 This endpoint requires a **Pro** or **Enterprise** tier API key.
 

@@ -4,8 +4,6 @@ description: "Daily aggregated price trends for a product over up to 180 days."
 public: true
 ---
 
-# Price History
-
 ```
 GET /v1/products/{id}/price-history
 ```

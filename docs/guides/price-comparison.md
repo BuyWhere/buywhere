@@ -4,8 +4,6 @@ description: "Build a CLI tool that searches for a product across multiple retai
 public: true
 ---
 
-# Build a Price Comparison Tool with Python
-
 Build a CLI tool that searches for a product across multiple retailers and shows the best prices, in under 50 lines of Python.
 
 ## Prerequisites

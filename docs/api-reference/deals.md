@@ -4,8 +4,6 @@ description: "Find products with active discounts, sorted by discount percentage
 public: true
 ---
 
-# Deals
-
 ```
 GET /v1/products/deals
 ```

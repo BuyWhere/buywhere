@@ -4,8 +4,6 @@ description: "Mastra(https://mastra.ai) is a TypeScript-first AI agent framework
 public: true
 ---
 
-# BuyWhere + Mastra
-
 [Mastra](https://mastra.ai) is a TypeScript-first AI agent framework with native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) support. Because BuyWhere ships an MCP-compatible endpoint, you can connect BuyWhere tools to any Mastra agent in minutes.
 
 ## What You Get

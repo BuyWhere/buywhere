@@ -4,8 +4,6 @@ description: "Full-text search across 5M+ products with filtering by country, br
 public: true
 ---
 
-# Search Products
-
 ```
 GET /v1/products/search
 ```

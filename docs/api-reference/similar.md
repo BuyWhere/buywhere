@@ -4,8 +4,6 @@ description: "Find products similar to a given product, based on brand, category
 public: true
 ---
 
-# Similar Products
-
 ```
 GET /v1/products/{id}/similar
 ```

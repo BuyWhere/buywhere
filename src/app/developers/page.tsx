@@ -5,6 +5,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
@@ -183,6 +185,18 @@ export default function DevelopersPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Schema
+        data={buildWebPageSchema({
+          path: "/developers",
+          name: "Developer Portal — BuyWhere MCP & API for AI Agents",
+          description:
+            "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 238,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
+          breadcrumb: [
+            { name: "Home", path: "/" },
+            { name: "Developer Portal", path: "/developers" },
+          ],
+        })}
+      />
       <Script id="organization-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(organizationSchema)}
       </Script>

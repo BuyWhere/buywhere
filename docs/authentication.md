@@ -4,8 +4,6 @@ description: "All BuyWhere API endpoints require authentication via an API key."
 public: true
 ---
 
-# Authentication
-
 All BuyWhere API endpoints require authentication via an API key.
 
 ## Using Your API Key
