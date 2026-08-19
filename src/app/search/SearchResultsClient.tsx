@@ -524,7 +524,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // BUY-65559: drop implausible sentinel prices to null so the card renders
     // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
     price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
-    currency: priceCurrency || fallbackCurrency,
+    // BUY-71638: always store the selected-country display currency so the card
+    // never shows INR/TRY/etc. when US/SG is selected.
+    currency: fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
@@ -750,7 +752,8 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
               passes WCAG AA 4.5:1 against the white card background. */}
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+            {/* BUY-71638: use activeCountry.currency for display, not per-item currency */}
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, activeCountry.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
