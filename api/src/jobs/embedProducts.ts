@@ -198,7 +198,15 @@ export async function runEmbedBatch(
   // (often = "most likely to have stale embeddings") instead of
   // "highest-value first". After 18 days of zero embeddings this is a
   // defensible recovery order.
-  const overscan = Math.max(batchLimit * 2, 64);
+  //
+  // BUY-68453: after one full tick embeds the recent window, subsequent
+  // ticks overscan the same recent rows and hit `skipped >= batchLimit`
+  // in the hash gate, returning 0. The overscan must be large enough to
+  // step PAST the recent embedded window so the gate can find
+  // un-embedded candidates deeper in the catalog. 200x overscan (capped
+  // at 200k) lets the worker chew through the full ~394M catalog across
+  // the recurring interval without plateauing on already-embedded rows.
+  const overscan = Math.min(Math.max(batchLimit * 200, 64_000), 200_000);
   const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
     `WITH active_ids AS (
        SELECT id
