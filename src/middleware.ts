@@ -75,6 +75,32 @@ function withBaselineSecurityHeaders(
   return response;
 }
 
+// BUY-71735: P2.3 — Add X-Agent-Auth header on 401/403 auth failures.
+// Also ensures Access-Control-Expose-Headers includes all five agent headers.
+function withAgentAuthHeader(request: NextRequest, response: NextResponse): NextResponse {
+  const status = response.status;
+  if (status === 401 || status === 403) {
+    response.headers.set(
+      "X-Agent-Auth",
+      "Bearer; register=https://buywhere.ai/api-keys"
+    );
+  }
+
+  // Ensure Access-Control-Expose-Headers includes all five headers for browser agents.
+  const existingExpose = response.headers.get("Access-Control-Expose-Headers");
+  const allFive = "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth";
+  if (existingExpose) {
+    // Append if not already present
+    if (!existingExpose.includes("X-Agent-Protocol")) {
+      response.headers.set("Access-Control-Expose-Headers", `${existingExpose}, ${allFive}`);
+    }
+  } else {
+    response.headers.set("Access-Control-Expose-Headers", allFive);
+  }
+
+  return response;
+}
+
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
@@ -552,15 +578,41 @@ export async function middleware(request: NextRequest) {
     return metadataMiss;
   }
 
-  if (
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
-    pathname === "/.well-known/"
-  ) {
-    return NextResponse.next();
+  // BUY-71735: For /api/v1/* and /api/dashboard/* routes, enforce auth at the middleware
+// layer with X-Agent-Auth on 401, so agent probes see the auth signal even before the
+// route handler runs. We bypass all other /api/* traffic (revalidate, auth, login, etc.).
+const AGENT_AUTH_API_PREFIXES = [
+  "/api/dashboard/",
+  "/api/v1/developer/",
+  "/api/v1/stripe/",
+  "/api/auth/me/",
+];
+
+if (pathname.startsWith("/api/")) {
+  const needsAuth = AGENT_AUTH_API_PREFIXES.some((p) => pathname.startsWith(p));
+  if (needsAuth) {
+    const apiKey =
+      request.cookies.get("bw_dashboard_key")?.value ||
+      request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!apiKey) {
+      const res = new NextResponse(
+        JSON.stringify({ error: "API key required" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+      return withAgentAuthHeader(request, res);
+    }
   }
+  return NextResponse.next();
+}
+
+if (
+  pathname.startsWith("/_next/") ||
+  pathname.startsWith("/assets/") ||
+  (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
+  pathname === "/.well-known/"
+) {
+  return NextResponse.next();
+}
 
   // BUY-69260: Next.js 14.2.35 throws
   //   "The router state header was sent but could not be parsed."
@@ -886,10 +938,13 @@ export async function middleware(request: NextRequest) {
     if (docsCanonicalLink) linkParts.push(docsCanonicalLink);
     response.headers.set("Link", linkParts.join(", "));
     if (isDiscoveryRoute) response.headers.set("Vary", "Accept");
-    return withBaselineSecurityHeaders(request, response);
+    return withAgentAuthHeader(request, withBaselineSecurityHeaders(request, response));
   }
 
-  return withBaselineSecurityHeaders(request, NextResponse.next());
+  return withAgentAuthHeader(
+    request,
+    withBaselineSecurityHeaders(request, NextResponse.next())
+  );
 }
 
 export const config = {

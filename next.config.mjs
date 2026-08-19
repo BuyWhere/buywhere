@@ -472,6 +472,74 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    // BUY-71735: P2.3 agent-discovery HTTP headers.
+    // - X-Agent-Protocol + X-Agent-Card + X-LLMs-Txt on every response.
+    // - X-Agent-Index only on 200 catalog responses (catalog route matchers).
+    // - Access-Control-Expose-Headers lists all five so browser agents
+    //   (LangChain in-browser, etc.) can read them.
+    const ALL_AGENT_HEADERS = {
+      "X-Agent-Protocol": "buywhere/v1",
+      "X-Agent-Card": "https://api.buywhere.ai/.well-known/agent.json",
+      "X-LLMs-Txt": "https://api.buywhere.ai/llms.txt",
+      "Access-Control-Expose-Headers":
+        "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth",
+    };
+
+    const HEADERS_FOR_ALL = Object.entries(ALL_AGENT_HEADERS).map(
+      ([key, value]) => ({ key, value }),
+    );
+
+    // Base headers applied to every route under the matcher below.
+    const baseHeaders = [
+      // Apply to every route EXCEPT Next.js static/_next assets.
+      {
+        source: "/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap.*\\.xml).*)",
+        headers: HEADERS_FOR_ALL,
+      },
+    ];
+
+    // Catalog-only: add X-Agent-Index. The 200-only gate is enforced upstream by
+    // Vercel/edge; if a non-200 slips through (rare), the value still points at
+    // the canonical search endpoint, which is non-leaky.
+    const X_AGENT_INDEX = "https://api.buywhere.ai/v1/products/search?q={q}&country_code={cc}";
+    const catalogHeaders = [
+      {
+        source: "/search",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/search/:path*",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/products",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/products/:path*",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/p",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/p/:path*",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/compare",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+      {
+        source: "/compare/:path*",
+        headers: [...HEADERS_FOR_ALL, { key: "X-Agent-Index", value: X_AGENT_INDEX }],
+      },
+    ];
+
+    return [...baseHeaders, ...catalogHeaders];
+  },
   async rewrites() {
     return [
       // /api/v1/* → api.buywhere.ai/v1/*  (canonical v1 path)
