@@ -439,15 +439,25 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 // Treat them as unreachable so the placeholder path takes over instead of
 // rendering a broken-image icon on the live SEO landing pages.
 // BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
+// BUY-65158: hosts in this set cannot be reached even through /api/image-proxy
+// (origin 403s the proxy's server-side UA/Referer). The proxy still returns
+// 4xx for them, so a bad URL still surfaces as the SVG placeholder — no change
+// in runtime behavior, just a cleaner semantic split vs PROXY_ROUTABLE_HOSTS.
 const HOTLINK_BLOCKED_HOSTS = new Set([
-  "courts.com.sg",
-  "www.courts.com.sg",
-  "dlcdnwebimgs.asus.com",
-  "www.asus.com",
-  "shopifycdn.com",
-  "cdn.shopify.com",
   "elescat.store",
   "source.unsplash.com",
+  "courts.com.sg",
+  "www.courts.com.sg",
+]);
+
+// BUY-65158: hosts whose direct-fetch always 403s the SSR (browser-only UA
+// or Referer gating). ProductGridImage routes them through /api/image-proxy
+// at render time, which bypasses the gate. We must NOT probe these directly
+// in verifyReachableImage — return true so the live/fallback flow keeps them
+// and lets the proxy (or the onError fallback) decide at render time.
+const PROXY_ROUTABLE_HOSTS = new Set([
+  "cdn.shopify.com",
+  "shopifycdn.com",
   "c1.neweggimages.com",
   "www.neweggimages.com",
   "www.harveynorman.com.sg",
@@ -622,10 +632,12 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
   try {
     const url = new URL(imageUrl);
-    // Known hotlink-protected hosts always serve a broken image in the browser
-    // even when the HEAD probe is green. Skip the probe and mark them
-    // unreachable so the branded placeholder path takes over.
+    // Known hosts that even /api/image-proxy cannot reach stay unreachable.
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-65158: proxy-routable hosts return 403 to direct SSR probes but are
+    // fine when ProductGridImage renders them through /api/image-proxy. Trust
+    // the proxy path instead of dropping them here.
+    if (PROXY_ROUTABLE_HOSTS.has(url.hostname)) return true;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -762,6 +774,10 @@ async function verifyUsableImageContent(
     // SVG already renders identically in every browser/headless environment.
     if (url.protocol === "data:") return true;
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-65158: proxy-routable hosts 403 to direct probes but render fine
+    // through the image proxy at client render time — skip the content check
+    // and let the proxy decide.
+    if (PROXY_ROUTABLE_HOSTS.has(url.hostname)) return true;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
       url.hostname === "m.media-amazon.com" ||
