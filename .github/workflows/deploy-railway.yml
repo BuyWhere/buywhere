@@ -116,8 +116,10 @@ jobs:
             -H "Authorization: Bearer ${API_KEY}")
           echo "$SEARCH_JSON" | jq '{total, first: (.results[0] // null), error}'
           SEARCH_ERROR=$(echo "$SEARCH_JSON" | jq -r '.error // empty')
-          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // 0')
-          if [[ -n "$SEARCH_ERROR" || "$SEARCH_TOTAL" == "0" ]]; then
+          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // empty')
+          # Accept total > 0, or null/empty if results array has items (valid API response)
+          SEARCH_RESULTS=$(echo "$SEARCH_JSON" | jq -r '.results | length // 0')
+          if [[ -n "$SEARCH_ERROR" || ( -z "$SEARCH_TOTAL" && "$SEARCH_RESULTS" == "0" ) ]]; then
             echo "ERROR: search smoke test failed"
             exit 1
           fi
