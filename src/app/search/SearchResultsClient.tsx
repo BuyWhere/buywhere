@@ -180,13 +180,11 @@ function formatPrice(price: number | null, currency: string) {
   if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
   try {
-    const formattedPrice = new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
+    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
     }).format(price);
-
-    return currency === 'SGD' ? formattedPrice.replace(/^\$/, 'S$') : formattedPrice;
   } catch {
     return `${currency} ${price.toFixed(2)}`;
   }
@@ -543,10 +541,6 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     item.price && typeof item.price === 'object' && 'amount' in item.price
       ? item.price.amount
       : item.price_amount ?? item.price;
-  const priceCurrency =
-    item.price && typeof item.price === 'object' && 'currency' in item.price
-      ? item.price.currency
-      : item.price_currency ?? item.currency;
   const numericPrice =
     typeof priceValue === 'number'
       ? priceValue
@@ -572,6 +566,8 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // BUY-65559: drop implausible sentinel prices to null so the card renders
     // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
     price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
+    // BUY-71638: use selected-country currency (activeCountry.currency passed as fallbackCurrency)
+    // so all products display in the user's selected country currency, not their native currency.
     currency: fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
@@ -719,7 +715,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
-function SearchCard({ product, displayCurrency }: { product: SearchCardProduct; displayCurrency: string }) {
+function SearchCard({ product }: { product: SearchCardProduct }) {
   // BUY-67973: track image lifecycle so the literal "Product image" text no
   // longer sits on top of loaded imagery. We render three mutually exclusive
   // states:
@@ -857,7 +853,7 @@ function SearchCard({ product, displayCurrency }: { product: SearchCardProduct; 
               passes WCAG AA 4.5:1 against the white card background. */}
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, displayCurrency)}</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -1486,7 +1482,7 @@ export default function SearchResultsClient({
                     className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
-                      <SearchCard key={product.id} product={product} displayCurrency={activeCountry.currency} />
+                      <SearchCard key={product.id} product={product} />
                     ))}
                   </div>
 

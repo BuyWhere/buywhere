@@ -30,7 +30,7 @@ const REPORT_DIR = path.join(ROOT, 'data', 'reports');
 const RECOMMENDATIONS_PATH = path.join(ROOT, 'data', '.drain_lane_recommendations.json');
 
 const DEFAULT_HOURS = 6;
-const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
+const DEFAULT_STATEMENT_TIMEOUT_MS = 120_000;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
 
 function buildClient() {

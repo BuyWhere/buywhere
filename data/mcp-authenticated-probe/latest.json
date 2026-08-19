@@ -1,11 +1,41 @@
 {
   "probe": "buywhere-authenticated-mcp",
-  "startedAt": "2026-05-16T02:41:40.263Z",
-  "completedAt": "2026-05-16T02:41:40.263Z",
-  "baseUrl": "https://api.buywhere.ai/mcp",
+  "startedAt": "2026-08-18T11:34:20.515Z",
+  "completedAt": "2026-08-18T11:34:20.515Z",
+  "baseUrl": "https://mcp.buywhere.ai/mcp",
   "status": "failed",
   "schemaValid": false,
   "errorRate": 1,
-  "error": "Missing API key. Set BUYWHERE_MCP_API_KEY, MCP_TESTING_API_KEY, or BUYWHERE_API_KEY.",
-  "context": {}
+  "error": "get_product returned no results",
+  "context": {
+    "parsed": {
+      "id": "54411865",
+      "title": "CleanScreen Laptop & Tablet Cleaner",
+      "price": "see merchant (price unavailable in catalog) — click through to confirm",
+      "normalized_price_usd": 4.95,
+      "merchant": "shopify_audioquest_com",
+      "url": "https://audioquest.com/products/audioquest-cleanscreen-spray-pen-single-with-6ml-spray-pen-microfiber-cleaning-cloth-copy",
+      "image_url": "https://cdn.shopify.com/s/files/1/0629/5886/2594/files/audioquest-cleanscreen-laptop-tablet-cleaner-cs20ml-4429560.png?v=1763835893",
+      "region": "sg",
+      "country_code": "SG",
+      "updated_at": "2026-05-05T22:46:59.646Z",
+      "click_url": "https://api.buywhere.ai/api/click?url=https%3A%2F%2Faudioquest.com%2Fproducts%2Faudioquest-cleanscreen-spray-pen-single-with-6ml-spray-pen-microfiber-cleaning-cloth-copy&product_id=54411865&source=product_card&merchant=shopify_audioquest_com",
+      "affiliate_redirect_url": "https://api.buywhere.ai/r/direct/54411865?source=product_card",
+      "metadata": {
+        "shopify_id": 9209604112642,
+        "shopify_tags": [
+          "Accessories",
+          "CleanScreen",
+          "CleanScreen Screen Cleaning Kits",
+          "DFI Exempt",
+          "Essential",
+          "Loaner",
+          "Screen Cleaning Kits"
+        ],
+        "shopify_handle": "audioquest-cleanscreen-spray-pen-single-with-6ml-spray-pen-microfiber-cleaning-cloth-copy",
+        "variants_count": 1
+      }
+    },
+    "firstProductId": "54411865"
+  }
 }

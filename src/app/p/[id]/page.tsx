@@ -149,7 +149,6 @@ interface PageProps {
 // Next.js already enforces no /.., but we additionally reject any non-alphanumeric id
 // to prevent path-traversal-adjacent edge cases and ensure a hard 404 for garbage ids.
 const VALID_ID_RE = /^[a-zA-Z0-9_-]+$/;
-const NUMERIC_ID_RE = /^\d{8,}$/;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
@@ -211,10 +210,6 @@ export default async function ShortAliasProductPage({ params }: PageProps) {
   const productName = product.name ?? product.title ?? `Product ${id}`;
   const merchantName = product.merchant_name ?? "BuyWhere";
   const merchantSlug = product.merchant_slug ?? "catalog";
-  // BUY-71642 gate #2 / canonical redirect: if the id is numeric and the resolved
-  // product's slug doesn't match expectations, redirect to the 2-segment canonical.
-  // For now, always point canonical at the 2-segment form.
-  const canonicalUrl = `https://buywhere.ai/products/us/${merchantSlug}/${id}/`;
   const pagePath = `/products/us/${merchantSlug}/${id}/`;
   const description =
     product.description ?? `${productName} available from ${merchantName} in the US.`;

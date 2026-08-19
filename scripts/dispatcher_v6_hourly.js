@@ -187,11 +187,12 @@ const RETRYABLE_CODES = new Set(['EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETI
 const CONNECT_RETRY_ATTEMPTS = 3;
 const CONNECT_RETRY_BASE_MS = 2000;
 
-async function connectWithRetry(client, attempts = CONNECT_RETRY_ATTEMPTS) {
+async function connectWithRetry(buildClient, attempts = CONNECT_RETRY_ATTEMPTS) {
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    const client = buildClient();
     try {
       await client.connect();
-      return;
+      return client;
     } catch (err) {
       const code = err?.code;
       const isRetryable = RETRYABLE_CODES.has(code) || /timeout|ECONNR/i.test(err?.message || '');
@@ -445,7 +446,9 @@ async function run(options = {}) {
   const ownsClient = !options.client;
 
   try {
-    if (ownsClient) await connectWithRetry(client);
+    if (ownsClient) {
+      client = await connectWithRetry(buildClient);
+    }
     await client.query(`SET statement_timeout = ${Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS)}`);
     await ensureCanonicalTable(client);
     await upsertSnapshot(client, hourStart, { skipLiveCount: options.skipLiveCount !== false });
@@ -613,7 +616,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.2 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.2 uses n_live_tup_delta as the no-scan stale-counter guard.`);
+  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.4 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.4 uses n_live_tup_delta as the no-scan stale-counter guard.`);
 }
 
 function assertEqual(actual, expected, message) {

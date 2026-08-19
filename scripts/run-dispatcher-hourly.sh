@@ -28,7 +28,7 @@ fi
 if [[ -z "${PAPERCLIP_API_KEY:-}" && -f /home/paperclip/.throughput_dispatcher_env ]]; then
   . /home/paperclip/.throughput_dispatcher_env 2>/dev/null || true
   if [[ -n "${PAPERCLIP_API_KEY:-}" ]]; then
-    EXP_EPOCH=$(echo "$PAPERCLIP_API_KEY" | cut -d. -f2 | python3 -c "import sys,base64,json; s=sys.stdin.read().strip(); s+='='*(4-len(s)%4); s=s.replace('-','+').replace('_','/'); print(json.loads(base64.b64decode(s)).get('exp',0))" 2>/dev/null || echo 0)
+    EXP_EPOCH=$(echo "$PAPERCLIP_API_KEY" | cut -d. -f2 | python3 -c "import sys,base64,json; s=sys.stdin.read().strip(); s+='='*(4-len(s)%4); s=s.replace('-','+').replace('_','/'); print(json.loads(base64.b64decode(s)).get('exp',0))" 2>/dev/null | head -1 || echo 0)
     NOW_EPOCH=$(date +%s)
     if [[ "$EXP_EPOCH" -lt $((NOW_EPOCH + 60)) ]]; then
       unset PAPERCLIP_API_KEY
