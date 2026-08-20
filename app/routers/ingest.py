@@ -326,29 +326,17 @@ async def ingest_products(
         # We build a raw SQL string with numbered placeholders ($1, $2, …)
         # because SQLAlchemy's insert().on_conflict_do_update().returning()
         # cannot emit the (xmax = 0) system-column expression.
-        # BUY-72080: include category_path + metadata in the INSERT column list
-        # and param loop. Previously the upsert had col_count=14 and omitted
-        # both columns from the INSERT, so EXCLUDED.category_path /
-        # EXCLUDED.metadata resolved to NULL on every upsert — wiping valid
-        # category_path[] arrays on update and leaving new rows NULL.
-        col_count = 16  # sku, source, merchant_id, title, description, price,
-                        # currency, url, image_url, brand, category,
-                        # category_path, metadata, is_active, region, country_code
+        col_count = 14  # sku, source, merchant_id, title, description, price,
+                        # currency, url, image_url, brand, category, is_active,
+                        # region, country_code
         row_count = len(values_list)
         params: List[object] = []
         for v in values_list:
             params.extend([
                 v["sku"], v["source"], v["merchant_id"], v["title"],
                 v["description"], v["price"], v["currency"], v["url"],
-                v["image_url"], v["brand"], v["category"],
-                # BUY-72080: fallback to [category] when the scraper only
-                # filled the scalar category, so consumers reading
-                # category_path[1] get the value instead of NULL.
-                v["category_path"] if v.get("category_path") else (
-                    [v["category"]] if v.get("category") else None
-                ),
-                v["metadata"],
-                v["is_active"], v["region"], v["country_code"],
+                v["image_url"], v["brand"], v["category"], v["is_active"],
+                v["region"], v["country_code"],
             ])
 
         placeholders = "".join(
@@ -360,8 +348,7 @@ async def ingest_products(
         upsert_sql = text(f"""
             INSERT INTO products
                 (sku, source, merchant_id, title, description, price, currency,
-                 url, image_url, brand, category, category_path, metadata,
-                 is_active, region, country_code)
+                 url, image_url, brand, category, is_active, region, country_code)
             VALUES {placeholders}
             ON CONFLICT (sku, source)
             DO UPDATE SET
@@ -373,9 +360,9 @@ async def ingest_products(
                 image_url  = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
                 brand      = EXCLUDED.brand,
                 category   = EXCLUDED.category,
-                category_path   = COALESCE(EXCLUDED.category_path, products.category_path),
+                category_path   = EXCLUDED.category_path,
                 merchant_id     = EXCLUDED.merchant_id,
-                metadata        = COALESCE(EXCLUDED.metadata, products.metadata),
+                metadata        = EXCLUDED.metadata,
                 is_active       = TRUE,
                 is_available    = EXCLUDED.is_available,
                 in_stock        = EXCLUDED.in_stock,
