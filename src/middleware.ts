@@ -658,6 +658,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // BUY-72180: /products/{1-7 digit numeric} hard-404 gate.
+  // The [\d{8,}] redirect below only catches 8+ digit IDs. Shorter numeric segments
+  // (e.g. /products/1, /products/50, /products/100, /products/250) fall through to
+  // /products/[region]/page.tsx, which calls notFound() — but Next.js streams the
+  // not-found shell as HTTP 200 (soft-404 anti-pattern). No real BuyWhere product
+  // has a <8 digit ID (catalog IDs are 18-digit snowflakes), so 1-7 digit numerics
+  // are unambiguously invalid. Return a hard 404 with noindex directly — no API call.
+  // Soft-404 risk: crawlers may index 200+empty bodies; sitemap emits only slug-form
+  // so the inbound-link surface is narrow but non-zero (older URLs, agent.json, partner
+  // feeds, archived sitemaps).
+  const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
+  if (productsShortNumericMatch) {
+    return new NextResponse("Product Not Found", {
+      status: 404,
+      statusText: "Product Not Found",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
+  }
+
   // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
   // treats numeric ids as "region" and calls getProduct(). When the product is not found,
   // it calls notFound() which returns HTTP 200 (soft-404) - a false-success pattern.
@@ -675,6 +697,22 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = `/p/${productId}`;
     return NextResponse.redirect(url, 308);
+  }
+
+  // BUY-72180: /p/{1-7 digit numeric} hard-404 gate (companion to /products/{short-numeric}).
+  // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
+  // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
+  // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
+  const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
+  if (pShortIdMatch) {
+    return new NextResponse("Product Not Found", {
+      status: 404,
+      statusText: "Product Not Found",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
   }
 
   // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
