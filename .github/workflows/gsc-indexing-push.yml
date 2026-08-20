@@ -1,0 +1,64 @@
+name: GSC Indexing Push (daily 07:05 UTC)
+
+on:
+  schedule:
+    - cron: "5 7 * * *"   # 07:05 UTC = 00:05 US Pacific (PDT)
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Queue date override (YYYY-MM-DD)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gsc-indexing-push
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install pg --no-save
+
+      - name: Generate indexing queue
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_QUEUE_URLS: '500'
+          LOOKBACK_HOURS: '168'
+        run: |
+          set -e
+          DATE_OVERRIDE="${{ github.event.inputs.date }}"
+          if [ -n "$DATE_OVERRIDE" ]; then
+            node scripts/generate-indexing-queue.mjs "$DATE_OVERRIDE"
+          else
+            node scripts/generate-indexing-queue.mjs
+          fi
+
+      - name: Push queue to GSC Indexing API
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SA_KEY }}
+          GSC_INDEXING_DAILY_LIMIT: '200'
+          # Indexing API eligible pages only (JobPosting/BroadcastEvent, BUY-66696)
+          GSC_INDEXING_API_ALLOW_ELIGIBLE: ${{ vars.GSC_INDEXING_API_ALLOW_ELIGIBLE }}
+        run: |
+          # Push script no-ops when no queue file exists.
+          # Exit code 2 = eligible-pages guard tripped (expected for non-eligible URLs).
+          set +e
+          node scripts/gsc-midnight-push-generic.mjs
+          code=$?
+          set -e
+          if [ "$code" = "2" ]; then
+            echo "Guard tripped: no eligible URLs (expected for BuyWhere). Job treated as success."
+            exit 0
+          fi
+          exit $code
