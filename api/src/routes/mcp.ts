@@ -70,6 +70,7 @@ const TOOLS = [
         api_version: { type: 'string', enum: ['v1', 'v2'], description: 'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.', default: 'v1' },
         deliver_to: { type: 'string', description: 'Buyer\'s ISO 3166-1 alpha-2 country code (e.g. "SG", "US", "MY", "TH", "VN"). ALWAYS pass this — it scopes results to products deliverable to that market, ranks them local-first, and labels availability per row. Takes precedence over country_code and country. REQUIRED on api_version=v2.', pattern: '^[A-Z]{2}$' },
         q: { type: 'string', description: 'Keyword search query' },
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -227,7 +228,10 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
+  // BUY-70288 re-apply: accept the `query` alias for `q` so agent-natural
+  // calls don't silently fall into the no-q browse branch (which returns
+  // a fabricated reltuples-derived "total" with 0 rows).
+  const q = (args.q as string) || (args.query as string) || '';
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';

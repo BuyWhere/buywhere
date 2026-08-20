@@ -55,6 +55,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -208,7 +209,10 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
+  // BUY-70288 re-apply: accept the `query` alias for `q` so agent-natural
+  // calls don't silently fall into the no-q browse branch (which returns
+  // a fabricated reltuples-derived "total" with 0 rows).
+  const q = (args.q as string) || (args.query as string) || '';
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
