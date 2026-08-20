@@ -387,7 +387,6 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
 
-// BUY-67622 hero-copy denylist tests (kept from HEAD; the conflicting branch was an unrelated unmerged WIP)
 // BUY-67622 — SEO guide hero copy must not contradict the live card set.
 // Three regression tests:
 //

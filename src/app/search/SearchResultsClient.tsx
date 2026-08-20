@@ -199,17 +199,32 @@ function hasUsableProductImage(value?: string | null) {
     const hostname = imageUrl.hostname.toLowerCase();
     const pathname = imageUrl.pathname.toLowerCase();
     const search = imageUrl.search.toLowerCase();
-    const fullUrl = `${hostname}${pathname}${search}`;
 
-    if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
-    if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
-    if (hostname.includes('unsplash.com')) return false;
-    if (fullUrl.includes('placeholder')) return false;
-    if (fullUrl.includes('image-unavailable')) return false;
-    if (fullUrl.includes('no-image')) return false;
-    if (fullUrl.includes('no_image')) return false;
-    if (fullUrl.includes('missing-image')) return false;
-    if (fullUrl.includes('generic')) return false;
+    // Block placeholder/sentinel hosts (we never serve these as real imagery).
+    if (hostname.endsWith('unsplash.com') || hostname.endsWith('source.unsplash.com')) return false;
+
+    // Block explicit placeholder files. BUY-71639: the previous version used
+    // `fullUrl.includes(...)` on substrings, which filtered out legitimate
+    // merchant CDN images whose slugs merely CONTAIN a sentinel word as
+    // descriptive text (e.g. `/generic-hero.png`, `/no-image-classifier/
+    // SKU.jpg`, `/laptop-no-image-filter/...`). This is why /search showed
+    // placeholders for products whose SEO pages rendered real images.
+    //
+    // We now only block URLs whose FINAL segment is a sentinel filename — the
+    // only shape a real CDN actually uses for a "no image" fallback asset.
+    // Long descriptive slugs (`no-image-product`) resolve to a real file, and
+    // ProductGridImage's own `<img onError>` catches genuinely broken URLs.
+    const pathSegments = pathname.split('/').filter(Boolean);
+    const lastSegment = pathSegments[pathSegments.length - 1] ?? '';
+    const base = lastSegment.replace(/\.[a-zA-Z0-9]+$/, '');
+    // Sentinel filename alone (e.g. "placeholder.png", "no-image.jpg"),
+    // or sentinel + digit run (e.g. "placeholder-1.png").
+    if (/^(placeholder|image-unavailable|no[-_]?image|missing[-_]?image|generic|spacer|blank|fallback)([_-]\d+)?$/i.test(base)) return false;
+    // Block bare .svg/.gif files (often animated loading spinners / error icons).
+    if (/\.(svg|gif)$/i.test(lastSegment)) return false;
+
+    // Query-string sentinels (some CDNs encode the placeholder flag in `?`).
+    if (/[?&](placeholder|no[-_]?image|missing[-_]?image|generic|blank|fallback)=1/.test(search)) return false;
 
     return true;
   } catch {
@@ -542,6 +557,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 // BUY-65559: exported for the price-sanity regression test.
 // BUY-68365: also exported for the category-mismatch regression test.
 // BUY-67977: also exported for the brand-derivation regression test.
+// BUY-71639: exported for the image-filter regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
@@ -551,6 +567,7 @@ export const __test__ = {
   isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
+  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
