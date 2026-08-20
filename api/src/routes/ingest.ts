@@ -338,28 +338,31 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.category === 'string') product.category = p.category;
   if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
   // BUY-72080: many scrapers (notably shopify_* including shopify_buy30620_crate)
-  // only fill `metadata.product_type` (or `metadata.category`), never
-  // `category` or `category_path`. Without this fallback, ingest writes
-  // category_path = '{}' and SEV-1 /v1/products results show 100% missing
-  // category_path[1] across 11+ US Shopify sources.
+  // only fill `category` (top-level) or `metadata.product_type`, never
+  // `category_path`. Without this fallback, ingest writes category_path = '{}'
+  // and SEV-1 /v1/products results show 100% missing category_path[1] across
+  // 11+ US Shopify sources.
   //
-  // Trigger the fallback whenever category_path is empty/missing — even if
-  // `category` is set, because (a) the column-write path for `category`
-  // doesn't include category_path, so an existing category value doesn't
-  // imply a valid path, and (b) many shopify_buy30620_crate rows were
-  // populated by the legacy Python ingest that wrote `category` but never
-  // `category_path`.
+  // Trigger the fallback whenever category_path is empty/missing — derive
+  // it from category, metadata.product_type, or metadata.category in that
+  // order of preference.
   if (!product.category_path || (Array.isArray(product.category_path) && product.category_path.length === 0)) {
-    const meta = (p.metadata && typeof p.metadata === 'object')
-      ? p.metadata as Record<string, unknown>
-      : null;
-    const metaCat = meta
-      ? (typeof meta.product_type === 'string' && meta.product_type.trim()
-          ? meta.product_type.trim()
-          : (typeof meta.category === 'string' && meta.category.trim()
-              ? meta.category.trim()
-              : null))
-      : null;
+    // Order: top-level category > metadata.product_type > metadata.category
+    let metaCat: string | null = null;
+    if (typeof product.category === 'string' && product.category.trim()) {
+      metaCat = product.category.trim();
+    } else {
+      const meta = (p.metadata && typeof p.metadata === 'object')
+        ? p.metadata as Record<string, unknown>
+        : null;
+      if (meta) {
+        if (typeof meta.product_type === 'string' && meta.product_type.trim()) {
+          metaCat = meta.product_type.trim();
+        } else if (typeof meta.category === 'string' && meta.category.trim()) {
+          metaCat = meta.category.trim();
+        }
+      }
+    }
     if (metaCat) {
       product.category = product.category || metaCat;
       product.category_path = [metaCat];
