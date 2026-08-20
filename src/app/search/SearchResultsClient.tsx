@@ -689,7 +689,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
-function SearchCard({ product }: { product: SearchCardProduct }) {
+function SearchCard({ product, currency }: { product: SearchCardProduct; currency: string }) {
   // BUY-71856: Source-of-truth parity with /laptop-singapore ProductGridCard.
   //
   // Previously SearchCard had its own inline <img> + generic hardcoded SVG
@@ -770,7 +770,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
             {/* BUY-71638: use activeCountry.currency for display, not per-item currency */}
-            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, activeCountry.currency)}</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -1399,7 +1399,7 @@ export default function SearchResultsClient({
                     className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
-                      <SearchCard key={product.id} product={product} />
+                      <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
                     ))}
                   </div>
 
