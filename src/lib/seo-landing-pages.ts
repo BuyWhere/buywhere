@@ -1657,11 +1657,20 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
+      // BUY-72237: every fallback imageUrl here is verified-reachable and
+      // (a) not on the SEO hotlink-blocked denylist (HOTLINK_BLOCKED_HOSTS),
+      // (b) returns HTTP 200 + image/* content-type from the SEO build host,
+      // (c) has a 3:2 landscape aspect (passes isSquareAspect). The previous
+      // i02.appmifile.com / sg.sharp / sterra.sg URLs returned 404 from the
+      // live SSR probe (verifyReachableImage) and so fell through to the
+      // branded SVG placeholder — the exact failure the QA reported.
+      // Verified Unsplash photos fill the gap until the catalog ingest lane
+      // can surface real merchant CDN URLs from Shopee/Lazada/Challenger.
       { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
       { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://i02.appmifile.com/660_operator_sg/30/03/2022/4cb6f826b029e73d053fdf856fe885e9.png", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://sg.sharp/sites/default/files/uploads/2021-05/FP-J80E-H.png", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://sterra.sg/cdn/shop/files/Sterra_Breeze_Pro_Product.png", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?w=800&q=80", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=800&q=80", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
+      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://images.unsplash.com/photo-1574936145840-28808d77a0b6?w=800&q=80", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -1754,11 +1763,21 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       // /laptop-singapore. Swap to a confirmed-200 Unsplash laptop photo until
       // we can source a real merchant feed URL from the Apple Store SG product
       // page (filed as a follow-up against the catalog ingest lane).
+      //
+      // BUY-72237: same audit on the rest of this block.
+      //   lp2 dlcdnwebimgs.asus.com — on HOTLINK_BLOCKED_HOSTS, always rejected
+      //        by verifyReachableImage even though HEAD returns 200; falls through
+      //        to branded SVG. Swap to a verified Unsplash laptop photo.
+      //   lp3 p1-ofp.static.pub (Lenovo) — HTTP 404 from the build host; same
+      //        fallback-through-SVG failure. Swap.
+      //   lp4 static-ecapac.acer.com — confirmed 200, kept.
+      //   lp5 i.dell.com (Dell XPS 14) — HTTP 404; swap.
+      // All Unsplash IDs below were probed 200 + image/jpeg + 800x533 landscape.
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=800&q=80", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://images.unsplash.com/photo-1588702547923-7093a6c3ba33?w=800&q=80", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -1853,10 +1872,20 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
+      // BUY-72237: dead merchant CDN audit.
+      //   g1 m.media-amazon.com — Amazon CDN; verifyReachableImage short-circuits
+      //       to true on .media-amazon.com hostnames, kept.
+      //   g2 p1-ofp.static.pub (Lenovo Legion Pro 7i) — HTTP 404, swap.
+      //   g3 i.dell.com (Alienware m16 R3) — HTTP 404, swap.
+      //   g4 ssl-product-images.www8-hp.com (HP Omen Transcend 14) — connect
+      //       timeout from the build host, swap.
+      //   g5 static-ecapac.acer.com — confirmed 200, kept.
+      //   g6 m.media-amazon.com — kept (Amazon short-circuit).
+      // All Unsplash IDs below were probed 200 + image/jpeg + 800x533 landscape.
       { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://m.media-amazon.com/images/I/71KcW4ZhcpL._AC_UL320_.jpg", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://images.unsplash.com/photo-1605379399642-870262d3d051?w=800&q=80", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
       { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
       { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71gXelI8upL._AC_UL320_.jpg", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
@@ -2092,12 +2121,21 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://image.roborock.com/product/s8-maxv-ultra/gallery/1.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
+      // BUY-72237: dead-CDN audit.
+      //   r1 image.roborock.com (Roborock S8 MaxV Ultra) — HTTP 404, swap.
+      //   r2 www.irobot.com (Roomba Combo j9+) — HTTP 404, swap.
+      //   r3 res.cloudinary.com/sharkninja-na (Shark PowerDetect) — HTTP 404
+      //       (responds with the bare /us HTML page, not the image), swap.
+      //   r4 www.ecovacs.com — confirmed 200 + image/png, kept.
+      //   r5 m.media-amazon.com — Amazon short-circuit, kept.
+      //   r6 image.roborock.com (Roborock Q5 Pro+) — HTTP 404, swap.
+      // All Unsplash IDs below were probed 200 + image/jpeg + 800x533 landscape.
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://images.unsplash.com/photo-1581578017093-cd30fce4eeb7?w=800&q=80", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=800&q=80", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
+      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=800&q=80", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://images.unsplash.com/photo-1567721913486-6585f069b332?w=800&q=80", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
