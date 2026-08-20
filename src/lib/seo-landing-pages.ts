@@ -393,19 +393,22 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    // BUY-63954: render the deterministic branded SVG card for every catalog
-    // snapshot product instead of the upstream CDN image. The remote image
-    // loads fine for human users, but QA's headless screenshot environment
-    // can't load many of these CDNs (hotlink/CORS/referrer policy), which
-    // triggered the <img> onError fallback to a generic slate silhouette and
-    // was reported as "placeholder icons instead of real product photos". The
-    // branded SVG renders identically in SSR and any browser/headless
-    // environment so the Live Catalog Snapshot always looks polished.
-    imageUrl: brandedProductPlaceholderSvg(
-      item.brand || null,
-      item.name || null,
-      item.category || null,
-    ),
+    // BUY-64056: preserve real merchant/CDN product photos from search results.
+    // ProductGridImage already falls back gracefully if a remote asset fails,
+    // and the synchronous host denylist (`isUsableProductImage`) drops images
+    // that QA / browsers reliably can't load (hotlink-blocked hosts).
+    // The branded SVG placeholder is reserved for the legitimate fallback cases:
+    //   - no upstream image_url at all
+    //   - upstream URL is on the hotlink-blocked host denylist
+    //   - product is a curated `fallbackProducts` entry (handled separately
+    //     in `resolveLiveCatalogSnapshot` / `getSeoLandingFallbackProduct`)
+    imageUrl: isUsableProductImage(imageUrl)
+      ? imageUrl
+      : brandedProductPlaceholderSvg(
+          item.brand || null,
+          item.name || null,
+          item.category || null,
+        ),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
