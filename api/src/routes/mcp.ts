@@ -6,7 +6,7 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals } from '../lib/response';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
@@ -401,7 +401,33 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+// BUY-72044 / P2.6A: did the caller pass any buyer-market signal? Drives
+  // `diagnostic.deliver_to_present` on every response and the deliver_to_missing
+  // emptiness branch. Note: this is the request-level fact (was the input
+  // present?), not whether the engine honored it.
+  const deliverToPresent = Boolean(
+    (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+    (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+    (typeof args.country === 'string' && args.country.trim() !== '')
+  );
+
+  // BUY-71542 / P2.6 + BUY-72044 / P2.6A: probe results captured by the in-try
+  // probes below. Defaults are pessimistic so a missed probe degrades to
+  // region_supported=true / category_has_any_data=true (i.e. no_data wins over
+  // category_unsupported when we have no signal — the conservative answer).
+  let unfilteredHasAnyData: boolean | null = null;
+  let regionHasAnyDataProbe = true;
+  let categoryHasAnyDataProbe = true;
+
+  // BUY-68652: mode-aware cache key. Include mode in key so semantic/hybrid cannot
+  // be satisfied by keyword results (and vice versa). When embedding fails and we
+  // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
+  const effectiveCacheMode = useVector ? mode : 'kw';
+  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
+  // request (embed/vector unavailable). The result must be cached under the 'kw'
+  // suffix, never the requested-mode key.
+  let keywordFallbackServed = !useVector;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -655,10 +681,74 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+// BUY-72044 / P2.6A: unfiltered probe for `deliver_to_missing` reasoning. Runs
+    // INSIDE the `try` (before the client is released) so we reuse the same
+    // connection. Only fires when the caller omitted deliver_to/country_code/country
+    // AND the keyword is set — that's the only path where the unfiltered signal
+    // changes the reason. LIMIT 1 keeps this off the GIN hot path.
+    if (q && !deliverToPresent) {
+      try {
+        const probe = await searchClient.query(
+          `SELECT EXISTS (
+             SELECT 1 FROM products
+             WHERE is_active = true
+               AND search_vector @@ plainto_tsquery('english', $1)
+             LIMIT 1
+           ) AS any_match`,
+          [q]
+        );
+        unfilteredHasAnyData = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
+      } catch (_) {
+        unfilteredHasAnyData = null;
+      }
+    }
+    // BUY-71542 / P2.6: region/category existence probes — best-effort, swallow
+    // errors so the empty envelope still lands when the DB is healthy but the
+    // query is the issue.
+    if (country) {
+      try {
+        const probe = await searchClient.query(
+          `SELECT EXISTS (SELECT 1 FROM products WHERE is_active = true AND country_code = $1 LIMIT 1) AS any_match`,
+          [country.toUpperCase()]
+        );
+        regionHasAnyDataProbe = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
+      } catch (_) { /* regionHasAnyDataProbe stays at default */ }
+    }
+    if (category) {
+      try {
+        const probe = await searchClient.query(
+          `SELECT EXISTS (
+             SELECT 1 FROM products
+             WHERE is_active = true
+               AND LOWER(category) LIKE $1
+             LIMIT 1
+           ) AS any_match`,
+          [`%${category.toLowerCase()}%`]
+        );
+        categoryHasAnyDataProbe = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
+      } catch (_) { /* categoryHasAnyDataProbe stays at default */ }
+    }
   } catch (e: any) {
     if (e && typeof e === 'object' && e.code === '57014') {
       console.warn('[search_products] BUY-70000: statement_timeout (57014) at 4s — returning degraded response');
-      return buildSearchResponse([], 0, limit, offset, Date.now() - t0, false);
+      return buildSearchResponse(
+        [], 0, limit, offset, Date.now() - t0, false,
+        true, undefined, country || null,
+        deriveEmptiness({
+          regionHasAnyData: regionHasAnyDataProbe,
+          categoryHasAnyData: categoryHasAnyDataProbe,
+          apiError: true,
+          rateLimited: false,
+          regionSupported: !country || (SUPPORTED_REGIONS as readonly string[]).includes(country.toUpperCase()),
+          categoryRequested: !!category,
+          requestedCategory: category || null,
+          requestedCountry: country || null,
+          rateLimitRemaining: null,
+          deliverToPresent,
+          unfilteredHasAnyData,
+          queryAmbiguous: null,
+        }),
+      );
     }
     throw e;
   } finally {
@@ -679,8 +769,34 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     buildProduct(r, currency, compact)
   );
 
+  // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
+  // the response is genuinely empty (products.length === 0) — non-empty responses
+  // MUST NOT carry emptiness_reason per spec §2.1. The unfiltered probe was run
+  // inside the main try block (above) so the connection is already released; we
+  // reuse the captured values here.
+  let emptiness: ReturnType<typeof deriveEmptiness> | null = null;
+  if (products.length === 0) {
+    const signals: EmptinessSignals = {
+      regionHasAnyData: regionHasAnyDataProbe,
+      categoryHasAnyData: categoryHasAnyDataProbe,
+      apiError: false,
+      rateLimited: false,
+      regionSupported: !country || (SUPPORTED_REGIONS as readonly string[]).includes(country.toUpperCase()),
+      categoryRequested: !!category,
+      requestedCategory: category || null,
+      requestedCountry: country || null,
+      rateLimitRemaining: null,
+      deliverToPresent,
+      unfilteredHasAnyData,
+      queryAmbiguous: null,
+    };
+    emptiness = deriveEmptiness(signals);
+  }
+
   const result = buildSearchResponse(
-    products, total!, limit, offset, Date.now() - t0, false
+    products, total!, limit, offset, Date.now() - t0, false,
+    undefined, undefined, country || null,
+    emptiness,
   );
 
   try {

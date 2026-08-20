@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY } = require('../dist/lib/response');
+const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY, deriveEmptiness } = require('../dist/lib/response');
 
 describe('buildProduct', () => {
   const baseRow = {
@@ -210,6 +210,70 @@ describe('buildSearchResponse', () => {
     assert.equal(res.data[0].id, 'p1');
     assert.equal(res.data[1].id, 'p2');
     assert.equal(res.data[2].id, 'p3');
+  });
+});
+
+describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
+  const baseSignals = {
+    regionHasAnyData: true,
+    categoryHasAnyData: true,
+    apiError: false,
+    rateLimited: false,
+    regionSupported: true,
+    categoryRequested: false,
+    requestedCategory: null,
+    requestedCountry: 'SG',
+    rateLimitRemaining: null,
+    deliverToPresent: true,
+    unfilteredHasAnyData: null,
+    queryAmbiguous: null,
+  };
+
+  it('returns deliver_to_missing when caller omitted buyer market and global match exists', () => {
+    const derived = deriveEmptiness({
+      ...baseSignals,
+      deliverToPresent: false,
+      unfilteredHasAnyData: true,
+    });
+
+    assert.equal(derived.emptiness_reason, 'deliver_to_missing');
+    assert.equal(derived.diagnostic.deliver_to_present, false);
+  });
+
+  it('returns no_match for supported empty searches with no global match', () => {
+    const derived = deriveEmptiness({ ...baseSignals, unfilteredHasAnyData: false });
+
+    assert.equal(derived.emptiness_reason, 'no_match');
+    assert.equal(derived.confidence, 'high');
+  });
+
+  it('returns region_unsupported for unsupported regions', () => {
+    const derived = deriveEmptiness({
+      ...baseSignals,
+      regionSupported: false,
+      requestedCountry: 'ZZ',
+    });
+
+    assert.equal(derived.emptiness_reason, 'region_unsupported');
+    assert.equal(derived.confidence, 'low');
+  });
+
+  it('attaches emptiness metadata only to empty buildSearchResponse envelopes', () => {
+    const derived = deriveEmptiness({ ...baseSignals });
+    const empty = buildSearchResponse([], 0, 20, 0, 5, false, undefined, false, 'SG', derived);
+
+    assert.equal(empty.meta.emptiness_reason, 'no_match');
+    assert.equal(empty.meta.diagnostic.deliver_to_present, true);
+
+    const sampleProduct = {
+      id: 'p1', title: 'P1', price: { amount: 10, currency: 'SGD' },
+      merchant: 'm1', url: 'https://x.com/p1', image_url: null,
+      region: null, country_code: null, updated_at: null,
+    };
+    const nonEmpty = buildSearchResponse([sampleProduct], 1, 20, 0, 5, false, undefined, false, 'SG', derived);
+
+    assert.equal(nonEmpty.meta.emptiness_reason, undefined);
+    assert.equal(nonEmpty.meta.diagnostic, undefined);
   });
 });
 
