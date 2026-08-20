@@ -340,11 +340,16 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   // BUY-72080: many scrapers (notably shopify_* including shopify_buy30620_crate)
   // only fill `metadata.product_type` (or `metadata.category`), never
   // `category` or `category_path`. Without this fallback, ingest writes
-  // category = NULL and category_path = '{}', which then propagates as
-  // SEV-1 in /v1/products results and 100% missing-path defects in DQ
-  // probes across 11+ US Shopify sources. Fall back to product_type /
-  // metadata.category if both top-level fields are empty.
-  if (!product.category && !product.category_path) {
+  // category_path = '{}' and SEV-1 /v1/products results show 100% missing
+  // category_path[1] across 11+ US Shopify sources.
+  //
+  // Trigger the fallback whenever category_path is empty/missing — even if
+  // `category` is set, because (a) the column-write path for `category`
+  // doesn't include category_path, so an existing category value doesn't
+  // imply a valid path, and (b) many shopify_buy30620_crate rows were
+  // populated by the legacy Python ingest that wrote `category` but never
+  // `category_path`.
+  if (!product.category_path || (Array.isArray(product.category_path) && product.category_path.length === 0)) {
     const meta = (p.metadata && typeof p.metadata === 'object')
       ? p.metadata as Record<string, unknown>
       : null;
@@ -356,7 +361,7 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
               : null))
       : null;
     if (metaCat) {
-      product.category = metaCat;
+      product.category = product.category || metaCat;
       product.category_path = [metaCat];
     }
   }
