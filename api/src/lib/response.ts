@@ -284,8 +284,18 @@ export function buildSearchResponse(
   degraded?: boolean,
   hasMore?: boolean,
   expectedCountryCode?: string | null,
+  // BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response
+  // is empty AND the caller derived an emptiness reason, attach the
+  // emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses
+  // ignore this (reasons are only meaningful for empty results).
+  emptiness?: {
+    emptiness_reason: EmptinessReason;
+    confidence: SearchConfidence;
+    diagnostic: EmptinessDiagnostic;
+  } | null,
 ): SearchResponse {
   const nearMiss = evaluateNearMiss(products, expectedCountryCode);
+  const isEmpty = products.length === 0;
   return {
     // BUY-71275: preserve stable agent contract while staying compatible with
     // newer REST envelopes; all aliases point to the same array reference.
@@ -303,12 +313,20 @@ export function buildSearchResponse(
       near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
       ...(degraded != null && { degraded }),
       ...(hasMore != null && { has_more: hasMore }),
+      // BUY-71542 / P2.6 + BUY-72044 / P2.6A: surface the empty-result triplet
+      // when (a) the caller derived one and (b) the response is genuinely empty.
+      // Non-empty responses MUST NOT carry an emptiness_reason per spec §2.1.
+      ...(isEmpty && emptiness && {
+        emptiness_reason: emptiness.emptiness_reason,
+        confidence: emptiness.confidence,
+        diagnostic: emptiness.diagnostic,
+      }),
     },
   };
 }
 
 /**
- * BUY-71542 / P2.6: build the emptiness_reason/confidence/diagnostic triplet
+ * BUY-71542 / P2.6 + BUY-72044 / P2.6A: build the emptiness_reason/confidence/diagnostic triplet
  * for an empty MCP response. Centralized so every tool can call this with
  * the signals it actually observed — heuristics per spec §4.
  */
@@ -331,6 +349,21 @@ export interface EmptinessSignals {
   requestedCountry?: string | null;
   /** Optional rate_limit_remaining signal from the rate-limiter. */
   rateLimitRemaining?: number | null;
+  /**
+   * BUY-72044 / P2.6A: did the caller pass any of deliver_to/country_code/country?
+   * Drives `diagnostic.deliver_to_present`. When false AND the response is empty,
+   * this signals the caller likely needs to re-issue with a buyer market.
+   */
+  deliverToPresent: boolean;
+  /**
+   * BUY-72044 / P2.6A: would the same query (no country filter applied) have produced
+   * ≥1 row globally? Used to distinguish "catalog truly has nothing" (no_data) from
+   * "catalog has matches but none for the buyer's region" (deliver_to_missing when
+   * deliverToPresent is false). Set to `null` when no parallel probe was run.
+   */
+  unfilteredHasAnyData?: boolean | null;
+  /** BUY-72044 / P2.6A: ambiguous-query flag for the confidence=low override. */
+  queryAmbiguous?: boolean | null;
 }
 
 /** Known country codes the catalog actively indexes (covers all 5 SEA + US). */
@@ -339,21 +372,32 @@ export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'I
 /**
  * Determine emptiness_reason + confidence + diagnostic from observed signals.
  *
- * Heuristics (per spec §4):
+ * Heuristics (per spec §4, plus BUY-72044 / P2.6A amendment):
  * - api_error  ⇒ reason=api_error, confidence=low, engine_status=error.
  * - rateLimited ⇒ reason=quota, confidence=low, engine_status=degraded.
  * - region not supported ⇒ reason=region_unsupported, confidence=low.
- * - region supported but no rows at all ⇒ reason=no_data, confidence=high.
  * - category requested but no rows for category ⇒ reason=category_unsupported,
  *   confidence=low (caller may want to widen the query).
+ * - region supported but no rows at all ⇒ reason=no_data, confidence=high.
  * - region has rows but query/filters exclude all of them ⇒ reason=no_match,
  *   confidence=high.
+ * - BUY-72044 / P2.6A: caller omitted deliver_to/country_code/country AND the
+ *   unfiltered probe found at least one matching row somewhere ⇒ reason=deliver_to_missing.
+ *   `confidence=low` when the query is ambiguous AND the catalog has ≤5 matching
+ *   rows (caller may need to widen); otherwise `confidence=high`.
  */
 export function deriveEmptiness(signals: EmptinessSignals): {
   emptiness_reason: EmptinessReason;
   confidence: SearchConfidence;
   diagnostic: EmptinessDiagnostic;
 } {
+  // BUY-72044 / P2.6A: diagnostic.deliver_to_present is populated on every branch
+  // (true|false, never null) so the agent can verify the engine saw the absence
+  // of a buyer-market filter.
+  const baseDiag = {
+    deliver_to_present: signals.deliverToPresent,
+  };
+
   if (signals.apiError) {
     return {
       emptiness_reason: 'api_error',
@@ -363,6 +407,7 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: signals.regionSupported,
         category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        ...baseDiag,
       },
     };
   }
@@ -375,6 +420,7 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: signals.regionSupported,
         category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? 0,
+        ...baseDiag,
       },
     };
   }
@@ -387,6 +433,7 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: false,
         category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        ...baseDiag,
       },
     };
   }
@@ -399,6 +446,28 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: true,
         category_recognized: false,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        ...baseDiag,
+      },
+    };
+  }
+  // BUY-72044 / P2.6A: deliver_to_missing branch sits AFTER region/category gates
+  // so that genuine catalog gaps (no_data, region_unsupported, category_unsupported)
+  // are not blamed on the missing buyer market. Fires only when the unfiltered probe
+  // confirmed at least one row would have matched globally.
+  if (
+    !signals.deliverToPresent &&
+    signals.unfilteredHasAnyData === true
+  ) {
+    return {
+      emptiness_reason: 'deliver_to_missing',
+      // confidence=low override per spec: ambiguous query + thin catalog.
+      confidence: signals.queryAmbiguous ? 'low' : 'high',
+      diagnostic: {
+        engine_status: 'ok',
+        indexed_for_region: signals.regionSupported,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        ...baseDiag,
       },
     };
   }
@@ -411,6 +480,7 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: signals.regionSupported,
         category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        ...baseDiag,
       },
     };
   }
@@ -422,6 +492,7 @@ export function deriveEmptiness(signals: EmptinessSignals): {
       indexed_for_region: true,
       category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
       rate_limit_remaining: signals.rateLimitRemaining ?? null,
+      ...baseDiag,
     },
   };
 }

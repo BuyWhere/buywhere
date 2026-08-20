@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY, evaluateNearMiss } = require('../dist/lib/response');
+const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY, evaluateNearMiss, deriveEmptiness, SUPPORTED_REGIONS } = require('../dist/lib/response');
 
 // BUY-71393: keep response tests deterministic regardless of whatever FX rates
 // earlier tests loaded into the module cache.
@@ -250,6 +250,106 @@ describe('buildSearchResponse', () => {
     assert.equal(res.data[0].id, 'p1');
     assert.equal(res.data[1].id, 'p2');
     assert.equal(res.data[2].id, 'p3');
+  });
+});
+
+// BUY-71542 / P2.6 + BUY-72044 / P2.6A: deriveEmptiness + P2.6 envelope.
+describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
+  const baseSignals = {
+    regionHasAnyData: true,
+    categoryHasAnyData: true,
+    apiError: false,
+    rateLimited: false,
+    regionSupported: true,
+    categoryRequested: false,
+    requestedCategory: null,
+    requestedCountry: null,
+    rateLimitRemaining: null,
+  };
+
+  it('deliver_to_missing: caller omitted deliver_to + global match exists (P2.6A)', () => {
+    const r = deriveEmptiness({
+      ...baseSignals, deliverToPresent: false, unfilteredHasAnyData: true,
+    });
+    assert.equal(r.emptiness_reason, 'deliver_to_missing');
+    assert.equal(r.confidence, 'high');
+    assert.equal(r.diagnostic.deliver_to_present, false);
+    assert.equal(typeof r.diagnostic.deliver_to_present, 'boolean');
+  });
+
+  it('deliver_to_missing + ambiguous query → confidence=low (P2.6A override)', () => {
+    const r = deriveEmptiness({
+      ...baseSignals, deliverToPresent: false, unfilteredHasAnyData: true, queryAmbiguous: true,
+    });
+    assert.equal(r.emptiness_reason, 'deliver_to_missing');
+    assert.equal(r.confidence, 'low');
+  });
+
+  it('deliver_to_missing does NOT fire when catalog has no global match (no_data wins)', () => {
+    const r = deriveEmptiness({
+      ...baseSignals, regionHasAnyData: false, deliverToPresent: false, unfilteredHasAnyData: false,
+    });
+    assert.equal(r.emptiness_reason, 'no_data');
+    assert.equal(r.diagnostic.deliver_to_present, false);
+  });
+
+  it('deliver_to_missing does NOT fire when caller passed a buyer market (no_match)', () => {
+    const r = deriveEmptiness({
+      ...baseSignals, deliverToPresent: true, unfilteredHasAnyData: true,
+    });
+    assert.equal(r.emptiness_reason, 'no_match');
+    assert.equal(r.diagnostic.deliver_to_present, true);
+  });
+
+  it('diagnostic.deliver_to_present populated on every reason branch', () => {
+    const branches = [
+      { ...baseSignals, apiError: true, deliverToPresent: false },
+      { ...baseSignals, rateLimited: true, deliverToPresent: true },
+      { ...baseSignals, regionSupported: false, requestedCountry: 'AQ', deliverToPresent: true },
+      { ...baseSignals, categoryHasAnyData: false, categoryRequested: true, deliverToPresent: false },
+      { ...baseSignals, regionHasAnyData: false, deliverToPresent: true },
+      { ...baseSignals, deliverToPresent: true },
+      { ...baseSignals, deliverToPresent: false, unfilteredHasAnyData: true },
+    ];
+    for (const sig of branches) {
+      const r = deriveEmptiness(sig);
+      assert.equal(typeof r.diagnostic.deliver_to_present, 'boolean',
+        `deliver_to_present must be boolean for reason=${r.emptiness_reason}`);
+    }
+  });
+
+  it('SUPPORTS REGIONS exposes the 7 country set', () => {
+    assert.deepEqual([...SUPPORTED_REGIONS].sort(), ['ID', 'MY', 'PH', 'SG', 'TH', 'US', 'VN']);
+  });
+});
+
+describe('P2.6 envelope (BUY-71542 + BUY-72044)', () => {
+  it('empty response carries emptiness_reason when the caller derived one', () => {
+    const derived = deriveEmptiness({
+      regionHasAnyData: true, categoryHasAnyData: true, apiError: false, rateLimited: false,
+      regionSupported: true, categoryRequested: false, deliverToPresent: false,
+      unfilteredHasAnyData: true,
+    });
+    const res = buildSearchResponse([], 0, 20, 0, 7, false, undefined, undefined, null, derived);
+    assert.equal(res.meta.emptiness_reason, 'deliver_to_missing');
+    assert.equal(res.meta.confidence, 'high');
+    assert.equal(res.meta.diagnostic.deliver_to_present, false);
+  });
+
+  it('non-empty response MUST NOT carry emptiness_reason (spec §2.1)', () => {
+    const product = {
+      id: 'p1', title: 'P1', price: { amount: 10, currency: 'SGD' },
+      merchant: 'm1', url: 'https://x.com/p1', image_url: null,
+      region: null, country_code: null, updated_at: null,
+    };
+    const derived = deriveEmptiness({
+      regionHasAnyData: true, categoryHasAnyData: true, apiError: false, rateLimited: false,
+      regionSupported: true, categoryRequested: false, deliverToPresent: true,
+      unfilteredHasAnyData: true,
+    });
+    const res = buildSearchResponse([product], 1, 20, 0, 5, false, undefined, undefined, null, derived);
+    assert.equal(res.meta.emptiness_reason, undefined, 'non-empty response must omit emptiness_reason');
+    assert.equal(res.meta.diagnostic, undefined, 'non-empty response must omit diagnostic');
   });
 });
 
