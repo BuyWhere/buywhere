@@ -51,7 +51,7 @@ export function createApp() {
   const app = express();
 
   app.use(cors({
-    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
+    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://buywhere.ai,https://www.buywhere.ai').split(',').map((o) => o.trim()),
     credentials: true,
     // BUY-71736: P2.3 — expose the five agent-discovery headers so browser
     // agents (LangChain in-browser, etc.) can read them via XHR/fetch.

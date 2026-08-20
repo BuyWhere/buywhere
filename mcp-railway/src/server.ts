@@ -48,7 +48,7 @@ export function createApp() {
   const app = express();
 
   app.use(cors({
-    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
+    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://buywhere.ai,https://www.buywhere.ai').split(',').map((o) => o.trim()),
     credentials: true,
   }));
   app.use((_req, res, next) => {

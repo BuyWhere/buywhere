@@ -107,7 +107,7 @@ Amazon's APIs are the right tool when:
 
 ### BuyWhere
 
-- **Getting started**: Get an API key from buywhere.com, make REST calls or connect via MCP server
+- **Getting started**: Get an API key from buywhere.ai, make REST calls or connect via MCP server
 - **Authentication**: Bearer token (API key)
 - **SDK support**: MCP server (`@buywhere/mcp-server`) for AI agent integration
 - **Data format**: JSON REST responses, structured product objects

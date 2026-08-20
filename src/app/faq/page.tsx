@@ -38,7 +38,7 @@ const faqs = [
   },
   {
     question: "Do you have an API?",
-    answer: "Yes. BuyWhere is an API-first product. We offer a REST API with structured JSON responses, a LangChain integration for AI agent frameworks, and an OpenAI tools adapter so you can drop BuyWhere into existing agent pipelines. Full docs are at buywhere.com/quickstart.",
+    answer: "Yes. BuyWhere is an API-first product. We offer a REST API with structured JSON responses, a LangChain integration for AI agent frameworks, and an OpenAI tools adapter so you can drop BuyWhere into existing agent pipelines. Full docs are at buywhere.ai/quickstart.",
   },
   {
     question: "How is this different from CamelCamelCamel?",
