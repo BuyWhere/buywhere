@@ -32,7 +32,9 @@ jobs:
 
       - name: Generate indexing queue
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Prefer CATALOG_DATABASE_URL (already provisioned) over a separate
+          # DATABASE_URL secret. Falls back to DATABASE_URL if an admin sets it.
+          DATABASE_URL: ${{ secrets.CATALOG_DATABASE_URL || secrets.DATABASE_URL }}
           MAX_QUEUE_URLS: '500'
           LOOKBACK_HOURS: '168'
         run: |
