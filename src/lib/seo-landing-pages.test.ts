@@ -29,6 +29,35 @@ function makeLandingProduct(name: string): Pick<LandingProduct, "name" | "brand"
   return { name, brand: null, category: null };
 }
 
+// BUY-64056: live search results have a real merchant/CDN image_url on every
+// catalog row, so SEO landing products MUST surface the real URL instead of
+// substituting branded SVG placeholders. The branded SVG remains the right
+// fallback for products without any image_url, for entries on the
+// hotlink-blocked host denylist, and for curated fallbackProducts — but never
+// for catalog rows that have a valid upstream image.
+test("normalizeProduct preserves real merchant image URLs (BUY-64056)", async () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+
+  // The normalizeProduct body must use the upstream image URL whenever it
+  // passes `isUsableProductImage(...)`. The previous BUY-63954 implementation
+  // unconditionally called `brandedProductPlaceholderSvg(...)` for every
+  // catalog row, which is exactly what QA flagged as "placeholder icons
+  // instead of real product photos".
+  assert.match(
+    source,
+    /imageUrl:\s*isUsableProductImage\(imageUrl\)[\s\S]{0,200}brandedProductPlaceholderSvg/,
+    "normalizeProduct must branch on isUsableProductImage() and fall back to brandedProductPlaceholderSvg only for non-usable / missing URLs",
+  );
+
+  // And `isUsableProductImage` must reject data: URLs that aren't already
+  // branded SVG (so a stale row with a `data:` URL still falls through).
+  // The denylist must include the hotlink-blocked hosts documented in BUY-63954.
+  assert.match(source, /HOTLINK_BLOCKED_HOSTS/, "HOTLINK_BLOCKED_HOSTS denylist must exist");
+});
+
 test("SEO landing products never render synthetic placeholder catalog cards", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
@@ -358,8 +387,7 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
+// BUY-67622 hero-copy denylist tests (kept from HEAD; the conflicting branch was an unrelated unmerged WIP)
 // BUY-67622 — SEO guide hero copy must not contradict the live card set.
 // Three regression tests:
 //

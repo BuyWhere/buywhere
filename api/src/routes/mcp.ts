@@ -11,32 +11,6 @@ import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
 
-// BUY-68805: bound db.connect() acquire time so a saturated pool fails fast
-// instead of hanging the request for 30s+. Mirrors mcp-railway/src/routes/mcp.ts
-// (MCP_DB_ACQUIRE_TIMEOUT_MS=1000) so /mcp on api.buywhere.ai behaves the same
-// as /mcp on mcp.buywhere.ai. Without this guard, get_deals on VND/THB
-// currencies (where the index returns very large bounded candidate sets) was
-// waiting 5s for `connectionTimeoutMillis` plus another 30s for the
-// HTTP/client-side timeout, producing the observed 25s hard-timeout pattern.
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
-
-async function acquireMcpClient(): Promise<any> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      db.connect(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error('mcp_db_pool_acquire_timeout')),
-          MCP_DB_ACQUIRE_TIMEOUT_MS,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 // BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
 // connection enters PQTRANS_INERROR state. Returning such a connection to the
@@ -331,7 +305,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // (string code like '57P01') escapes to the outer handler which checks
   // typeof code === 'number' — fails for string codes — and returns the
   // opaque -32603 "Internal error" that Tune detected.
-  const searchClient = await acquireMcpClient().catch((err) => {
+  const searchClient = await db.connect().catch((err) => {
     console.warn('[search_products] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
   });
@@ -666,7 +640,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
+  const dealsClient = await db.connect().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
@@ -770,7 +744,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await acquireMcpClient().catch((err) => {
+    const client = await db.connect().catch((err) => {
       console.warn('[list_categories] db.connect failed:', err.message);
       throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
     });
@@ -864,7 +838,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
-  const bestPriceClient = await acquireMcpClient().catch((err) => {
+  const bestPriceClient = await db.connect().catch((err) => {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
