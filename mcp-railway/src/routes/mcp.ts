@@ -562,21 +562,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`(metadata->>'original_price')::numeric > price`);
     conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
   }
-  const params: unknown[] = [currency, minDiscount];
-
-  if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
-  }
-  if (country) {
-    params.push(country.toUpperCase());
-    conditions.push(`country_code = $${params.length}`);
-  }
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  const whereClause = conditions.join(' AND ');
 
   // BUY-64112: strict discount-first query only. The prior recent-window sample
   // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
@@ -589,12 +578,17 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let total = 0;
   try {
     await dealsClient.query('SET statement_timeout = 60000');
-    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    // BUY-69646: Bound the index scan to 10,000 candidates first, then sort in the subquery.
-    // This prevents timeouts at catalog scale (400M+ rows) where the planner estimates
-    // 30K matches but the actual set is much larger, causing the index scan to timeout.
+    // BUY-68615 originally forced enable_seqscan=off but at 400M+ rows this causes
+    // timeouts (the index path is slower than seqscan when table is clustered by insertion).
+    // Let the planner decide dynamically; the bounded LIMIT helps regardless.
+    // BUY-69646 / BUY-68896: Catalog is now 400M+ rows; the planner underestimates the
+    // matching set for get_deals, so an ORDER BY over all matching rows blows the
+    // statement_timeout even with the discount index. Bound the index scan to a
+    // fixed candidate window, then filter/sort locally. Also: remove
+    // region/country from the SQL WHERE - those filters cause a heap scan at
+    // 400M rows (no composite index). Apply them in-memory after the candidate fetch.
     const candidateLimit = 10000;
-    const candidateParams = [...params, candidateLimit];
+    const sqlParams = [currency, minDiscount, candidateLimit];
     const candidateResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price,
@@ -603,21 +597,34 @@ async function handleGetDeals(args: Record<string, unknown>) {
               currency, image_url, metadata, updated_at, region, country_code,
               ${discountSelect}
        FROM products
-       WHERE ${whereClause}
-       LIMIT $${candidateParams.length}`,
-      candidateParams
+       WHERE currency = $1 AND price > 0 AND is_active = true
+         AND discount_pct >= $2
+       LIMIT $3`,
+      sqlParams
     );
-    // Sort the bounded candidates by discount then updated_at
-    const sortedCandidates = candidateResult.rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
-      const da = (a.discount_pct as number | null) ?? -1;
-      const db = (b.discount_pct as number | null) ?? -1;
-      if (da !== db) return db - da;
-      const ua = new Date(a.updated_at as string).getTime();
-      const ub = new Date(b.updated_at as string).getTime();
-      return ub - ua;
-    });
+    // Apply region/country_code filters in-memory (these are not indexed and would cause heap scan)
+    let filtered = candidateResult.rows;
+    if (region) {
+      filtered = filtered.filter((r: Record<string, unknown>) => r.region === region);
+    }
+    if (country) {
+      filtered = filtered.filter((r: Record<string, unknown>) => r.country_code === country);
+    }
+    // Sort the filtered candidates by discount (desc) then updated_at (desc), then paginate.
+    const sortedCandidates = filtered.sort(
+      (a: Record<string, unknown>, b: Record<string, unknown>) => {
+        const da = (a.discount_pct as number | null) ?? -1;
+        const db = (b.discount_pct as number | null) ?? -1;
+        if (da !== db) return db - da;
+        const ua = new Date(a.updated_at as string).getTime();
+        const ub = new Date(b.updated_at as string).getTime();
+        return ub - ua;
+      }
+    );
     const paginated = sortedCandidates.slice(offset, offset + limit);
-    total = paginated.length;
+    // total reflects the bounded candidate window after in-memory region/country filtering;
+    // the true full count is unbounded to compute.
+    total = filtered.length;
     products = paginated.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
