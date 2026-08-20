@@ -343,6 +343,16 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      // F19 (2026-08-20): affiliate click hops served from the ROOT domain so every
+      // real human click counts as buywhere.ai traffic (measurement + attribution).
+      {
+        source: '/r/:path*',
+        destination: 'https://api.buywhere.ai/r/:path*',
+      },
+      {
+        source: '/api/click',
+        destination: 'https://api.buywhere.ai/api/click',
+      },
       // /api/v1/* → api.buywhere.ai/v1/*  (canonical v1 path)
       {
         source: '/api/v1/:path*',
