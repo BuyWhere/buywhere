@@ -246,7 +246,7 @@ describe('NL search queries — response correctness', () => {
     assert.equal(body.source, 'search_products_tier');
 
     const tierCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products sp')
     );
     assert.ok(tierCall, 'Expected tier query before archive fallback');
     assert.ok(!tierCall.arguments[0].includes('sp.currency = $'), 'Currency is rank-only unless price filters are present');
@@ -265,7 +265,7 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK') || sql.includes('SET LOCAL'))) {
         return Promise.resolve({ rows: [] });
       }
-      if (typeof sql === 'string' && sql.includes('FROM search_products sp')) {
+      if (typeof sql === 'string' && sql.includes('FROM products sp')) {
         tierCalls += 1;
         return Promise.resolve({ rows: [] });
       }
@@ -863,7 +863,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
       );
       assert.equal(res.status, 200);
       const tierCalls = queryMock.mock.calls.filter(
-        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products sp')
       );
       assert.ok(tierCalls.length > 0, `expected tier query for "${q}"`);
       assert.ok(
@@ -881,7 +881,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
       );
       assert.equal(res.status, 200);
       const tierCalls = queryMock.mock.calls.filter(
-        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products sp')
       );
       assert.ok(tierCalls.length > 0);
       assert.ok(
@@ -919,7 +919,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
     );
     assert.equal(res.status, 200);
     const tierCalls = queryMock.mock.calls.filter(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products sp')
     );
     assert.ok(
       !tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),

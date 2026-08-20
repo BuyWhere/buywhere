@@ -108,7 +108,7 @@ async function tryTierSearch(req, res, p) {
     // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
     // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
     // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
-    // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
+    // path reads from products sp). See lib/searchRelevanceTaxonomy.
     const storageExcl = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragment)(p.q);
     const conds = [];
     const params = [];
@@ -194,7 +194,7 @@ async function tryTierSearch(req, res, p) {
     END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector FROM search_products sp
+      SELECT id, search_vector FROM products sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -210,7 +210,7 @@ async function tryTierSearch(req, res, p) {
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id
+    FROM top JOIN products sp ON sp.id = top.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -230,23 +230,23 @@ async function tryTierSearch(req, res, p) {
     // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
     const titleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id FROM products sp
       WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id FROM products sp
       WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
