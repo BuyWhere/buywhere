@@ -710,6 +710,16 @@ export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
     }
   }
 
+  // BUY-72121 F4: exclude /compare/* URLs because they are fully owned by
+  // sitemap-compare.xml. Without this filter, category hubs like /compare,
+  // /compare/electronics, /compare/fashion appear in BOTH files.
+  const comparePrefixes = Array.from(entries.keys()).filter((path) =>
+    path.startsWith("/compare")
+  );
+  for (const prefix of comparePrefixes) {
+    entries.delete(prefix);
+  }
+
   return Array.from(entries.values());
 }
 
@@ -963,27 +973,33 @@ async function fetchIngestedMerchantsFresh(
 
 export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
-  const entries: SitemapUrlEntry[] = [];
+  // BUY-72121 F5: use Map for URL-keyed dedup so duplicate API pages don't
+  // produce duplicate sitemap entries (T395 found 1 self-duplicate for
+  // performance-sg/products consuming a capped slot).
+  const entriesByUrl = new Map<string, SitemapUrlEntry>();
 
   const sgMerchants = await fetchIngestedMerchants("SG");
   for (const merchant of sgMerchants) {
     if (!merchant.is_active) continue;
     const slug = deriveMerchantSlug(merchant);
     const country = merchant.country.toLowerCase();
-    entries.push({
-      // Canonical form (no trailing slash) — matches the <link rel="canonical">
-      // emitted by /[seo-page]/[merchant]/products/page.tsx and the actual
-      // route on disk. Trailing-slash URLs get rewritten (200 via
-      // x-middleware-rewrite) which Google Search Console reports as
-      // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
-      url: toSiteUrl(`/${country}/${slug}/products`),
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
+    const url = toSiteUrl(`/${country}/${slug}/products`);
+    // Canonical form (no trailing slash) — matches the <link rel="canonical">
+    // emitted by /[seo-page]/[merchant]/products/page.tsx and the actual
+    // route on disk. Trailing-slash URLs get rewritten (200 via
+    // x-middleware-rewrite) which Google Search Console reports as
+    // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
+    if (!entriesByUrl.has(url)) {
+      entriesByUrl.set(url, {
+        url,
+        lastModified: now,
+        changeFrequency: "daily",
+        priority: 0.8,
+      });
+    }
   }
 
-  return entries;
+  return Array.from(entriesByUrl.values());
 }
 
 export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
@@ -1006,23 +1022,29 @@ export async function getAllRegionMerchantListingSitemapEntries(): Promise<Sitem
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  const entries: SitemapUrlEntry[] = [];
+  // BUY-72121 F5: URL-keyed dedup so duplicate API pages don't produce
+  // duplicate sitemap entries (the F5 self-duplicate was inside one
+  // file; this also catches cross-region dupes in the all-regions fan-out).
+  const entriesByUrl = new Map<string, SitemapUrlEntry>();
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
     for (const merchant of result.value) {
       if (!merchant.is_active) continue;
       const slug = deriveMerchantSlug(merchant);
       const country = merchant.country.toLowerCase();
-      entries.push({
-        // See getMerchantListingSitemapEntries above for the canonical-form
-        // rationale (BUY-42727 trailing-slash 301 fix).
-        url: toSiteUrl(`/${country}/${slug}/products`),
-        lastModified: now,
-        changeFrequency: "daily",
-        priority: 0.8,
-      });
+      const url = toSiteUrl(`/${country}/${slug}/products`);
+      // See getMerchantListingSitemapEntries above for the canonical-form
+      // rationale (BUY-42727 trailing-slash 301 fix).
+      if (!entriesByUrl.has(url)) {
+        entriesByUrl.set(url, {
+          url,
+          lastModified: now,
+          changeFrequency: "daily",
+          priority: 0.8,
+        });
+      }
     }
   }
 
-  return entries;
+  return Array.from(entriesByUrl.values());
 }
