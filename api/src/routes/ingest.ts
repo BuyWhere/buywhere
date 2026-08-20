@@ -337,6 +337,29 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.image_url === 'string') product.image_url = p.image_url;
   if (typeof p.category === 'string') product.category = p.category;
   if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
+  // BUY-72080: many scrapers (notably shopify_* including shopify_buy30620_crate)
+  // only fill `metadata.product_type` (or `metadata.category`), never
+  // `category` or `category_path`. Without this fallback, ingest writes
+  // category = NULL and category_path = '{}', which then propagates as
+  // SEV-1 in /v1/products results and 100% missing-path defects in DQ
+  // probes across 11+ US Shopify sources. Fall back to product_type /
+  // metadata.category if both top-level fields are empty.
+  if (!product.category && !product.category_path) {
+    const meta = (p.metadata && typeof p.metadata === 'object')
+      ? p.metadata as Record<string, unknown>
+      : null;
+    const metaCat = meta
+      ? (typeof meta.product_type === 'string' && meta.product_type.trim()
+          ? meta.product_type.trim()
+          : (typeof meta.category === 'string' && meta.category.trim()
+              ? meta.category.trim()
+              : null))
+      : null;
+    if (metaCat) {
+      product.category = metaCat;
+      product.category_path = [metaCat];
+    }
+  }
   if (typeof p.brand === 'string') product.brand = String(p.brand).slice(0, 200);
   if (typeof p.is_active === 'boolean') product.is_active = p.is_active;
   if (typeof p.is_available === 'boolean') product.is_available = p.is_available;
@@ -745,9 +768,19 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            url = EXCLUDED.url,
            image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
            brand = EXCLUDED.brand,
-           category_path = EXCLUDED.category_path,
+           -- BUY-72080: COALESCE so an empty array from a follow-up scrape
+           -- doesn't wipe the existing category_path. New paths win when
+           -- they're non-empty; existing paths are kept otherwise.
+           category_path = CASE
+             WHEN EXCLUDED.category_path IS NULL
+               OR array_length(EXCLUDED.category_path, 1) IS NULL
+               OR EXCLUDED.category_path[1] IS NULL
+               OR EXCLUDED.category_path[1] = ''
+             THEN products.category_path
+             ELSE EXCLUDED.category_path
+           END,
            merchant_id = EXCLUDED.merchant_id,
-           metadata = EXCLUDED.metadata,
+           metadata = COALESCE(EXCLUDED.metadata, products.metadata),
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
