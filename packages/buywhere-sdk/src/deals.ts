@@ -22,7 +22,9 @@ export class DealsClient {
     return this.client.deals({ category, ...options });
   }
 
-  async getDealsFeed(params?: DealsFeedParams): Promise<DealsFeedResponse> {
-    return this.client.getDealsFeed(params);
+  async getDealsFeed(_params?: DealsFeedParams): Promise<DealsFeedResponse> {
+    // BUY-70605: /v1/deals/feed never deployed server-side — surface a clear error
+    // via the facade as well as the client method. Use client.deals() instead.
+    return this.client.getDealsFeed(_params);
   }
 }
