@@ -25,6 +25,28 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 
+const SITE_ORIGIN = "https://buywhere.ai";
+
+// Slug derivation mirrors src/lib/us-products.ts (slugifyUSProductName +
+// buildUSProductSlug) so the queue URLs match what getProductSitemapEntries()
+// emits in src/app/sitemap-products.xml/route.ts. If either side drifts the
+// lastmod patch is a no-op. (BUY-72089)
+function slugifyUSProductName(name) {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function buildUSProductSlug(product) {
+  const nameSlug = slugifyUSProductName(product.name);
+  return nameSlug ? `${nameSlug}-${product.id}` : product.id;
+}
+
 function utcDateString(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -56,13 +78,18 @@ async function fetchUrlsToIndex(client, lookbackHours, limit) {
     LIMIT $1
   `;
 
-  // Query recently-updated products (with valid URLs)
+  // Query recently-updated products (US only — matches sitemap-products.xml scope).
+  // We need `title` to derive the slug the same way src/lib/us-products.ts does
+  // (`/v1/products` exposes `title`; the sitemap normalizes it through
+  // `buildUSProductSlug`). The DB has no slug column, so the canonical
+  // BuyWhere URL is computed here.
   const productQuery = `
-    SELECT id, url, updated_at, 'product' as url_type
+    SELECT id, title, updated_at, 'product' as url_type
     FROM products
     WHERE is_active = true
       AND is_available = true
-      AND url IS NOT NULL
+      AND country_code = 'US'
+      AND title IS NOT NULL
       AND updated_at > NOW() - INTERVAL '${lookbackHours} hours'
     ORDER BY updated_at DESC
     LIMIT $1
@@ -85,11 +112,13 @@ async function fetchUrlsToIndex(client, lookbackHours, limit) {
     });
   }
 
-  // Add products as BuyWhere PDPs /p/{id} (the products.url column stores the
-  // merchant source URL — that's where the data came from, not where the page lives).
+  // Add products as BuyWhere US product pages /products/us/{slug}.
+  // The slug mirrors buildUSProductSlug() in src/lib/us-products.ts so the
+  // URL hits the same <url> entry that sitemap-products.xml emits. (BUY-72089)
   for (const row of productRows.rows) {
+    const slug = buildUSProductSlug({ id: String(row.id), name: row.title ?? "" });
     urls.push({
-      url: `https://buywhere.ai/p/${row.id}`,
+      url: `${SITE_ORIGIN}/products/us/${slug}`,
       type: "product",
       updated_at: row.updated_at,
     });
