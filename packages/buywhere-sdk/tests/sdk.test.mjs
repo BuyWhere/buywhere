@@ -143,43 +143,28 @@ test('priceHistory sends limit and since query params', async () => {
   }
 });
 
-test('rotateApiKey resolves current key id and maps response fields', async () => {
+// BUY-70872: this previously asserted a mocked /v1/keys/{id}/rotate round-trip.
+// api/src/routes/keys.ts only implements POST /v1/keys — the rotate route was never
+// deployed, so the old test passed against a mock while 404ing in production.
+test('rotateApiKey throws — /v1/keys/{id}/rotate was never deployed (BUY-70872)', async () => {
   const originalFetch = globalThis.fetch;
-  const calls = [];
-
-  globalThis.fetch = async (url) => {
-    calls.push(String(url));
-
-    if (String(url).endsWith('/v1/auth/me')) {
-      return new Response(JSON.stringify({
-        key_id: 'key_123',
-        tier: 'live',
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({
-      new_api_key: 'bw_live_rotated',
-      old_key_expires_at: '2026-04-27T00:00:00Z',
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
+  globalThis.fetch = async () => {
+    throw new Error('fetch should not be called by rotateApiKey');
   };
 
   try {
     const client = createClient('bw_live_test');
-    const rotation = await client.rotateApiKey();
-    assert.deepEqual(rotation, {
-      newApiKey: 'bw_live_rotated',
-      oldKeyExpiresAt: '2026-04-27T00:00:00Z',
-    });
-    assert.deepEqual(calls, [
-      'https://api.buywhere.ai/v1/auth/me',
-      'https://api.buywhere.ai/v1/keys/key_123/rotate',
-    ]);
+    await assert.rejects(
+      () => client.rotateApiKey(),
+      (err) => {
+        assert.equal(err.name, 'BuyWhereError');
+        assert.equal(err.statusCode, 501);
+        assert.equal(err.errorCode, 'rotateApiKey_unavailable');
+        assert.match(err.message, /POST \/v1\/keys/);
+        assert.match(err.message, /BUY-70872/);
+        return true;
+      }
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -215,110 +200,68 @@ test('BuyWhereError exposes errorCode and requestId', async () => {
   }
 });
 
-test('webhooks client can create, list, and delete', async () => {
+// BUY-70872: this previously asserted a mocked create/list/delete round-trip against
+// /v1/webhooks. The API's only webhook surface is the internal relay at /webhooks
+// (uptime-robot, stripe) — there is no customer-facing subscription API, so all three
+// calls 404 in production.
+test('webhooks client throws — /v1/webhooks was never deployed (BUY-70872)', async () => {
   const originalFetch = globalThis.fetch;
-  const calls = [];
+  globalThis.fetch = async () => {
+    throw new Error('fetch should not be called by the webhooks client');
+  };
 
-  globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), method: init.method ?? 'GET' });
-
-    if ((init.method ?? 'GET') === 'POST') {
-      return new Response(JSON.stringify({
-        id: 'wh_123',
-        url: 'https://example.com/webhook',
-        product_ids: [],
-        events: ['price_drop'],
-        active: true,
-        created_at: '2026-04-26T00:00:00Z',
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
-    if ((init.method ?? 'GET') === 'DELETE') {
-      return new Response(null, { status: 204 });
-    }
-
-    return new Response(JSON.stringify({
-      total: 1,
-      webhooks: [{
-        id: 'wh_123',
-        url: 'https://example.com/webhook',
-        product_ids: [],
-        events: ['price_drop'],
-        active: true,
-        created_at: '2026-04-26T00:00:00Z',
-      }],
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
+  const expectUnavailable = (err) => {
+    assert.equal(err.name, 'BuyWhereError');
+    assert.equal(err.statusCode, 501);
+    assert.equal(err.errorCode, 'webhooks_unavailable');
+    assert.match(err.message, /BUY-70872/);
+    return true;
   };
 
   try {
     const client = createClient('bw_live_test');
-    const created = await client.webhooks.create('https://example.com/webhook', ['price_drop']);
-    const listed = await client.webhooks.list();
-    await client.webhooks.delete(created.id);
-
-    assert.equal(created.id, 'wh_123');
-    assert.equal(listed.length, 1);
-    assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
-      'POST https://api.buywhere.ai/v1/webhooks',
-      'GET https://api.buywhere.ai/v1/webhooks',
-      'DELETE https://api.buywhere.ai/v1/webhooks/wh_123',
-    ]);
+    await assert.rejects(
+      () => client.webhooks.create('https://example.com/webhook', ['price_drop']),
+      expectUnavailable
+    );
+    await assert.rejects(() => client.webhooks.list(), expectUnavailable);
+    await assert.rejects(() => client.webhooks.delete('wh_123'), expectUnavailable);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('products client can get alerts for a product', async () => {
+// BUY-70872: this previously asserted a mocked /v1/products/{id}/alerts response.
+// No such handler exists in api/src/routes/products.ts. The /v1/products/* daily-quota
+// 429 masks the absence in live probes, but the route 404s once quota resets.
+test('products client alerts/reviews throw — routes never deployed (BUY-70872)', async () => {
   const originalFetch = globalThis.fetch;
-  const calls = [];
-
-  globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), init });
-    return new Response(JSON.stringify({
-      alerts: [
-        {
-          id: 'alert_abc',
-          product_id: 123,
-          target_price: 49.99,
-          direction: 'below',
-          callback_url: 'https://example.com/webhook',
-          active: true,
-          created_at: '2026-04-26T00:00:00Z',
-        },
-        {
-          id: 'alert_def',
-          product_id: 123,
-          target_price: 59.99,
-          direction: 'above',
-          callback_url: 'https://example.com/webhook2',
-          active: false,
-          created_at: '2026-04-25T00:00:00Z',
-          triggered_at: '2026-04-26T12:00:00Z',
-        },
-      ],
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
+  globalThis.fetch = async () => {
+    throw new Error('fetch should not be called for phantom product routes');
   };
 
   try {
     const client = createClient('bw_live_test');
-    const alerts = await client.products.getAlerts({ product_id: 123 });
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://api.buywhere.ai/v1/products/123/alerts');
-    assert.equal(alerts.length, 2);
-    assert.equal(alerts[0].id, 'alert_abc');
-    assert.equal(alerts[0].target_price, 49.99);
-    assert.equal(alerts[0].direction, 'below');
-    assert.equal(alerts[1].active, false);
-    assert.equal(alerts[1].triggered_at, '2026-04-26T12:00:00Z');
+    await assert.rejects(
+      () => client.products.getAlerts({ product_id: 123 }),
+      (err) => {
+        assert.equal(err.name, 'BuyWhereError');
+        assert.equal(err.statusCode, 501);
+        assert.equal(err.errorCode, 'productAlerts_unavailable');
+        assert.match(err.message, /BUY-70872/);
+        return true;
+      }
+    );
+    await assert.rejects(
+      () => client.products.getReviewsSummary({ product_id: 123 }),
+      (err) => {
+        assert.equal(err.name, 'BuyWhereError');
+        assert.equal(err.statusCode, 501);
+        assert.equal(err.errorCode, 'reviewsSummary_unavailable');
+        assert.match(err.message, /BUY-70872/);
+        return true;
+      }
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
