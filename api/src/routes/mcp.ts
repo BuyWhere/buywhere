@@ -6,6 +6,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
@@ -316,8 +317,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-69823: bound pool acquisition separately from statement_timeout so
   // api.buywhere.ai/mcp fails fast with a standardized envelope under contention
   // instead of consuming the whole 12s query budget before the handler starts.
-  const searchClient = await acquireMcpClient().catch((err) => {
-    console.warn('[search_products] db.connect failed:', err.message);
+  // BUY-65095: route to read replica (maglev) instead of primary (sakura) for
+  // full-text search. Same FTS at 400M+ rows takes 149ms on replica, >12s
+  // (statement_timeout) on primary. REST /v1/products/search already uses
+  // servingReadDbConnect(). Fallback to acquireMcpClient() (primary) if the
+  // replica is unavailable.
+  const searchClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[search_products] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
+    console.warn('[search_products] db.connect failed:', (err as Error)?.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
@@ -661,7 +671,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  const dealsClient = await db.connect().catch((err: unknown) => {
+  // BUY-65095: route get_deals to read replica (same reason as search_products).
+  // walking the discount index on 400M+ rows on primary exceeds 15s statement_timeout.
+  const dealsClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[get_deals] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
@@ -771,8 +787,12 @@ async function handleListCategories(args: Record<string, unknown>) {
   const LIVE_TIMEOUT_MS = 1800;
   const HARD_TIMEOUT_MS = 6000;
   const queryPromise = (async () => {
-    const client = await acquireMcpClient().catch((err) => {
-      console.warn('[list_categories] db.connect failed:', err.message);
+    const client = await servingReadDbConnect().catch((err: unknown) => {
+      if (err instanceof ReplicaUnavailableError) {
+        console.warn('[list_categories] replica unavailable, falling back to primary:', err.message);
+        return acquireMcpClient();
+      }
+      console.warn('[list_categories] db.connect failed:', (err as Error)?.message);
       throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
@@ -942,8 +962,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
-  const bestPriceClient = await acquireMcpClient().catch((err) => {
-    console.warn('[find_best_price] db.connect failed:', err.message);
+  const bestPriceClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[find_best_price] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
+    console.warn('[find_best_price] db.connect failed:', (err as Error)?.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
