@@ -381,6 +381,14 @@ const nextConfig = {
         source: '/mcp',
         destination: 'https://mcp.buywhere.ai/mcp',
       },
+      // BUY-72536: /agent-dx.md → /agent-dx-md (Next.js App Router rejects
+      // a route.ts alongside a page.tsx at the same path, so the markdown
+      // surface lives at its own /agent-dx-md route and this rewrite exposes
+      // the documented /agent-dx.md URL to humans and agents).
+      {
+        source: '/agent-dx.md',
+        destination: '/agent-dx-md',
+      },
     ];
   },
 };

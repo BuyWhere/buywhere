@@ -280,7 +280,7 @@ lives in the top-level \`x-buywhere-v2\` extension field.
 The README at \`/agent-dx\` is the canonical copy of this document. The MCP
 server-card at \`/.well-known/mcp/server-card.json\` mirrors these descriptions
 word-for-word. Changes to either surface MUST be made in lockstep with the
-other. Atlas (BUY-72482) verifies live parity on every heartbeat.
+other. Atlas (BUY-72534) verifies live parity on every heartbeat.
 `;
 
 export function GET() {
