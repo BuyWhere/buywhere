@@ -423,6 +423,37 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(body.error.code, -32602);
   });
 
+  // BUY-69542: a query that matches nothing MUST return empty best_price + total=0.
+  // The earlier 2-tier fallback (BUY-70482) silently degraded zero matches to
+  // "arbitrary cheap recent rows in this country". That fallback was removed in
+  // 079034866. This negative-control test guards against it returning.
+  it('find_best_price returns empty when FTS finds no rows (BUY-69542)', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
+        params: { name: 'find_best_price', arguments: { product_name: 'zzzznonexistentzzzz', country_code: 'SG' } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+    assert.equal(data.best_price, null);
+    assert.ok(Array.isArray(data.alternatives));
+    assert.equal(data.alternatives.length, 0);
+    assert.equal(data.meta.total, 0);
+  });
+
   // BUY-63229: scam-priced outliers (e.g. $0.97 giveaway junk) must not win
   // the price-ASC sort over legitimate listings. Median-USD filter rejects
   // candidates priced below 15% of the median USD-normalized price.

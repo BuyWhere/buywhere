@@ -507,7 +507,37 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     releaseClientSafely(searchClient);
   }
 
-  const products = (rows as Record<string, unknown>[]).map(r =>
+  // BUY-65095: when the query is a device-family term (laptop, phone, tablet),
+  // post-filter FTS results to drop obvious accessories that the GIN index scores
+  // high but are not the device itself (cleaners, privacy screens, dust plugs,
+  // extenders, bags, sleeves, etc.). The GIN rank can't distinguish these so
+  // they crowd out real products on sparse queries.
+  const deviceFilter = buildDeviceFilter(q, country);
+  let filteredRows = rows as Record<string, unknown>[];
+  if (deviceFilter.type && q.trim().length < 30) {
+    const neg = deviceFilter.negativeTerms;
+    filteredRows = (rows as Record<string, unknown>[]).filter(r => {
+      const text = [
+        String(r.title || ''),
+        String((r.category as string) || ''),
+        String((r.category_path as string[] || []).join(' ')),
+      ].join(' ').toLowerCase();
+      const hasNeg = neg.some(t => text.includes(t));
+      if (hasNeg) return false;
+      // Also catch "for X inch" patterns — likely cases/covers
+      if (/\bfor\b.*\d+\s*(inch|cm)\b/i.test(text)) return false;
+      // Catch "laptop sleeve" / "laptop bag" / "laptop stand" etc.
+      if (/\blaptop\s+(sleeve|bag|stand|case|cover|skin|filter|cleaner|extender|adapter|hub|dock)/i.test(text)) return false;
+      return true;
+    });
+    if (filteredRows.length === 0 && rows.length > 0) {
+      // Don't silently drop all results — fall back to unfiltered
+      filteredRows = rows as Record<string, unknown>[];
+      console.warn(`[search] laptop filter dropped all ${rows.length} results for q="${q}", reverting`);
+    }
+  }
+
+  const products = filteredRows.map(r =>
     buildProduct(r, currency, compact)
   );
 

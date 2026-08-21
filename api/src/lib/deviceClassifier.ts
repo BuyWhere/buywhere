@@ -18,6 +18,18 @@ const ACCESSORY_NEGATIVE_TERMS = [
   'funda', 'coque', 'hülle', 'cover', '保護', 'ケース', 'カバー',
   'compatible', 'replacement', 'part', 'spare', 'repair', 'tool',
   'carcasa', 'étui', 'pouzdro', 'obal', 'etui',
+  // BUY-65095: expand for laptop/telephony/tablet accessories that slip through
+  'cleaner', 'cleaning', 'wipe', 'dust', 'privacy screen', 'privacy filter',
+  'extender', 'replicator', 'hub', 'dock', 'docking station',
+  'sleeve', 'skin', 'bumper', 'flip', 'tpu', 'gel', 'clear case',
+  'keyboard cover', 'palm rest', 'trackpad', 'lcd guard',
+  'screen filter', 'monitor stand', 'laptop riser', 'cooling pad',
+  'mouse pad', 'mouse', 'webcam cover', 'camera cover',
+  'usb cable', 'hdmi cable', 'display cable', 'power cord',
+  'travel case', 'laptop sleeve', 'messenger bag', 'backpack',
+  // Phone accessories
+  'ring holder', 'pop socket', 'card holder', 'magnetic wallet',
+  'glass protector', ' hydrogel', 'tempered', 'privacy glass',
 ];
 
 function inferDevice(productName: string): DevicePattern {
