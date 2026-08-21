@@ -37,6 +37,17 @@ export function generateMetadata(): Metadata {
         },
       ],
     },
+    // BUY-72387: override root twitter; otherwise Next.js inherits the
+    // shopper-first root twitter copy and the dev-forum preview for /docs
+    // social shares reads "Find the best prices across every store" — wrong
+    // audience for /docs links. Mirror /developers shape (buildPageMetadata).
+    twitter: {
+      card: "summary_large_image",
+      title: "BuyWhere MCP & API Documentation",
+      description:
+        "MCP server, product catalog API, quickstart, rate limits, and operational runbooks.",
+      images: ["/og-image.png"],
+    },
   };
 }
 
