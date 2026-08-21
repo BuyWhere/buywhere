@@ -141,6 +141,12 @@ export function buildSearchResponse(
 ): SearchResponse {
   return {
     data: products,
+    // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
+    // integrated against response.products broke when the envelope went data-only.
+    // By-reference aliases; keep all four until a versioned deprecation.
+    products,
+    results: products,
+    items: products,
     meta: {
       total,
       limit,

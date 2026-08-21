@@ -58,6 +58,10 @@ export interface SearchMeta {
 }
 
 export interface SearchResponse {
+  /** F33 contract aliases of data */
+  products?: CanonicalProduct[];
+  results?: CanonicalProduct[];
+  items?: CanonicalProduct[];
   data: CanonicalProduct[];
   meta: SearchMeta;
 }
