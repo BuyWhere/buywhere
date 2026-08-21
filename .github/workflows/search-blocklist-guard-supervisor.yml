@@ -112,8 +112,9 @@ jobs:
           SIM="${{ inputs.missing_file }}"
           echo "TEST MODE: simulating absence of $SIM"
           # Force the simulated file into missing.txt regardless of its real
-          # presence. Re-runs the count.
-          grep -vFxq "$SIM" missing.txt && echo "$SIM" >> missing.txt || true
+          # presence. Add it unconditionally so test mode works even when the
+          # file was actually present in step 5.
+          echo "$SIM" >> missing.txt
           # Also drop it from present.txt if it was there.
           sed -i.bak "/^${SIM//\//\\/}$/d" present.txt || true
           PRESENT=$(wc -l < present.txt || echo 0)
