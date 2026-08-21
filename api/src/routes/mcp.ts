@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
@@ -9,6 +10,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } f
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { buildClickUrl } from '../lib/instrumentation';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -225,6 +227,103 @@ const TOOLS = [
     },
   },
 ];
+
+// BUY-72533: v2 tool surface — REQUIRED deliver_to, shopping_job_id, outbound_url resolver.
+// Lives alongside the v1 surface; v1 stays callable until 2026-12-31Z (per Reed spec).
+// v2 names MUST NOT alias to v1 at runtime — callers must pick v2 explicitly.
+const V2_TOOLS = [
+  {
+    name: 'search_products_v2',
+    description: 'REQUIRED deliver_to. Search the BuyWhere product catalog by keyword. The deliver_to parameter is REQUIRED (ISO country code, e.g. "SG", "US") — it takes precedence over country_code/country and prevents all-market scans. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query' },
+        domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
+        max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+        compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
+        category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+      },
+    },
+  },
+  {
+    name: 'get_product_v2',
+    description: 'REQUIRED deliver_to. Get a specific product by its ID, including full details and current price. Response includes a resolved outbound_url (https://…) that routes the buyer through the BuyWhere click tracker when the product has merchant offers.',
+    inputSchema: {
+      type: 'object',
+      required: ['id', 'deliver_to'],
+      properties: {
+        id: { type: 'string', description: 'Product UUID' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+      },
+    },
+  },
+  {
+    name: 'compare_products_v2',
+    description: 'REQUIRED deliver_to. Compare multiple products side-by-side. Returns price, brand, rating, category, and a resolved outbound_url per product for the buyer market.',
+    inputSchema: {
+      type: 'object',
+      required: ['ids', 'deliver_to'],
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of product IDs to compare (2-10)',
+          minItems: 2,
+          maxItems: 10,
+        },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+      },
+    },
+  },
+  {
+    name: 'get_deals_v2',
+    description: 'REQUIRED deliver_to. Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+        currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+      },
+    },
+  },
+  {
+    name: 'find_best_price_v2',
+    description: 'REQUIRED deliver_to. Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. Response includes a shopping_job_id (UUID) you can use to resume a multi-merchant price-comparison session for the buyer.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query — alias for product_name' },
+        product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
+        category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
+        country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
+      },
+    },
+  },
+];
+
+// Combined surface — v1 + v2 — for tools/list and the GET /mcp info endpoint.
+const TOOLS_ALL = [...TOOLS, ...V2_TOOLS];
 
 let _hasDiscountPct: boolean | undefined;
 
@@ -1484,9 +1583,142 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
     case 'find_similar':     return handleFindSimilar(args);
+    case 'search_products_v2':  return handleSearchProductsV2(args);
+    case 'get_product_v2':      return handleGetProductV2(args);
+    case 'compare_products_v2': return handleCompareProductsV2(args);
+    case 'get_deals_v2':        return handleGetDealsV2(args);
+    case 'find_best_price_v2':  return handleFindBestPriceV2(args);
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
   }
+}
+
+// BUY-72533: v2 surface — REQUIRED deliver_to, plus v2-specific response fields.
+// v2 validates `deliver_to` is present (rejects with -32602 INVALID_ARGUMENT otherwise),
+// then delegates to the v1 handler with the same args (v1 logic is unchanged).
+// v2-specific extras:
+//   - find_best_price_v2: response includes `shopping_job_id` (UUID)
+//   - get_product_v2: response includes `outbound_url` (https://…) per product
+function requireDeliverTo(args: Record<string, unknown>, toolName: string): string {
+  const raw = args.deliver_to;
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!value) {
+    throw { code: -32602, message: `${toolName} requires deliver_to (ISO country code, e.g. "SG", "US")` };
+  }
+  // Keep args.deliver_to normalised so downstream handlers see the same string.
+  args.deliver_to = value;
+  return value;
+}
+
+async function handleSearchProductsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'search_products_v2');
+  return handleSearchProducts(args);
+}
+
+async function handleGetDealsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'get_deals_v2');
+  return handleGetDeals(args);
+}
+
+async function handleCompareProductsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'compare_products_v2');
+  const result = await handleCompareProducts(args);
+  // BUY-72533 acceptance: v2 compare returns outbound_url per product for the buyer market.
+  attachOutboundUrls(result);
+  return result;
+}
+
+async function handleFindBestPriceV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'find_best_price_v2');
+  const result = await handleFindBestPrice(args);
+  // BUY-72533 acceptance: v2 find_best_price returns a shopping_job_id (UUID) when
+  // called with deliver_to. This is the canonical handle for resuming a multi-
+  // merchant price-comparison session for the buyer.
+  await attachShoppingJobId(result, args);
+  return result;
+}
+
+async function handleGetProductV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'get_product_v2');
+  const result = await handleGetProduct(args);
+  // BUY-72533 acceptance: get_product_v2 returns outbound_url (https://…) when the
+  // product has merchant offers. The base handleGetProduct already returns the
+  // canonical product list via buildSearchResponse; we resolve outbound_url per product
+  // for the buyer market.
+  attachOutboundUrls(result);
+  return result;
+}
+
+// Resolve `outbound_url` (https://…) for every product in a v2 response that carries
+// one. Backed by buildClickUrl from instrumentation.ts (the same resolver used by
+// the canonical product builder). Mutates the response in place; safe for the
+// JSON-RPC envelope which serialises a deep copy.
+function attachOutboundUrls(response: any): void {
+  const products = response?.results;
+  if (!Array.isArray(products)) return;
+  for (const product of products) {
+    if (!product || typeof product !== 'object') continue;
+    const url = typeof product.url === 'string' ? product.url : '';
+    const merchant = typeof product.merchant === 'string' ? product.merchant : null;
+    const productId = typeof product.id === 'string' ? product.id : null;
+    if (!url || !productId) continue;
+    product.outbound_url = buildClickUrl({
+      productId,
+      destinationUrl: url,
+      merchantId: merchant,
+    });
+  }
+}
+
+// Attach a shopping_job_id (UUID) to find_best_price_v2 responses. The id is derived
+// from a stable hash of (product_name, deliver_to, country) so retries of the same
+// query return the same session id, which is what an agent resuming a multi-merchant
+// shopping flow expects.
+async function attachShoppingJobId(response: any, args: Record<string, unknown>): Promise<void> {
+  const productName = String(args.product_name || args.q || '').trim();
+  const deliverTo = String(args.deliver_to || '').trim().toUpperCase();
+  const country = String(args.country_code || args.country || '').trim().toUpperCase();
+  const sessionKey = productName && deliverTo
+    ? `${productName.toLowerCase()}|${deliverTo}|${country}`
+    : '';
+  if (sessionKey) {
+    // Deterministic UUID v5 from the session key — node:crypto supports this via
+    // a manual SHA-1 + UUID v5 construction. Falls back to randomUUID if hashing fails.
+    try {
+      response.shopping_job_id = uuidV5(sessionKey, V2_SHOPPING_NAMESPACE);
+    } catch {
+      response.shopping_job_id = randomUUID();
+    }
+  } else {
+    response.shopping_job_id = randomUUID();
+  }
+  response.shopping_session_key = sessionKey || null;
+}
+
+// BUY-72533 namespace for v2 shopping_job_id v5 derivation. Picked arbitrarily and
+// kept stable across deploys so the same (product, deliver_to, country) yields the
+// same shopping_job_id across calls.
+const V2_SHOPPING_NAMESPACE = 'c0d4f1a3-2b51-4d8e-9f10-buywhere-v2-shopping';
+
+function uuidV5(name: string, namespace: string): string {
+  // Minimal UUID v5: SHA-1 hash of (namespace bytes || name bytes), set version + variant bits.
+  const nsBytes = parseUuidBytes(namespace);
+  const nameBytes = new Uint8Array(Buffer.from(name, 'utf8'));
+  const combined = new Uint8Array(nsBytes.length + nameBytes.length);
+  combined.set(nsBytes, 0);
+  combined.set(nameBytes, nsBytes.length);
+  const hash = require('crypto').createHash('sha1').update(combined).digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function parseUuidBytes(uuid: string): Uint8Array {
+  const hex = uuid.replace(/-/g, '');
+  if (hex.length !== 32) throw new Error('invalid namespace uuid');
+  return new Uint8Array(Buffer.from(hex, 'hex'));
 }
 
 // JSON-RPC 2.0 response helpers
@@ -1617,7 +1849,7 @@ router.get('/', (_req: Request, res: Response) => {
     protocolVersion: '2024-11-05',
     transport: 'http',
     methods: ['initialize', 'tools/list', 'tools/call'],
-    tools: TOOLS.map(t => t.name),
+    tools: TOOLS_ALL.map(t => t.name),
     auth: 'Bearer token — register at https://api.buywhere.ai/v1/auth/register',
     usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
   });
@@ -1639,7 +1871,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     }));
   }
   if (method === 'tools/list') {
-    return res.json(jsonrpcOk(id, { tools: TOOLS }));
+    return res.json(jsonrpcOk(id, { tools: TOOLS_ALL }));
   }
   return next();
 });
