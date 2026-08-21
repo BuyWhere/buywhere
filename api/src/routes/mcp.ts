@@ -1117,7 +1117,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       return {
         best_price: null,
         alternatives: [],
-        meta: { product_name: productName, country_code: country, currency, degraded: true, reason: 'statement_timeout', response_time_ms: Date.now() - t0 },
+        meta: { product_name: productName, country_code: country, currency: COUNTRY_CURRENCY[country] || 'SGD', degraded: true, reason: 'statement_timeout', response_time_ms: Date.now() - t0 },
       };
     }
     throw e;
