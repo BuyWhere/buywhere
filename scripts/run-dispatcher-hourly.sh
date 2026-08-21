@@ -39,10 +39,10 @@ fi
 
 # Run the dispatcher
 log "Starting dispatcher_v6_hourly.js..."
-DISPATCHER_STDOUT="$PAPERCLIP_TMPDIR/dispatcher-stdout.json"
+PAPERCLIP_TMPDIR="${PAPERCLIP_TMPDIR:-/tmp}"
+DISPATCHER_STDOUT="$PAPERCLIP_TMPDIR/dispatcher-stdout.log"
 DISPATCHER_STDERR="$PAPERCLIP_TMPDIR/dispatcher-stderr.log"
-(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" 
-  node scripts/dispatcher_v6_hourly.js --json 1>"$DISPATCHER_STDOUT" 2>"$DISPATCHER_STDERR") || {
+(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" node scripts/dispatcher_v6_hourly.js --json 1>"$DISPATCHER_STDOUT" 2>"$DISPATCHER_STDERR") || {
   log_err "Dispatcher failed (exit $?)"
   exit 1
 }

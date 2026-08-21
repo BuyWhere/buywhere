@@ -197,47 +197,63 @@ function buildClient() {
 }
 
 async function ensureCanonicalTable(client) {
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS canonical_throughput_hourly (
-      hour_start timestamptz PRIMARY KEY,
-      n_tup_ins bigint,
-      n_tup_upd bigint,
-      n_live_tup bigint,
-      live_count bigint,
-      ing_runs integer DEFAULT 0,
-      ing_inserted bigint DEFAULT 0,
-      ing_updated bigint DEFAULT 0,
-      delta_ins_from_stats bigint,
-      delta_upd_from_stats bigint,
-      stat_reset_detected boolean DEFAULT false,
-      stats_mismatch_detected boolean DEFAULT false,
-      stats_mismatch_reason text,
-      delta_computed_at timestamptz,
-      source text,
-      last_check_result text,
-      last_check_reason text,
-      recorded_at timestamptz DEFAULT now()
-    )
-  `);
+  // Restore DDL-permission tolerance (regressed in 2d53dc31, BUY-72387 pull): cron
+  // uses `ingest_rw` which lacks CREATE on schema public. The table is created and
+  // maintained out-of-band by Ops; on this path we only verify it exists and skip
+  // otherwise-fatal CREATE/ALTER permissions.
+  const DDL_PERMISSION_ERR = '42501';
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS canonical_throughput_hourly (
+        hour_start timestamptz PRIMARY KEY,
+        n_tup_ins bigint,
+        n_tup_upd bigint,
+        n_live_tup bigint,
+        live_count bigint,
+        ing_runs integer DEFAULT 0,
+        ing_inserted bigint DEFAULT 0,
+        ing_updated bigint DEFAULT 0,
+        delta_ins_from_stats bigint,
+        delta_upd_from_stats bigint,
+        stat_reset_detected boolean DEFAULT false,
+        stats_mismatch_detected boolean DEFAULT false,
+        stats_mismatch_reason text,
+        delta_computed_at timestamptz,
+        source text,
+        last_check_result text,
+        last_check_reason text,
+        recorded_at timestamptz DEFAULT now()
+      )
+    `);
 
-  const optionalColumns = [
-    ['delta_ins_from_stats', 'bigint'],
-    ['delta_upd_from_stats', 'bigint'],
-    ['stat_reset_detected', 'boolean DEFAULT false'],
-    ['stats_mismatch_detected', 'boolean DEFAULT false'],
-    ['stats_mismatch_reason', 'text'],
-    ['delta_computed_at', 'timestamptz'],
-    ['source', 'text'],
-    ['last_check_result', 'text'],
-    ['last_check_reason', 'text'],
-    ['reconciliation_status', 'text'],
-    ['reconciliation_gap', 'bigint'],
-    ['reconciliation_reason', 'text'],
-    ['reconciliation_checked_at', 'timestamptz'],
-  ];
+    const optionalColumns = [
+      ['delta_ins_from_stats', 'bigint'],
+      ['delta_upd_from_stats', 'bigint'],
+      ['stat_reset_detected', 'boolean DEFAULT false'],
+      ['stats_mismatch_detected', 'boolean DEFAULT false'],
+      ['stats_mismatch_reason', 'text'],
+      ['delta_computed_at', 'timestamptz'],
+      ['source', 'text'],
+      ['last_check_result', 'text'],
+      ['last_check_reason', 'text'],
+      ['reconciliation_status', 'text'],
+      ['reconciliation_gap', 'bigint'],
+      ['reconciliation_reason', 'text'],
+      ['reconciliation_checked_at', 'timestamptz'],
+    ];
 
-  for (const [name, definition] of optionalColumns) {
-    await client.query(`ALTER TABLE canonical_throughput_hourly ADD COLUMN IF NOT EXISTS ${name} ${definition}`);
+    for (const [name, definition] of optionalColumns) {
+      await client.query(`ALTER TABLE canonical_throughput_hourly ADD COLUMN IF NOT EXISTS ${name} ${definition}`);
+    }
+  } catch (err) {
+    if (err.code !== DDL_PERMISSION_ERR) throw err;
+    const check = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='canonical_throughput_hourly'`
+    );
+    if (check.rows.length === 0) {
+      throw new Error('canonical_throughput_hourly missing and CREATE permission denied — cannot proceed');
+    }
+    console.error('[ensureCanonicalTable] DDL permission denied but table exists — continuing');
   }
 }
 
