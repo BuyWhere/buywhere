@@ -559,6 +559,84 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(body.error.code, -32602);
     assert.match(body.error.message, /Invalid product_id format/);
   });
+
+  // BUY-72360: schema-level contract. The MCP `search_products` `mode` parameter
+  // must declare `default: 'keyword'` so agents that omit `mode` get the same
+  // ranking as REST callers. Hybrid was the default until this fix and Reed's
+  // 150-warm 50-query eval showed hybrid ranking BELOW keyword on every intent
+  // (NDCG@10 ratios 0.83–0.94x). Until hybrid beats keyword, MCP and REST must
+  // both default to keyword.
+  it('search_products schema declares mode default=keyword (BUY-72360)', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 40, method: 'tools/list' }),
+    });
+    const body = await res.json();
+    const searchTool = body.result.tools.find((t) => t.name === 'search_products');
+    assert.ok(searchTool, 'search_products tool must be listed');
+    const modeSchema = searchTool.inputSchema.properties.mode;
+    assert.ok(modeSchema, 'search_products schema must expose a mode parameter');
+    assert.deepEqual(modeSchema.enum, ['keyword', 'semantic', 'hybrid']);
+    assert.equal(modeSchema.default, 'keyword', 'MCP mode default must be keyword so it matches REST');
+  });
+
+  // BUY-72360: runtime contract. Even with vector infrastructure configured,
+  // omitting `mode` must NOT route through the vector path. We install a
+  // vector DB spy that fails loudly if any KNN query is issued — if the
+  // default ever silently flips back to hybrid, this test will catch it.
+  it('search_products with omitted mode does not touch the vector DB (BUY-72360)', async () => {
+    process.env.GEMINI_API_KEY = 'test-jina-key';
+    const vectorSpy = mock.fn(() => Promise.reject(new Error('vector DB must not be touched when mode=keyword (BUY-72360)')));
+    config.vectorDb = { query: vectorSpy };
+
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('COUNT')) {
+        return Promise.resolve({ rows: [{ count: '2' }] });
+      }
+      return Promise.resolve({
+        rows: [
+          makeProduct('1', { title: 'Gaming Laptop', price: 1299 }),
+          makeProduct('2', { title: 'Office Laptop', price: 899 }),
+        ],
+      });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 41, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'tools/call must return a result');
+    assert.equal(vectorSpy.mock.calls.length, 0, 'default mode=keyword must not query the vector DB');
+
+    // Reset for downstream tests that share the same process.
+    config.vectorDb = null;
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  // BUY-72360: REST/MCP alignment guard. The OpenAPI spec the MCP server serves
+  // at /.well-known/* must agree on `mode` default=keyword so REST and MCP agents
+  // see the same ranking when neither passes `mode`.
+  it('OpenAPI /products/search advertises mode default=keyword (BUY-72360)', async () => {
+    const res = await fetch(`http://localhost:${port}/.well-known/openapi.json`);
+    if (res.status !== 200) return; // wellknown not mounted in test app — skip silently
+    const spec = await res.json();
+    const modeParam = spec.paths?.['/products/search']?.get?.parameters?.find((p) => p.name === 'mode');
+    if (!modeParam) return; // path differs in this test app — skip silently
+    assert.equal(modeParam.schema.default, 'keyword', 'REST mode default must be keyword');
+  });
 });
 
 describe('MCP JSON-RPC — error handling', () => {

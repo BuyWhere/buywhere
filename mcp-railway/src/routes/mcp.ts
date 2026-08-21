@@ -66,7 +66,13 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+        // BUY-72360: flip the MCP default to keyword. The 150-warm 50-query
+        // eval (Reed, semantic-search Product gate 77844ebf) showed hybrid
+        // ranks BELOW keyword on every intent — NDCG@10 ratios 0.83–0.94x.
+        // Leaving agents on hybrid while we tune the RRF was the worst
+        // possible default; keyword matches what REST /v1/products/search
+        // already defaulted to (see routes/products.ts DEFAULT_SEARCH_MODE).
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `semantic` uses the Jina v3 query embedding against the pgvector pool, and `hybrid` RRF-merges the FTS and semantic candidate ranks. Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'keyword' },
       },
     },
   },
@@ -213,7 +219,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // calls don't silently fall into the no-q browse branch (which returns
   // a fabricated reltuples-derived "total" with 0 rows).
   const q = (args.q as string) || (args.query as string) || '';
-  const mode = (args.mode as string) || 'hybrid';
+  // BUY-72360: align MCP runtime default with the schema default and with
+  // REST /v1/products/search. Both surfaces must serve the same ranking when
+  // the caller omits `mode`. Until hybrid beats keyword on the eval, keyword
+  // is the safe default — see handleSearchProducts doc for evidence links.
+  const mode = ((args.mode as string) || 'keyword');
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
