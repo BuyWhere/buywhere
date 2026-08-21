@@ -258,6 +258,9 @@ export function createApp() {
 
   // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
   app.use('/api', clicksRouter);
+  // /v1/click alias: the site rewrites buywhere.ai/api/* -> api.buywhere.ai/v1/*,
+  // so root-domain click_urls land here (F32).
+  app.use('/v1', clicksRouter);
   app.use('/admin', clicksRouter);
 
   // Affiliate redirect (no /v1 prefix — short URLs)
