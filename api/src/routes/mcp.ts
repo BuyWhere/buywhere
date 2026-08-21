@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
@@ -7,8 +7,10 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { buildClickUrl } from '../lib/instrumentation';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -178,13 +180,12 @@ const TOOLS = [
   },
   {
     name: 'find_similar',
-    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
     inputSchema: {
       type: 'object',
+      required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'Numeric ID of the source product (mutually exclusive with product_name)' },
-        product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
+        product_id: { type: 'string', description: 'UUID of the source product' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -227,6 +228,103 @@ const TOOLS = [
   },
 ];
 
+// BUY-72533: v2 tool surface — REQUIRED deliver_to, shopping_job_id, outbound_url resolver.
+// Lives alongside the v1 surface; v1 stays callable until 2026-12-31Z (per Reed spec).
+// v2 names MUST NOT alias to v1 at runtime — callers must pick v2 explicitly.
+const V2_TOOLS = [
+  {
+    name: 'search_products_v2',
+    description: 'REQUIRED deliver_to. Search the BuyWhere product catalog by keyword. The deliver_to parameter is REQUIRED (ISO country code, e.g. "SG", "US") — it takes precedence over country_code/country and prevents all-market scans. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query' },
+        domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
+        max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+        compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
+        category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+      },
+    },
+  },
+  {
+    name: 'get_product_v2',
+    description: 'REQUIRED deliver_to. Get a specific product by its ID, including full details and current price. Response includes a resolved outbound_url (https://…) that routes the buyer through the BuyWhere click tracker when the product has merchant offers.',
+    inputSchema: {
+      type: 'object',
+      required: ['id', 'deliver_to'],
+      properties: {
+        id: { type: 'string', description: 'Product UUID' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+      },
+    },
+  },
+  {
+    name: 'compare_products_v2',
+    description: 'REQUIRED deliver_to. Compare multiple products side-by-side. Returns price, brand, rating, category, and a resolved outbound_url per product for the buyer market.',
+    inputSchema: {
+      type: 'object',
+      required: ['ids', 'deliver_to'],
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of product IDs to compare (2-10)',
+          minItems: 2,
+          maxItems: 10,
+        },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+      },
+    },
+  },
+  {
+    name: 'get_deals_v2',
+    description: 'REQUIRED deliver_to. Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+        currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+      },
+    },
+  },
+  {
+    name: 'find_best_price_v2',
+    description: 'REQUIRED deliver_to. Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. Response includes a shopping_job_id (UUID) you can use to resume a multi-merchant price-comparison session for the buyer.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query — alias for product_name' },
+        product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
+        category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
+        country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
+        deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
+      },
+    },
+  },
+];
+
+// Combined surface — v1 + v2 — for tools/list and the GET /mcp info endpoint.
+const TOOLS_ALL = [...TOOLS, ...V2_TOOLS];
+
 let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
@@ -250,15 +348,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const requestedMarket = normalizeMcpMarket(args, q ? 'SG' : '');
-  const region = requestedMarket.dbRegion;
-  // country_code is canonical; `country` kept as alias for backward compat.
-  // deliver_to is the buyer market and must take precedence to prevent
-  // cross-market results when callers pass stale/default country_code values.
+  const region = (args.region as string) || '';
+  // country_code is canonical; `country` kept as alias for backward compat
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const country = requestedMarket.country;
+  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const hasExplicitCountry = !!(args.country_code || args.country);
+  const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -266,7 +363,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
-  const COUNT_CAP = 1001;
 
   const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
@@ -320,23 +416,32 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-69823: bound pool acquisition separately from statement_timeout so
   // api.buywhere.ai/mcp fails fast with a standardized envelope under contention
   // instead of consuming the whole 12s query budget before the handler starts.
-  const searchClient = await acquireMcpClient().catch((err) => {
-    console.warn('[search_products] db.connect failed:', err.message);
+  // BUY-65095: route to read replica (maglev) instead of primary (sakura) for
+  // full-text search. Same FTS at 400M+ rows takes 149ms on replica, >12s
+  // (statement_timeout) on primary. REST /v1/products/search already uses
+  // servingReadDbConnect(). Fallback to acquireMcpClient() (primary) if the
+  // replica is unavailable.
+  const searchClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[search_products] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
+    console.warn('[search_products] db.connect failed:', (err as Error)?.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 4000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
-      // BUY-69998: do not run a separate COUNT for keyword searches. Under SG/VN
-      // country/category probes the count can consume the whole statement_timeout
-      // before the bounded result query runs. We report a capped page-derived total
-      // after fetching rows instead.
-      total = 0;
+      const countResult = await searchClient.query(
+        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
+        params
+      );
+      total = parseInt(countResult.rows[0].count, 10);
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -513,6 +618,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+  } catch (e: any) {
+    if (e && typeof e === 'object' && e.code === '57014') {
+      console.warn('[search_products] BUY-70000: statement_timeout (57014) at 4s — returning degraded response');
+      return buildSearchResponse([], 0, limit, offset, Date.now() - t0, false);
+    }
+    throw e;
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
@@ -524,24 +635,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     const catLower = category.toLowerCase();
     rows = (rows as Record<string, unknown>[]).filter(r =>
       ((r.category as string) || '').toLowerCase().includes(catLower)
-    );
-  }
-
-  if (q) {
-    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
-  }
-
-  // Defense in depth for buyer-market routing: SQL includes country_code/region
-  // predicates, but this prevents stale cached rows or future query variants from
-  // returning another market in top results.
-  if (country && rows.length > 0) {
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      ((r.country_code as string) || '').toUpperCase() === country
-    );
-  }
-  if (region && rows.length > 0) {
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      ((r.region as string) || '').toLowerCase() === region.toLowerCase()
     );
   }
 
@@ -683,7 +776,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  const dealsClient = await db.connect().catch((err: unknown) => {
+  // BUY-65095: route get_deals to read replica (same reason as search_products).
+  // walking the discount index on 400M+ rows on primary exceeds 15s statement_timeout.
+  const dealsClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[get_deals] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
@@ -787,14 +886,18 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   // BUY-69823: wrap the whole queryPromise in a hard wall-clock timeout so pool
-  // contention + slow queries never exceed ~6s. If timeout fires, return an
-  // explicit unavailable fallback instead of zero-count categories.
+  // contention + slow queries never exceed ~6s. If timeout fires, return hardcoded
+  // categories rather than a hard 5xx.
   const MAT_VIEW_TIMEOUT_MS = 8000;
   const LIVE_TIMEOUT_MS = 1800;
   const HARD_TIMEOUT_MS = 6000;
   const queryPromise = (async () => {
-    const client = await acquireMcpClient().catch((err) => {
-      console.warn('[list_categories] db.connect failed:', err.message);
+    const client = await servingReadDbConnect().catch((err: unknown) => {
+      if (err instanceof ReplicaUnavailableError) {
+        console.warn('[list_categories] replica unavailable, falling back to primary:', err.message);
+        return acquireMcpClient();
+      }
+      console.warn('[list_categories] db.connect failed:', (err as Error)?.message);
       throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
@@ -812,7 +915,6 @@ async function handleListCategories(args: Record<string, unknown>) {
             `SELECT slug, name, product_count
              FROM mcp_category_summary_by_country
              WHERE country_code = $1
-               AND NULLIF(BTRIM(slug), '') IS NOT NULL
              ORDER BY product_count DESC
              LIMIT 100`,
             [country]
@@ -831,7 +933,6 @@ async function handleListCategories(args: Record<string, unknown>) {
                FROM products
                WHERE country_code = $1
                  AND category_path[1] IS NOT NULL
-                 AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                  AND is_active = true
                GROUP BY category_path[1]
                ORDER BY COUNT(*) DESC
@@ -859,7 +960,6 @@ async function handleListCategories(args: Record<string, unknown>) {
                  FROM products
                  WHERE country_code = $1
                    AND category_path[1] IS NOT NULL
-                   AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                    AND is_active = true
                  ORDER BY updated_at DESC
                  LIMIT 50000
@@ -886,11 +986,15 @@ async function handleListCategories(args: Record<string, unknown>) {
         }
       }
       if (rows.length === 0) {
-        rows = buildHardcodedCategories();
+        rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
+          slug: name.toLowerCase().replace(/\s+/g, '-'),
+          name,
+          product_count: 0,
+        }));
       }
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.every((row) => Number(row.product_count) === 0) },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
       };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
@@ -963,13 +1067,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
-  const bestPriceClient = await acquireMcpClient().catch((err) => {
-    console.warn('[find_best_price] db.connect failed:', err.message);
+  const bestPriceClient = await servingReadDbConnect().catch((err: unknown) => {
+    if (err instanceof ReplicaUnavailableError) {
+      console.warn('[find_best_price] replica unavailable, falling back to primary:', err.message);
+      return acquireMcpClient();
+    }
+    console.warn('[find_best_price] db.connect failed:', (err as Error)?.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 4000');
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -1003,6 +1111,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ORDER BY pi.price ASC, pi.updated_at DESC`,
       [...params, limit]
     );
+  } catch (e: any) {
+    if (e && typeof e === 'object' && e.code === '57014') {
+      console.warn('[find_best_price] BUY-70000: statement_timeout (57014) at 4s — returning degraded response');
+      return {
+        best_price: null,
+        alternatives: [],
+        meta: { product_name: productName, country_code: country, currency, degraded: true, reason: 'statement_timeout', response_time_ms: Date.now() - t0 },
+      };
+    }
+    throw e;
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -1385,42 +1503,17 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productId = (args.product_id as string || '').trim();
-  const productName = (args.product_name as string || '').trim();
-  const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
   const limit = Math.min(Number(args.limit) || 10, 10);
 
-  // BUY-70124: Resolve product_name → product_id via FTS when product_id is not provided.
-  // This enables agents to start with a product name (natural discovery flow) instead
-  // of requiring a pre-known numeric ID.
-  let resolvedId = productId;
-  if (!resolvedId && productName) {
-    const conditions = ['is_active = true'];
-    const params: unknown[] = [];
-    params.push(productName);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-    if (countryCode) {
-      params.push(countryCode);
-      conditions.push(`country_code = $${params.length}`);
-    }
-    const lookupResult = await db.query(
-      `SELECT id, title FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
-      params
-    );
-    if (!lookupResult.rows.length) {
-      throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
-    }
-    resolvedId = String((lookupResult.rows[0] as Record<string, unknown>).id);
-  }
-
-  if (!resolvedId) {
-    throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
+  if (!productId) {
+    throw { code: -32602, message: 'missing required parameter: product_id' };
   }
 
   // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
   // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
   // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-  if (!/^\d+$/.test(resolvedId)) {
-    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${resolvedId}"` };
+  if (!/^\d+$/.test(productId)) {
+    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
   }
 
   if (!vectorDb) {
@@ -1432,7 +1525,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
       `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
-      [resolvedId]
+      [productId]
     );
   } catch {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1449,7 +1542,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
        FROM product_embeddings WHERE product_id != $2
        ORDER BY distance LIMIT $3`,
-      [refEmbedding, resolvedId, limit]
+      [refEmbedding, productId, limit]
     );
   } catch {
     throw { code: -32001, message: 'No similar products found' };
@@ -1489,8 +1582,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     .filter(Boolean);
 
   return {
-    product_id: resolvedId,
-    matched_product_name: productName || undefined,
+    product_id: productId,
     similar,
     total: similar.length,
     response_time_ms: Date.now() - t0,
@@ -1507,37 +1599,180 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
     case 'find_similar':     return handleFindSimilar(args);
+    case 'search_products_v2':  return handleSearchProductsV2(args);
+    case 'get_product_v2':      return handleGetProductV2(args);
+    case 'compare_products_v2': return handleCompareProductsV2(args);
+    case 'get_deals_v2':        return handleGetDealsV2(args);
+    case 'find_best_price_v2':  return handleFindBestPriceV2(args);
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
   }
 }
 
-// JSON-RPC 2.0 response helpers
-// BUY-70000: every response (success or error) carries `request_id` and a
-// top-level `timestamp` so agent-facing monitoring suites can correlate
-// JSON-RPC calls with query_log entries without scraping server logs.
-// `request_id` prefers a string JSON-RPC id; when the caller used a numeric
-// or null id we fall back to a generated UUID so the field is always present.
-// BUY-70114: `request_id` is always a server-generated UUID for traceability.
-// The JSON-RPC `id` is preserved separately for protocol correlation.
-function jsonrpcRequestId(_id: unknown): string {
-  return randomUUID();
+// BUY-72533: v2 surface — REQUIRED deliver_to, plus v2-specific response fields.
+// v2 validates `deliver_to` is present (rejects with -32602 INVALID_ARGUMENT otherwise),
+// then delegates to the v1 handler with the same args (v1 logic is unchanged).
+// v2-specific extras:
+//   - find_best_price_v2: response includes `shopping_job_id` (UUID)
+//   - get_product_v2: response includes `outbound_url` (https://…) per product
+function requireDeliverTo(args: Record<string, unknown>, toolName: string): string {
+  const raw = args.deliver_to;
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!value) {
+    throw { code: -32602, message: `${toolName} requires deliver_to (ISO country code, e.g. "SG", "US")` };
+  }
+  // Keep args.deliver_to normalised so downstream handlers see the same string.
+  args.deliver_to = value;
+  return value;
 }
+
+async function handleSearchProductsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'search_products_v2');
+  return handleSearchProducts(args);
+}
+
+async function handleGetDealsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'get_deals_v2');
+  return handleGetDeals(args);
+}
+
+async function handleCompareProductsV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'compare_products_v2');
+  const result = await handleCompareProducts(args);
+  // BUY-72533 acceptance: v2 compare returns outbound_url per product for the buyer market.
+  attachOutboundUrls(result);
+  return result;
+}
+
+async function handleFindBestPriceV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'find_best_price_v2');
+  const result = await handleFindBestPrice(args);
+  // BUY-72533 acceptance: v2 find_best_price returns a shopping_job_id (UUID) when
+  // called with deliver_to. This is the canonical handle for resuming a multi-
+  // merchant price-comparison session for the buyer.
+  await attachShoppingJobId(result, args);
+  // v2 find_best_price also resolves outbound_url for the best_price + each alternative,
+  // so the agent can route the buyer directly to the merchant from the response.
+  attachOutboundUrlToBestPrice(result);
+  return result;
+}
+
+async function handleGetProductV2(args: Record<string, unknown>) {
+  requireDeliverTo(args, 'get_product_v2');
+  const result = await handleGetProduct(args);
+  // BUY-72533 acceptance: get_product_v2 returns outbound_url (https://…) when the
+  // product has merchant offers. The base handleGetProduct already returns the
+  // canonical product list via buildSearchResponse; we resolve outbound_url per product
+  // for the buyer market.
+  attachOutboundUrls(result);
+  return result;
+}
+
+// Resolve `outbound_url` (https://…) for the best_price result + each alternative,
+// matching the response shape produced by handleFindBestPrice.
+function attachOutboundUrlToBestPrice(response: any): void {
+  if (!response || typeof response !== 'object') return;
+  for (const product of [response.best_price, ...(Array.isArray(response.alternatives) ? response.alternatives : [])]) {
+    if (!product || typeof product !== 'object') continue;
+    const url = typeof product.url === 'string' ? product.url : '';
+    const merchant = typeof product.merchant === 'string' ? product.merchant : null;
+    const productId = product.id != null ? String(product.id) : '';
+    if (!url || !productId) continue;
+    product.outbound_url = buildClickUrl({
+      productId,
+      destinationUrl: url,
+      merchantId: merchant,
+    });
+  }
+}
+
+// Resolve `outbound_url` (https://…) for every product in a v2 response that carries
+// one. Backed by buildClickUrl from instrumentation.ts (the same resolver used by
+// the canonical product builder). Mutates the response in place; safe for the
+// JSON-RPC envelope which serialises a deep copy.
+function attachOutboundUrls(response: any): void {
+  // buildSearchResponse uses `data`, not `results` — handle both for safety.
+  const products = Array.isArray(response?.data)
+    ? response.data
+    : Array.isArray(response?.results)
+      ? response.results
+      : null;
+  if (!products) return;
+  for (const product of products) {
+    if (!product || typeof product !== 'object') continue;
+    const url = typeof product.url === 'string' ? product.url : '';
+    const merchant = typeof product.merchant === 'string' ? product.merchant : null;
+    const productId = product.id != null ? String(product.id) : '';
+    if (!url || !productId) continue;
+    product.outbound_url = buildClickUrl({
+      productId,
+      destinationUrl: url,
+      merchantId: merchant,
+    });
+  }
+}
+
+// Attach a shopping_job_id (UUID) to find_best_price_v2 responses. The id is derived
+// from a stable hash of (product_name, deliver_to, country) so retries of the same
+// query return the same session id, which is what an agent resuming a multi-merchant
+// shopping flow expects.
+async function attachShoppingJobId(response: any, args: Record<string, unknown>): Promise<void> {
+  const productName = String(args.product_name || args.q || '').trim();
+  const deliverTo = String(args.deliver_to || '').trim().toUpperCase();
+  const country = String(args.country_code || args.country || '').trim().toUpperCase();
+  const sessionKey = productName && deliverTo
+    ? `${productName.toLowerCase()}|${deliverTo}|${country}`
+    : '';
+  if (sessionKey) {
+    // Deterministic UUID v5 from the session key — node:crypto supports this via
+    // a manual SHA-1 + UUID v5 construction. Falls back to randomUUID if hashing fails.
+    try {
+      response.shopping_job_id = uuidV5(sessionKey, V2_SHOPPING_NAMESPACE);
+    } catch {
+      response.shopping_job_id = randomUUID();
+    }
+  } else {
+    response.shopping_job_id = randomUUID();
+  }
+  response.shopping_session_key = sessionKey || null;
+}
+
+// BUY-72533 namespace for v2 shopping_job_id v5 derivation. Picked arbitrarily and
+// kept stable across deploys so the same (product, deliver_to, country) yields the
+// same shopping_job_id across calls.
+const V2_SHOPPING_NAMESPACE = 'c0d4f1a3-2b51-4d8e-9f10-buywhere-v2-shopping';
+
+function uuidV5(name: string, namespace: string): string {
+  // Minimal UUID v5: SHA-1 hash of (namespace bytes || name bytes), set version + variant bits.
+  const nsBytes = parseUuidBytes(namespace);
+  const nameBytes = new Uint8Array(Buffer.from(name, 'utf8'));
+  const combined = new Uint8Array(nsBytes.length + nameBytes.length);
+  combined.set(nsBytes, 0);
+  combined.set(nameBytes, nsBytes.length);
+  const hash = require('crypto').createHash('sha1').update(combined).digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function parseUuidBytes(uuid: string): Uint8Array {
+  const hex = uuid.replace(/-/g, '');
+  if (hex.length !== 32) throw new Error('invalid namespace uuid');
+  return new Uint8Array(Buffer.from(hex, 'hex'));
+}
+
+// JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
+  return { jsonrpc: '2.0', id, result, request_id: randomUUID(), timestamp: new Date().toISOString() };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return {
-    jsonrpc: '2.0',
-    id,
-    request_id: jsonrpcRequestId(id),
-    timestamp: new Date().toISOString(),
-    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
-  };
+  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) }, request_id: randomUUID(), timestamp: new Date().toISOString() };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
@@ -1656,7 +1891,7 @@ router.get('/', (_req: Request, res: Response) => {
     protocolVersion: '2024-11-05',
     transport: 'http',
     methods: ['initialize', 'tools/list', 'tools/call'],
-    tools: TOOLS.map(t => t.name),
+    tools: TOOLS_ALL.map(t => t.name),
     auth: 'Bearer token — register at https://api.buywhere.ai/v1/auth/register',
     usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
   });
@@ -1678,7 +1913,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     }));
   }
   if (method === 'tools/list') {
-    return res.json(jsonrpcOk(id, { tools: TOOLS }));
+    return res.json(jsonrpcOk(id, { tools: TOOLS_ALL }));
   }
   return next();
 });
@@ -1721,8 +1956,24 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         }));
       }
 
-      default:
+      // BUY-72102 (re-apply after 2d53dc31 reset): backward compatibility for
+      // direct tool-name JSON-RPC methods (e.g. {"method":"search_products"}).
+      // Some MCP clients and heartbeat probes invoke tools by name instead of
+      // wrapping them in the MCP "tools/call" envelope. Route known tool names
+      // to dispatchTool. BUY-68192 added this fallback to mcp-railway; this
+      // branch keeps parity on api.buywhere.ai after the BUY-72387 mega-reset
+      // accidentally dropped the earlier c9bc8fe3 port.
+      default: {
+        const knownTool = TOOLS.find((t) => t.name === method);
+        if (knownTool) {
+          res.locals.mcpToolName = method;
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+      }
     }
   } catch (err: unknown) {
     const e = err as { code?: number | string; message?: string };
@@ -1737,7 +1988,13 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
     }
     if (typeof e.code === 'string' && e.message) {
-      // PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
+      // BUY-70000: statement_timeout (57014) returns SERVICE_UNAVAILABLE (not INTERNAL)
+      // so monitoring/Tune can distinguish timeouts from true crashes.
+      if (e.code === '57014') {
+        console.warn(`[mcp] statement_timeout (57014) — tool timed out at statement_timeout floor`);
+        return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, ErrorCode.SERVICE_UNAVAILABLE));
+      }
+      // Other PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
       console.error(`[mcp] pg error (code=${e.code}):`, e.message);
       return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
     }
