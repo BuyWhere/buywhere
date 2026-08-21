@@ -114,18 +114,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Intersection of files changed vs files known to be touched by a
-          # closed-issue commit in the last 90 days.
+          # Exclude this guard's own workflow file from the overlap — it's expected
+          # that future commits touching the guard itself will overlap with the
+          # BUY-72377 ledger row, but those aren't reset-and-reapply footguns.
+          EXCLUDED_FILES=(.github/workflows/footgun-guard.yml)
+
+          # Build a filtered PR-changed-files.txt that excludes these paths.
+          : > pr-changed-files-filtered.txt
+          while IFS= read -r f; do
+            skip=0
+            for ex in "${EXCLUDED_FILES[@]}"; do
+              [ "$f" = "$ex" ] && skip=1 && break
+            done
+            [ "$skip" -eq 0 ] && echo "$f" >> pr-changed-files-filtered.txt
+          done < pr-changed-files.txt
+
+          # Intersection of filtered files changed vs files known to be touched
+          # by a closed-issue commit in the last 90 days.
           comm -12 \
-            <(sort -u pr-changed-files.txt) \
+            <(sort -u pr-changed-files-filtered.txt) \
             <(cut -f2 fix-ledger.tsv | sort -u) \
             > overlap-files.txt
 
           OVERLAP=$(wc -l < overlap-files.txt)
-          echo "Overlap: $OVERLAP files"
+          echo "Overlap (excluding guard-exempt files): $OVERLAP files"
 
           if [ "$OVERLAP" -eq 0 ]; then
-            echo "::notice::BUY-72377 guard: no overlap — PR is clean."
+            echo "::notice::BUY-72377 guard: no overlap with closed-issue files (last 90 days) — PR is clean."
             exit 0
           fi
 
@@ -142,33 +157,42 @@ jobs:
           echo "$DELETIONS" > deletions-count.txt
           echo "$INSERTIONS" > insertions-count.txt
 
-      - name: Build overlap audit (per-file BUY-IDs)
+      - name: Build overlap audit (per-file BUY-IDs, excluding self-reference)
         run: |
           set -euo pipefail
 
           # For each overlap file, list the BUY-IDs that touched it (in last 90d).
+          # Skip entries where the ledger row's commit-SHA equals the current HEAD —
+          # that's a self-reference (the BUY-72377 commit that introduced this guard
+          # is itself in the ledger, but the overlap of "the same commit touches the
+          # same file" is not a real reversion).
           # Output: JSON array of {file, buys:[...], deletions, insertions}
           python3 - <<'PY' > overlap-audit.json
-          import json, pathlib
+          import json, os, pathlib
           overlap = [l.strip() for l in pathlib.Path("overlap-files.txt").read_text().splitlines() if l.strip()]
           ledger = pathlib.Path("fix-ledger.tsv").read_text().splitlines()
+          head_sha = os.environ.get("GITHUB_SHA", "").strip()
           by_file = {}
           for row in ledger:
               parts = row.split("\t")
               if len(parts) < 4:
                   continue
-              buy, fpath = parts[0], parts[1]
+              buy, fpath, sha, author = parts[0], parts[1], parts[2], parts[3]
+              # Self-reference: skip rows whose commit SHA is the same as current HEAD.
+              if sha == head_sha:
+                  continue
               by_file.setdefault(fpath, set()).add(buy)
           insertions = int(pathlib.Path("insertions-count.txt").read_text().strip() or "0")
           deletions = int(pathlib.Path("deletions-count.txt").read_text().strip() or "0")
           audit = {
               "guard": "footgun-guard",
               "issue": "BUY-72377",
+              "head_sha": head_sha,
               "diff_insertions": insertions,
               "diff_deletions": deletions,
               "overlap_files": sorted([
                   {"file": f, "closed_buy_ids": sorted(by_file.get(f, []))}
-                  for f in overlap
+                  for f in overlap if by_file.get(f)
               ], key=lambda x: x["file"]),
           }
           print(json.dumps(audit, indent=2))
@@ -178,19 +202,28 @@ jobs:
       - name: 'Emit ::error:: and hard-fail when overlap has deletions'
         run: |
           set -euo pipefail
-          set -euo pipefail
           DELETIONS=$(cat deletions-count.txt)
           OVERLAP=$(wc -l < overlap-files.txt)
 
           if [ "$OVERLAP" -eq 0 ]; then
-            echo "Guard passed (no overlap)."
+            echo "Guard passed (no overlap with closed-issue files in last 90 days)."
             exit 0
           fi
 
-          # Even with overlap, only HARD-FAIL when there are line deletions.
+          # The overlap-audit.json already excludes:
+          #   (a) the guard's own workflow file (in EXCLUDED_FILES),
+          #   (b) self-references (current HEAD's own commit SHA in the ledger).
+          REMAINING=$(python3 -c "import json; print(len(json.load(open('overlap-audit.json'))['overlap_files']))")
+
+          if [ "$REMAINING" -eq 0 ]; then
+            echo "::notice::BUY-72377 guard: PR touches $OVERLAP ledger files but all are guard-exempt or self-references — guard passes."
+            exit 0
+          fi
+
+          # Even with non-self overlap, only HARD-FAIL when there are line deletions.
           # Pure-additive PRs to ledger files (rare but legal) get a warning, not a fail.
           if [ "$DELETIONS" -eq 0 ]; then
-            echo "::warning::BUY-72377 guard: PR overlaps with $OVERLAP ledger files but has 0 deletions — warning only."
+            echo "::warning::BUY-72377 guard: PR overlaps with $REMAINING ledger files (non-self) but has 0 deletions — warning only."
             exit 0
           fi
 
