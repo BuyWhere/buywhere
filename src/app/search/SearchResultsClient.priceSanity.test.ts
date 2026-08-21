@@ -144,3 +144,66 @@ test("formatPrice never emits NaN, a bare .00, or an empty string", () => {
     assert.doesNotMatch(out, /NaN/);
   }
 });
+
+// Regression tests for BUY-71638 (re-applied after the silent scope-creep
+// revert in 2d53dc31 / BUY-72387 — f369fdc9).
+//
+// QA repro: /search?q=laptop&country=US rendered mixed currencies (SGD,
+// INR, TRY) under the US country filter. The fix is to ALWAYS honor the
+// selected-country currency at display time, regardless of the API row's
+// source-row currency. The numeric price value is not FX-converted (no
+// rates table exists); only the displayed currency code tracks the country
+// the user picked.
+//
+// A parallel runnable guard lives in
+// SearchResultsClient.currencyDisplay.test.mjs that runs under `node --test`
+// in CI (the .ts file is documentation-only — Node 22 cannot resolve the
+// `from "./SearchResultsClient"` extensionless import without a TS loader).
+test("normalizeProduct always stores the selected-country currency (US filter)", () => {
+  const product = normalizeProduct(
+    {
+      id: "54452825",
+      title: "GIGABYTE GAMING A16 Gaming Laptop - RTX 5060 - AMD Ryzen 7 260",
+      price: { amount: 1349.99, currency: "SGD" }, // API row carries SGD
+      merchant: "newegg_us",
+    },
+    "USD", // user picked United States
+  );
+  assert.equal(product.price, 1349.99);
+  assert.equal(product.currency, "USD", "expected normalizeProduct to override API currency with selected-country currency");
+  assert.equal(formatPrice(product.price, product.currency), "$1,349.99");
+});
+
+test("normalizeProduct honors selected-country currency for INR/TRY rows too", () => {
+  // The exact QA-reported cases: an INR row and a TRY row under the US filter.
+  for (const apiCurrency of ["INR", "TRY"]) {
+    const product = normalizeProduct(
+      {
+        id: "1",
+        title: `Cross-border ${apiCurrency} listing that should not leak through`,
+        price: { amount: 7499, currency: apiCurrency },
+        merchant: "google_shopping",
+      },
+      "USD",
+    );
+    assert.equal(
+      product.currency,
+      "USD",
+      `expected ${apiCurrency} API row under US filter to display in USD`,
+    );
+  }
+});
+
+test("normalizeProduct falls back to selected-country currency when API omits one", () => {
+  const product = normalizeProduct(
+    {
+      id: "1",
+      title: "Laptop without price currency in API response",
+      price: { amount: 1299 }, // no currency on the row
+      merchant: "best_buy_us",
+    },
+    "SGD",
+  );
+  assert.equal(product.currency, "SGD");
+  assert.equal(formatPrice(product.price, product.currency), "SGD 1,299.00");
+});
