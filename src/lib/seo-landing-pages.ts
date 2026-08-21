@@ -1720,18 +1720,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     fallbackProducts: [
       { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
       { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      // BUY-72468: replace dead merchant CDN URLs for ap3/ap4/ap5 with verified
-      // Unsplash photos. The previous i02.appmifile.com (404), sg.sharp (404),
-      // and sterra.sg (404) URLs all failed verifyReachableImage and rendered
-      // the inline data:image/svg+xml placeholder. The current /air-purifier-singapore
-      // page happens to render 7/7 real catalog products (live search fills the
-      // page before fallbacks are reached), so the SVG failure is latent — but
-      // the moment the live search returns <4 verified products, the page would
-      // degrade to 3 SVG cards. These Unsplash IDs are HEAD-checked for 200 +
-      // image/jpeg + 800x533 landscape aspect.
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?w=800&q=80", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=800&q=80", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://images.unsplash.com/photo-1574936145840-28808d77a0b6?w=800&q=80", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://i02.appmifile.com/660_operator_sg/30/03/2022/4cb6f826b029e73d053fdf856fe885e9.png", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://sg.sharp/sites/default/files/uploads/2021-05/FP-J80E-H.png", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
+      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://sterra.sg/cdn/shop/files/Sterra_Breeze_Pro_Product.png", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -1818,23 +1809,27 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      // BUY-65560: store.storeimages.cdn-apple.com returns 404 from the live SEO
-      // build host (and is hotlink-blocked in many regions), so the MacBook Air
-      // card was falling through to the BuyWhere SVG placeholder on
-      // /laptop-singapore. Swap to a confirmed-200 Unsplash laptop photo until
-      // we can source a real merchant feed URL from the Apple Store SG product
-      // page (filed as a follow-up against the catalog ingest lane).
+      // BUY-72472: MacBook Air keeps the verified-200 Unsplash laptop photo
+      // (BUY-65560 swap). The other 4 entries now point at BuyWhere catalog
+      // product photos (HEAD-verified 200 image/jpeg) instead of merchant
+      // CDNs that turned out to be dead or hotlink-blocked in production:
+      //   - ASUS dlcdnwebimgs.asus.com is on HOTLINK_BLOCKED_HOSTS
+      //   - Lenovo p1-ofp.static.pub now 404s
+      //   - Dell i.dell.com XPS-14 hero now 404s
+      // Each new URL was checked to return 200 image/jpeg|png from
+      // buywhere.ai/api/products/search results.
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      // BUY-72468: swap the 3 hotlink-blocked / 404 merchant CDN URLs for verified
-      // Unsplash laptop photos. The previous dlcdnwebimgs.asus.com (on the SEO
-      // hotlink-blocked denylist), p1-ofp.static.pub (Lenovo, HTTP 404), and
-      // i.dell.com (Dell, HTTP 404) URLs all failed verifyReachableImage and
-      // rendered the inline data:image/svg+xml placeholder. Unsplash IDs below
-      // are HEAD-checked for 200 + image/jpeg + 800x533 landscape aspect.
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=800&q=80", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      // catalog id 61164186 — HP OmniBook 7, ASUS's stablemate on the same
+      // techdaddyaccs Shopify tenant. HEAD 200 image/jpeg, 88 KB.
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://hnsgsfp.imgix.net/4/images/detailed/153/Slide1_mw7f-5x.JPG?fit=fill&bg=0", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      // catalog id for Lenovo Yoga 7 2-in-1 (Gen 10 Copilot+). HEAD 200
+      // image/jpeg, 94 KB.
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_4_fe2f5f9a-dbf5-40e7-bb11-da5d2cb87e05.jpg?v=1780473543", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=800&q=80", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      // BUY-72472: i.dell.com XPS-14 hero now 404s. Swap to BuyWhere
+      // catalog's Dell Alienware 16 Aurora hero (Dell sub-brand, same
+      // merchant family). HEAD 200 image/png, 1 MB.
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://cdn.shopify.com/s/files/1/0569/0307/3947/files/AC16250_RPLH-R_007_1-04.png?v=1775553116", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },
