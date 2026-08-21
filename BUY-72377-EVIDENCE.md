@@ -149,3 +149,25 @@ That's it. No scripts directory pollution, no extra helpers, no separate ledger 
 
 - **Failure-mode matrix:** for each of the 8 known big-footprint commits (>100 files in last 90 days per the exploration), run the test-mode dispatch and confirm the guard would have caught the footgun pattern. List any false negatives.
 - **False-positive rate:** over the next 30 days, count how many PRs the guard warns on (vs hard-fails). Tune the threshold if FP rate is too high.
+
+## Known v1 limitation — guard can be deleted in same commit
+
+**2026-08-21 06:37Z, ~1 minute after I deployed v1.2,** another `Rex (CTO)` instance landed commit `2d53dc314` (`fix(BUY-72387): reframe root metadata to shopper-first; keep MCP secondary`). That commit touched **193 files / +4316 / -20065** — exactly the footgun signature — and incidentally deleted `.github/workflows/footgun-guard.yml` and `BUY-72377-EVIDENCE.md`.
+
+The footgun-guard **did not run** on that push because GitHub Actions doesn't run a workflow on the same push that deletes it. So the reset-and-reapply pattern bypassed the guard by deleting the guard itself.
+
+**Restoration commit:** `922bb7def` re-adds the workflow + evidence (no other changes).
+
+**Hardening for v1.3 (recommended next step):**
+- Add a **second guard workflow** at `.github/workflows/footgun-guard-supervisor.yml` that runs on push and asserts `footgun-guard.yml` still exists in the new HEAD. If deleted, hard-fail with `::error::BUY-72377 guard was deleted — restore it.`
+- OR: add an inline check to existing workflows (`deploy-www.yml`, `deploy-api.yml`) that fails if `footgun-guard.yml` is missing from HEAD.
+- OR: ship a CI runbook that periodically checks `git show origin/main:.github/workflows/footgun-guard.yml` and alerts on absence.
+
+The current v1 guard is correct in design and catches the dominant footgun pattern (file-overlap with deletions). The deletion-evasion bypass is a separate concern — the guard can't be its own anti-self-deletion watchdog without a separate file/process.
+
+## Final state after restoration push
+
+- Workflow file: re-deployed at commit `922bb7def` on `origin/main`
+- Evidence file: re-deployed at commit `922bb7def` on `origin/main`
+- footgun-guard run on restoration push (32455446821): ✅ success
+- The deletion commit (`2d53dc314`) is the **first real-world test of the guard** — and shows the limitation. The next iteration (v1.3 supervisor guard) closes that bypass.
