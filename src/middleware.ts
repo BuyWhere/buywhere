@@ -471,7 +471,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/developers/robots.txt" ||
     pathname === "/developers/robots" ||
     pathname === "/developers/sitemap.xml" ||
-    pathname === "/developers/sitemap";
+    pathname === "/developers/sitemap" ||
+    pathname === "/developers/sitemap-index.xml";
   const metadataMiss = optionalMetadataMiss(pathname);
   if (metadataMiss) {
     return metadataMiss;
@@ -522,6 +523,11 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
+  }
+  if (pathname === "/developers/sitemap-index.xml") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap-index.xml";
     return NextResponse.rewrite(url);
   }
 
@@ -800,6 +806,11 @@ export async function middleware(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
+  }
+  if (pathname === "/developers/sitemap-index.xml") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap-index.xml";
     return NextResponse.rewrite(url);
   }
 
