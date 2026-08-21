@@ -889,6 +889,17 @@ async function handleFindBestPrice(args) {
             positiveSignals.push('shirt', 'shirts', 'tee', 't-shirt', 'polo', 'dress', 'dresses', 'hoodie', 'hoodies', 'jacket', 'jackets', 'coat', 'coats', 'sweater', 'sweaters', 'jumper', 'shorts', 'pants', 'trousers', 'jeans', 'skirt', 'skirts', 'blouse', 'sweatshirt', 'cardigan', 'leggings', 'pajamas', 'underwear');
         const hasPositive = positiveSignals.some(s => text.includes(s));
         const hasNegative = neg.some(t => text.includes(t));
+        // BUY-65095: for footwear/apparel, the negative term is a stronger signal
+        // than the positive. "Sneaker Insole" / "Nike Socks" / "Tee Detergent" are
+        // accessories, not sneakers / shirts. So if hasNegative is true, treat as
+        // accessory unless the title has very strong positive context (e.g. "Nike
+        // Sneakers Mens Size 11" with a stray "sock" mention — but never "Sneaker
+        // Insole").
+        if (deviceFilter.type === 'footwear' || deviceFilter.type === 'apparel') {
+            if (hasNegative)
+                return true;
+            return false;
+        }
         if (!hasNegative && hasPositive)
             return false;
         if (hasNegative && !hasPositive)
