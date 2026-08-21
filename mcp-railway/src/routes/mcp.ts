@@ -297,7 +297,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
     await searchClient.query('SET statement_timeout = 12000');
-    await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+    await searchClient.query('SET work_mem = \'256MB\''); // BUY-65095: bump from 64MB to 256MB — 389M rows GIN bitmap heap scan needs >128MB to stay under 12s statement_timeout. 64MB was timing out on count(*) and candidate subqueries even with LIMIT 1001.
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -324,57 +324,102 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
 
         if (queryVec && vectorDb) {
-          let candidateIds: string[];
+          // BUY-63230: Vector DB can be unreachable (connection error, timeout, etc.).
+          // Wrap in try-catch and fall through to keyword FTS on any vector error.
+          // Bound vector queries to ~1.5s to fail fast.
+          const VECTOR_QUERY_TIMEOUT_MS = 1500;
+          let vectorFailed = false;
+          let candidateIds: string[] = [];
 
-          if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-          } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
-                params
-              ),
-              vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
-                [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
-            const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
-            candidateIds = [...allIds]
-              .map(id => ({
-                id,
-                score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
-              }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, limit + offset)
-              .map(s => s.id);
+          try {
+            if (mode === 'semantic') {
+              // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+              const vecRows = await Promise.race([
+                vectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('vector_db_timeout')), VECTOR_QUERY_TIMEOUT_MS)
+                ),
+              ]);
+              candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } else {
+              // Hybrid: app-level RRF of FTS ranks + vector ranks
+              // Vector query has its own timeout - if it fails, fall back to keyword-only
+              const vecQueryPromise = Promise.race([
+                vectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('vector_db_timeout')), VECTOR_QUERY_TIMEOUT_MS)
+                ),
+              ]);
+              const [ftsResult, vecResult] = await Promise.all([
+                searchClient.query<{ id: string }>(
+                  `SELECT id FROM products ${where} LIMIT 200`,
+                  params
+                ),
+                vecQueryPromise.catch((vecErr) => {
+                  console.warn('[search] vector query failed, falling back to keyword-only:', vecErr instanceof Error ? vecErr.message : String(vecErr));
+                  vectorFailed = true;
+                  return { rows: [] }; // Empty result = keyword-only RRF
+                }),
+              ]);
+              const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+              const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
+              candidateIds = [...allIds]
+                .map(id => ({
+                  id,
+                  score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
+                }))
+                .sort((a, b) => b.score - a.score)
+                .slice(0, limit + offset)
+                .map(s => s.id);
+            }
+          } catch (vecErr) {
+            // Any vector error (timeout, connection, etc.) → fall through to keyword FTS
+            console.warn('[search] vector path failed, falling back to keyword search:', vecErr instanceof Error ? vecErr.message : String(vecErr));
+            vectorFailed = true;
           }
 
-          total = candidateIds.length;
-          const pageIds = candidateIds.slice(offset, offset + limit);
-
-          if (pageIds.length === 0) {
-            rows = [];
-          } else {
-            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await searchClient.query(
-              `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
+          if (vectorFailed || candidateIds.length === 0) {
+            // Vector path unavailable — use keyword FTS instead
+            const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+            params.push(CANDIDATE_LIMIT, limit, offset);
+            const result = await searchClient.query(
+              `SELECT * FROM (
+                 SELECT id, sku AS source, source AS domain, url, title,
+                        price, currency, image_url, metadata, updated_at, region, country_code
+                 FROM products ${where}
+                 LIMIT $${params.length - 2}
+               ) _candidates
+               ORDER BY updated_at DESC
+               LIMIT $${params.length - 1} OFFSET $${params.length}`,
+              params
             );
-            // Preserve ranking order
-            const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-            rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            rows = result.rows;
+          } else {
+            total = candidateIds.length;
+            const pageIds = candidateIds.slice(offset, offset + limit);
+
+            if (pageIds.length === 0) {
+              rows = [];
+            } else {
+              const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+              const detailResult = await searchClient.query(
+                `SELECT id, sku AS source, source AS domain, url, title,
+                        price, currency, image_url, metadata, updated_at, region, country_code
+                 FROM products WHERE id IN (${ph}) AND is_active = true`,
+                pageIds
+              );
+              // Preserve ranking order
+              const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+              rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            }
           }
         } else {
           // Embed failed — fall through to keyword FTS
@@ -449,7 +494,37 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     releaseClientSafely(searchClient);
   }
 
-  const products = (rows as Record<string, unknown>[]).map(r =>
+  // BUY-65095: when the query is a device-family term (laptop, phone, tablet),
+  // post-filter FTS results to drop obvious accessories that the GIN index scores
+  // high but are not the device itself (cleaners, privacy screens, dust plugs,
+  // extenders, bags, sleeves, etc.). The GIN rank can't distinguish these so
+  // they crowd out real products on sparse queries.
+  const deviceFilter = buildDeviceFilter(q, country);
+  let filteredRows = rows as Record<string, unknown>[];
+  if (deviceFilter.type && q.trim().length < 30) {
+    const neg = deviceFilter.negativeTerms;
+    filteredRows = (rows as Record<string, unknown>[]).filter(r => {
+      const text = [
+        String(r.title || ''),
+        String((r.category as string) || ''),
+        String((r.category_path as string[] || []).join(' ')),
+      ].join(' ').toLowerCase();
+      const hasNeg = neg.some(t => text.includes(t));
+      if (hasNeg) return false;
+      // Also catch "for X inch" patterns — likely cases/covers
+      if (/\bfor\b.*\d+\s*(inch|cm)\b/i.test(text)) return false;
+      // Catch "laptop sleeve" / "laptop bag" / "laptop stand" etc.
+      if (/\blaptop\s+(sleeve|bag|stand|case|cover|skin|filter|cleaner|extender|adapter|hub|dock)/i.test(text)) return false;
+      return true;
+    });
+    if (filteredRows.length === 0 && rows.length > 0) {
+      // Don't silently drop all results — fall back to unfiltered
+      filteredRows = rows as Record<string, unknown>[];
+      console.warn(`[search] laptop filter dropped all ${rows.length} results for q="${q}", reverting`);
+    }
+  }
+
+  const products = filteredRows.map(r =>
     buildProduct(r, currency, compact)
   );
 
