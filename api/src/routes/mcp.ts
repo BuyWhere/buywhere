@@ -1635,6 +1635,9 @@ async function handleFindBestPriceV2(args: Record<string, unknown>) {
   // called with deliver_to. This is the canonical handle for resuming a multi-
   // merchant price-comparison session for the buyer.
   await attachShoppingJobId(result, args);
+  // v2 find_best_price also resolves outbound_url for the best_price + each alternative,
+  // so the agent can route the buyer directly to the merchant from the response.
+  attachOutboundUrlToBestPrice(result);
   return result;
 }
 
@@ -1649,18 +1652,41 @@ async function handleGetProductV2(args: Record<string, unknown>) {
   return result;
 }
 
+// Resolve `outbound_url` (https://…) for the best_price result + each alternative,
+// matching the response shape produced by handleFindBestPrice.
+function attachOutboundUrlToBestPrice(response: any): void {
+  if (!response || typeof response !== 'object') return;
+  for (const product of [response.best_price, ...(Array.isArray(response.alternatives) ? response.alternatives : [])]) {
+    if (!product || typeof product !== 'object') continue;
+    const url = typeof product.url === 'string' ? product.url : '';
+    const merchant = typeof product.merchant === 'string' ? product.merchant : null;
+    const productId = product.id != null ? String(product.id) : '';
+    if (!url || !productId) continue;
+    product.outbound_url = buildClickUrl({
+      productId,
+      destinationUrl: url,
+      merchantId: merchant,
+    });
+  }
+}
+
 // Resolve `outbound_url` (https://…) for every product in a v2 response that carries
 // one. Backed by buildClickUrl from instrumentation.ts (the same resolver used by
 // the canonical product builder). Mutates the response in place; safe for the
 // JSON-RPC envelope which serialises a deep copy.
 function attachOutboundUrls(response: any): void {
-  const products = response?.results;
-  if (!Array.isArray(products)) return;
+  // buildSearchResponse uses `data`, not `results` — handle both for safety.
+  const products = Array.isArray(response?.data)
+    ? response.data
+    : Array.isArray(response?.results)
+      ? response.results
+      : null;
+  if (!products) return;
   for (const product of products) {
     if (!product || typeof product !== 'object') continue;
     const url = typeof product.url === 'string' ? product.url : '';
     const merchant = typeof product.merchant === 'string' ? product.merchant : null;
-    const productId = typeof product.id === 'string' ? product.id : null;
+    const productId = product.id != null ? String(product.id) : '';
     if (!url || !productId) continue;
     product.outbound_url = buildClickUrl({
       productId,
