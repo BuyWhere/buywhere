@@ -1,9 +1,9 @@
 # BuyWhere
 
-BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 300M+ structured products from 238,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 392M+ structured products from 891,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
 ## Catalog Coverage
-- **300M+ products** across **238,000+ merchant storefronts** (verified live at GET /v1/catalog/stats)
+- **392M+ products** across **891,000+ merchant storefronts** (verified live at GET /v1/catalog/stats)
 - Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
 - **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
 - Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
@@ -37,12 +37,14 @@ MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools
-1. **search_products** — Full-text search with merchant, price, category, and country filters.
+1. **search_products** — Full-text product search with filters (keyword, merchant, price, category, country, deliver_to).
 2. **get_product** — Get full product details by BuyWhere product ID.
-3. **get_price** — Get current prices for a product across all available merchants.
-4. **compare_prices** — Compare 2–5 products side-by-side with price range, pros/cons, and best-value recommendation.
-5. **get_affiliate_link** — Get the click-tracked BuyWhere affiliate link for a product.
-6. **get_catalog** — List available product categories in the BuyWhere catalog.
+3. **compare_products** — Compare 2–10 products side-by-side with price range, attributes, and best-value recommendation.
+4. **get_deals** — Get discounted products sorted by discount percentage for a region/category.
+5. **list_categories** — List all product categories with product counts.
+6. **find_best_price** — Find the best price for a specific product across all merchants offering it.
+7. **find_similar** — Find products similar to a given product ID.
+8. **ingest_products** — Bulk ingest products via the API.
 
 ## Authentication
 
