@@ -1720,9 +1720,18 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     fallbackProducts: [
       { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
       { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://i02.appmifile.com/660_operator_sg/30/03/2022/4cb6f826b029e73d053fdf856fe885e9.png", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://sg.sharp/sites/default/files/uploads/2021-05/FP-J80E-H.png", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://sterra.sg/cdn/shop/files/Sterra_Breeze_Pro_Product.png", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      // BUY-72468: replace dead merchant CDN URLs for ap3/ap4/ap5 with verified
+      // Unsplash photos. The previous i02.appmifile.com (404), sg.sharp (404),
+      // and sterra.sg (404) URLs all failed verifyReachableImage and rendered
+      // the inline data:image/svg+xml placeholder. The current /air-purifier-singapore
+      // page happens to render 7/7 real catalog products (live search fills the
+      // page before fallbacks are reached), so the SVG failure is latent — but
+      // the moment the live search returns <4 verified products, the page would
+      // degrade to 3 SVG cards. These Unsplash IDs are HEAD-checked for 200 +
+      // image/jpeg + 800x533 landscape aspect.
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?w=800&q=80", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=800&q=80", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
+      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://images.unsplash.com/photo-1574936145840-28808d77a0b6?w=800&q=80", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -1816,10 +1825,16 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       // we can source a real merchant feed URL from the Apple Store SG product
       // page (filed as a follow-up against the catalog ingest lane).
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      // BUY-72468: swap the 3 hotlink-blocked / 404 merchant CDN URLs for verified
+      // Unsplash laptop photos. The previous dlcdnwebimgs.asus.com (on the SEO
+      // hotlink-blocked denylist), p1-ofp.static.pub (Lenovo, HTTP 404), and
+      // i.dell.com (Dell, HTTP 404) URLs all failed verifyReachableImage and
+      // rendered the inline data:image/svg+xml placeholder. Unsplash IDs below
+      // are HEAD-checked for 200 + image/jpeg + 800x533 landscape aspect.
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=800&q=80", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=800&q=80", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },

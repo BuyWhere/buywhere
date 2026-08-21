@@ -77,11 +77,21 @@ test("sampled noise-canceling headphones page uses real fallback products", asyn
 
 test("QA-sampled SEO pages keep credible image-backed fallback catalogs", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+  // BUY-72468: route distinct mock responses by URL. The product search API
+  // returns an empty degraded payload (no live products), but the verifyReachableImage
+  // HEAD probe expects an image/* content-type response so the fallback imageUrl
+  // is treated as reachable. Anything else falls through to the branded SVG
+  // placeholder — which is the pre-BUY-72468 failure mode.
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
 
   try {
     const sampledSlugs = [
