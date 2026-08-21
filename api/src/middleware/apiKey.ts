@@ -240,6 +240,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   }
 
   if (!key) {
+    res.set('WWW-Authenticate', 'Bearer realm="buywhere"');
     sendSpecError(res, 'missing_api_key', 'API key required. Get one at https://buywhere.ai/dashboard', 401);
     return;
   }
