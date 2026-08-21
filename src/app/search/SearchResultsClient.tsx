@@ -191,6 +191,28 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+// BUY-72350: c1.neweggimages.com serves HTTP 400 (AkamaiGHost bot-detection)
+// to ALL egress — referer-insensitive, reproduces from third-party IPs, and
+// even the CDN host root 400s. No proxy or header can fetch these. Returning
+// false here means imageUrl becomes null, so ProductGridImage short-circuits
+// to BrandedPlaceholder WITHOUT ever emitting an <img> request.
+//
+// NOTE: this set is intentionally NEWEGG-ONLY. Other merchant CDNs all serve
+// 200 browser-like (cdn.shopify.com, m.media-amazon.com, static-sg.zacdn.com,
+// tangs-prd-cdn.ascentismedia.com). Widening this list breaks /search visuals
+// (see BUY-71639 — Shopify/Amazon were deliberately unblocked).
+//
+// Reinstated in BUY-72375: commit c1dffe594 (BUY-71856) removed this block
+// when SearchCard switched from an inline <img>+BrandedPlaceholder to the
+// canonical ProductGridImage. The parity fix is correct; the regression is
+// that this guard was deleted, so 19x HTTP 400s on /search?q=laptop&country=us.
+const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
+  'c1.neweggimages.com',
+  'www.neweggimages.com',
+  'neweggimages.com',
+  'images10.newegg.com',
+]);
+
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -199,6 +221,12 @@ function hasUsableProductImage(value?: string | null) {
     const hostname = imageUrl.hostname.toLowerCase();
     const pathname = imageUrl.pathname.toLowerCase();
     const search = imageUrl.search.toLowerCase();
+
+    // BUY-72350: Newegg CDNs return HTTP 400 (AkamaiGHost) for every request.
+    // Block before sentinel-filename checks so we short-circuit to null
+    // imageUrl and ProductGridImage renders BrandedPlaceholder with zero
+    // <img> attempts (no console 400s).
+    if (SEARCH_IMAGE_BLOCKED_HOSTS.has(hostname)) return false;
 
     // Block placeholder/sentinel hosts (we never serve these as real imagery).
     if (hostname.endsWith('unsplash.com') || hostname.endsWith('source.unsplash.com')) return false;
