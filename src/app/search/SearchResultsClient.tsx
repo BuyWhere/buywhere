@@ -233,12 +233,12 @@ function hasUsableProductImage(value?: string | null) {
     // This "fail-closed by shape" guard means ANY unknown CDN host already
     // fails by returning false — no host needs to be added to a blocklist.
     if (hostname === 'm.media-amazon.com' || hostname.endsWith('.media-amazon.com')) {
-      const imgMatch = pathname.match(/^\/images\/I\/([^/.]+)\./);
+      const imgMatch = pathname.match(/^\/images\/i\/([^/.]+)\./);
       if (imgMatch) {
         const mediaKey = imgMatch[1];
         // Reject: B-prefixed numeric keys (ASIN-derived: B + ≥10 digits, + optional 2-digit suffix).
-        // Real keys look nothing like this pattern.
-        if (/^B\d{10,}(?:_\d+)?$/.test(mediaKey)) return false;
+        // `pathname` was lowercased above, so match the lower-case shape here.
+        if (/^b\d{10,}(?:_\d+)?$/.test(mediaKey)) return false;
       }
     }
 
