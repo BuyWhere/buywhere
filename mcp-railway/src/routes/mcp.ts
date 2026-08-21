@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { catalogDb, db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
@@ -188,6 +189,97 @@ const TOOLS = [
             },
           },
         },
+      },
+    },
+  },
+  // BUY-72533: v2 wire surface — REQUIRED deliver_to on every buyer-context tool.
+  // v1 sunset is 2026-12-31Z. v2 names live in the same TOOLS registry; callers
+  // pick which version to call. v1 handlers are reused unchanged.
+  {
+    name: 'search_products_v2',
+    description: 'REQUIRED deliver_to — v2 of search_products. MUST pass deliver_to (buyer ISO country code, e.g. "SG", "US"); otherwise the call returns -32602. Same return shape as v1.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query' },
+        domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: "REQUIRED. Buyer's ISO country code (e.g. \"SG\", \"US\", \"MY\", \"TH\", \"VN\"). Scopes the search to products deliverable to that market.", minLength: 2 },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
+        max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+        compact: { type: 'boolean', description: 'Return agent-optimized compact shape.', default: false },
+        category: { type: 'string', description: 'Filter by product category name.' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend (default).', default: 'hybrid' },
+      },
+    },
+  },
+  {
+    name: 'find_best_price_v2',
+    description: "REQUIRED deliver_to — v2 of find_best_price. MUST pass deliver_to; otherwise the call returns -32602. Return shape includes a `shopping_job_id` (UUID) for cart/adoption tracking.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_name', 'deliver_to'],
+      properties: {
+        q: { type: 'string', description: 'Keyword search query — alias for product_name' },
+        product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb").' },
+        category: { type: 'string', description: 'Category to filter by.' },
+        deliver_to: { type: 'string', description: "REQUIRED. Buyer's ISO country code (e.g. \"SG\", \"US\"). Scopes the search and seeds the returned shopping_job_id.", minLength: 2 },
+        country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
+      },
+    },
+  },
+  {
+    name: 'get_deals_v2',
+    description: 'REQUIRED deliver_to — v2 of get_deals. MUST pass deliver_to; otherwise the call returns -32602. Same return shape as v1.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+        currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: "REQUIRED. Buyer's ISO country code (e.g. \"SG\", \"US\").", minLength: 2 },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+      },
+    },
+  },
+  {
+    name: 'compare_products_v2',
+    description: 'REQUIRED deliver_to — v2 of compare_products. MUST pass deliver_to; otherwise the call returns -32602. Same return shape as v1.',
+    inputSchema: {
+      type: 'object',
+      required: ['ids', 'deliver_to'],
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of product IDs to compare (2-10)',
+          minItems: 2,
+          maxItems: 10,
+        },
+        deliver_to: { type: 'string', description: "REQUIRED. Buyer's ISO country code (e.g. \"SG\", \"US\").", minLength: 2 },
+      },
+    },
+  },
+  {
+    name: 'get_product_v2',
+    description: 'REQUIRED deliver_to — v2 of get_product. MUST pass deliver_to; otherwise the call returns -32602. Return shape includes `outbound_url` (the merchant redirect URL) when the product has a merchant offer.',
+    inputSchema: {
+      type: 'object',
+      required: ['id', 'deliver_to'],
+      properties: {
+        id: { type: 'string', description: 'Product UUID' },
+        deliver_to: { type: 'string', description: "REQUIRED. Buyer's ISO country code (e.g. \"SG\", \"US\").", minLength: 2 },
       },
     },
   },
@@ -515,7 +607,16 @@ async function handleGetProduct(args: Record<string, unknown>) {
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
-  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
+  // BUY-72533: v2 contract — surface outbound_url when the merchant offer is present.
+  // The product row's `url` column is already the canonical merchant offer URL.
+  // We only attach it when it parses as https:// to avoid leaking accidental
+  // non-https test fixtures to v2 callers.
+  const rawUrl = (result.rows[0] as Record<string, unknown>).url as string | null | undefined;
+  const outboundUrl = typeof rawUrl === 'string' && /^https:\/\//i.test(rawUrl) ? rawUrl : null;
+  return {
+    ...buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false),
+    ...(outboundUrl ? { outbound_url: outboundUrl } : {}),
+  };
 }
 
 async function handleCompareProducts(args: Record<string, unknown>) {
@@ -895,6 +996,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const explicitCountry = ((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').toUpperCase();
   const country = explicitCountry || regionDerived || 'SG';
   const region = (args.region as string) || '';
+
+  // BUY-72533: when deliver_to is supplied, mint a shopping_job_id for cart/adoption
+  // tracking (BUY-72535 owns the consumer side). Carried on the response so the
+  // wire contract is stable for v2 callers.
+  const hasDeliverTo = !!(args.deliver_to && String(args.deliver_to).trim());
+  const shoppingJobId = hasDeliverTo ? randomUUID() : null;
   const category = (args.category as string) || '';
   const limit = 10;
   const significantTokens = productName
@@ -1045,6 +1152,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       country,
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
+      ...(shoppingJobId ? { shopping_job_id: shoppingJobId } : {}),
     },
   };
 }
@@ -1403,11 +1511,16 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 async function dispatchTool(name: string, args: Record<string, unknown>) {
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
+    case 'search_products_v2': return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
+    case 'get_product_v2':   return handleGetProduct(args);
     case 'compare_products': return handleCompareProducts(args);
+    case 'compare_products_v2': return handleCompareProducts(args);
     case 'get_deals':        return handleGetDeals(args);
+    case 'get_deals_v2':     return handleGetDeals(args);
     case 'list_categories':  return handleListCategories(args);
     case 'find_best_price':  return handleFindBestPrice(args);
+    case 'find_best_price_v2': return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
     case 'find_similar':     return handleFindSimilar(args);
     default:
@@ -1589,6 +1702,22 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
         if (!toolName) {
           return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+        }
+        // BUY-72533: v2 tool surface — every `*_v2` name MUST receive deliver_to.
+        // Enforce here so handlers don't accidentally fall back to all-market
+        // scans when callers forget the field. v1 names stay unrestricted
+        // (BUY-72481 owns the sunset).
+        if (toolName.endsWith('_v2')) {
+          const dt = (toolArgs.deliver_to == null) ? '' : String(toolArgs.deliver_to).trim();
+          if (!dt) {
+            return res.json(jsonrpcErr(
+              id,
+              -32602,
+              `Tool ${toolName} requires deliver_to (buyer ISO country code, e.g. "SG", "US"). v2 wire contract — see https://api.buywhere.ai/docs/guides/mcp`,
+              undefined,
+              ErrorCode.INVALID_PARAMETER,
+            ));
+          }
         }
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
