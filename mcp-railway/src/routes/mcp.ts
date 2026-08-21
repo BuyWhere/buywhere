@@ -1646,17 +1646,29 @@ function parseUuidBytes(uuid: string): Uint8Array {
 }
 
 // JSON-RPC 2.0 response helpers
+// BUY-70000 / BUY-70351: every response (success or error) carries `request_id`
+// and a top-level `timestamp` so agent-facing monitoring suites can correlate
+// JSON-RPC calls with query_log entries without scraping server logs.
+// BUY-70351: `request_id` is always a server-generated UUID for traceability.
+// The JSON-RPC `id` is preserved separately for protocol correlation.
+function jsonrpcRequestId(_id: unknown): string {
+  return randomUUID();
+}
 function jsonrpcOk(id: unknown, result: unknown) {
-  const requestId = typeof id === 'string' ? id : null;
-  return { jsonrpc: '2.0', id, request_id: requestId, result };
+  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  const requestId = typeof id === 'string' ? id : null;
-  return { jsonrpc: '2.0', id, request_id: requestId, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  return {
+    jsonrpc: '2.0',
+    id,
+    request_id: jsonrpcRequestId(id),
+    timestamp: new Date().toISOString(),
+    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
+  };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
