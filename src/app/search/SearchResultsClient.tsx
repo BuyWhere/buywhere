@@ -190,6 +190,23 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+// BUY-72350: c1.neweggimages.com serves HTTP 400 (AkamaiGHost bot-detection)
+// to ALL egress — referer-insensitive, reproduces from third-party IPs, and
+// even the CDN host root 400s. Returning false here means imageUrl becomes
+// null, so ProductGridImage short-circuits to BrandedPlaceholder WITHOUT
+// ever emitting an <img> request.
+//
+// REGRESSION ALERT: 2d53dc31 (BUY-72387, 06:37Z) deleted this set while
+// reframing root metadata. Do not remove it again. If you must touch
+// `hasUsableProductImage`, preserve both this Set AND the BUY-71639
+// last-segment sentinel check.
+const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
+  'c1.neweggimages.com',
+  'www.neweggimages.com',
+  'neweggimages.com',
+  'images10.newegg.com',
+]);
+
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -198,17 +215,22 @@ function hasUsableProductImage(value?: string | null) {
     const hostname = imageUrl.hostname.toLowerCase();
     const pathname = imageUrl.pathname.toLowerCase();
     const search = imageUrl.search.toLowerCase();
-    const fullUrl = `${hostname}${pathname}${search}`;
 
-    if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
-    if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
-    if (hostname.includes('unsplash.com')) return false;
-    if (fullUrl.includes('placeholder')) return false;
-    if (fullUrl.includes('image-unavailable')) return false;
-    if (fullUrl.includes('no-image')) return false;
-    if (fullUrl.includes('no_image')) return false;
-    if (fullUrl.includes('missing-image')) return false;
-    if (fullUrl.includes('generic')) return false;
+    // BUY-72350: Newegg CDNs return HTTP 400 (AkamaiGHost) for every request.
+    if (SEARCH_IMAGE_BLOCKED_HOSTS.has(hostname)) return false;
+
+    // Block placeholder/sentinel hosts (we never serve these as real imagery).
+    if (hostname.endsWith('unsplash.com') || hostname.endsWith('source.unsplash.com')) return false;
+
+    // BUY-71639: only block URLs whose FINAL segment is a sentinel filename —
+    // the only shape a real CDN actually uses for a "no image" fallback asset.
+    // Long descriptive slugs (`no-image-product`) resolve to a real file.
+    const pathSegments = pathname.split('/').filter(Boolean);
+    const lastSegment = pathSegments[pathSegments.length - 1] ?? '';
+    const base = lastSegment.replace(/\.[a-zA-Z0-9]+$/, '');
+    if (/^(placeholder|image-unavailable|no[-_]?image|missing[-_]?image|generic|spacer|blank|fallback)([_-]\d+)?$/i.test(base)) return false;
+    if (/\.(svg|gif)$/i.test(lastSegment)) return false;
+    if (/[?&](placeholder|no[-_]?image|missing[-_]?image|generic|blank|fallback)=1/.test(search)) return false;
 
     return true;
   } catch {
@@ -539,6 +561,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 // BUY-65559: exported for the price-sanity regression test.
 // BUY-68365: also exported for the category-mismatch regression test.
 // BUY-67977: also exported for the brand-derivation regression test.
+// BUY-71639: exported for the image-filter regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
@@ -548,6 +571,7 @@ export const __test__ = {
   isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
+  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
