@@ -50,6 +50,25 @@ function isAllowedDestination(url: string): boolean {
   }
 }
 
+// F32 (2026-08-22): the static allowlist froze at 12 SG launch domains while the
+// catalog grew to 150K merchants — /api/click 403'd its own generated URLs for
+// everything else. Product-anchored validation: the destination is permitted when
+// its hostname matches the referenced product's stored URL hostname. Still closed
+// to arbitrary redirects (an attacker-supplied url must match the product row).
+async function productAnchoredDestination(url: string, productId: string | null): Promise<boolean> {
+  if (!productId) return false;
+  try {
+    const destHost = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    const r = await db.query('SELECT url FROM products WHERE id = $1 LIMIT 1', [productId]);
+    const stored = r.rows[0]?.url as string | undefined;
+    if (!stored) return false;
+    const storedHost = new URL(stored).hostname.replace(/^www\./, '').toLowerCase();
+    return destHost === storedHost;
+  } catch {
+    return false;
+  }
+}
+
 function merchantFromUrl(url: string): string | null {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
@@ -87,12 +106,12 @@ router.get('/click', async (req: Request, res: Response) => {
     return;
   }
 
-  if (!isAllowedDestination(url)) {
+  const productId = (req.query.product_id as string) || null;
+
+  if (!isAllowedDestination(url) && !(await productAnchoredDestination(url, productId))) {
     res.status(403).json({ error: 'Destination not permitted' });
     return;
   }
-
-  const productId = (req.query.product_id as string) || null;
   const merchantId = (req.query.merchant as string) || merchantFromUrl(url);
 
   const auth = req.headers['authorization'] || '';
