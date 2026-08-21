@@ -140,7 +140,21 @@ async function main() {
   console.log(`Generating GSC indexing queue for ${dateArg}`);
   console.log(`Max URLs: ${maxUrls}, Lookback: ${lookbackHours}h`);
 
-  const dbUrl = await getDatabaseUrl();
+  let dbUrl = await getDatabaseUrl();
+  // Railway Postgres fronts the catalog DB with a self-signed chain that
+  // fails pg's default `sslmode=require` (treated as `verify-full` by pg v8+).
+  // Force `sslmode=disable` so the connection still succeeds; the network is
+  // already private to the Railway proxy. (BUY-64075.)
+  try {
+    const u = new URL(dbUrl);
+    if (u.searchParams.has("sslmode")) {
+      u.searchParams.set("sslmode", "disable");
+    }
+    dbUrl = u.toString();
+  } catch {
+    // Fall back to string replace for non-URL DSNs.
+    dbUrl = dbUrl.replace(/sslmode=require|sslmode=verify-full|sslmode=verify-ca|sslmode=prefer/g, "sslmode=disable");
+  }
   const { Client } = pg;
   const client = new Client({
     connectionString: dbUrl,
