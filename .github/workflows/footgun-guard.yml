@@ -1,0 +1,279 @@
+# footgun-guard — BUY-72377
+# Catches reset-and-reapply footguns: PRs whose file-touch set overlaps with
+# closed-issue files in the last 90 days, AND whose diff has deletions.
+#
+# Why: twice in 10 days a Hex "reset-and-reapply" PR clobbered previously-shipped
+# fixes (BUY-72322 P2.6 wire-strip + BUY-72348/70335 search H1 curly quotes — both
+# from commit 554950c75). The pattern: a 3-line fix landed as 461 files / 33K deletions.
+#
+# Triggers: pull_request to main + push to main.
+# Behavior: hard-fails (exit 1) with ::error:: listing affected BUY-IDs.
+# Override: none at v1 — author must update the PR (or PR author can add
+#   `<!-- footgun-guard: override -->` in PR body to ack the risk; v1.1 will
+#   parse this comment-based override).
+#
+# Mirrors deploy-www.yml:34-43 (guard job shape) and
+# p13-near-miss-sweep.yml:36-42 (artifact upload pattern).
+
+name: footgun-guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      simulate_overlap:
+        description: 'Set to "true" to inject a synthetic overlap (test mode)'
+        required: false
+        default: 'false'
+      test_files:
+        description: 'Comma-separated test file paths to add to pr-changed-files.txt'
+        required: false
+        default: ''
+
+concurrency:
+  group: footgun-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build fix-ledger from closed-issue commits (last 90 days)
+        run: |
+          set -euo pipefail
+
+          # Materialize the commit→file→author stream first (more portable than
+          # piping through awk in the same expression — avoids shell quoting gotchas).
+          git log --first-parent origin/main \
+            --since="90 days ago" \
+            --pretty=format:'%H%x09%s%x09%an' \
+            --name-only > /tmp/ledger-input.tsv
+
+          # Build ledger rows: one row per (BUY-ID, file) pair, capturing ALL
+          # BUY-IDs in the commit subject (some commits batch multiple issues).
+          awk '
+          BEGIN { sha=""; }
+          {
+            if (match($0, /^[0-9a-f]{40}/)) {
+              split($0, parts, "\t")
+              sha = parts[1]
+              subject = parts[2]
+              author = parts[3]
+              issues = ""
+              s = subject
+              while (match(s, /BUY-[0-9]+/)) {
+                issue = substr(s, RSTART, RLENGTH)
+                if (issues == "") issues = issue
+                else issues = issues "," issue
+                s = substr(s, RSTART + RLENGTH)
+              }
+              next
+            }
+            if (NF == 0) { sha = ""; issues = ""; next }
+            if (sha != "" && issues != "") {
+              n = split(issues, arr, ",")
+              for (i = 1; i <= n; i++) {
+                print arr[i] "\t" $0 "\t" sha "\t" author
+              }
+            }
+          }' /tmp/ledger-input.tsv | sort -u > fix-ledger.tsv
+
+          LEDGER_ROWS=$(wc -l < fix-ledger.tsv)
+          LEDGER_FILES=$(cut -f2 fix-ledger.tsv | sort -u | wc -l)
+          LEDGER_BUYS=$(cut -f1 fix-ledger.tsv | sort -u | wc -l)
+          echo "fix-ledger: $LEDGER_ROWS rows / $LEDGER_FILES unique files / $LEDGER_BUYS distinct BUY-IDs"
+
+      - name: Compute PR/push diff footprint
+        run: |
+          set -euo pipefail
+
+          # Determine the base ref for the diff.
+          # - pull_request: $GITHUB_BASE_REF is the branch the PR targets (= main)
+          #   We diff origin/main...HEAD (PR head) to see what this PR brings.
+          # - push: $GITHUB_SHA is the new HEAD on main; we diff main~1...HEAD.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin main:main >/dev/null 2>&1 || true
+            BASE="origin/main"
+          else
+            BASE="HEAD~1"
+          fi
+
+          # Files changed in this PR/push.
+          git diff --name-only "$BASE"...HEAD > pr-changed-files.txt || true
+
+          # Diff stats (line counts).
+          git diff --shortstat "$BASE"...HEAD > pr-shortstat.txt || true
+
+          # Test-mode override: when invoked via workflow_dispatch with simulate_overlap=true,
+          # replace the diff with a synthetic footgun footprint. This lets ops verify
+          # the guard without staging a real destructive PR.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.simulate_overlap }}" = "true" ]; then
+            echo "TEST MODE: simulating a footgun-shape PR (override files + deletions)"
+            TEST_FILES="${{ inputs.test_files }}"
+            if [ -z "$TEST_FILES" ]; then
+              TEST_FILES="src/app/search/SearchResultsClient.tsx,api/src/types/product.ts"
+            fi
+            printf '%s\n' ${TEST_FILES//,/ } | tr ' ' '\n' | sed '/^$/d' > pr-changed-files.txt
+            echo " 1 file changed, 5 insertions(+), 120 deletions(-)" > pr-shortstat.txt
+          fi
+
+          CHANGED=$(wc -l < pr-changed-files.txt)
+          echo "PR/push touches $CHANGED files"
+          echo "--- shortstat ---"
+          cat pr-shortstat.txt
+
+      - name: Compute overlap (changed files ∩ ledger files)
+        run: |
+          set -euo pipefail
+
+          # Exclude this guard's own workflow file from the overlap — it's expected
+          # that future commits touching the guard itself will overlap with the
+          # BUY-72377 ledger row, but those aren't reset-and-reapply footguns.
+          EXCLUDED_FILES=(.github/workflows/footgun-guard.yml)
+
+          # Build a filtered PR-changed-files.txt that excludes these paths.
+          : > pr-changed-files-filtered.txt
+          while IFS= read -r f; do
+            skip=0
+            for ex in "${EXCLUDED_FILES[@]}"; do
+              [ "$f" = "$ex" ] && skip=1 && break
+            done
+            [ "$skip" -eq 0 ] && echo "$f" >> pr-changed-files-filtered.txt
+          done < pr-changed-files.txt
+
+          # Intersection of filtered files changed vs files known to be touched
+          # by a closed-issue commit in the last 90 days.
+          comm -12 \
+            <(sort -u pr-changed-files-filtered.txt) \
+            <(cut -f2 fix-ledger.tsv | sort -u) \
+            > overlap-files.txt
+
+          OVERLAP=$(wc -l < overlap-files.txt)
+          echo "Overlap (excluding guard-exempt files): $OVERLAP files"
+
+          if [ "$OVERLAP" -eq 0 ]; then
+            echo "::notice::BUY-72377 guard: no overlap with closed-issue files (last 90 days) — PR is clean."
+            exit 0
+          fi
+
+          echo "::warning::Files in this PR/push are also touched by recent closed-issue commits:"
+          cat overlap-files.txt
+
+      - name: Determine if diff is destructive (line deletions present)
+        run: |
+          set -euo pipefail
+          # `--shortstat` format: " N files changed, M insertions(+), D deletions(-)"
+          DELETIONS=$(grep -oE '[0-9]+ deletions?' pr-shortstat.txt | grep -oE '[0-9]+' || echo "0")
+          INSERTIONS=$(grep -oE '[0-9]+ insertions?' pr-shortstat.txt | grep -oE '[0-9]+' || echo "0")
+          echo "Insertions: $INSERTIONS  Deletions: $DELETIONS"
+          echo "$DELETIONS" > deletions-count.txt
+          echo "$INSERTIONS" > insertions-count.txt
+
+      - name: Build overlap audit (per-file BUY-IDs, excluding self-reference)
+        run: |
+          set -euo pipefail
+
+          # For each overlap file, list the BUY-IDs that touched it (in last 90d).
+          # Skip entries where the ledger row's commit-SHA equals the current HEAD —
+          # that's a self-reference (the BUY-72377 commit that introduced this guard
+          # is itself in the ledger, but the overlap of "the same commit touches the
+          # same file" is not a real reversion).
+          # Output: JSON array of {file, buys:[...], deletions, insertions}
+          python3 - <<'PY' > overlap-audit.json
+          import json, os, pathlib
+          overlap = [l.strip() for l in pathlib.Path("overlap-files.txt").read_text().splitlines() if l.strip()]
+          ledger = pathlib.Path("fix-ledger.tsv").read_text().splitlines()
+          head_sha = os.environ.get("GITHUB_SHA", "").strip()
+          by_file = {}
+          for row in ledger:
+              parts = row.split("\t")
+              if len(parts) < 4:
+                  continue
+              buy, fpath, sha, author = parts[0], parts[1], parts[2], parts[3]
+              # Self-reference: skip rows whose commit SHA is the same as current HEAD.
+              if sha == head_sha:
+                  continue
+              by_file.setdefault(fpath, set()).add(buy)
+          insertions = int(pathlib.Path("insertions-count.txt").read_text().strip() or "0")
+          deletions = int(pathlib.Path("deletions-count.txt").read_text().strip() or "0")
+          audit = {
+              "guard": "footgun-guard",
+              "issue": "BUY-72377",
+              "head_sha": head_sha,
+              "diff_insertions": insertions,
+              "diff_deletions": deletions,
+              "overlap_files": sorted([
+                  {"file": f, "closed_buy_ids": sorted(by_file.get(f, []))}
+                  for f in overlap if by_file.get(f)
+              ], key=lambda x: x["file"]),
+          }
+          print(json.dumps(audit, indent=2))
+          PY
+          cat overlap-audit.json
+
+      - name: 'Emit ::error:: and hard-fail when overlap has deletions'
+        run: |
+          set -euo pipefail
+          DELETIONS=$(cat deletions-count.txt)
+          OVERLAP=$(wc -l < overlap-files.txt)
+
+          if [ "$OVERLAP" -eq 0 ]; then
+            echo "Guard passed (no overlap with closed-issue files in last 90 days)."
+            exit 0
+          fi
+
+          # The overlap-audit.json already excludes:
+          #   (a) the guard's own workflow file (in EXCLUDED_FILES),
+          #   (b) self-references (current HEAD's own commit SHA in the ledger).
+          REMAINING=$(python3 -c "import json; print(len(json.load(open('overlap-audit.json'))['overlap_files']))")
+
+          if [ "$REMAINING" -eq 0 ]; then
+            echo "::notice::BUY-72377 guard: PR touches $OVERLAP ledger files but all are guard-exempt or self-references — guard passes."
+            exit 0
+          fi
+
+          # Even with non-self overlap, only HARD-FAIL when there are line deletions.
+          # Pure-additive PRs to ledger files (rare but legal) get a warning, not a fail.
+          if [ "$DELETIONS" -eq 0 ]; then
+            echo "::warning::BUY-72377 guard: PR overlaps with $REMAINING ledger files (non-self) but has 0 deletions — warning only."
+            exit 0
+          fi
+
+          echo "::error::BUY-72377 guard triggered — PR reverts previously-closed issue work."
+          echo "::error::Diff stats: +$(cat insertions-count.txt) -$(cat deletions-count.txt) across $(wc -l < pr-changed-files.txt) files."
+          echo "::error::Closed-issue files affected:"
+          python3 -c "
+          import json
+          a = json.load(open('overlap-audit.json'))
+          for entry in a['overlap_files']:
+              buys = ', '.join(entry['closed_buy_ids'])
+              print(f\"::error::  {entry['file']}  (touched by: {buys})\")
+          "
+          echo "::error::See artifact 'footgun-guard-evidence' for full audit row."
+          echo "::error::Override path (v1): author must update PR so it does not delete lines from these files, OR rebase to revert just the deletion-bearing files."
+          exit 1
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: footgun-guard-evidence-${{ github.run_id }}
+          path: |
+            fix-ledger.tsv
+            pr-changed-files.txt
+            pr-shortstat.txt
+            overlap-files.txt
+            overlap-audit.json
+          retention-days: 30
+          if-no-files-found: ignore
