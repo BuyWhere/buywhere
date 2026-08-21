@@ -896,10 +896,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
   const region = (args.region as string) || '';
 
-  // BUY-69226: align with api-embed implementation — fetch 100 candidates to
-  // compute a stable median-based outlier guard. Title ILIKE gives better recall
-  // for product names with model numbers than search_vector FTS.
-  const CANDIDATE_POOL = 100;
+  // BUY-69226 v3: align with api-side handleFindBestPrice (api/src/routes/mcp.ts:880).
+  // The previous ILIKE-based query scanned 92GB of idx_products_updated_at over a
+  // 534GB catalog with only 4GB shared_buffers — taking 27s+ per query and hitting
+  // the 10s statement_timeout. The api endpoint uses search_vector @@ plainto_tsquery
+  // which uses the GIN index and resolves the same query in ~0.26s.
+  const CANDIDATE_POOL = 500;
+  const limit = 10;
+
+  // BUY-67522: infer exact device-family queries and reject accessory results.
+  const deviceFilter = buildDeviceFilter(productName, country);
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -911,39 +917,47 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query(`SET work_mem = '256MB'`); // BUY-65095: bump — 389M rows GIN bitmap heap scan needs >128MB to stay under 10s timeout
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    const titlePattern = `%${productName}%`;
-    // BUY-69226: country-aware title ILIKE drives candidates so we partition-prune
-    // by country_code and match device-model numbers that FTS misses. We order
-    // by recent activity but cap the inner window per-country so a small market
-    // (e.g. US) is not starved by a larger one (SG).
+    const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+    const conditions: string[] = ['is_active = true', 'price > 0'];
+    const params: unknown[] = [];
+    params.push(productName);
+    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+    params.push(requestedCountry);
+    conditions.push(`country_code = $${params.length}`);
+    if (minPrice > 0) {
+      params.push(minPrice);
+      conditions.push(`price >= $${params.length}`);
+    }
+    params.push(CANDIDATE_POOL);
+    const candidateWhere = conditions.join(' AND ');
+    // BUY-69226 v3: GIN-driven candidate window — same proven pattern as
+    // api/src/routes/mcp.ts handleFindBestPrice and the local search_products.
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
+                country_code, updated_at, category, category_path, metadata
          FROM products
-         WHERE is_active = true AND price > 0
-           AND country_code = $1
-           AND title ILIKE $2
-         ORDER BY updated_at DESC
-         LIMIT $3
+         WHERE ${candidateWhere}
+         LIMIT $${params.length}
        ) _candidates
        ORDER BY price ASC, updated_at DESC
-       LIMIT $4`,
-      [requestedCountry, titlePattern, CANDIDATE_POOL, CANDIDATE_POOL]
+       LIMIT $${params.length + 1}`,
+      [...params, limit]
     );
-    // BUY-69226: country-only fallback so device queries with no title match
+    // BUY-69226 v3: country-only fallback so device queries with no FTS match
     // still return the country's most recent cheap products.
     if (result.rows.length === 0) {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
+                country_code, updated_at, category, category_path, metadata
          FROM products
          WHERE is_active = true AND price > 0
            AND country_code = $1
          ORDER BY price ASC, updated_at DESC
          LIMIT $2`,
-        [requestedCountry, CANDIDATE_POOL]
+        [requestedCountry, limit]
       );
     }
   } finally {
@@ -967,19 +981,55 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let minAllowedUsd: number | null = null;
   let finalRows = result.rows;
 
-  if (result.rows.length >= 3) {
-    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+  // BUY-69226 v3 / BUY-65095 / BUY-67522: accessory filter on top of FTS
+  // candidates — mirror api/src/routes/mcp.ts:943-972 so MCP and api agree on
+  // what counts as a "best price" for device queries (no phone cases, watch bands,
+  // console controllers when looking for the actual phone/watch/console).
+  const neg = deviceFilter.negativeTerms;
+  const isAccessory = (r: Record<string, unknown>) => {
+    if (!deviceFilter.type) return false;
+    const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata as Record<string, unknown> : {};
+    const text = [
+      String(r.title || ''),
+      String((r.category_path as string[] | undefined)?.join(' ') || ''),
+      String((r.category as string) || ''),
+      String(metadata.category || ''),
+      String(metadata.product_type || ''),
+    ].join(' ').toLowerCase();
+    const positiveSignals: string[] = [];
+    if (deviceFilter.type === 'phone') positiveSignals.push('smartphone', 'mobile phone', 'mobile phones');
+    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles');
+    if (deviceFilter.type === 'laptop') positiveSignals.push('laptop', 'notebook');
+    if (deviceFilter.type === 'tablet') positiveSignals.push('tablet');
+    if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
+    const hasPositive = positiveSignals.some(s => text.includes(s));
+    const hasNegative = neg.some(t => text.includes(t));
+    if (!hasNegative && hasPositive) return false;
+    if (hasNegative && !hasPositive) return true;
+    if (/\bfor\b.*\b(iphone|galaxy|ipad|ps5|xbox|macbook)\b.*\b\d+\b.*(protector|case|cover|glass|film|cable|adapter|charger|controller|game)\b/.test(text)) return true;
+    if (/\bcompatible\b/.test(text) && hasNegative) return true;
+    return false;
+  };
+
+  finalRows = result.rows.filter(r => !isAccessory(r));
+  if (finalRows.length < 3 && result.rows.length >= 3) {
+    // Not enough after filter — fall back to all candidates for outlier-guard math
+    finalRows = result.rows;
+  }
+
+  if (finalRows.length >= 3) {
+    const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
     const mid = Math.floor(sortedUsd.length / 2);
     medianUsd = sortedUsd.length % 2 === 0
       ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
       : sortedUsd[mid];
     minAllowedUsd = medianUsd * 0.15;
-    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
     if (filtered.length > 0) {
       finalRows = filtered;
-      guardApplied = filtered.length < result.rows.length;
+      guardApplied = filtered.length < finalRows.length;
       if (guardApplied) {
-        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${finalRows.length - filtered.length}/${finalRows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
       }
     }
   }
