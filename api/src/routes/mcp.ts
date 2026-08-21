@@ -453,7 +453,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
-        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+        // BUY-65095: when a device-family filter is active (laptop/phone/tablet/etc),
+        // over-fetch candidates because the post-filter may drop most of the
+        // initial `limit+offset` set (recent SG laptop FTS matches are mostly
+        // accessories). Multiplier raised from 10 to 100 when a device filter
+        // is detected so the filter has enough rows to find real products.
+        const deviceFilterPeek = buildDeviceFilter(q, country);
+        const candidateMultiplier = deviceFilterPeek.type ? 100 : 10;
+        const CANDIDATE_LIMIT = Math.min((limit + offset) * candidateMultiplier, 5000);
         params.push(CANDIDATE_LIMIT, limit, offset);
         const result = await searchClient.query(
           `SELECT * FROM (
