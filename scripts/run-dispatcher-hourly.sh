@@ -24,6 +24,8 @@ fi
 PAPERCLIP_API_KEY="${PAPERCLIP_API_KEY:-}"
 PAPERCLIP_API_URL="${PAPERCLIP_API_URL:-https://paperclip.richteo.com}"
 PAPERCLIP_COMPANY_ID="${PAPERCLIP_COMPANY_ID:-177bc805-e3c8-4336-84cb-8e1e482d5a17}"
+PARENT_IDENT="BUY-29861"
+PARENT_UUID_CACHE="$STATE_DIR/.parent-uuid-$PARENT_IDENT"
 
 # Canonical DB URL from data/.catalog_db_url
 CATALOG_DB_URL_FILE="$WORKSPACE/data/.catalog_db_url"
@@ -104,6 +106,13 @@ log "Verdict: $VERDICT | delta_ins_from_stats: $DELTA_INS | hour: $HOUR_LABEL"
 echo "$DISPATCHER_OUTPUT" > "$RESULT_FILE" 2>/dev/null || true
 
 # File child issue on BUY-29861 when throughput < 150K
+#
+# Filing paths (tried in order):
+#   1) direct API: PAPERCLIP_API_KEY present in /home/paperclip/.paperclip_env
+#      or in the cron environment.
+#   2) queue pickup: append to $WORKSPACE/data/.dispatcher-pending.jsonl and
+#      let the buywhere-board-groomer (root cron, hourly :41) file it via
+#      the privileged /root/.console-provision/board.token. See BUY-72592.
 if [[ "$SHOULD_FILE" == "true" && "$VERDICT" == "FAIL" ]]; then
   DEDUP_FILE="$STATE_DIR/last-filed-$HOUR_LABEL"
   if [[ -f "$DEDUP_FILE" ]]; then
@@ -129,27 +138,78 @@ $REPORT
 ---
 *Filed automatically by dispatcher_v6_hourly cron (BUY-69678)*"
 
+  FILED=0
+
+  # Resolve parent issue UUID (cached 1h to avoid an API call per filing).
+  PARENT_UUID=""
+  if [[ -s "$PARENT_UUID_CACHE" ]]; then
+    CACHE_AGE=$(( $(date +%s) - $(stat -c %Y "$PARENT_UUID_CACHE" 2>/dev/null || echo 0) ))
+    if [[ "$CACHE_AGE" -lt 3600 ]]; then
+      PARENT_UUID="$(cat "$PARENT_UUID_CACHE" 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "$PARENT_UUID" ]]; then
+    PARENT_LOOKUP=$(curl -sS -m 15 -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
+      "$PAPERCLIP_API_URL/api/issues/$PARENT_IDENT" 2>/dev/null || true)
+    PARENT_UUID=$(echo "$PARENT_LOOKUP" | jq -r '.id // empty' 2>/dev/null || true)
+    if [[ -n "$PARENT_UUID" ]]; then
+      printf '%s' "$PARENT_UUID" > "$PARENT_UUID_CACHE"
+    fi
+  fi
+
+  # Path 1: direct API call when a key is available
   if [[ -n "$PAPERCLIP_API_KEY" ]]; then
+    if [[ -n "$PARENT_UUID" ]]; then
+      PAYLOAD=$(jq -nc \
+        --arg title "HOURLY THROUGHPUT FAILURE — $HOUR_LABEL" \
+        --arg body "$ISSUE_BODY" \
+        --arg parent "$PARENT_UUID" \
+        --arg priority "critical" \
+        '{title:$title, description:$body, priority:$priority, status:"todo", parentId:$parent}')
+    else
+      PAYLOAD=$(jq -nc \
+        --arg title "HOURLY THROUGHPUT FAILURE — $HOUR_LABEL" \
+        --arg body "$ISSUE_BODY" \
+        --arg priority "critical" \
+        '{title:$title, description:$body, priority:$priority, status:"todo"}')
+    fi
     RESPONSE=$(curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/issues" \
       -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
       -H "Content-Type: application/json" \
-      --data-raw "$(jq -nc \
-        --arg title "HOURLY THROUGHPUT FAILURE — $HOUR_LABEL" \
-        --arg body "$ISSUE_BODY" \
-        --arg parent "BUY-29861" \
-        --arg priority "critical" \
-        '{title:$title, description:$body, priority:$priority, status:"todo", parentIdentifier:$parent}')" \
+      --data-raw "$PAYLOAD" \
       2>/dev/null || echo '{"error":"curl failed"}')
 
     NEW_ISSUE_ID=$(echo "$RESPONSE" | jq -r '.identifier // .id // empty' 2>/dev/null)
     if [[ -n "$NEW_ISSUE_ID" ]]; then
-      log "Filed child issue: $NEW_ISSUE_ID"
+      log "Filed child issue (direct): $NEW_ISSUE_ID"
       touch "$DEDUP_FILE"
+      FILED=1
     else
-      log_err "Failed to file child issue: $RESPONSE"
+      log_err "Direct-file path failed: $RESPONSE"
     fi
   else
-    log_err "PAPERCLIP_API_KEY not set — cannot file child issue"
+    log "No PAPERCLIP_API_KEY in env — falling through to queue path"
+  fi
+
+  # Path 2: queue for board-groomer pickup. Always run when direct path
+  # didn't succeed, so a hard outage of the filing path can't lose a ticket.
+  if [[ "$FILED" -eq 0 ]]; then
+    QUEUE_FILE="$WORKSPACE/data/.dispatcher-pending.jsonl"
+    mkdir -p "$(dirname "$QUEUE_FILE")" 2>/dev/null || true
+    QUEUE_RECORD=$(jq -nc \
+      --arg hour "$HOUR_LABEL" \
+      --arg verdict "$VERDICT" \
+      --arg delta "$DELTA_INS" \
+      --arg body "$ISSUE_BODY" \
+      --arg report "$REPORT" \
+      --arg cron_ts "$(ts)" \
+      --arg dedup "$DEDUP_FILE" \
+      '{hour:$hour, verdict:$verdict, delta_ins_from_stats:$delta, body:$body, report:$report, cron_ts:$cron_ts, dedup_file:$dedup}')
+    if printf '%s\n' "$QUEUE_RECORD" >> "$QUEUE_FILE" 2>/dev/null; then
+      log "Queue path: appended to $QUEUE_FILE (groomer will file within :41 of next hourly tick)"
+    else
+      log_err "Queue path FAILED — could not write to $QUEUE_FILE"
+    fi
   fi
 else
   log "PASS — no failure issue needed"
