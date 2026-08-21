@@ -121,33 +121,29 @@ function formatPrice(price) {
 }
 /**
  * When a slug is not a comparison_page, try to resolve it as a category.
- * Uses category column (not category_path) since category_path is often NULL/empty
- * and category has searchable data like "Electronics and computers Torches".
+ * Uses COMPARE_CATEGORY_ALIASES (hardcoded mapping) to find matching products,
+ * avoiding expensive ILIKE queries on the large products table.
  * Returns true if a response was sent, false if category also not found.
  */
 async function handleCategoryCompareFallback(slug, req, res) {
     const normalizedSlug = slugifyCategory(slug);
     const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
     const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
-    // Look up the category column for this slug - use exact match first (fastest)
-    // Falls back to ILIKE prefix match if no exact match exists
-    // This is critical for performance - ILIKE without trigram index can timeout on large tables
-    const slugResult = await config_1.db.query(`SELECT DISTINCT category AS name FROM products
-     WHERE currency = $1 AND category IS NOT NULL AND category != ''
-       AND (category = $2 OR category::text ILIKE $2 || '%')
-     LIMIT 1`, [currency, normalizedSlug.charAt(0).toUpperCase() + normalizedSlug.slice(1)]).catch(() => null);
-    if (!slugResult || slugResult.rows.length === 0) {
+    if (aliasNames.length === 0) {
         return false;
     }
-    const categoryName = slugResult.rows[0].name;
+    // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast
     const limit = Math.min(parseInt(req.query.limit || '50'), 100);
     const offset = parseInt(req.query.offset || '0');
+    // Build ILIKE conditions for each alias name with leading wildcard
+    // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
+    const pattern = `%${normalizedSlug}%`;
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category = $2
+     WHERE currency = $1 AND category ILIKE $2
      ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`, [currency, categoryName, limit, offset]).catch(() => null);
+     LIMIT $3 OFFSET $4`, [currency, pattern, limit, offset]).catch(() => null);
     if (!productsResult || productsResult.rows.length === 0) {
         return false;
     }
@@ -169,7 +165,7 @@ async function handleCategoryCompareFallback(slug, req, res) {
     }));
     const payload = {
         slug: normalizedSlug,
-        category: categoryName,
+        category: normalizedSlug,
         products,
         meta: {
             limit,

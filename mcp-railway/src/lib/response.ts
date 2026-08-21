@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, ProductPrice, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -15,6 +15,86 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
+// BUY-65559 / BUY-65685: Sentinel-price guard (parallel to PR #36 in @buywhere/mcp).
+// Catalog rows where `price.amount < 10` (or non-finite / null) are produced by
+// the BuyWhere ingest pipeline when the merchant page had no parseable price;
+// the scraper writes `1` as a placeholder, which AI agents then render as
+// `.00` ("Price: $1.00 SGD"). Until BUY-52807 ships an ingest-time sanity bound,
+// surface a "see merchant" hint so MCP clients (AI agents) do not quote a fake
+// price. The JSON-RPC surface is the dominant AI-agent touchpoint (mcp.buywhere.ai /
+// Railway mcp-server, far higher traffic than the npm @buywhere/mcp consumers).
+// We replace the structured `price` object with a sentinel string in the JSON
+// output so AI agents cannot accidentally format `price.amount` as `.00`.
+export const PRICE_SENTINEL_MIN = 10;
+export const PRICE_UNAVAILABLE_TEXT =
+  'see merchant (price unavailable in catalog) — click through to confirm';
+
+export function isSentinelPrice(amount: unknown): boolean {
+  return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
+}
+
+/**
+ * Format the `price` field for JSON-RPC tool outputs. When the amount is a
+ * sentinel (placeholder from the ingest pipeline), return a short string so
+ * AI agents display a "see merchant" hint instead of formatting a fake price.
+ * Otherwise return the standard `{amount, currency}` object.
+ */
+export function formatPriceField(amount: number | null, currency: string): ProductPrice | string {
+  if (isSentinelPrice(amount)) {
+    return PRICE_UNAVAILABLE_TEXT;
+  }
+  return { amount: amount as number, currency };
+}
+
+/**
+ * BUY-65693: format the `price` field for the flat `find_similar` response shape.
+ *
+ * Unlike the other JSON-RPC tools (which nest `{price: {amount, currency}}`),
+ * `handleFindSimilar` returns each similar product as a flat object with
+ * `price` and `currency` as sibling fields. We can't reuse `formatPriceField`
+ * 1:1 because callers must assign the helper's return to the `price` slot —
+ * so the helper returns either the sentinel string OR the structured
+ * `{amount, currency}` object, and the caller drops the now-redundant sibling
+ * `currency` field at the same time.
+ */
+export function formatSimilarPriceField(
+  amount: number | null,
+  currency: string,
+): ProductPrice | string {
+  return formatPriceField(amount, currency);
+}
+
+
+// F2 (2026-08-18): Amazon Associates monetization — outbound amazon.com URLs get
+// our tracking tag when none is present. Applied at serialization so url,
+// click_url and affiliate redirects all inherit it. amazon.sg intentionally
+// EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
+// buywhere-20 (US) and buywhere-22 (SG) are one linked account (Richmond,
+// 2026-08-18); reporting is per-program, so each storefront must carry ITS tag.
+// The correct tag is FORCED — this also repairs precomputed affiliate links that
+// were bulk-built in April with the US tag on amazon.sg. Other-country amazon
+// domains are left untouched (no program tag for them yet).
+const AMAZON_TAGS: Record<string, string> = {
+  'amazon.com': 'buywhere-20',
+  'amazon.sg': 'buywhere-22',
+};
+function wrapAmazonAffiliateTag(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    for (const [domain, tag] of Object.entries(AMAZON_TAGS)) {
+      if (host === domain || host.endsWith('.' + domain)) {
+        if (u.searchParams.get('tag') !== tag) {
+          u.searchParams.set('tag', tag);
+          return u.toString();
+        }
+        break;
+      }
+    }
+  } catch { /* malformed URL — pass through untouched */ }
+  return url;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -26,7 +106,7 @@ export function buildProduct(
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
-  const destinationUrl = affiliateUrl ?? (row.url as string);
+  const destinationUrl = wrapAmazonAffiliateTag(affiliateUrl ?? (row.url as string));
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
@@ -50,7 +130,7 @@ export function buildProduct(
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: { amount, currency },
+    price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
     normalized_price_usd,
     merchant,
     url: destinationUrl,
@@ -77,7 +157,11 @@ export function buildProduct(
     if (structured_specs.category != null)
       comparison_attributes.push({ key: 'category', label: 'Category', value: structured_specs.category });
     if (amount != null)
-      comparison_attributes.push({ key: 'price', label: `Price (${currency})`, value: amount });
+      comparison_attributes.push({
+        key: 'price',
+        label: `Price (${currency})`,
+        value: isSentinelPrice(amount) ? PRICE_UNAVAILABLE_TEXT : amount,
+      });
     if (structured_specs.model != null)
       comparison_attributes.push({ key: 'model', label: 'Model', value: structured_specs.model });
     if (structured_specs.color != null)
@@ -110,7 +194,12 @@ export function buildSearchResponse(
   hasMore?: boolean,
 ): SearchResponse {
   return {
+    // BUY-71275: preserve stable agent contract while staying compatible with
+    // the newer REST-style envelopes that appeared during the 08:20Z regression.
+    products,
     results: products,
+    items: products,
+    data: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,

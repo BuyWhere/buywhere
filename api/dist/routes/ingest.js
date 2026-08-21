@@ -270,6 +270,39 @@ function validateProduct(item, index, source) {
         product.category = p.category;
     if (Array.isArray(p.category_path))
         product.category_path = p.category_path.map(String).slice(0, 10);
+    // BUY-72080: many scrapers (notably shopify_* including shopify_buy30620_crate)
+    // only fill `category` (top-level) or `metadata.product_type`, never
+    // `category_path`. Without this fallback, ingest writes category_path = '{}'
+    // and SEV-1 /v1/products results show 100% missing category_path[1] across
+    // 11+ US Shopify sources.
+    //
+    // Trigger the fallback whenever category_path is empty/missing — derive
+    // it from category, metadata.product_type, or metadata.category in that
+    // order of preference.
+    if (!product.category_path || (Array.isArray(product.category_path) && product.category_path.length === 0)) {
+        // Order: top-level category > metadata.product_type > metadata.category
+        let metaCat = null;
+        if (typeof product.category === 'string' && product.category.trim()) {
+            metaCat = product.category.trim();
+        }
+        else {
+            const meta = (p.metadata && typeof p.metadata === 'object')
+                ? p.metadata
+                : null;
+            if (meta) {
+                if (typeof meta.product_type === 'string' && meta.product_type.trim()) {
+                    metaCat = meta.product_type.trim();
+                }
+                else if (typeof meta.category === 'string' && meta.category.trim()) {
+                    metaCat = meta.category.trim();
+                }
+            }
+        }
+        if (metaCat) {
+            product.category = product.category || metaCat;
+            product.category_path = [metaCat];
+        }
+    }
     if (typeof p.brand === 'string')
         product.brand = String(p.brand).slice(0, 200);
     if (typeof p.is_active === 'boolean')
@@ -630,9 +663,19 @@ async function handleIngest(req, res) {
            url = EXCLUDED.url,
            image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
            brand = EXCLUDED.brand,
-           category_path = EXCLUDED.category_path,
+           -- BUY-72080: COALESCE so an empty array from a follow-up scrape
+           -- doesn't wipe the existing category_path. New paths win when
+           -- they're non-empty; existing paths are kept otherwise.
+           category_path = CASE
+             WHEN EXCLUDED.category_path IS NULL
+               OR array_length(EXCLUDED.category_path, 1) IS NULL
+               OR EXCLUDED.category_path[1] IS NULL
+               OR EXCLUDED.category_path[1] = ''
+             THEN products.category_path
+             ELSE EXCLUDED.category_path
+           END,
            merchant_id = EXCLUDED.merchant_id,
-           metadata = EXCLUDED.metadata,
+           metadata = COALESCE(EXCLUDED.metadata, products.metadata),
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
