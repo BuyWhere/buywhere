@@ -653,6 +653,105 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+// BUY-72180: /products/{1-7 digit numeric} hard-404 gate.
+  // The [\d{8,}] redirect below only catches 8+ digit IDs. Shorter numeric segments
+  // (e.g. /products/1, /products/50, /products/100, /products/250) fall through to
+  // /products/[region]/page.tsx, which calls notFound() — but Next.js streams the
+  // not-found shell as HTTP 200 (soft-404 anti-pattern). No real BuyWhere product
+  // has a <8 digit ID (catalog IDs are 18-digit snowflakes), so 1-7 digit numerics
+  // are unambiguously invalid. Return a hard 404 with noindex directly — no API call.
+  // Soft-404 risk: crawlers may index 200+empty bodies; sitemap emits only slug-form
+  // so the inbound-link surface is narrow but non-zero (older URLs, agent.json, partner
+  // feeds, archived sitemaps).
+  const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
+  if (productsShortNumericMatch) {
+    return new NextResponse("Product Not Found", {
+      status: 404,
+      statusText: "Product Not Found",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
+  }
+
+  // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
+  // treats numeric ids as "region" and calls getProduct(). When the product is not found,
+  // it calls notFound() which returns HTTP 200 (soft-404) - a false-success pattern.
+  // This middleware catches numeric-only /products/{id} segments BEFORE Next.js streams
+  // the soft-200, and returns a hard 404. The /p/{id} route now serves these products.
+  // Restored after BUY-71746 (554950c7) and its follow-up (7f0cd03e) inadvertently
+  // dropped the /p/{id} hard-404 + /products/{numeric-id} 308 redirect (BUY-71808).
+  const productsNumericMatch = /^\/products\/(\d{8,})\/?$/.exec(pathname);
+  if (productsNumericMatch) {
+    // Let the page handler determine if it's a real product - this is a known Next.js
+    // issue where notFound() doesn't set HTTP status correctly. For now, redirect
+    // to the canonical /p/{id} alias where the new route handles it properly.
+    // TODO: revert to hard 404 once the [region]/page.tsx notFound() is fixed.
+    const productId = productsNumericMatch[1];
+    const url = request.nextUrl.clone();
+    url.pathname = `/p/${productId}`;
+    return NextResponse.redirect(url, 308);
+  }
+
+  // BUY-72180: /p/{1-7 digit numeric} hard-404 gate (companion to /products/{short-numeric}).
+  // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
+  // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
+  // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
+  const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
+  if (pShortIdMatch) {
+    return new NextResponse("Product Not Found", {
+      status: 404,
+      statusText: "Product Not Found",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
+  }
+
+  // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
+  // notFound() for missing products but Next.js App Router streams the not-found
+  // shell as HTTP 200 (soft-404). Middleware runs BEFORE streaming, so we can
+  // return a real 404 here. This pre-check bypasses the entire page render.
+  // Restored after BUY-71746 (554950c7) and its follow-up (7f0cd03e) inadvertently
+  // dropped this gate (BUY-71808).
+  //
+  // BUY-72409 secondary fix: only 404 on an actual product-not-found (HTTP 404
+  // from the API). Transient failures (429 rate-limit, 401/403 auth, 5xx upstream,
+  // network timeout) must NOT 404 the PDP — they would otherwise turn the entire
+  // short-PDP surface into a 404 wall whenever the monitoring-tier API rate-limits
+  // us. On transient failures, fall through and let the page render its own error
+  // state (which streams 200 with a soft-error UI, vs a hard 404 that breaks AEO
+  // discovery + MCP click_url referrals).
+  const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(pathname);
+  if (pIdMatch) {
+    const productId = pIdMatch[1];
+    // Check via internal API - if 404, return hard 404 before page streams.
+    try {
+      const apiRes = await fetch(
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
+        {
+          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (apiRes.status === 404) {
+        return new NextResponse(null, { status: 404, statusText: "Product Not Found" });
+      }
+      // Transient errors (429/401/403/5xx): do NOT 404 — fall through and let the
+      // page handler render. The PDP route will fetch the product itself and show
+      // its own error/loading state. 404-ing here on rate-limit would otherwise
+      // take down every /p/{id} for the duration of the throttle window.
+    } catch {
+      // Network error - let page render (will show its own error state)
+    }
+  }
+
+  // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
+  // to the page handler (no middleware redirect/rewrite needed).
+  // This is already handled by the static file bypass above.
+
   // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
   // These expose SEO-friendly URLs that render via the /search page internally.
   const INTENT_LOCATION_MAP: Record<string, string> = {
