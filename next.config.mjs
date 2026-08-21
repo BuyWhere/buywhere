@@ -120,6 +120,12 @@ const nextConfig = {
         destination: '/compare',
         permanent: true,
       },
+      // BUY-71825: /compare/sg -> /compare (old region-specific compare hub)
+      {
+        source: '/compare/sg',
+        destination: '/compare',
+        permanent: true,
+      },
       // BUY-68406: common feed-discovery aliases at the site root previously
       // fell through to the homepage HTML 404 shell. Redirect them to the
       // canonical blog feed (which serves real RSS 2.0 XML) so feed readers
@@ -307,6 +313,18 @@ const nextConfig = {
       {
         source: '/ai-agents',
         destination: '/agents',
+        permanent: true,
+      },
+      // BUY-71825: /agent -> /agents (AEO discovery)
+      {
+        source: '/agent',
+        destination: '/agents',
+        permanent: true,
+      },
+      // BUY-71825: /agent.json -> /.well-known/agent.json (AEO discovery)
+      {
+        source: '/agent.json',
+        destination: '/.well-known/agent.json',
         permanent: true,
       },
       {
