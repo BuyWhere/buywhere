@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomUUID } from 'crypto';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, replicaDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -380,8 +380,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
+  // 2026-08-22: search reads go to the replica (REPLICA_DATABASE_URL) — the api
+  // tree moved there long ago; this tree still hit the primary and timed out
+  // under ingest/dedupe pressure.
   const searchClient = await Promise.race([
-    db.connect(),
+    (replicaDb ?? db).connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
@@ -540,6 +543,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+  } catch (err) {
+    // Invariant (BUY-59936 family): timeout = 200 degraded fail-open, never -32603.
+    if ((err as { code?: string })?.code === '57014') {
+      const degraded = buildSearchResponse([], 0, limit, offset, Date.now() - t0, false) as unknown as Record<string, unknown>;
+      degraded.degraded = true;
+      degraded.degraded_reason = 'db_statement_timeout';
+      return degraded;
+    }
+    throw err;
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
