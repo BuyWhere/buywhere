@@ -1682,8 +1682,24 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         }));
       }
 
-      default:
+      // BUY-72102 (re-apply after 2d53dc31 reset): backward compatibility for
+      // direct tool-name JSON-RPC methods (e.g. {"method":"search_products"}).
+      // Some MCP clients and heartbeat probes invoke tools by name instead of
+      // wrapping them in the MCP "tools/call" envelope. Route known tool names
+      // to dispatchTool. BUY-68192 added this fallback to mcp-railway; this
+      // branch keeps parity on api.buywhere.ai after the BUY-72387 mega-reset
+      // accidentally dropped the earlier c9bc8fe3 port.
+      default: {
+        const knownTool = TOOLS.find((t) => t.name === method);
+        if (knownTool) {
+          res.locals.mcpToolName = method;
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+      }
     }
   } catch (err: unknown) {
     const e = err as { code?: number | string; message?: string };
