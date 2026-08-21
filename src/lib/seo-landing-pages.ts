@@ -1098,7 +1098,11 @@ export async function getSeoLandingFallbackProduct(
       const detailUrl = buildProductDetailUrl(product, config.country);
 
       // BUY-69736: probe the curated image; replace with the branded SVG
-      // placeholder when the URL is dead/blocked/serves HTML.
+      // placeholder when the URL is dead/blocked/serves HTML. BUY-72390:
+      // also synthesize the branded SVG when imageUrl is null (curated
+      // fallback entries intentionally omit a CDN URL because every known
+      // CDN URL is dead; without this the PDP Image consumer would receive
+      // a null src and Next.js Image would throw).
       let imageUrl = product.imageUrl;
       if (imageUrl) {
         const reachable = await verifyReachableImage(imageUrl);
@@ -1108,6 +1112,8 @@ export async function getSeoLandingFallbackProduct(
           );
           imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
         }
+      } else {
+        imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
       }
 
       return {
@@ -1135,6 +1141,8 @@ export async function getSeoLandingFallbackProductBySlug(
     for (const product of config.fallbackProducts) {
       if (buildLandingProductSlug(product) !== normalizedSlug) continue;
 
+      // BUY-72390: null imageUrl now resolves to the branded SVG (same
+      // reasoning as getSeoLandingFallbackProduct above).
       let imageUrl = product.imageUrl;
       if (imageUrl) {
         const reachable = await verifyReachableImage(imageUrl);
@@ -1144,6 +1152,8 @@ export async function getSeoLandingFallbackProductBySlug(
           );
           imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
         }
+      } else {
+        imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
       }
 
       return {
@@ -2147,12 +2157,19 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://image.roborock.com/product/s8-maxv-ultra/gallery/1.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
+      // BUY-72390: r1/r2/r3/r4/r6 CDN imageUrls are all dead today
+      // (AliyunOSS 404, iRobot 404, Cloudinary 404, ecovacs 301→/us, second
+      // AliyunOSS 404). Setting imageUrl: null routes the listing card AND
+      // the PDP detail through the deterministic branded SVG fallback
+      // (Roborock-blue / iRobot-grey / Shark-blue / Ecovacs / Roborock-blue)
+      // so the page never surfaces a gardener photo or coffee maker image
+      // again. r5 (eufy X10 Pro Omni) keeps its verified m.media-amazon.com URL.
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
+      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
+      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
