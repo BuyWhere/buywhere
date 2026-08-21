@@ -103,6 +103,26 @@ function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
   return { is_bot: false, agent_family: "human" };
 }
 
+// BUY-72699: Health-check paths that should always be flagged as internal
+const INTERNAL_HEALTH_PATHS = new Set([
+  "/health",
+  "/healthz",
+  "/ready",
+  "/readyz",
+  "/_health",
+  "/_ah/health",
+]);
+
+function isInternalRequest(distinctId: string, pathname: string, eventName: string): boolean {
+  // Rule 4: server-side pageview capture is internal.
+  if (eventName === "pageview_server") return true;
+  // Rule 1: distinct_id starts with srv_ (server/probe identity)
+  if (distinctId.startsWith("srv_")) return true;
+  // Rule 2: Health-check paths
+  if (INTERNAL_HEALTH_PATHS.has(pathname)) return true;
+  return false;
+}
+
 async function capturePageviewServer(
   distinctId: string,
   url: URL,
@@ -110,23 +130,30 @@ async function capturePageviewServer(
   ip: string | null
 ) {
   const { is_bot, agent_family } = classifyUa(ua);
+  const eventName = "pageview_server";
+  // BUY-72699 Defect B: Normalize trailing-slash pathname at capture
+  const rawPathname = url.pathname;
+  const pathname = normalizePathname(rawPathname);
+  // BUY-72699 Defect A: Emit is_internal boolean
+  const is_internal = isInternalRequest(distinctId, rawPathname, eventName);
   try {
     await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         token: POSTHOG_KEY,
-        event: "pageview_server",
+        event: eventName,
         distinct_id: distinctId,
         properties: {
           $current_url: url.toString(),
-          pathname: url.pathname,
-          path: url.pathname + url.search,
+          pathname,
+          path: pathname + url.search,
           host: url.host,
           $raw_user_agent: ua,
           $ip: ip,
           is_bot,
           agent_family,
+          is_internal,
         },
       }),
     });
