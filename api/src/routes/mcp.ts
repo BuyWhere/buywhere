@@ -8,6 +8,17 @@ import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
+import {
+  recordV2Request,
+  startV2RequestLog,
+  buildV2RequestRow,
+  type V2RequestOutcome,
+} from '../monitoring/v2RequestLog';
+
+// BUY-72556: start the v2 request-log writer at module load so the periodic
+// 5-second flush is armed before any /mcp traffic arrives. startV2RequestLog
+// is idempotent — safe to call again from server-init code.
+startV2RequestLog();
 
 const router = Router();
 
@@ -1659,9 +1670,20 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // Enforce here so handlers don't accidentally fall back to all-market
         // scans when callers forget the field. v1 names stay unrestricted
         // (BUY-72481 owns the sunset).
+        // BUY-72556: when the gate fires for a v2 tool, record the call BEFORE
+        // returning the JSON-RPC response so gate_rejected rows are captured
+        // (they are part of the population Atlas rolls up).
         if (toolName.endsWith('_v2')) {
           const dt = (toolArgs.deliver_to == null) ? '' : String(toolArgs.deliver_to).trim();
           if (!dt) {
+            recordV2Request(buildV2RequestRow({
+              requestId: id,
+              toolName,
+              args: toolArgs,
+              apiKey: req.apiKeyRecord?.key,
+              gatePassed: false,
+              outcome: 'gate_rejected',
+            }));
             return res.json(jsonrpcErr(
               id,
               -32602,
@@ -1674,10 +1696,47 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
-        const result = await dispatchTool(toolName, toolArgs);
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+        try {
+          const result = await dispatchTool(toolName, toolArgs);
+          // BUY-72556: log successful v2 calls (gate_passed, outcome=success).
+          if (toolName.endsWith('_v2')) {
+            recordV2Request(buildV2RequestRow({
+              requestId: id,
+              toolName,
+              args: toolArgs,
+              apiKey: req.apiKeyRecord?.key,
+              gatePassed: true,
+              outcome: 'success',
+            }));
+          }
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        } catch (handlerErr: unknown) {
+          // BUY-72556: log v2 calls that threw inside the handler. Distinguish
+          // JSON-RPC numeric errors (rpc_error) from transport errors (network
+          // / timeout / connection refused) so monitoring can slice failures.
+          if (toolName.endsWith('_v2')) {
+            const e = handlerErr as { code?: number | string; message?: string };
+            let outcome: V2RequestOutcome = 'rpc_error';
+            // transport-layer errors typically arrive as thrown strings or
+            // Error objects with codes like 'ECONNRESET' / 'ETIMEDOUT' / 'ENOTFOUND'.
+            if (typeof e?.code === 'string' && /^(ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EPIPE)/.test(e.code)) {
+              outcome = 'transport_error';
+            } else if (typeof e?.code !== 'number' && !e?.message) {
+              outcome = 'transport_error';
+            }
+            recordV2Request(buildV2RequestRow({
+              requestId: id,
+              toolName,
+              args: toolArgs,
+              apiKey: req.apiKeyRecord?.key,
+              gatePassed: true,
+              outcome,
+            }));
+          }
+          throw handlerErr;
+        }
       }
 
       default:
