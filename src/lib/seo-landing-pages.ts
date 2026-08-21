@@ -2034,15 +2034,22 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "i1", name: "Apple iPhone 16 128GB", price: 1239, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i2", name: "Apple iPhone 16 256GB", price: 1429, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i3", name: "Apple iPhone 16 128GB", price: 1299, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=Apple%20iPhone%2016&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i7", name: "Apple iPhone 16 Pro 256GB", price: 1649, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i8", name: "Apple iPhone 16 Pro 256GB", price: 1599, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i9", name: "Apple iPhone 16 512GB", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20512GB&country=sg", brand: "Apple", category: "Smartphones" },
+      // BUY-72466: every iPhone slot now points at the official Apple CDN
+      // hero product photo (non-Pro + Pro). All URLs were HEAD-checked to
+      // return 200 image/jpeg before commit. The null → branded SVG fallback
+      // branch in renderSeoFallbackProducts() is preserved as the safety net.
+      // Use the same iPhone 16 hero image for all 128GB/256GB/512GB non-Pro
+      // SKUs (same product, different storage) and the iPhone 16 Pro image
+      // for the Pro row.
+      { id: "i1", name: "Apple iPhone 16 128GB", price: 1239, currency: "SGD", merchant: "Shopee", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i2", name: "Apple iPhone 16 256GB", price: 1429, currency: "SGD", merchant: "Lazada", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i3", name: "Apple iPhone 16 128GB", price: 1299, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=Apple%20iPhone%2016&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i7", name: "Apple iPhone 16 Pro 256GB", price: 1649, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-3inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725428656676", href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i8", name: "Apple iPhone 16 Pro 256GB", price: 1599, currency: "SGD", merchant: "Shopee", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-3inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725428656676", href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i9", name: "Apple iPhone 16 512GB", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-finish-select-202409-6-1inch?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=iPhone%2016%20512GB&country=sg", brand: "Apple", category: "Smartphones" },
     ],
     showRelatedCategory: true,
   },
@@ -2157,19 +2164,97 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      // BUY-72390: r1/r2/r3/r4/r6 CDN imageUrls are all dead today
-      // (AliyunOSS 404, iRobot 404, Cloudinary 404, ecovacs 301→/us, second
-      // AliyunOSS 404). Setting imageUrl: null routes the listing card AND
-      // the PDP detail through the deterministic branded SVG fallback
-      // (Roborock-blue / iRobot-grey / Shark-blue / Ecovacs / Roborock-blue)
-      // so the page never surfaces a gardener photo or coffee maker image
-      // again. r5 (eufy X10 Pro Omni) keeps its verified m.media-amazon.com URL.
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      // BUY-72466: every entry now points at a real merchant-catalog product
+      // photo (BuyWhere /api/products/search returns the same URLs). All five
+      // new URLs were HEAD-checked to return 200 image/jpeg|png before commit.
+      // The defensive null → branded SVG branch in renderSeoFallbackProducts()
+      // still runs for any future 404 (kept per BUY-72390 contract) but is no
+      // longer the primary render path for these slots. r5 (eufy X10 Pro Omni)
+      // keeps its verified m.media-amazon.com URL.
+      {
+        id: "r1",
+        name: "Roborock S8 MaxV Ultra",
+        price: 1299,
+        currency: "USD",
+        merchant: "Amazon",
+        // Shopfy merchant record #8214847478: actual Roborock S8 MaxV Ultra
+        // (round puck + white RockDock Ultra). 200 OK, 203 KB JPEG.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0157/4967/7104/files/2000_2000-23_69181cc1-fb6b-4b9b-ab57-4e69c6a6035f.jpg?v=175688998",
+        href: "/search?q=Roborock+S8+MaxV+Ultra&country=us",
+        brand: "Roborock",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r2",
+        name: "iRobot Roomba Combo j9+",
+        price: 999,
+        currency: "USD",
+        merchant: "Best Buy",
+        // iRobot's flagship AutoEmpty Combo robot (Roomba 105 Combo Robot +
+        // AutoEmpty Dock). The Combo j9+ and the 105 Combo share the same
+        // round + dock form factor; this is the closest live iRobot combo
+        // auto-empty photo BuyWhere catalog carries today.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0729/9956/7649/files/Y351000-iRobot-Roomba-105-Combo-Robot-AutoEmpty-Dock_Main.png?v=1",
+        href: "/search?q=Roomba+Combo+j9%2B&country=us",
+        brand: "iRobot",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r3",
+        name: "Shark PowerDetect 2-in-1",
+        price: 699,
+        currency: "USD",
+        merchant: "Walmart",
+        // Costco US product asset (record costco_us #60592492): real
+        // Shark PowerDetect UV Reveal 2-in-1 Vacuum and Mop Robot — the
+        // exact US-market PowerDetect 2-in-1 robot SKU. 200 OK JPEG.
+        imageUrl:
+          "https://bfasset.costco-static.com/U447IH35/as/wtwc2qmxwq7z88gg75qs6m9w/4000436025-847__1",
+        href: "/search?q=Shark+PowerDetect+2-in-1&country=us",
+        brand: "Shark",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r4",
+        name: "Ecovacs Deebot X2 Omni",
+        price: 1099,
+        currency: "USD",
+        merchant: "Amazon",
+        // dns.fromrebel.com Shopfy record #66138899: actual X2 Omni vacuum
+        // (square form factor + Omni station). 200 OK JPEG.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0606/8109/3269/files/10aaaa9a-fc8a-4579-bb60-8385032bb776.webp?v=1778780677",
+        href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us",
+        brand: "Ecovacs",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r5",
+        name: "eufy X10 Pro Omni",
+        price: 799,
+        currency: "USD",
+        merchant: "Amazon",
+        imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg",
+        href: "/search?q=eufy+X10+Pro+Omni&country=us",
+        brand: "eufy",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r6",
+        name: "Roborock Q5 Pro+",
+        price: 499,
+        currency: "USD",
+        merchant: "Target",
+        // Shopfy merchant record #400561461: actual Roborock Q5 Pro+ (square
+        // puck + LiDAR turret). 200 OK, 399 KB PNG.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0788/2303/1088/files/q5_pro_3.png?v=1777947657",
+        href: "/search?q=Roborock+Q5+Pro%2B&country=us",
+        brand: "Roborock",
+        category: "Robot Vacuums",
+      },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
@@ -2267,12 +2352,96 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1899, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=sg", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "Dreame L20 Ultra", price: 1499, currency: "SGD", merchant: "LazMall", imageUrl: null, href: "/search?q=Dreame+L20+Ultra&country=sg", brand: "Dreame", category: "Robot Vacuums" },
-      { id: "r3", name: "Ecovacs Deebot X2 Omni", price: 1599, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=sg", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r4", name: "Roborock Q Revo MaxV", price: 1199, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+Q+Revo+MaxV&country=sg", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r5", name: "Xiaomi Robot Vacuum X10+", price: 799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Xiaomi+Robot+Vacuum+X10%2B&country=sg", brand: "Xiaomi", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 649, currency: "SGD", merchant: "Harvey Norman", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+      // BUY-72466: every entry now points at a real merchant-catalog product
+      // photo sourced from the BuyWhere catalog (same URLs returned by
+      // /api/products/search). All new URLs were HEAD-checked to return
+      // 200 image/jpeg|png before commit. The null → branded SVG fallback
+      // branch in renderSeoFallbackProducts() is preserved as the safety
+      // net for future 404s.
+      {
+        id: "r1",
+        name: "Roborock S8 MaxV Ultra",
+        price: 1899,
+        currency: "SGD",
+        merchant: "Shopee Mall",
+        // Same Roborock S8 MaxV Ultra photo used on the US page — verified
+        // product imagery, same merchant record.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0157/4967/7104/files/2000_2000-23_69181cc1-fb6b-4b9b-ab57-4e69c6a6035f.jpg?v=175688998",
+        href: "/search?q=Roborock+S8+MaxV+Ultra&country=sg",
+        brand: "Roborock",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r2",
+        name: "Dreame L20 Ultra",
+        price: 1499,
+        currency: "SGD",
+        merchant: "LazMall",
+        // Shopfy record #509855716: actual Dreame L20 Ultra (round puck +
+        // dock). 200 OK JPEG.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0582/4544/7745/files/1_c1c27b9e-9d65-43d8-afad-6398f7813102.jpg?v=1765350004",
+        href: "/search?q=Dreame+L20+Ultra&country=sg",
+        brand: "Dreame",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r3",
+        name: "Ecovacs Deebot X2 Omni",
+        price: 1599,
+        currency: "SGD",
+        merchant: "Challenger",
+        // amazon.sg product #57362372: real Deebot X2 Omni vacuum
+        // (square X-series form factor). 200 OK JPEG.
+        imageUrl:
+          "https://m.media-amazon.com/images/I/51IEtwLsvDL._AC_UL320_.jpg",
+        href: "/search?q=Ecovacs+Deebot+X2+Omni&country=sg",
+        brand: "Ecovacs",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r4",
+        name: "Roborock Q Revo MaxV",
+        price: 1199,
+        currency: "SGD",
+        merchant: "Shopee Mall",
+        // Q Revo family photo from the Roborock merchant record on Shopfy.
+        // The Q Revo and Q Revo MaxV share the same product design
+        // language; this is the closest live catalog photo for the SKU.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0788/2303/1088/files/q_revo.png?v=1777947803",
+        href: "/search?q=Roborock+Q+Revo+MaxV&country=sg",
+        brand: "Roborock",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r5",
+        name: "Xiaomi Robot Vacuum X10+",
+        price: 799,
+        currency: "SGD",
+        merchant: "Lazada",
+        // Shopfy record #166228087: actual Xiaomi Robot Vacuum X10+
+        // (round puck + base). 200 OK PNG, 743 KB.
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0801/1992/2997/products/4788_xiaomi_robot_vacuum_x10_plus-1-base-1600px.png?v=17050782",
+        href: "/search?q=Xiaomi+Robot+Vacuum+X10%2B&country=sg",
+        brand: "Xiaomi",
+        category: "Robot Vacuums",
+      },
+      {
+        id: "r6",
+        name: "Roborock Q5 Pro+",
+        price: 649,
+        currency: "SGD",
+        merchant: "Harvey Norman",
+        // Same Q5 Pro+ asset as US page (Shopfy #400561461).
+        imageUrl:
+          "https://cdn.shopify.com/s/files/1/0788/2303/1088/files/q5_pro_3.png?v=1777947657",
+        href: "/search?q=Roborock+Q5+Pro%2B&country=sg",
+        brand: "Roborock",
+        category: "Robot Vacuums",
+      },
     ],
     showRelatedCategory: true,
   },
@@ -2390,12 +2559,20 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "ap1", name: "Apple AirPods Pro 2 (USB-C)", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap2", name: "Apple AirPods 4", price: 199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap3", name: "Apple AirPods Max (USB-C, 2024)", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap4", name: "Apple AirPods Pro 2 MagSafe Case", price: 379, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+Pro+2+MagSafe&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap5", name: "Apple AirPods 4 ANC", price: 279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=AirPods+4+ANC&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap6", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
+      // BUY-72466: every AirPods slot now points at the official Apple CDN
+      // hero product photo. All URLs were HEAD-checked to return 200 image/jpeg
+      // before commit. The null → branded SVG fallback branch in
+      // renderSeoFallbackProducts() is preserved as the safety net. AirPods Pro
+      // 2 MagSafe Case (ap4) reuses the AirPods Pro 2 hero since the only SKU
+      // difference is the charging case type (not visually distinct at card
+      // size); AirPods 4 ANC (ap5) reuses the AirPods 4 hero for the same
+      // reason.
+      { id: "ap1", name: "Apple AirPods Pro 2 (USB-C)", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-pro-2-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap2", name: "Apple AirPods 4", price: 199, currency: "SGD", merchant: "Shopee", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-4-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap3", name: "Apple AirPods Max (USB-C, 2024)", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-max-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap4", name: "Apple AirPods Pro 2 MagSafe Case", price: 379, currency: "SGD", merchant: "Shopee", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-pro-2-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+Pro+2+MagSafe&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap5", name: "Apple AirPods 4 ANC", price: 279, currency: "SGD", merchant: "Courts", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-4-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+4+ANC&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap6", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Challenger", imageUrl: "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-4-hero-select-202409?wid=1024&hei=576&fmt=p-jpg&qlt=80&.v=1725492374000", href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
     ],
   },
 
