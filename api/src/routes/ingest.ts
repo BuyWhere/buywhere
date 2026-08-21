@@ -337,6 +337,27 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.image_url === 'string') product.image_url = p.image_url;
   if (typeof p.category === 'string') product.category = p.category;
   if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
+  // BUY-72080 retry (2026-08-21, run 74b30b27): validateProduct() historically
+  // dropped category_path when only metadata.product_type was set (Node ingest
+  // path) or when top-level category was empty string (batch_shopify_scraper.py
+  // path). Derive a category from the broadest available signal so that
+  // category_path[1] is populated for ranking, MCP warmup, and
+  // /v1/products?category=X filters.
+  if ((!product.category_path || product.category_path.length === 0) && (!product.category || !product.category.trim())) {
+    let derived: string | null = null;
+    if (p.metadata && typeof p.metadata === 'object') {
+      const meta = p.metadata as Record<string, unknown>;
+      if (typeof meta.product_type === 'string' && meta.product_type.trim()) {
+        derived = meta.product_type.trim();
+      } else if (typeof meta.category === 'string' && meta.category.trim()) {
+        derived = meta.category.trim();
+      }
+    }
+    if (derived) {
+      product.category = derived;
+      product.category_path = [derived].slice(0, 10);
+    }
+  }
   if (typeof p.brand === 'string') product.brand = String(p.brand).slice(0, 200);
   if (typeof p.is_active === 'boolean') product.is_active = p.is_active;
   if (typeof p.is_available === 'boolean') product.is_available = p.is_available;
