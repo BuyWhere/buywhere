@@ -237,6 +237,7 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "cheapest-iphone-17-singapore-june-2026",
   "cheapest-iphone-singapore-2026",
   "cheapest-macbook-air-m3-12-countries-compared",
+  "cite-buywhere-catalog-stats-faq",
   "amazon-prime-day-2026-preview",
   "airpods-pro-2-cheapest-us-sg-my-jp",
   "best-time-to-buy-back-to-school-laptops-2026",
