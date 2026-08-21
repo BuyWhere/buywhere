@@ -41,7 +41,7 @@ jobs:
           PAYLOAD=$(python3 << 'PYEOF'
           import json, os
           print(json.dumps({
-              "query": "mutation($input:VariableUpsertInput!){variableUpsert(input:$input){id}}",
+              "query": "mutation($input:VariableUpsertInput!){variableUpsert(input:$input)}",
               "variables": {
                   "input": {
                       "name": "SENTRY_DSN",
