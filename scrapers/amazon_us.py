@@ -817,7 +817,18 @@ class AmazonUSScraper:
     ) -> dict[str, Any] | None:
         try:
             asin = str(raw.get("asin", "") or raw.get("sku", "")).strip()
-            if not asin:
+            # BUY-72693: ASINs must be exactly 10 alphanumeric chars (sometimes
+            # 11 with a leading 'B'). Reject synthetic/generator outputs that
+            # pass a numeric padded ASIN (e.g. "B1016162010" 11 chars, or
+            # "B10162255701" 12 chars with appended "01"). The amazon search-
+            # results parser only emits data-asin attributes for real cards,
+            # so this filter is targeted at raw upstream payloads.
+            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{10}", asin):
+                if asin:
+                    print(
+                        f"[amazon_us] ASIN quarantine: rejected malformed ASIN '{asin}' "
+                        f"for keyword='{keyword}'"
+                    )
                 return None
 
             title = (raw.get("title") or "").strip()
@@ -883,7 +894,10 @@ class AmazonUSScraper:
 
         for card in soup.select('[data-component-type="s-search-result"][data-asin]'):
             asin = (card.get("data-asin") or "").strip()
-            if not asin:
+            # BUY-72693: synthetic generator rows use data-asin values like
+            # "B1016162010" (11 chars) or "B10162255701" (12 chars). Amazon
+            # real ASINs are 10 alphanumeric chars (optionally 11 with B prefix).
+            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{10}", asin):
                 continue
 
             title_el = card.select_one("h2 span")

@@ -222,6 +222,26 @@ function hasUsableProductImage(value?: string | null) {
     // Block placeholder/sentinel hosts (we never serve these as real imagery).
     if (hostname.endsWith('unsplash.com') || hostname.endsWith('source.unsplash.com')) return false;
 
+    // BUY-72693: reject ASIN-derived media keys on m.media-amazon.com.
+    // Synthetic generators append the ASIN directly as the media key:
+    //   https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg
+    // where "B10162255701" is a 12-char string = ASIN + "01" suffix.
+    // Real Amazon media keys are base64-encoded alphanumeric strings (e.g. "71jG+e7roXL").
+    // Validate by checking the /images/I/<key> path segment: real keys are
+    // alphanumeric+base64-safe (a-zA-Z0-9/+=) but DO NOT match the ASIN
+    // pattern (uppercase B followed by exactly 10 digits, optionally +01).
+    // This "fail-closed by shape" guard means ANY unknown CDN host already
+    // fails by returning false — no host needs to be added to a blocklist.
+    if (hostname === 'm.media-amazon.com' || hostname.endsWith('.media-amazon.com')) {
+      const imgMatch = pathname.match(/^\/images\/I\/([^/.]+)\./);
+      if (imgMatch) {
+        const mediaKey = imgMatch[1];
+        // Reject: B-prefixed numeric keys (ASIN-derived: B + ≥10 digits, + optional 2-digit suffix).
+        // Real keys look nothing like this pattern.
+        if (/^B\d{10,}(?:_\d+)?$/.test(mediaKey)) return false;
+      }
+    }
+
     // BUY-71639: only block URLs whose FINAL segment is a sentinel filename —
     // the only shape a real CDN actually uses for a "no image" fallback asset.
     // Long descriptive slugs (`no-image-product`) resolve to a real file.

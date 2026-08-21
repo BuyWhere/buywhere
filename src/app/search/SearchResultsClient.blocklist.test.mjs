@@ -39,8 +39,11 @@ const REQUIRED_HOSTS = [
   'images10.newegg.com',
 ];
 
-// BUY-71639 deliberately unblocked these. If they creep into the blocklist
-// /search?q=headphones&country=us loses real product photos (AC3 of BUY-72350).
+// BUY-71639 deliberately unblocked these from the host blocklist. If they creep
+// into SEARCH_IMAGE_BLOCKED_HOSTS, /search?q=headphones&country=us loses real
+// product photos (AC3 of BUY-72350). BUY-72693 adds media-key shape validation
+// for m.media-amazon.com, so the host remains allowed while ASIN-derived keys
+// are rejected by hasUsableProductImage.
 const FORBIDDEN_HOSTS = ['cdn.shopify.com', 'm.media-amazon.com'];
 
 function extractSetBody(src) {
@@ -153,7 +156,12 @@ function evalBlocklist(value) {
   try {
     const u = new URL(value);
     const host = u.hostname.toLowerCase();
+    const pathname = u.pathname.toLowerCase();
     if (SEARCH_IMAGE_BLOCKED_HOSTS_FOR_TEST.has(host)) return false;
+    if (host === 'm.media-amazon.com' || host.endsWith('.media-amazon.com')) {
+      const imgMatch = pathname.match(/^\/images\/i\/([^/.]+)\./);
+      if (imgMatch && /^b\d{10,}(?:_\d+)?$/.test(imgMatch[1])) return false;
+    }
     return true;
   } catch {
     return false;
@@ -190,8 +198,26 @@ test('BUY-72491 AC4: c1.neweggimages.com blocked; working CDNs unblocked', () =>
     'cdn.shopify.com must remain usable (BUY-71639)'
   );
   assert.equal(
-    evalBlocklist('https://m.media-amazon.com/images/I/x.jpg'),
+    evalBlocklist('https://m.media-amazon.com/images/I/71jG+e7roXL._AC_UL320_.jpg'),
     true,
-    'm.media-amazon.com must remain usable (BUY-71639)'
+    'm.media-amazon.com must remain usable for real media keys (BUY-71639)'
+  );
+});
+
+test('BUY-72693: ASIN-derived Amazon media keys are blocked by shape', () => {
+  assert.equal(
+    evalBlocklist('https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg'),
+    false,
+    'synthetic ASIN-derived Amazon media key must be rejected before emitting <img>'
+  );
+  assert.equal(
+    evalBlocklist('https://m.media-amazon.com/images/I/B1016162010._AC_SY360_.jpg'),
+    false,
+    '11-char B+digits ASIN-derived Amazon media key must be rejected'
+  );
+  assert.equal(
+    evalBlocklist('https://m.media-amazon.com/images/I/61vJtKbAssL._AC_SL1500_.jpg'),
+    true,
+    'real Amazon base64-ish media keys must remain usable'
   );
 });

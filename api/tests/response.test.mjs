@@ -106,6 +106,18 @@ describe('buildProduct', () => {
     assert.equal(product.image_url, 'https://images.example.com/products/laptop.jpg');
   });
 
+  it('removes ASIN-derived Amazon media URLs', () => {
+    const row = { ...baseRow, image_url: 'https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg' };
+    const product = buildProduct(row, 'USD', false);
+    assert.equal(product.image_url, null);
+  });
+
+  it('preserves real Amazon media URLs', () => {
+    const row = { ...baseRow, image_url: 'https://m.media-amazon.com/images/I/61vJtKbAssL._AC_SL1500_.jpg' };
+    const product = buildProduct(row, 'USD', false);
+    assert.equal(product.image_url, 'https://m.media-amazon.com/images/I/61vJtKbAssL._AC_SL1500_.jpg');
+  });
+
   it('includes deal fields when present', () => {
     const row = { ...baseRow, original_price: 199.99, discount_pct: 50.0 };
     const product = buildProduct(row, 'SGD', false);

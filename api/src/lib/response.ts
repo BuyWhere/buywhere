@@ -11,12 +11,33 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
+// BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
+// Synthetic rows carry image URLs like:
+//   https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg
+// where "B10162255701" is a fabricated 12-char key (ASIN + "01" suffix).
+// Real Amazon media keys are base64-encoded (e.g. "71jG+e7roXL"), not
+// "B" + digit sequences. Nulling the image_url here blocks 400s at the API
+// level for ANY consumer of /v1/products/search (including MCP tools and
+// third-party callers), not just the Next.js search UI.
 function normalizeImageUrl(imageUrl: unknown): string | null {
   if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
 
   try {
     const parsed = new URL(imageUrl);
-    if (parsed.hostname.toLowerCase() === 'source.unsplash.com') return null;
+    const hostname = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+
+    if (hostname === 'source.unsplash.com') return null;
+
+    // BUY-72693: fail-closed on Amazon ASIN-derived media keys.
+    if (hostname === 'm.media-amazon.com' || hostname.endsWith('.media-amazon.com')) {
+      const imgMatch = pathname.match(/^\/images\/i\/([^/.]+)\./);
+      if (imgMatch) {
+        const mediaKey = imgMatch[1];
+        // Reject "B" + ≥10 digits (with optional _XX suffix) — synthetic ASIN shape.
+        if (/^b\d{10,}(?:_\d+)?$/.test(mediaKey)) return null;
+      }
+    }
   } catch {
     return imageUrl;
   }
