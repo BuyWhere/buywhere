@@ -1466,42 +1466,116 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 // v2-specific extras:
 //   - find_best_price_v2: response includes `shopping_job_id` (UUID)
 //   - get_product_v2 + compare_products_v2: response includes `outbound_url` per product
+
+// BUY-72700: Set of valid ISO 3166-1 alpha-2 codes that BuyWhere supports for deliver_to.
+// When an unknown code (e.g. "ZZ") is passed, v2 tools must return 200 OK with empty
+// results and meta.emptiness_reason="invalid_deliver_to" — NOT a JSON-RPC error.
+const VALID_DELIVER_TO = new Set([
+  'SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU', 'PH', 'ID',
+]);
+
 function requireDeliverTo(args: Record<string, unknown>, toolName: string): string {
   const raw = args.deliver_to;
   const value = typeof raw === 'string' ? raw.trim() : '';
   if (!value) {
     throw { code: -32602, message: `${toolName} requires deliver_to (ISO country code, e.g. "SG", "US")` };
   }
-  args.deliver_to = value;
-  return value;
+  // Normalise to uppercase for downstream handlers.
+  const normalised = value.toUpperCase();
+  // BUY-72700: reject non-ISO-alpha-2 (e.g. "USA", "123", " sg ") and unknown codes (e.g. "ZZ").
+  if (!/^[A-Z]{2}$/.test(normalised) || !VALID_DELIVER_TO.has(normalised)) {
+    throw { code: 'INVALID_DELIVER_TO', toolName, raw: normalised };
+  }
+  args.deliver_to = normalised;
+  return normalised;
+}
+
+// BUY-72700: Build a 200-OK response with empty results and meta.emptiness_reason.
+function buildInvalidDeliverToResponse(toolName: string, rawDeliverTo: string) {
+  return {
+    data: [],
+    products: [],
+    results: [],
+    items: [],
+    meta: {
+      total: 0,
+      limit: 0,
+      offset: 0,
+      response_time_ms: 0,
+      cached: false,
+      emptiness_reason: 'invalid_deliver_to',
+      deliver_to: rawDeliverTo,
+      hint: `deliver_to="${rawDeliverTo}" is not a supported country code. Supported: ${Array.from(VALID_DELIVER_TO).join(', ')}.`,
+    },
+  };
 }
 
 async function handleSearchProductsV2(args: Record<string, unknown>) {
-  requireDeliverTo(args, 'search_products_v2');
+  let deliverTo: string;
+  try {
+    deliverTo = requireDeliverTo(args, 'search_products_v2');
+  } catch (e: any) {
+    if (e?.code === 'INVALID_DELIVER_TO') {
+      return buildInvalidDeliverToResponse('search_products_v2', e.raw);
+    }
+    throw e;
+  }
   return handleSearchProducts(args);
 }
 
 async function handleGetDealsV2(args: Record<string, unknown>) {
-  requireDeliverTo(args, 'get_deals_v2');
+  let deliverTo: string;
+  try {
+    deliverTo = requireDeliverTo(args, 'get_deals_v2');
+  } catch (e: any) {
+    if (e?.code === 'INVALID_DELIVER_TO') {
+      return buildInvalidDeliverToResponse('get_deals_v2', e.raw);
+    }
+    throw e;
+  }
   return handleGetDeals(args);
 }
 
 async function handleCompareProductsV2(args: Record<string, unknown>) {
-  requireDeliverTo(args, 'compare_products_v2');
+  let deliverTo: string;
+  try {
+    deliverTo = requireDeliverTo(args, 'compare_products_v2');
+  } catch (e: any) {
+    if (e?.code === 'INVALID_DELIVER_TO') {
+      return buildInvalidDeliverToResponse('compare_products_v2', e.raw);
+    }
+    throw e;
+  }
   const result = await handleCompareProducts(args);
   attachOutboundUrls(result);
   return result;
 }
 
 async function handleFindBestPriceV2(args: Record<string, unknown>) {
-  requireDeliverTo(args, 'find_best_price_v2');
+  let deliverTo: string;
+  try {
+    deliverTo = requireDeliverTo(args, 'find_best_price_v2');
+  } catch (e: any) {
+    if (e?.code === 'INVALID_DELIVER_TO') {
+      return buildInvalidDeliverToResponse('find_best_price_v2', e.raw);
+    }
+    throw e;
+  }
   const result = await handleFindBestPrice(args);
   attachShoppingJobId(result, args);
   return result;
 }
 
 async function handleGetProductV2(args: Record<string, unknown>) {
-  requireDeliverTo(args, 'get_product_v2');
+  let deliverTo: string;
+  try {
+    deliverTo = requireDeliverTo(args, 'get_product_v2');
+  } catch (e: any) {
+    if (e?.code === 'INVALID_DELIVER_TO') {
+      return buildInvalidDeliverToResponse('get_product_v2', e.raw);
+    }
+    throw e;
+  }
   const result = await handleGetProduct(args);
   attachOutboundUrls(result);
   return result;
