@@ -652,16 +652,17 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 60000');
+    // BUY-69354: fail-fast floor. At 400M+ rows, the planner underestimates the matching set
+    // so ORDER BY over all matching rows times out. Use ordered index walk (ORDER BY discount_pct DESC)
+    // to enable early-stop at candidateLimit, then filter/sort in-memory. 15s is the max wait
+    // before we surface a graceful "no deals found" instead of hanging the client.
+    await dealsClient.query('SET statement_timeout = 15000');
     // BUY-68615 originally forced enable_seqscan=off but at 400M+ rows this causes
     // timeouts (the index path is slower than seqscan when table is clustered by insertion).
     // Let the planner decide dynamically; the bounded LIMIT helps regardless.
-    // BUY-69646: Catalog is now 400M+ rows; the planner underestimates the matching set for
-    // get_deals, so an ORDER BY over all matching rows blows the statement_timeout even with
-    // the discount index. Bound the index scan to a fixed candidate window, then filter/sort locally.
     // Also: remove region/effectiveCountry from the SQL WHERE - those filters cause a heap scan
     // at 400M rows (no composite index). Apply them in-memory after the candidate fetch.
-    const candidateLimit = 10000;
+    const candidateLimit = 2000;
     const sqlParams = [currency, minDiscount, candidateLimit];
     const candidateResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
@@ -673,6 +674,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
        FROM products
        WHERE currency = $1 AND price > 0 AND is_active = true
          AND discount_pct >= $2
+       ORDER BY discount_pct DESC, updated_at DESC
        LIMIT $3`,
       sqlParams
     );
