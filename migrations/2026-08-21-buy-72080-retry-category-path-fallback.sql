@@ -1,0 +1,65 @@
+-- BUY-72080 retry (2026-08-21, run 74b30b27): Backfill category_path from
+-- top-level category, then metadata.product_type, then metadata.category
+-- for rows that have empty category_path but a usable signal elsewhere.
+--
+-- This mirrors the validateProduct() fallback added in PR (see
+-- api/src/routes/ingest.ts lines 340-360). The patch prevents new defects;
+-- this migration heals existing ones.
+--
+-- DO NOT APPLY YET. sakura table bloat is ~530GB and a full UPDATE on
+-- 100M+ rows will exceed statement_timeout. Apply only AFTER:
+--   1. Autovacuum has caught up (currently 6+ days stale)
+--   2. Oracle confirms migration timing window
+--   3. Patch is verified live via deploy-api
+--
+-- This file is committed for review only.
+
+-- =====================================================================
+-- Step 1: top-level category → category_path (when category_path empty
+-- AND category non-empty)
+-- =====================================================================
+-- UPDATE products
+-- SET category_path = ARRAY[category]::text[],
+--     updated_at = updated_at  -- do NOT bump updated_at; this is a heal
+-- WHERE is_active = true
+--   AND (category_path IS NULL OR cardinality(category_path) = 0)
+--   AND category IS NOT NULL
+--   AND length(trim(category)) > 0;
+
+-- =====================================================================
+-- Step 2: metadata.product_type → category_path (when category_path empty
+-- AND top-level category empty/missing AND metadata.product_type non-empty)
+-- =====================================================================
+-- UPDATE products p
+-- SET category_path = ARRAY[p.metadata->>'product_type']::text[],
+--     category = COALESCE(NULLIF(p.category, ''), p.metadata->>'product_type'),
+--     updated_at = updated_at
+-- FROM products src
+-- WHERE p.id = src.id
+--   AND p.is_active = true
+--   AND (p.category_path IS NULL OR cardinality(p.category_path) = 0)
+--   AND (p.category IS NULL OR length(trim(p.category)) = 0)
+--   AND p.metadata ? 'product_type'
+--   AND length(trim(p.metadata->>'product_type')) > 0;
+
+-- =====================================================================
+-- Step 3: metadata.category → category_path (last-resort fallback)
+-- =====================================================================
+-- UPDATE products p
+-- SET category_path = ARRAY[p.metadata->>'category']::text[],
+--     category = COALESCE(NULLIF(p.category, ''), p.metadata->>'category'),
+--     updated_at = updated_at
+-- FROM products src
+-- WHERE p.id = src.id
+--   AND p.is_active = true
+--   AND (p.category_path IS NULL OR cardinality(p.category_path) = 0)
+--   AND (p.category IS NULL OR length(trim(p.category)) = 0)
+--   AND NOT (p.metadata ? 'product_type')
+--   AND p.metadata ? 'category'
+--   AND length(trim(p.metadata->>'category')) > 0;
+
+-- =====================================================================
+-- Verification queries (run AFTER each step to confirm scope)
+-- =====================================================================
+-- SELECT COUNT(*) FROM products WHERE is_active = true AND (category_path IS NULL OR cardinality(category_path) = 0);
+-- SELECT source, COUNT(*) FROM products WHERE is_active = true AND (category_path IS NULL OR cardinality(category_path) = 0) GROUP BY source ORDER BY 2 DESC LIMIT 10;
