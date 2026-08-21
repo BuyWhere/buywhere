@@ -38,10 +38,25 @@ jobs:
         run: |
           set -euo pipefail
           echo "Setting SENTRY_DSN on Railway (len=${#SENTRY_DSN})"
+          PAYLOAD=$(python3 << 'PYEOF'
+          import json, os
+          print(json.dumps({
+              "query": "mutation($input:VariableUpsertInput!){variableUpsert(input:$input){id}}",
+              "variables": {
+                  "input": {
+                      "name": "SENTRY_DSN",
+                      "value": os.environ["SENTRY_DSN"],
+                      "environmentId": os.environ["ENV_ID"],
+                      "serviceId": os.environ["SERVICE_ID"],
+                  }
+              }
+          }))
+          PYEOF
+          )
           RESP=$(curl -sf "$GQL" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
-            -d "$(python3 -c "import json,os; print(json.dumps({'query':'mutation($input:VariableUpsertInput!){variableUpsert(input:$input){id}}','variables':{'input':{'name':'SENTRY_DSN','value':os.environ['SENTRY_DSN'],'environmentId':'$ENV_ID','serviceId':'$SERVICE_ID'}}}))")")
+            -d "$PAYLOAD")
           echo "Set env var response: $RESP"
 
       - name: Trigger Railway deploy of this SHA
