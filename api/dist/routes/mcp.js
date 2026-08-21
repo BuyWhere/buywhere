@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.applyEmptiness = applyEmptiness;
 const express_1 = require("express");
 const config_1 = require("../config");
 const embedProducts_1 = require("../jobs/embedProducts");
@@ -304,7 +305,7 @@ async function handleSearchProducts(args) {
         // complete within 12s via GIN index; anything longer signals plan regression or
         // pool exhaustion. Failing fast prevents cascading connection starvation.
         await searchClient.query('SET statement_timeout = 12000');
-        await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+        await searchClient.query('SET work_mem = \'256MB\''); // BUY-65095: bump from 64MB to 256MB — 389M rows GIN bitmap heap scan needs >128MB to stay under 12s statement_timeout. 64MB was timing out on count(*) and candidate subqueries even with LIMIT 1001.
         const COUNT_CAP = 1001;
         if (q) {
             const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
@@ -505,6 +506,13 @@ async function handleSearchProducts(args) {
     }
     const products = filteredRows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
+    // BUY-71542 / P2.6: apply emptiness metadata to empty search responses
+    await applyEmptiness('search_products', result, {
+        regionSupported: country ? response_1.SUPPORTED_REGIONS.has(country) : true,
+        categoryRequested: !!category,
+        requestedCategory: category || null,
+        requestedCountry: country || null,
+    }, Date.now() - t0);
     try {
         await config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
     }
@@ -685,6 +693,11 @@ async function handleGetDeals(args) {
     if ((region || effectiveCountry) && products.length === 0) {
         result.unavailable = true;
     }
+    // BUY-71542 / P2.6: apply emptiness metadata
+    await applyEmptiness('get_deals', result, {
+        regionSupported: effectiveCountry ? response_1.SUPPORTED_REGIONS.has(effectiveCountry) : true,
+        requestedCountry: effectiveCountry || null,
+    }, Date.now() - t0);
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
     return result;
 }
@@ -720,6 +733,7 @@ async function handleListCategories(args) {
         });
         try {
             await client.query('SET statement_timeout = 8000');
+            await client.query('SET work_mem = \'256MB\''); // BUY-65095: bump work_mem — fallback category scan benefits from larger bitmap heap
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
             let rows = [];
             if (tableCheck.rows[0]?.tbl) {
@@ -769,6 +783,12 @@ async function handleListCategories(args) {
     categoryListInflight.set(country, queryPromise);
     try {
         const result = await queryPromise;
+        // BUY-71542 / P2.6: apply emptiness metadata (data may be non-empty because
+        // of hardcoded fallback, but probe still useful for unknown markets)
+        await applyEmptiness('list_categories', result, {
+            regionSupported: response_1.SUPPORTED_REGIONS.has(country),
+            requestedCountry: country,
+        }, Date.now() - t0);
         return { ...result, meta: { ...result.meta, response_time_ms: Date.now() - t0 } };
     }
     finally {
@@ -804,6 +824,7 @@ async function handleFindBestPrice(args) {
     let result;
     try {
         await bestPriceClient.query('SET statement_timeout = 10000');
+        await bestPriceClient.query('SET work_mem = \'256MB\''); // BUY-65095: bump work_mem — 389M rows GIN bitmap heap scan needs >128MB to stay under 10s timeout
         const requestedCountry = country;
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
         const conditions = ['is_active = true', 'price > 0'];
@@ -881,11 +902,19 @@ async function handleFindBestPrice(args) {
         image_url: r.image_url,
         country_code: r.country_code,
     }));
-    return {
+    const finalResult = {
         best_price: data[0] ?? null,
         alternatives: data.slice(1),
         meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
     };
+    // BUY-71542 / P2.6: apply emptiness metadata
+    await applyEmptiness('find_best_price', finalResult, {
+        regionSupported: country ? response_1.SUPPORTED_REGIONS.has(country) : true,
+        categoryRequested: !!category,
+        requestedCategory: category || null,
+        requestedCountry: country || null,
+    }, Date.now() - t0);
+    return finalResult;
 }
 // BUY-31929: MCP tool to ingest products — delegates to the same logic as
 // POST /v1/ingest/products but via JSON-RPC tool call.
@@ -1190,12 +1219,22 @@ async function handleFindSimilar(args) {
         };
     })
         .filter(Boolean);
-    return {
+    const result = {
         product_id: productId,
         similar,
         total: similar.length,
         response_time_ms: Date.now() - t0,
     };
+    // BUY-71542 / P2.6: apply emptiness metadata. find_similar returns
+    // `similar: []` for empty results, which the resultIsEmpty() helper
+    // catches. countryCode is the country of the reference product (when
+    // known from the detail fetch), used to scope emptiness reasons.
+    const countryCode = detailResult.rows[0]?.country_code || null;
+    await applyEmptiness('find_similar', result, {
+        regionSupported: countryCode ? response_1.SUPPORTED_REGIONS.has(countryCode) : true,
+        requestedCountry: countryCode,
+    }, Date.now() - t0);
+    return result;
 }
 async function dispatchTool(name, args) {
     // BUY-71817 / P2.7: enforce `deliver_to` REQUIRED on the v2 surface.
@@ -1455,4 +1494,121 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
         return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
     }
 });
+// Module-level cache of "does region X have any indexed products" — derived from
+// a bounded recent-rows sample (idx_products_updated_at), refreshed at most once
+// per 60s, so empty responses don't trigger unbounded country_code scans.
+const regionProbeCache = new Map();
+const REGION_PROBE_TTL_MS = 60000;
+async function probeRegionAndCategories(country) {
+    if (!country)
+        return { hasData: true, categories: new Set() }; // unknown market — assume data exists
+    const cached = regionProbeCache.get(country);
+    if (cached && Date.now() - cached.probedAt < REGION_PROBE_TTL_MS) {
+        return { hasData: cached.hasData, categories: cached.categories };
+    }
+    try {
+        const sample = await config_1.db.query(`SELECT country_code, category FROM (
+         SELECT country_code, category FROM products
+         WHERE is_active = true
+         ORDER BY updated_at DESC
+         LIMIT 20000
+       ) _recent`);
+        const rows = sample.rows;
+        const hasData = rows.some(r => (r.country_code || '').toUpperCase() === country);
+        const categories = new Set(rows.filter(r => (r.country_code || '').toUpperCase() === country)
+            .map(r => (r.category || '').toLowerCase().trim())
+            .filter(Boolean));
+        regionProbeCache.set(country, { hasData, categories, probedAt: Date.now() });
+        return { hasData, categories };
+    }
+    catch {
+        return { hasData: true, categories: new Set() }; // probe failure — don't fabricate no_data
+    }
+}
+/**
+ * BUY-71542 / P2.6 spec item 5: api_error empties write monitoring.alert_history.
+ */
+async function recordApiErrorAlert(tool, detail, country, responseTimeMs) {
+    try {
+        const market = (country || 'SG').toLowerCase();
+        const safeMarket = ['sg', 'us', 'my', 'vn', 'th'].includes(market) ? market : 'sg';
+        await config_1.db.query(`INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms, resolution_notes)
+       VALUES ($1, $2, $3, $4)`, [safeMarket, responseTimeMs, 0, `[P2.6 mcp_empty api_error] tool=${tool} country=${country || 'n/a'}: ${detail.slice(0, 400)}`]);
+    }
+    catch (e) {
+        console.warn('[mcp:emptiness] alert_history write failed:', e.message);
+    }
+}
+/**
+ * BUY-71542 / P2.6: record every empty MCP response for silently_empty_rate KPI.
+ * Writes a row to monitoring.mcp_empty_responses regardless of reason.
+ * Fire-and-forget — never blocks the response.
+ */
+async function recordEmptinessTelemetry(tool, emptinessReason, country, category, confidence, responseTimeMs) {
+    try {
+        await config_1.db.query(`INSERT INTO monitoring.mcp_empty_responses
+         (tool_name, emptiness_reason, requested_country_code, requested_category, confidence, response_time_ms)
+       VALUES ($1, $2, $3, $4, $5, $6)`, [tool, emptinessReason, country || null, category || null, confidence, responseTimeMs]);
+    }
+    catch (e) {
+        console.warn('[mcp:emptiness] telemetry insert failed:', e.message);
+    }
+}
+/**
+ * Apply emptiness metadata to a tool result when its payload is empty.
+ * `resultIsEmpty(result)` decides emptiness per tool shape (search envelope with
+ * products/results/data arrays, find_best_price best_price=null, list_categories
+ * data=[], find_similar similar=[]).
+ */
+function resultIsEmpty(result) {
+    if (!result || typeof result !== 'object')
+        return false;
+    const r = result;
+    for (const key of ['products', 'results', 'items', 'data', 'similar']) {
+        if (Array.isArray(r[key]))
+            return r[key].length === 0;
+    }
+    if ('best_price' in r)
+        return r.best_price == null;
+    if ('status' in r && 'rows_inserted' in r)
+        return Number(r.rows_inserted) + Number(r.rows_updated) === 0 && Number(r.rows_failed) === 0;
+    return false;
+}
+async function applyEmptiness(tool, result, signals, responseTimeMs) {
+    if (!resultIsEmpty(result))
+        return;
+    const requestedCountry = (signals.requestedCountry || '').toUpperCase() || null;
+    const regionSupported = signals.regionSupported ?? (requestedCountry ? response_1.SUPPORTED_REGIONS.has(requestedCountry) : true);
+    const { hasData, categories } = await probeRegionAndCategories(requestedCountry);
+    const categoryRequested = signals.categoryRequested ?? Boolean(signals.requestedCategory);
+    const categoryHasAnyData = signals.categoryHasAnyData ?? (categoryRequested && signals.requestedCategory
+        ? categories.has(signals.requestedCategory.toLowerCase().trim()) ||
+            [...categories].some(c => c.includes(signals.requestedCategory.toLowerCase().trim()))
+        : true);
+    const derived = (0, response_1.deriveEmptiness)({
+        regionHasAnyData: signals.regionHasAnyData ?? hasData,
+        categoryHasAnyData,
+        apiError: signals.apiError === true,
+        rateLimited: false,
+        regionSupported,
+        categoryRequested,
+        requestedCategory: signals.requestedCategory || null,
+        requestedCountry,
+        rateLimitRemaining: null,
+    });
+    const meta = (result.meta && typeof result.meta === 'object')
+        ? result.meta
+        : {};
+    result.meta = {
+        ...meta,
+        emptiness_reason: derived.emptiness_reason,
+        confidence: derived.confidence,
+        diagnostic: derived.diagnostic,
+    };
+    // BUY-71542 / P2.6: write telemetry row for silently_empty_rate KPI
+    void recordEmptinessTelemetry(tool, derived.emptiness_reason, requestedCountry, signals.requestedCategory || null, derived.confidence, responseTimeMs);
+    if (derived.emptiness_reason === 'api_error') {
+        void recordApiErrorAlert(tool, `emptiness_reason=api_error engine_status=${derived.diagnostic.engine_status}`, requestedCountry, responseTimeMs);
+    }
+}
 exports.default = router;
