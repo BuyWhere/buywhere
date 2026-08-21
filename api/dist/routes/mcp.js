@@ -11,7 +11,6 @@ const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
 const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const deviceClassifier_1 = require("../lib/deviceClassifier");
-const identifierDetector_1 = require("../lib/identifierDetector");
 const router = (0, express_1.Router)();
 // BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -268,56 +267,6 @@ async function handleSearchProducts(args) {
         }
     }
     catch (_) { /* redis miss — proceed */ }
-    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
-    // FTS entirely. FTS cannot resolve an ASIN — it returns 0 rows — and worse, it
-    // returns *wrong* rows for tokenised-but-not-identifier queries (SKU-12345 →
-    // fishing reels). The detector is conservative (short, whitespace-free input
-    // matching known global identifier formats), so a natural-language query
-    // never reaches this branch. Identifiers also force keyword-only — sending
-    // an ASIN through Jina/Gemini adds latency + cost + hallucinated neighbours.
-    const identifier = (0, identifierDetector_1.detectIdentifier)(q);
-    if (identifier) {
-        try {
-            const idIdx = 1;
-            const idParams = [identifier.normalized];
-            const idConds = ['is_active = true'];
-            idConds.push((0, identifierDetector_1.identifierMatchPredicate)(identifier, idIdx).sql);
-            if (country) {
-                idParams.push(country.toUpperCase());
-                idConds.push(`country_code = $${idParams.length}`);
-            }
-            if (domain) {
-                idParams.push(domain);
-                idConds.push(`source = $${idParams.length}`);
-            }
-            const idWhere = `WHERE ${idConds.join(' AND ')}`;
-            idParams.push(limit + 1);
-            const idLimit = idParams.length;
-            const idOffset = idParams.length + 1;
-            idParams.push(0);
-            const idResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-                price, currency, image_url, brand, mpn, gtin, category_path,
-                avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-         FROM products ${idWhere}
-         ORDER BY id DESC
-         LIMIT $${idLimit} OFFSET $${idOffset}`, idParams);
-            const idRows = idResult.rows;
-            const idTotal = idRows.length;
-            const idPage = idTotal > limit ? idRows.slice(0, limit) : idRows;
-            const idProducts = idPage.map((r) => (0, response_1.buildProduct)(r, currency, compact));
-            const idResult2 = (0, response_1.buildSearchResponse)(idProducts, idTotal, limit, 0, Date.now() - t0, false);
-            try {
-                await config_1.redis.set(cacheKey, JSON.stringify(idResult2), 'EX', 60);
-            }
-            catch (_) { /* cache write failure is non-fatal */ }
-            return { ...idResult2, identifier_kind: identifier.kind };
-        }
-        catch (idErr) {
-            // Fail-open to FTS — never let an identifier-detection bug poison the
-            // whole surface. The non-identifier fallback path is below.
-            console.warn('[search_products] identifier lookup failed, falling back to FTS:', idErr?.message);
-        }
-    }
     const conditions = ['is_active = true'];
     const params = [];
     if (q) {
