@@ -22,6 +22,16 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      simulate_overlap:
+        description: 'Set to "true" to inject a synthetic overlap (test mode)'
+        required: false
+        default: 'false'
+      test_files:
+        description: 'Comma-separated test file paths to add to pr-changed-files.txt'
+        required: false
+        default: ''
 
 concurrency:
   group: footgun-guard-${{ github.event.pull_request.number || github.ref }}
@@ -104,6 +114,19 @@ jobs:
 
           # Diff stats (line counts).
           git diff --shortstat "$BASE"...HEAD > pr-shortstat.txt || true
+
+          # Test-mode override: when invoked via workflow_dispatch with simulate_overlap=true,
+          # replace the diff with a synthetic footgun footprint. This lets ops verify
+          # the guard without staging a real destructive PR.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.simulate_overlap }}" = "true" ]; then
+            echo "TEST MODE: simulating a footgun-shape PR (override files + deletions)"
+            TEST_FILES="${{ inputs.test_files }}"
+            if [ -z "$TEST_FILES" ]; then
+              TEST_FILES="src/app/search/SearchResultsClient.tsx,api/src/types/product.ts"
+            fi
+            printf '%s\n' ${TEST_FILES//,/ } | tr ' ' '\n' | sed '/^$/d' > pr-changed-files.txt
+            echo " 1 file changed, 5 insertions(+), 120 deletions(-)" > pr-shortstat.txt
+          fi
 
           CHANGED=$(wc -l < pr-changed-files.txt)
           echo "PR/push touches $CHANGED files"
