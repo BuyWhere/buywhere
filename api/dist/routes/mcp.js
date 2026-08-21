@@ -12,6 +12,7 @@ const response_1 = require("../lib/response");
 const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const deviceClassifier_1 = require("../lib/deviceClassifier");
 const identifierDetector_1 = require("../lib/identifierDetector");
+const readReplica_1 = require("../lib/readReplica");
 const router = (0, express_1.Router)();
 // BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -357,8 +358,20 @@ async function handleSearchProducts(args) {
     // (string code like '57P01') escapes to the outer handler which checks
     // typeof code === 'number' — fails for string codes — and returns the
     // opaque -32603 "Internal error" that Tune detected.
-    const searchClient = await config_1.db.connect().catch((err) => {
-        console.warn('[search_products] db.connect failed:', err.message);
+    //
+    // BUY-65095 (live 2026-08-21): swap `db.connect()` → `servingReadDbConnect()`
+    // so the search lands on the read replica when it's healthy. REST
+    // /v1/products/search already uses this and returns 149ms with results;
+    // the MCP path was still hitting the primary catalog DB, where the same
+    // query now exceeds the 12s statement_timeout and surfaces as -32603.
+    // Replica is the load-bearing read path for full-text search; the primary
+    // is for writes/ingest.
+    const searchClient = await (0, readReplica_1.servingReadDbConnect)().catch((err) => {
+        if (err instanceof readReplica_1.ReplicaUnavailableError) {
+            console.warn('[search_products] replica unavailable, falling back to primary:', err.message);
+            return config_1.db.connect();
+        }
+        console.warn('[search_products] db.connect failed:', err?.message);
         throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
     });
     try {
@@ -710,7 +723,11 @@ async function handleGetDeals(args) {
     // a structured -32603 envelope to the MCP client instead of hanging the request.
     let products = [];
     let total = 0;
-    const dealsClient = await config_1.db.connect().catch((err) => {
+    const dealsClient = await (0, readReplica_1.servingReadDbConnect)().catch((err) => {
+        if (err instanceof readReplica_1.ReplicaUnavailableError) {
+            console.warn('[get_deals] replica unavailable, falling back to primary:', err.message);
+            return config_1.db.connect();
+        }
         console.error('[mcp] get_deals db.connect failed:', err);
         throw { code: -32603, message: 'Database unavailable' };
     });
@@ -809,8 +826,12 @@ async function handleListCategories(args) {
     }
     // 3. No in-flight query — start one and register it so concurrent callers coalesce
     const queryPromise = (async () => {
-        const client = await config_1.db.connect().catch((err) => {
-            console.warn('[list_categories] db.connect failed:', err.message);
+        const client = await (0, readReplica_1.servingReadDbConnect)().catch((err) => {
+            if (err instanceof readReplica_1.ReplicaUnavailableError) {
+                console.warn('[list_categories] replica unavailable, falling back to primary:', err.message);
+                return config_1.db.connect();
+            }
+            console.warn('[list_categories] db.connect failed:', err?.message);
             throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
         });
         try {
@@ -899,8 +920,12 @@ async function handleFindBestPrice(args) {
     // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
     // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
     // mcp-railway fbp handler and search_products.
-    const bestPriceClient = await config_1.db.connect().catch((err) => {
-        console.warn('[find_best_price] db.connect failed:', err.message);
+    const bestPriceClient = await (0, readReplica_1.servingReadDbConnect)().catch((err) => {
+        if (err instanceof readReplica_1.ReplicaUnavailableError) {
+            console.warn('[find_best_price] replica unavailable, falling back to primary:', err.message);
+            return config_1.db.connect();
+        }
+        console.warn('[find_best_price] db.connect failed:', err?.message);
         throw { code: -32603, message: 'Database connection timeout' };
     });
     let result;
