@@ -11,7 +11,7 @@
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Router, Request, Response, NextFunction } from 'express';
-import { db } from '../config';
+import { db, catalogDb } from '../config';
 
 const router = Router();
 
@@ -99,6 +99,25 @@ function requireAdminKey(req: Request, res: Response, next: NextFunction): void 
 // ---------------------------------------------------------------------------
 // GET /api/click
 // ---------------------------------------------------------------------------
+router.get('/kpi-history', requireAdminKey, async (req: Request, res: Response) => {
+  const days = Math.min(90, Math.max(1, parseInt(req.query.days as string) || 30));
+  try {
+    const r = await catalogDb.query(
+      `SELECT day, total_calls, calls_external, search_calls, zero_result_calls,
+              search_success_pct, p50_ms, p95_ms, products_est, merchants_total,
+              merchants_monetizable, clicks_total, active_ext_keys, dev_keys_external
+       FROM kpi_daily
+       WHERE day > current_date - $1::int
+       ORDER BY day`,
+      [days]
+    );
+    res.json({ data: r.rows });
+  } catch (err) {
+    console.error('[kpi-history] query error:', err);
+    res.status(500).json({ error: 'kpi query failed' });
+  }
+});
+
 router.get('/click', async (req: Request, res: Response) => {
   const url = req.query.url as string | undefined;
   if (!url) {
