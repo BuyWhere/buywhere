@@ -403,7 +403,7 @@ function USRetailerCard({
         ) : (
           <button
             disabled
-            className="w-full px-4 py-3 font-semibold rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed"
+            className="w-full px-4 py-3 font-semibold rounded-xl bg-gray-100 text-gray-400 cursor-not-allowed"
           >
             Unavailable
           </button>
@@ -585,7 +585,7 @@ function ReviewsSection({ summary }: { summary: ReviewSummary }) {
             })}
           </div>
 
-          <p className="text-xs text-gray-500 mt-4 text-center">
+          <p className="text-xs text-gray-400 mt-4 text-center">
             Last updated: {new Date(summary.last_updated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </div>
@@ -677,7 +677,7 @@ function ProductNotFoundState() {
       <Nav />
       <div className="flex-1 flex flex-col items-center justify-center py-16 px-4">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-          <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>

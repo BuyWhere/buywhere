@@ -4,6 +4,8 @@ description: "Fetch full details for a single product by its UUID."
 public: true
 ---
 
+# Get Product
+
 ```
 GET /v1/products/{id}
 ```

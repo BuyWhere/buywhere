@@ -29,11 +29,9 @@ import webhooksRouter from './routes/webhooks';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
 import { histogramLatencyMiddleware } from './middleware/latency';
-import { withAgentHeaders } from './middleware/agentHeaders';
 import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
-import adminEmbeddingsRouter from './routes/admin/embeddings';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
@@ -52,28 +50,14 @@ export function createApp() {
   const app = express();
 
   app.use(cors({
-    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://buywhere.ai,https://www.buywhere.ai').split(',').map((o) => o.trim()),
+    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
     credentials: true,
-    // BUY-71736: P2.3 — expose the five agent-discovery headers so browser
-    // agents (LangChain in-browser, etc.) can read them via XHR/fetch.
-    // No wildcards; explicit list per CORS spec.
-    exposedHeaders: [
-      'X-Agent-Protocol',
-      'X-Agent-Card',
-      'X-LLMs-Txt',
-      'X-Agent-Index',
-      'X-Agent-Auth',
-    ],
   }));
   app.use((_req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('X-Frame-Options', 'DENY');
     next();
   });
-  // BUY-71736: P2.3 — emit X-Agent-{Protocol,Card,LLMs-Txt} on every
-  // api.buywhere.ai/* response. X-Agent-Index is added post-render on 200
-  // catalog routes; X-Agent-Auth on 401/403. See ./middleware/agentHeaders.ts.
-  app.use(withAgentHeaders);
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(compression());
@@ -487,10 +471,6 @@ export function createApp() {
   // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
   // Auth is handled inside the router via Authorization: Bearer <admin key>.
   app.use(adminFxRefreshRouter);
-
-  // BUY-72361: admin endpoint exposing embedding coverage stats. Same admin
-  // authentication as the other /v1/admin/* routes.
-  app.use(adminEmbeddingsRouter);
 
   // 404 fallback
   app.use((_req, res) => {

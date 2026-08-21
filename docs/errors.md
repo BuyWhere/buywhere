@@ -4,6 +4,8 @@ description: "All error responses follow this format:"
 public: true
 ---
 
+# Error Reference
+
 All error responses follow this format:
 
 ```json

@@ -9,10 +9,6 @@
  * Tools: search_products, get_product, compare_products, get_deals,
  *        list_categories, find_best_price, find_similar
  *
- * BUY-71817 / P2.7: search_products / get_deals / find_best_price accept
- *   `api_version: "v2"` which makes `deliver_to` (ISO-3166 alpha-2) REQUIRED.
- *   v1 (default) keeps deliver_to optional for backward compatibility.
- *
  * Environment variables:
  *   BUYWHERE_API_KEY   — Required. Bearer token for API auth.
  *   BUYWHERE_API_URL   — Optional. Base URL WITHOUT the /mcp suffix
@@ -139,19 +135,6 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        api_version: {
-          type: 'string',
-          enum: ['v1', 'v2'],
-          description:
-            'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.',
-          default: 'v1',
-        },
-        deliver_to: {
-          type: 'string',
-          description:
-            "Buyer's ISO 3166-1 alpha-2 country code (e.g. \"SG\", \"US\", \"MY\", \"TH\", \"VN\"). ALWAYS pass this — it scopes results to products deliverable to that market, ranks them local-first, and labels availability per row. Takes precedence over country_code and country. REQUIRED on api_version=v2.",
-          pattern: '^[A-Z]{2}$',
-        },
         q: { type: 'string', description: 'Keyword search query' },
         domain: {
           type: 'string',
@@ -241,19 +224,6 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        api_version: {
-          type: 'string',
-          enum: ['v1', 'v2'],
-          description:
-            'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.',
-          default: 'v1',
-        },
-        deliver_to: {
-          type: 'string',
-          description:
-            "Buyer's ISO 3166-1 alpha-2 country code (e.g. \"SG\", \"US\"). REQUIRED on api_version=v2.",
-          pattern: '^[A-Z]{2}$',
-        },
         min_discount: {
           type: 'number',
           description: 'Minimum discount percentage (default 10)',
@@ -312,25 +282,19 @@ const TOOLS: Tool[] = [
       "Use this whenever a user asks about prices, wants to find the cheapest option, or asks \"what's the best price for X\" or \"where can I buy X for the lowest price\". This finds the best current price across all merchants.",
     inputSchema: {
       type: 'object',
-      required: ['product_name'],
       properties: {
-        api_version: {
+        q: {
           type: 'string',
-          enum: ['v1', 'v2'],
-          description:
-            'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.',
-          default: 'v1',
-        },
-        deliver_to: {
-          type: 'string',
-          description:
-            "Buyer's ISO 3166-1 alpha-2 country code (e.g. \"SG\", \"US\"). REQUIRED on api_version=v2.",
-          pattern: '^[A-Z]{2}$',
+          description: 'Keyword search query — alias for product_name',
         },
         product_name: {
           type: 'string',
           description:
             'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
+        },
+        q: {
+          type: 'string',
+          description: 'Alias for product_name (deprecated, use product_name).',
         },
         category: { type: 'string', description: 'Category to filter by' },
         country_code: {

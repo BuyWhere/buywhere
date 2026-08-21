@@ -4,6 +4,8 @@ description: "Build a CLI tool that searches for a product across multiple retai
 public: true
 ---
 
+# Build a Price Comparison Tool with Python
+
 Build a CLI tool that searches for a product across multiple retailers and shows the best prices, in under 50 lines of Python.
 
 ## Prerequisites
@@ -137,6 +139,6 @@ comparison = compare(top_ids)
 
 ## Next Steps
 
-- [API Reference](/api-reference/search) — full search parameter documentation
-- [MCP Integration](/guides/mcp-integration) — connect BuyWhere to AI agents
-- [Error Reference](/errors) — handle errors gracefully
+- [API Reference](/docs/api-reference/search) — full search parameter documentation
+- [MCP Integration](/docs/guides/mcp-integration) — connect BuyWhere to AI agents
+- [Error Reference](/docs/errors) — handle errors gracefully

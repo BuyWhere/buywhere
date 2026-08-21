@@ -169,14 +169,11 @@ export default function ApiKeysPage() {
               <div className="md:col-span-3">
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="api-key-name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Your name <span className="text-red-500" aria-hidden="true">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Your name <span className="text-red-500">*</span>
                     </label>
                     <input
-                      id="api-key-name"
-                      name="name"
                       type="text"
-                      autoComplete="name"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -186,14 +183,11 @@ export default function ApiKeysPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="api-key-email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500" aria-hidden="true">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email <span className="text-red-500">*</span>
                     </label>
                     <input
-                      id="api-key-email"
-                      name="email"
                       type="email"
-                      autoComplete="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -203,12 +197,10 @@ export default function ApiKeysPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="api-key-usecase" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       What are you building?
                     </label>
                     <select
-                      id="api-key-usecase"
-                      name="useCase"
                       value={useCase}
                       onChange={(e) => setUseCase(e.target.value)}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-700"
@@ -243,7 +235,7 @@ export default function ApiKeysPage() {
               {/* Side info */}
               <div className="md:col-span-2 space-y-5">
                 <div className="bg-indigo-50 rounded-xl p-5">
-                  <h2 className="font-semibold text-gray-900 mb-3 text-sm">What you get</h2>
+                  <h3 className="font-semibold text-gray-900 mb-3 text-sm">What you get</h3>
                   <ul className="space-y-2 text-sm text-gray-600">
                     {[
                       "Instant API key — no waiting",

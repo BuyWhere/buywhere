@@ -5,14 +5,12 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
-import Schema from "@/components/Schema";
-import { buildWebPageSchema } from "@/lib/page-schema";
 
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
-    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 891,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
+    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 238,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
   path: "/developers",
 });
 
@@ -185,18 +183,6 @@ export default function DevelopersPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Schema
-        data={buildWebPageSchema({
-          path: "/developers",
-          name: "Developer Portal — BuyWhere MCP & API for AI Agents",
-          description:
-            "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 891,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
-          breadcrumb: [
-            { name: "Home", path: "/" },
-            { name: "Developer Portal", path: "/developers" },
-          ],
-        })}
-      />
       <Script id="organization-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(organizationSchema)}
       </Script>
@@ -221,7 +207,7 @@ export default function DevelopersPage() {
             Launch your shopping agent with one clear setup path.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 891,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
+            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 238,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
           </p>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
             Start with one API request, then add the published MCP package when you want BuyWhere tools inside Claude Desktop, Cursor, or another MCP client.
@@ -247,9 +233,9 @@ export default function DevelopersPage() {
       <section className="bg-indigo-950 text-indigo-100 py-4">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-center">
-            <span>392M+ products</span>
+            <span>300M+ products</span>
             <span className="hidden sm:block text-indigo-600">·</span>
-            <span>891,000+ direct merchants</span>
+            <span>238,000+ direct merchants</span>
             <span className="hidden sm:block text-indigo-600">·</span>
             <span>Real-time pricing</span>
           </div>

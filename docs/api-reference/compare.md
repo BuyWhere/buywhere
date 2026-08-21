@@ -4,6 +4,8 @@ description: "Side-by-side comparison of 2–10 products with normalized pricing
 public: true
 ---
 
+# Compare Products
+
 ```
 GET /v1/products/compare
 ```

@@ -98,12 +98,6 @@ function parseToolResult(methodName, body) {
     fail(`Tool ${methodName} returned non-JSON content`, { text, error: String(error) });
   }
 
-  // BUY-68757: live MCP envelope wraps rows under `data`, not `results`.
-  // Backward-compat: fall back to whichever key is present.
-  if (parsed && !Array.isArray(parsed.results) && Array.isArray(parsed.data)) {
-    parsed.results = parsed.data;
-  }
-
   return parsed;
 }
 
@@ -235,16 +229,13 @@ async function run() {
   {
     const { latencyMs, body } = await rpc(baseUrl, 'tools/call', {
       name: 'find_best_price',
-      arguments: { product_name: 'laptop', country_code: 'US' },
+      arguments: { product_name: 'iphone 15', country_code: 'SG' },
     }, { auth: true, id: 'find_best_price' });
 
     const parsed = parseToolResult('find_best_price', body);
-    // BUY-68757: find_best_price returns {best_price, alternatives, meta}.
-    // Probe accepts any of the three shapes — rows in results/data is wrong here.
-    const alternatives = ensureArray(parsed.alternatives);
-    const bestPriceAny = parsed.best_price && typeof parsed.best_price === 'object';
-    if (!alternatives.length && !bestPriceAny) {
-      fail('find_best_price returned no result', { parsed });
+    const results = ensureArray(parsed.results);
+    if (!results.length) {
+      fail('find_best_price returned no results', { parsed });
     }
 
     probes.push({

@@ -206,7 +206,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-900">Live catalog snapshot</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
               <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">

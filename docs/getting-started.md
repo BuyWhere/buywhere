@@ -4,6 +4,8 @@ description: "BuyWhere is a product catalog API built for AI agents and develope
 public: true
 ---
 
+# Getting Started
+
 BuyWhere is a product catalog API built for AI agents and developers. Search 5M+ products from 40+ retailers across Southeast Asia and the US, compare prices, track deals, and integrate product data into any application or AI workflow.
 
 ## Get Your API Key
@@ -115,8 +117,8 @@ See [Pricing](https://buywhere.ai/pricing) for full details.
 
 ## What's Next
 
-- [Authentication](/authentication) — API key usage, rate limits, and headers
-- [API Reference](/api-reference/search) — full endpoint documentation
-- [Error Reference](/errors) — all error codes and responses
+- [Authentication](/docs/authentication) — API key usage, rate limits, and headers
+- [API Reference](/docs/api-reference/search) — full endpoint documentation
+- [Error Reference](/docs/errors) — all error codes and responses
 - [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart guide
 - [MCP Integration](/guides/mcp-integration) — connect BuyWhere to Claude Desktop, Cursor, and other AI tools

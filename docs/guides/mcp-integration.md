@@ -4,6 +4,8 @@ description: "BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and
 public: true
 ---
 
+# AI Agent Integration via MCP
+
 BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and any [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) client. This guide shows you how to set it up.
 
 ## What You Get
@@ -166,6 +168,6 @@ BuyWhere exposes standard discovery endpoints for AI agent platforms:
 
 ## Next Steps
 
-- [Getting Started](/) — get your API key and make your first call
-- [API Reference](/api-reference/search) — full endpoint documentation
-- [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart
+- [Getting Started](/docs/getting-started) — get your API key and make your first call
+- [API Reference](/docs/api-reference/search) — full endpoint documentation
+- [Build a Price Comparison Tool](/docs/guides/price-comparison) — Python quickstart

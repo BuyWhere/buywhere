@@ -130,37 +130,18 @@ function sendSpecError(res, error, message, statusCode) {
 }
 const TIER_UPGRADE = {
     free: { next: 'Starter', price: 29 },
-    verified_agent: { next: 'Starter', price: 29 },
     starter: { next: 'Pro', price: 99 },
     pro: null,
-    scale: null,
 };
-// The highest-leverage 429 nudge: what should THIS tier do next? For unverified
-// keys the best step is FREE (verify email -> 200 rpm / 10k day, a 10x jump),
-// not "go pay". For verified/free -> paid Starter. Returns a structured hint
-// used by both the per-minute and daily limit responses.
-function nextStepForTier(tier) {
-    if (tier === 'unverified') {
-        return {
-            action: 'verify_email',
-            message: 'Verify your email to unlock 200 requests/min and 10,000/day — free, no card. POST /v1/auth/resend-verification { "email": "..." }.',
-            url: 'https://api.buywhere.ai/v1/auth/resend-verification',
-        };
-    }
-    const up = TIER_UPGRADE[tier];
-    if (up) {
-        return {
-            action: 'upgrade',
-            message: `Upgrade to ${up.next} at $${up.price}/mo for higher limits.`,
-            url: 'https://buywhere.ai/pricing',
-        };
-    }
-    return null;
-}
 function sendDailyLimitError(res, tier, limit, resetAt) {
-    const step = nextStepForTier(tier);
-    const base = `Daily limit of ${limit.toLocaleString()} requests reached for ${capitalize(tier)} tier (resets at midnight UTC).`;
-    const message = step ? `${base} ${step.message}` : base;
+    const upgrade = TIER_UPGRADE[tier];
+    let message;
+    if (upgrade) {
+        message = `Daily limit of ${limit.toLocaleString()} requests exceeded for ${capitalize(tier)} tier. Upgrade to ${upgrade.next} at $${upgrade.price}/mo.`;
+    }
+    else {
+        message = `Daily limit of ${limit.toLocaleString()} requests reached. Resets at midnight UTC.`;
+    }
     res.set('Retry-After', String(Math.max(1, Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000))));
     res.status(429).json({
         error: 'rate_limit_exceeded',
@@ -168,25 +149,18 @@ function sendDailyLimitError(res, tier, limit, resetAt) {
         tier,
         limit,
         reset_at: resetAt,
-        next_step: step?.action ?? null,
-        next_step_url: step?.url ?? null,
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }
 function sendPerMinuteLimitError(res, tier, limit) {
     const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
-    const step = nextStepForTier(tier);
-    const base = `Rate limit of ${limit} requests/min exceeded for ${capitalize(tier)} tier.`;
-    const message = step ? `${base} ${step.message}` : base;
     res.set('Retry-After', String(retryAfter));
     res.status(429).json({
         error: 'rate_limit_exceeded',
-        message,
+        message: `Rate limit of ${limit} requests/min exceeded for ${capitalize(tier)} tier.`,
         tier,
         limit,
         window: '60s',
-        next_step: step?.action ?? null,
-        next_step_url: step?.url ?? null,
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }

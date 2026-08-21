@@ -94,11 +94,11 @@ async def get_sitemap(request: Request, db: AsyncSession = Depends(get_db)) -> R
     US products sitemap - top 50K products by view count.
 
     Issue: BUY-3124
-    Format: https://us.buywhere.ai/product/{id}
+    Format: https://us.buywhere.com/product/{id}
     Priority: 0.8, Changefreq: daily
     """
     base_url = str(request.base_url).rstrip("/").replace("http://", "https://")
-    us_base_url = base_url.replace(".buywhere.ai", ".us.buywhere.ai")
+    us_base_url = base_url.replace(".buywhere.com", ".us.buywhere.com")
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
     US_PRODUCT_PRIORITY = "0.8"

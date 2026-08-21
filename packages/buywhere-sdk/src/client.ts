@@ -24,6 +24,7 @@ import type {
   SearchResponse,
   Webhook,
   WebhookCreateResponse,
+  WebhookListResponse,
   GetProductAlertsParams,
   ProductAlert,
 } from './types';
@@ -252,7 +253,9 @@ export class BuyWhereClient {
   async compare(params: string | CompareParams): Promise<CompareResponse>;
   async compare(params: ProductId[] | string | CompareParams): Promise<CompareResponse> {
     if (Array.isArray(params)) {
-      return this.compareByIds(params);
+      return this.post<CompareResponse>('/v1/products/compare', {
+        product_ids: params,
+      });
     }
 
     if (typeof params === 'string') {
@@ -269,23 +272,9 @@ export class BuyWhereClient {
       return this.request<CompareResponse>(path);
     }
 
-    return this.compareByIds(params.product_ids ?? []);
-  }
-
-  // BUY-70605: prod route is GET /v1/products/compare?ids=id1,id2 — not POST.
-  // See api/src/routes/products.ts:1796 for the on-disk handler.
-  private async compareByIds(productIds: ProductId[]): Promise<CompareResponse> {
-    if (productIds.length < 2) {
-      throw new BuyWhereError(
-        'compare() requires at least 2 product IDs (prod returns "Provide at least 2 product IDs via ?ids=id1,id2" otherwise).',
-        400,
-        undefined,
-        'compare_ids_too_few'
-      );
-    }
-
-    const ids = productIds.map((id) => String(id)).join(',');
-    return this.request<CompareResponse>(`/v1/products/compare?ids=${encodeURIComponent(ids)}`);
+    return this.post<CompareResponse>('/v1/products/compare', {
+      product_ids: params.product_ids,
+    });
   }
 
   async deals(params?: DealsParams): Promise<DealsResponse> {
@@ -309,10 +298,7 @@ export class BuyWhereClient {
       query.set('offset', String(params.offset));
     }
 
-    // BUY-70605: prod route is /v1/products/deals (mounted under productsRouter),
-    // NOT /v1/deals — that path has been 404 since at least 2026-08-16.
-    // See api/src/routes/products.ts:1600.
-    return this.request<DealsResponse>(`/v1/products/deals?${query.toString()}`);
+    return this.request<DealsResponse>(`/v1/deals?${query.toString()}`);
   }
 
   async getProduct(productId: number): Promise<ProductDetail> {
@@ -383,39 +369,30 @@ export class BuyWhereClient {
       query.set('min_discount_pct', String(params.min_discount_pct));
     }
 
-    // BUY-70605: /v1/deals/feed was a phantom route — never implemented server-side
-    // (api/src/routes/products.ts has no /deals/feed handler). Replaced with a clear
-    // runtime error pointing callers at client.deals() instead. Removed in the next
-    // major version; tracked in BUY-70605 for Aria/DevRel doc alignment.
-    throw new BuyWhereError(
-      'getDealsFeed() is no longer supported — the /v1/deals/feed route was never deployed. Use client.deals({ country, category, limit, offset }) instead. (BUY-70605)',
-      410,
-      undefined,
-      'getDealsFeed_removed'
-    );
+    return this.request<DealsFeedResponse>(`/v1/deals/feed?${query.toString()}`);
   }
 
-  // BUY-70872: /v1/products/{id}/reviews/summary was a phantom route — no handler
-  // exists in api/src/routes/products.ts. The 429 daily-quota response on /v1/products/*
-  // masks this in live probes, but the route is absent in source and 404s once quota resets.
-  async getProductReviewsSummary(_params: GetProductReviewsParams): Promise<ReviewSummary> {
-    throw new BuyWhereError(
-      'getProductReviewsSummary() is not supported — the /v1/products/{id}/reviews/summary route was never deployed. (BUY-70872)',
-      501,
-      undefined,
-      'reviewsSummary_unavailable'
-    );
+  async getProductReviewsSummary(params: GetProductReviewsParams): Promise<ReviewSummary> {
+    const query = new URLSearchParams();
+    query.set('product_id', String(params.product_id));
+
+    if (params.country) {
+      query.set('country', params.country);
+    }
+
+    return this.request<ReviewSummary>(`/v1/products/${params.product_id}/reviews/summary?${query.toString()}`);
   }
 
-  // BUY-70872: /v1/products/{id}/alerts was a phantom route — no handler exists in
-  // api/src/routes/products.ts. Same 429-masking caveat as reviews/summary above.
-  async getProductAlerts(_params: GetProductAlertsParams): Promise<ProductAlert[]> {
-    throw new BuyWhereError(
-      'getProductAlerts() is not supported — the /v1/products/{id}/alerts route was never deployed. (BUY-70872)',
-      501,
-      undefined,
-      'productAlerts_unavailable'
-    );
+  async getProductAlerts(params: GetProductAlertsParams): Promise<ProductAlert[]> {
+    const query = new URLSearchParams();
+    if (params.country) {
+      query.set('country', params.country);
+    }
+
+    const queryStr = query.toString();
+    const path = `/v1/products/${params.product_id}/alerts${queryStr ? `?${queryStr}` : ''}`;
+    const response = await this.request<{ alerts: ProductAlert[] }>(path);
+    return response.alerts ?? [];
   }
 
   async batchSearch(params: BatchSearchParams): Promise<BatchSearchResult> {
@@ -489,33 +466,37 @@ export class BuyWhereClient {
     return auth;
   }
 
-  // BUY-70872: /v1/keys/{id}/rotate was a phantom route — api/src/routes/keys.ts
-  // only implements POST /v1/keys (create). Rotation was never deployed, so this
-  // call 404s against production. Create a fresh key with POST /v1/keys and retire
-  // the old one out-of-band until a real rotation endpoint ships.
   async rotateApiKey(): Promise<RotateApiKeyResponse> {
-    throw new BuyWhereError(
-      'rotateApiKey() is not supported — the /v1/keys/{id}/rotate route was never deployed. Create a replacement key with POST /v1/keys instead. (BUY-70872)',
-      501,
-      undefined,
-      'rotateApiKey_unavailable'
-    );
+    const keyId = this.currentKeyId ?? (await this.getAuthMe()).key_id;
+    const response = await this.post<Record<string, unknown>>(`/v1/keys/${keyId}/rotate`, {});
+    const newApiKey = getString(response, ['newApiKey', 'new_api_key', 'apiKey', 'api_key', 'key']);
+    const oldKeyExpiresAt = getString(response, ['oldKeyExpiresAt', 'old_key_expires_at', 'expiresAt', 'expires_at']);
+
+    if (!newApiKey || !oldKeyExpiresAt) {
+      throw new BuyWhereError(
+        'Key rotation response did not include the expected fields.',
+        500,
+        JSON.stringify(response)
+      );
+    }
+
+    return {
+      newApiKey,
+      oldKeyExpiresAt,
+    };
   }
 
-  // BUY-70872: /v1/webhooks was a phantom route — the API's only webhook surface is
-  // the internal relay at /webhooks (uptime-robot, stripe), not a customer-facing
-  // subscription API. All three methods 404 against production. Poll deals()/search()
-  // until a real webhook API ships.
-  async createWebhook(_url: string, _events: string[]): Promise<WebhookCreateResponse> {
-    throw webhooksUnavailable('createWebhook');
+  async createWebhook(url: string, events: string[]): Promise<WebhookCreateResponse> {
+    return this.post<WebhookCreateResponse>('/v1/webhooks', { url, events });
   }
 
   async listWebhooks(): Promise<Webhook[]> {
-    throw webhooksUnavailable('listWebhooks');
+    const response = await this.request<WebhookListResponse>('/v1/webhooks');
+    return response.webhooks;
   }
 
-  async deleteWebhook(_id: string): Promise<void> {
-    throw webhooksUnavailable('deleteWebhook');
+  async deleteWebhook(id: string): Promise<void> {
+    await this.delete<void>(`/v1/webhooks/${id}`);
   }
 }
 
@@ -539,16 +520,6 @@ export class BuyWhereError extends Error {
 
 export { BuyWhereClient as Client };
 export type { SearchParams, CompareParams, DealsParams } from './types';
-
-// BUY-70872: shared 501 for the phantom /v1/webhooks surface.
-function webhooksUnavailable(method: string): BuyWhereError {
-  return new BuyWhereError(
-    `${method}() is not supported — the /v1/webhooks route was never deployed. BuyWhere has no customer-facing webhook API yet; poll client.deals() or client.search() instead. (BUY-70872)`,
-    501,
-    undefined,
-    'webhooks_unavailable'
-  );
-}
 
 function parseJson(value: string): unknown {
   if (!value) {

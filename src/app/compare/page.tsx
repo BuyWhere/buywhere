@@ -54,20 +54,56 @@ type ComparePageProps = {
   }>;
 };
 
+// BUY-69732: same CollectionPage entity as before, now inside a @graph so the
+// route also carries a BreadcrumbList (Home > Compare) alongside it.
 const schemaMarkup = {
   "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  "@id": `${toSiteUrl("/compare/")}#collection`,
-  name: "Compare Product Prices by Market",
-  description:
-    "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-  url: toSiteUrl("/compare/"),
-  mainEntityOfPage: toSiteUrl("/compare/"),
-  publisher: {
-    "@type": "Organization",
-    "@id": `${toSiteUrl("/#organization")}`,
-    name: "BuyWhere",
-  },
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${toSiteUrl("/compare")}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: toSiteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Compare",
+          item: toSiteUrl("/compare"),
+        },
+      ],
+    },
+    {
+      "@type": "CollectionPage",
+      "@id": `${toSiteUrl("/compare/")}#collection`,
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+      url: toSiteUrl("/compare/"),
+      mainEntityOfPage: toSiteUrl("/compare/"),
+      isPartOf: { "@id": `${toSiteUrl("/compare")}#webpage` },
+      publisher: {
+        "@type": "Organization",
+        "@id": `${toSiteUrl("/#organization")}`,
+        name: "BuyWhere",
+      },
+    },
+    {
+      "@type": "WebPage",
+      "@id": `${toSiteUrl("/compare")}#webpage`,
+      url: toSiteUrl("/compare"),
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+      inLanguage: "en-US",
+      isPartOf: { "@id": "https://buywhere.ai/#website" },
+      breadcrumb: { "@id": `${toSiteUrl("/compare")}#breadcrumb` },
+    },
+  ],
 };
 
 async function fetchJson(url: string) {

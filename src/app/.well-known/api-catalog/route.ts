@@ -2,7 +2,7 @@ const apiCatalog = {
   apis: [
     {
       name: "BuyWhere Catalog API",
-      description: "Agent-native product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 392M+ products from 891,000+ storefronts worldwide, normalized into one schema. Location-aware search accepts deliver_to=<ISO country> so agents rank products the end user can actually receive, with availability labels on every result.",
+      description: "Agent-native product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 300M+ products from 238,000+ storefronts worldwide, normalized into one schema. Location-aware search accepts deliver_to=<ISO country> so agents rank products the end user can actually receive, with availability labels on every result.",
       documentationUrl: "https://buywhere.ai/docs/API_DOCUMENTATION",
       specificationUrl: "https://api.buywhere.ai/openapi.json",
       signupUrl: "https://buywhere.ai/api-keys",

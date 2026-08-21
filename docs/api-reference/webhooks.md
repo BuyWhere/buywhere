@@ -4,6 +4,8 @@ description: "Register a webhook URL to receive notifications when product price
 public: true
 ---
 
+# Webhooks
+
 **Info:**
 Webhooks require a **Pro** or **Enterprise** tier API key.
 

@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
-const semanticCache_1 = require("../lib/semanticCache");
 const posthog_1 = require("../analytics/posthog");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -71,11 +70,6 @@ function extractResultCount(body, statusCode) {
         }
         return null;
     }
-    // Timeout/degraded empty responses are NOT true zero-result searches —
-    // logging them as 0 poisons the zero-result KPI. Log null instead.
-    const meta = b.meta;
-    if (meta && meta.degraded === true && Array.isArray(b.data) && b.data.length === 0)
-        return null;
     if (Array.isArray(b.data))
         return b.data.length;
     if (Array.isArray(b.results))
@@ -103,14 +97,6 @@ function queryLogMiddleware(endpoint) {
         };
         // Hook into response finish to capture status code, timing, and result count
         res.once('finish', () => {
-            // Central semantic-cache registration (2026-08-06): the search route stashes
-            // scope/qNorm/vector/cacheKey on cache miss; every successful store path
-            // (tier, archive, fallback) then gets registered here exactly once.
-            if (res.locals.semScope && res.locals.semQNorm && res.locals.semCacheKey &&
-                res.statusCode === 200 && (res.locals.resultCount ?? 0) > 0 &&
-                res.locals.cacheHit !== true) {
-                (0, semanticCache_1.semanticRegister)(config_1.redis, res.locals.semScope, res.locals.semQNorm, res.locals.semVec ?? null, res.locals.semCacheKey).catch(() => { });
-            }
             const apiKeyRecord = req.apiKeyRecord;
             // Log all requests — unauthenticated ones recorded with null api_key_id
             // so we capture total demand even before API key adoption ramps up.

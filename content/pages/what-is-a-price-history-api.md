@@ -304,7 +304,7 @@ Cold data (1+ years): Monthly aggregates
 ### Get Full Price History
 
 ```bash
-curl "https://api.buywhere.ai/v1/products/PRD-SONY-WH1000XM5-BLK/price-history\
+curl "https://api.buywhere.com/v1/products/PRD-SONY-WH1000XM5-BLK/price-history\
   ?from=2025-01-01&to=2026-05-08&granularity=daily" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
@@ -312,7 +312,7 @@ curl "https://api.buywhere.ai/v1/products/PRD-SONY-WH1000XM5-BLK/price-history\
 ### Get Price Chart Data
 
 ```bash
-curl "https://api.buywhere.ai/v1/products/PRD-SONY-WH1000XM5-BLK/price-chart\
+curl "https://api.buywhere.com/v1/products/PRD-SONY-WH1000XM5-BLK/price-chart\
   ?from=2025-01-01&to=2026-05-08" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```

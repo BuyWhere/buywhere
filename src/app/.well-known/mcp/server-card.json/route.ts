@@ -1,7 +1,7 @@
 export const serverCard = {
   name: "buywhere-catalog",
   title: "BuyWhere Catalog MCP Server",
-  description: "Agent-native product catalog API. Search, compare, and retrieve products from 392M+ products across 891,000+ storefronts worldwide. Use deliver_to to rank products your end user can receive, with availability labels on every result.",
+  description: "Agent-native product catalog API. Search, compare, and retrieve products from 300M+ products across 238,000+ storefronts worldwide. Use deliver_to to rank products your end user can receive, with availability labels on every result.",
   version: "1.0.0",
   homepage: "https://buywhere.ai",
   documentation: "https://api.buywhere.ai/docs/guides/mcp",
@@ -25,7 +25,7 @@ export const serverCard = {
     {
       name: "search_products",
       description:
-        "Search the BuyWhere product catalog by keyword. Returns ranked results from 392M+ products worldwide with deliver_to-aware availability labels.",
+        "Search the BuyWhere product catalog by keyword. Returns ranked results from 300M+ products worldwide with deliver_to-aware availability labels.",
       inputSchema: {
         type: "object",
         properties: {
@@ -58,6 +58,7 @@ export const serverCard = {
         type: "object",
         properties: {
           product_name: { type: "string", description: "Product name to search for" },
+          q: { type: "string", description: "Alias for product_name (deprecated, use product_name)." },
           category: { type: "string", description: "Category slug filter" },
           deliver_to: { type: "string", description: "End-user ISO country code for availability-aware ranking" },
         },

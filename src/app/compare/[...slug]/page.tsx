@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -60,7 +59,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     return {
       title: doc.title, description: doc.description,
       alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
-      openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere" },
+      openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere", images: [{ url: "/og-image.png", width: 1200, height: 630, alt: doc.title }] },
+      robots: { index: true, follow: true },
     };
   }
 
@@ -73,7 +73,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: toSiteUrl(`/compare/${slug}`) },
-    openGraph: { title, description, type: "website", url: toSiteUrl(`/compare/${slug}`), siteName: "BuyWhere" },
+    openGraph: { title, description, type: "website", url: toSiteUrl(`/compare/${slug}`), siteName: "BuyWhere", images: [{ url: "/og-image.png", width: 1200, height: 630, alt: title }] },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -126,8 +127,8 @@ function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <Script id="compare-pair-breadcrumb-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(breadcrumbSchema)}</Script>
-      <Script id="compare-pair-itemlist-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(itemListSchema)}</Script>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
       <Nav />
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
@@ -195,7 +196,7 @@ export default async function CompareContentPage({ params }: Params) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {faqSchema && <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(faqSchema)}</Script>}
+      {faqSchema && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />}
       <Nav />
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">

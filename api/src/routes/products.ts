@@ -12,10 +12,9 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/resp
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
-import { detectIdentifier, identifierMatchPredicate, identifierForcesKeywordMode, IdentifierDetection } from '../lib/identifierDetector';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -38,7 +37,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost'; // BUY-69753: bust stale phone-accessory ranking cache entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -103,120 +102,6 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
-// ── Identifier lookup (BUY-72362). Runs BEFORE tier/keyword/archive/vector.
-// Detects ASIN/EAN/GTIN/UPC/Apple-part/model-number queries and resolves them
-// to an exact match against `gtin` / `mpn` / `sku`. FTS cannot resolve these
-// shapes — ASINs share no meaningful tokens with product titles — and the
-// tokenised fallback for generic SKUs (`SKU-12345` → fishing reels) is a
-// confident wrong answer. Returns true if it handled the request (including
-// the deliberate "no exact match" 0-result case); returns false if the query
-// is not identifier-shaped, so the caller falls through to the FTS path
-// unchanged. Errors also return false to preserve the existing fail-open
-// contract. Cached alongside the FTS path under `search:...` keys.
-async function tryIdentifierLookup(
-  req: Request,
-  res: Response,
-  p: {
-    id: IdentifierDetection; countryCode?: string; currency: string; limit: number; offset: number;
-    minPrice?: number; maxPrice?: number; brand?: string; domain?: string;
-    compact: boolean; requestStart: number; cacheKey: string;
-    deliverTo?: string; includeUnshippable?: boolean;
-  },
-): Promise<boolean> {
-  let client: PoolClient;
-  try { client = await servingReadDbConnect(); } catch { return false; }
-  try {
-    const conds: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    const idIdx = i; params.push(p.id.normalized); i++;
-    conds.push(identifierMatchPredicate(p.id, idIdx).sql);
-    if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
-    if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
-    if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
-    conds.push(`sp.is_active = true`);
-    conds.push(`sp.price > 0`);
-    const whereSql = `WHERE ${conds.join(' AND ')}`;
-    const limitIdx = i; params.push(p.limit + 1); i++;
-    const offsetIdx = i; params.push(p.offset); i++;
-
-    await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '2000'`);
-    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
-      sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
-      sp.sku AS source_id, sp.brand, sp.mpn, sp.gtin, sp.category_path, sp.category, sp.merchant_id,
-      sp.avg_rating, sp.review_count, sp.created_at, sp.description, sp.metadata,
-      jsonb_build_object('brand', sp.brand, 'category', sp.category,
-        'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
-
-    let rows: Array<Record<string, unknown>> = [];
-    let source = 'identifier_tier';
-    try {
-      const r = await client.query(
-        `SELECT ${cols} FROM products sp
-         LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-         ${whereSql}
-         ORDER BY sp.id DESC
-         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-        params,
-      );
-      rows = r.rows;
-    } catch (tierErr) {
-      await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
-      source = 'identifier_archive';
-      try {
-        await client.query('SAVEPOINT before_archive');
-        const r = await client.query(
-          `SELECT ${cols.replace(/sp\./g, 'products.')} FROM products
-           LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-           ${whereSql.replace(/sp\./g, 'products.')}
-           ORDER BY products.id DESC
-           LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-          params,
-        );
-        rows = r.rows;
-      } catch (archiveErr) {
-        await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
-        throw archiveErr;
-      }
-    }
-    await client.query('COMMIT');
-    client.release();
-
-    if (rows.length === 0) {
-      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
-      emptyBody.source = source;
-      emptyBody.identifier_kind = p.id.kind;
-      annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
-      redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
-      res.set('X-Identifier-Lookup', p.id.kind);
-      res.set('X-Identifier-Resolved', '0');
-      res.json(emptyBody);
-      return true;
-    }
-
-    const hasMore = rows.length > p.limit;
-    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    const total = p.offset + rows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
-    responseBody.source = source;
-    responseBody.identifier_kind = p.id.kind;
-    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
-    redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
-    res.set('X-Identifier-Lookup', p.id.kind);
-    res.set('X-Identifier-Resolved', String(rows.length));
-    res.json(responseBody);
-    return true;
-  } catch (e) {
-    try { await client.query('ROLLBACK').catch(() => {}); } catch { /* ignore */ }
-    try { client.release(); } catch { /* ignore */ }
-    console.warn('[identifier] fell back:', (e as Error)?.message);
-    return false;
-  }
-}
-
 // ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
 // (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
 // AND-first-then-OR for precision+recall. Returns true if it responded; returns false
@@ -239,8 +124,17 @@ async function tryTierSearch(
   // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
   // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
   // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
-  // path reads from products sp). See lib/searchRelevanceTaxonomy.
+  // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
   const storageExcl = deviceStorageExclusionFragment(p.q);
+  // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
+  // writes 'home-living' for electronics) while products.metadata carries the
+  // true category. The cand-CTE exclusion above cannot see metadata; this
+  // post-rank join filter runs over the bounded top set (≤200 rows) only, so
+  // the PK join to products is cheap. It fires for the same query set as
+  // storageExcl (both derive from the same device/storage gates).
+  const storageJoinFilter = tierStorageExclusionNeeded(p.q)
+    ? ` JOIN products m ON m.id = sp.id AND NOT ${STORAGE_CATEGORY_SQL_TIER_JOIN}`
+    : '';
 
   const conds: string[] = [];
   const params: unknown[] = [];
@@ -260,6 +154,7 @@ async function tryTierSearch(
   let dtIdx = 0;
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   const limitIdx = i; params.push(p.limit + 1); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
@@ -279,6 +174,28 @@ async function tryTierSearch(
         OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0.25 ELSE 1.0
     END`;
+  // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
+  // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
+  // plainto_tsquery('english','phone')), so the query falls through to title LIKE
+  // '%phone%' — which matches "Cell Phone Holder" before actual handsets. Apply a
+  // handset brand boost (2x) for titles containing known phone brand names, and a
+  // strong demotion (0.15x) for titles containing phone-accessory keywords.
+  const phoneHandsetBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+        OR lower(sp.category) ~* '\\m(smartphone|phone|android)\\M'
+      THEN 2.0 ELSE 1.0
+    END`;
+  // BUY-69753: phone accessory penalty mirrors the laptop accessory penalty above.
+  // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
+  const phoneAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\mphone\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter)\\M'
+          OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
+      THEN 0.15 ELSE 1.0
+    END`;
+
   const laptopBoost = `
     CASE
       WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
@@ -288,7 +205,7 @@ async function tryTierSearch(
     END`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector FROM products sp
+      SELECT id, search_vector FROM search_products sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -300,11 +217,13 @@ async function tryTierSearch(
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
-            (${laptopAccessoryPenalty}) AS rank
+            (${laptopAccessoryPenalty}) *
+            (${phoneHandsetBoost}) *
+            (${phoneAccessoryPenalty}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN products sp ON sp.id = top.id
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -325,25 +244,44 @@ async function tryTierSearch(
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM products sp
+      SELECT sp.id FROM search_products sp
       WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM products sp
+      SELECT sp.id FROM search_products sp
       WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+  const phoneCategoryFallbackQuery = `
+    WITH pcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE (
+        lower(coalesce(sp.category,'')) ~* '\\m(smartphone|smartphones|cell phone|cell phones|mobile phone|mobile phones)\\M'
+        OR lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+      )
+      AND NOT (
+        lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
+        OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers)\\M'
+      )${filterSql}${storageExcl}
+      ORDER BY sp.id DESC
+      LIMIT 1000
+    )
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -360,13 +298,18 @@ async function tryTierSearch(
     // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
     // eating 4s of the 10s handler budget before the archive even starts. FTS
     // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
-    if (rows.length === 0 && lexemes.length === 1) {
+    let rows = isGenericPhoneQuery
+      ? (await client.query(phoneCategoryFallbackQuery, params)).rows
+      : (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     if (rows.length === 0) {
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+      }
+      if (rows.length === 0 && isGenericPhoneQuery) {
+        rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
       }
       if (rows.length === 0) {
         rows = (await client.query(titleFallbackQuery, params)).rows;
@@ -809,24 +752,6 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
-    // FTS entirely. The detector is conservative — it only matches short,
-    // whitespace-free inputs against known global identifier formats, so a
-    // natural-language query never reaches this branch. When it does fire, we
-    // route to an exact-match lookup against `gtin`/`mpn`/`sku` and cache the
-    // zero-result envelope (so `SKU-12345`-style non-matches cannot leak the
-    // FTS fishing-reel noise). The vector arm is gated to `keyword` for the
-    // same reason — ASIN/EAN lookup is a mechanical equality, not a similarity
-    // search.
-    const identifier = detectIdentifier(rawQuery);
-    if (identifier && !sortRequested) {
-      const handled = await tryIdentifierLookup(req, res, {
-        id: identifier, countryCode, currency, limit, offset, minPrice, maxPrice,
-        brand, domain, compact, requestStart, cacheKey,
-        deliverTo, includeUnshippable,
-      });
-      if (handled) return;
-    }
     // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
     // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
     // tier so the archive path (which honors buildSortOrder) serves it ordered.
@@ -2027,28 +1952,9 @@ router.get(
 );
 
 // GET /v1/products/:id/similar — BUY-41134 Find-Similar endpoint
-// BUY-72361: returns 404 NOT_FOUND (REST parity with MCP find_similar) when the
-// product has no embedding, instead of the prior 504-after-10s. The 504 was the
-// wrong failure mode — clients burnt the latency budget on a problem the MCP
-// surface already answers in <100ms with a structured envelope.
 // Primary: KNN on pre-computed embedding from embedding-store.product_embeddings.
-// Fallback: same brand + category (B-tree index) if embedding exists but returns
-// fewer than `limit` rows.
+// Fallback: same brand + category (B-tree index) if embedding not yet populated.
 // Latency target: p95 ≤ 200 ms under load.
-
-// BUY-72361: Promise.race against an explicit deadline. We use this for both the
-// embedding lookup and the KNN query so a slow vectorDb pool can't hang the
-// request — fall through to the structured 404 NOT_FOUND response.
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`[products.similar] ${label} timed out after ${ms}ms`)), ms);
-    p.then(
-      (v) => { clearTimeout(t); resolve(v); },
-      (e) => { clearTimeout(t); reject(e); },
-    );
-  });
-}
-
 router.get(
   '/:id/similar',
   agentDetectMiddleware,
@@ -2057,9 +1963,22 @@ router.get(
   queryLogMiddleware('products.similar'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request returns a deterministic response even
+    // if pool exhaustion (from a slow vectorDb KNN) would otherwise hang. The prior
+    // version of this hook only logged and never sent a response, leaving clients
+    // hanging until their own socket timeout. The handler now races its work against
+    // this deadline and responds 504 if it loses.
+    let timedOut = false;
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+      timedOut = true;
+      console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
+      }
+    });
     const { id } = req.params;
     if (!PRODUCT_ID_RE.test(String(id))) {
-      if (!res.headersSent) res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      if (!timedOut && !res.headersSent) res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
       return;
     }
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
@@ -2071,53 +1990,40 @@ router.get(
       [id]
     );
     if (srcResult.rows.length === 0) {
-      if (!res.headersSent) res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', meta: { source_id: id, response_time_ms: Date.now() - start } });
+      if (!timedOut && !res.headersSent) res.status(404).json({ error: 'Product not found' });
       return;
     }
     const src = srcResult.rows[0];
 
     // Phase 1: Try embedding-based KNN (vector store).
-    // BUY-54718 / BUY-41137 / BUY-54796 / BUY-72361: use the shared vectorDb pool
-    // and the product_embeddings table. Each query is raced against a short
-    // timeout — if the pool is slow / saturated, return a fast 404 NOT_FOUND
-    // (REST parity with MCP find_similar) instead of a 10-second 504.
+    // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
+    // product_embeddings table (public schema via vectorDb connection).
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
-    let knnAvailable = false;
-    let notFoundReason: string | null = null;
 
     if (vectorDb) {
       try {
         // Fetch pre-computed embedding for this product.
-        const embResult = await withTimeout(
-          vectorDb.query<{ embedding: string }>(
-            `SELECT embedding FROM product_embeddings
-             WHERE product_id = $1`,
-            [id]
-          ),
-          1500,
-          'embedding lookup'
+        const embResult = await vectorDb.query<{ embedding: string }>(
+          `SELECT embedding FROM product_embeddings
+           WHERE product_id = $1`,
+          [id]
         );
         if (embResult.rows.length > 0) {
           const embeddingStr: string = embResult.rows[0].embedding;
           // KNN: rows with smallest cosine distance first.
-          const knnResult = await withTimeout(
-            vectorDb.query<{
-              product_id: string;
-              score: string;
-            }>(
-              `SELECT product_id,
-                      1 - (embedding <=> $1::vector) AS score
-               FROM product_embeddings
-               WHERE product_id != $2
-               ORDER BY embedding <=> $1::vector
-               LIMIT $3`,
-              [embeddingStr, id, limit]
-            ),
-            2500,
-            'KNN'
+          const knnResult = await vectorDb.query<{
+            product_id: string;
+            score: string;
+          }>(
+            `SELECT product_id,
+                    1 - (embedding <=> $1::vector) AS score
+             FROM product_embeddings
+             WHERE product_id != $2
+             ORDER BY embedding <=> $1::vector
+             LIMIT $3`,
+            [embeddingStr, id, limit]
           );
-          knnAvailable = true;
           const knnIds = knnResult.rows.map((r) => String(r.product_id));
           const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));
 
@@ -2143,46 +2049,17 @@ router.get(
             });
           }
         } else {
-          // No embedding yet — REST parity with MCP find_similar's
-          // `No embedding found for this product — backfill may still be running`.
-          notFoundReason = 'No embedding found for this product — backfill may still be running';
+          // No embedding yet — fall through to fallback.
+          similarityFallback = true;
         }
       } catch (err) {
-        // BUY-72361: pool exhaustion / slow vectorDb / KNN timeout — return
-        // 404 NOT_FOUND instead of 504 so callers see parity with MCP.
-        console.warn('[similar] vector KNN failed:', (err as Error).message);
-        notFoundReason = (err as Error).message?.includes('timed out')
-          ? 'Vector DB query timed out — embedding lookup took too long'
-          : 'Vector DB query failed — see server logs';
-        // Don't set similarityFallback — we don't want a brand/FTS fallback that
-        // surfaces 0 useful rows and looks like a 200 success.
+        console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
+        similarityFallback = true;
       }
     }
 
-    // BUY-72361: missing-embedding or vector failure → fast structured 404
-    // (REST parity with MCP find_similar's -32001 / envelope NOT_FOUND).
-    if (notFoundReason) {
-      if (!res.headersSent) {
-        res.status(404).json({
-          error: 'Not Found',
-          code: 'NOT_FOUND',
-          message: notFoundReason,
-          meta: {
-            source_id: id,
-            method: 'not_found',
-            response_time_ms: Date.now() - start,
-          },
-        });
-      }
-      return;
-    }
-
-    // Phase 2 (fallback): same brand + category, or FTS on title.
-    // Only enter this when KNN ran successfully but returned fewer than
-    // `limit` rows — we don't fabricate neighbours when the embedding is
-    // missing or the vector DB is unavailable.
-    if (similarityFallback || (knnAvailable && similar.length < limit)) {
-      similarityFallback = true;
+    // Phase 2 (fallback): same brand + category, or FTS on title
+    if (similarityFallback || similar.length === 0) {
       const currency = src.currency || 'SGD';
       const sourceCountry = src.country_code || null;
       const brand = src.brand || null;
@@ -2247,22 +2124,13 @@ router.get(
       similarity: row._similarity ?? null,
     }));
 
-    if (res.headersSent) return;
+    if (timedOut || res.headersSent) return;
     res.json({
       data,
       meta: {
         source_id: id,
         count: data.length,
-        // BUY-72361: surface whether this response was KNN, brand/FTS fallback,
-        // or vectorDb-unavailable fallback. `knn_partial` means KNN ran but
-        // returned fewer rows than `limit` (we filled up with brand/FTS).
-        method: !vectorDb
-          ? 'fallback'
-          : knnAvailable && similarityFallback
-            ? 'knn_partial'
-            : knnAvailable
-              ? 'knn'
-              : 'fallback',
+        method: vectorDb && !similar.length ? 'fallback' : vectorDb ? 'knn' : 'fallback',
         response_time_ms: Date.now() - start,
       },
     });

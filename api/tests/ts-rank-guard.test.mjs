@@ -201,7 +201,7 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
       'Expected default tier cutover to be limited to keyword search so semantic/hybrid remain unchanged'
     );
     assert.ok(
-      /FROM\s+products\s+sp/.test(src),
+      /FROM\s+search_products\s+sp/.test(src),
       'Expected default keyword path to use the RAM-fitting search_products tier'
     );
   });

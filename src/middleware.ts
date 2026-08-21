@@ -71,35 +71,6 @@ function withBaselineSecurityHeaders(
   return response;
 }
 
-// BUY-71735: P2.3 — Add X-Agent-Auth header on 401/403 auth failures.
-// Also ensures Access-Control-Expose-Headers includes all five agent headers.
-//
-// NOTE: re-applied on top of BUY-71746 (Hex, 2026-08-19 11:06 UTC) which
-// incidentally dropped this function during its sitemap-index rewrite.
-function withAgentAuthHeader(request: NextRequest, response: NextResponse): NextResponse {
-  const status = response.status;
-  if (status === 401 || status === 403) {
-    response.headers.set(
-      "X-Agent-Auth",
-      "Bearer; register=https://buywhere.ai/api-keys"
-    );
-  }
-
-  // Ensure Access-Control-Expose-Headers includes all five headers for browser agents.
-  const existingExpose = response.headers.get("Access-Control-Expose-Headers");
-  const allFive = "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth";
-  if (existingExpose) {
-    // Append if not already present
-    if (!existingExpose.includes("X-Agent-Protocol")) {
-      response.headers.set("Access-Control-Expose-Headers", `${existingExpose}, ${allFive}`);
-    }
-  } else {
-    response.headers.set("Access-Control-Expose-Headers", allFive);
-  }
-
-  return response;
-}
-
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
@@ -209,10 +180,6 @@ const OPTIONAL_METADATA_MISSES: Record<string, { body: string; contentType: stri
   "/.well-known/apple-app-site-association": {
     body: '{"error":"apple-app-site-association is not published for this site."}\n',
     contentType: "application/json; charset=utf-8",
-  },
-  "/browserconfig.xml": {
-    body: '<?xml version="1.0" encoding="utf-8"?>\n<browserconfig><msapplication /></browserconfig>\n',
-    contentType: "application/xml; charset=utf-8",
   },
 };
 
@@ -343,6 +310,17 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
 
+  // BUY-31b6ae66: legal/auth aliases should redirect before the App Router
+  // homepage-branded 404 shell can render. Keep here because middleware is the
+  // established production redirect path for this app.
+  if (normalizedPath === "/legal") {
+    return "/privacy";
+  }
+
+  if (normalizedPath === "/sign-up") {
+    return "/register";
+  }
+
   if (normalizedPath === "/api-keys-keys") {
     return "/api-keys";
   }
@@ -418,6 +396,16 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
   }
 
+  const apiReferenceAlias = {
+    "/docs/api-reference": "/docs/api-reference/search",
+    "/docs/api-reference/search-products": "/docs/api-reference/search",
+    "/docs/api-reference/find-best-price": "/docs/api-reference/search",
+    "/docs/api-reference/get-deals": "/docs/api-reference/deals",
+  }[normalizedPath];
+  if (apiReferenceAlias) {
+    return apiReferenceAlias;
+  }
+
   if (
     normalizedPath === "/docs/api" ||
     normalizedPath === "/docs/api/reference" ||
@@ -469,7 +457,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   return null;
 }
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || request.headers.get("host") || "";
@@ -483,9 +471,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/developers/robots.txt" ||
     pathname === "/developers/robots" ||
     pathname === "/developers/sitemap.xml" ||
-    pathname === "/developers/sitemap" ||
-    pathname === "/developers/sitemap-index.xml" ||
-    pathname === "/developers/sitemap-index";
+    pathname === "/developers/sitemap";
   const metadataMiss = optionalMetadataMiss(pathname);
   if (metadataMiss) {
     return metadataMiss;
@@ -533,12 +519,7 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/robots.txt";
     return NextResponse.rewrite(url);
   }
-  if (
-    pathname === "/developers/sitemap.xml" ||
-    pathname === "/developers/sitemap" ||
-    pathname === "/developers/sitemap-index.xml" ||
-    pathname === "/developers/sitemap-index"
-  ) {
+  if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
     return NextResponse.rewrite(url);
@@ -562,6 +543,20 @@ export async function middleware(request: NextRequest) {
   const normalizedForDead = normalizePathname(pathname);
   if (normalizedForDead === "/merchants/join") {
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
+
+  // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
+  // Redirect known utility comparison paths to their canonical, structured pages.
+  if (normalizedForDead === "/compare/us/electronics") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/compare/electronics";
+    return NextResponse.redirect(url, 301);
+  }
+  if (normalizedForDead === "/compare/us/amazon/walmart") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/compare";
+    url.search = "country_code=us&q=amazon%20walmart";
+    return NextResponse.redirect(url, 301);
   }
 
   // Moved content: product index pages now redirect to their country pages
@@ -658,93 +653,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // BUY-72180: /products/{1-7 digit numeric} hard-404 gate.
-  // The [\d{8,}] redirect below only catches 8+ digit IDs. Shorter numeric segments
-  // (e.g. /products/1, /products/50, /products/100, /products/250) fall through to
-  // /products/[region]/page.tsx, which calls notFound() — but Next.js streams the
-  // not-found shell as HTTP 200 (soft-404 anti-pattern). No real BuyWhere product
-  // has a <8 digit ID (catalog IDs are 18-digit snowflakes), so 1-7 digit numerics
-  // are unambiguously invalid. Return a hard 404 with noindex directly — no API call.
-  // Soft-404 risk: crawlers may index 200+empty bodies; sitemap emits only slug-form
-  // so the inbound-link surface is narrow but non-zero (older URLs, agent.json, partner
-  // feeds, archived sitemaps).
-  const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
-  if (productsShortNumericMatch) {
-    return new NextResponse("Product Not Found", {
-      status: 404,
-      statusText: "Product Not Found",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Robots-Tag": "noindex, nofollow",
-      },
-    });
-  }
-
-  // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
-  // treats numeric ids as "region" and calls getProduct(). When the product is not found,
-  // it calls notFound() which returns HTTP 200 (soft-404) - a false-success pattern.
-  // This middleware catches numeric-only /products/{id} segments BEFORE Next.js streams
-  // the soft-200, and returns a hard 404. The /p/{id} route now serves these products.
-  // Restored after BUY-71746 (554950c7) and its follow-up (7f0cd03e) inadvertently
-  // dropped the /p/{id} hard-404 + /products/{numeric-id} 308 redirect (BUY-71808).
-  const productsNumericMatch = /^\/products\/(\d{8,})\/?$/.exec(pathname);
-  if (productsNumericMatch) {
-    // Let the page handler determine if it's a real product - this is a known Next.js
-    // issue where notFound() doesn't set HTTP status correctly. For now, redirect
-    // to the canonical /p/{id} alias where the new route handles it properly.
-    // TODO: revert to hard 404 once the [region]/page.tsx notFound() is fixed.
-    const productId = productsNumericMatch[1];
-    const url = request.nextUrl.clone();
-    url.pathname = `/p/${productId}`;
-    return NextResponse.redirect(url, 308);
-  }
-
-  // BUY-72180: /p/{1-7 digit numeric} hard-404 gate (companion to /products/{short-numeric}).
-  // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
-  // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
-  // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
-  const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
-  if (pShortIdMatch) {
-    return new NextResponse("Product Not Found", {
-      status: 404,
-      statusText: "Product Not Found",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Robots-Tag": "noindex, nofollow",
-      },
-    });
-  }
-
-  // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
-  // notFound() for missing products but Next.js App Router streams the not-found
-  // shell as HTTP 200 (soft-404). Middleware runs BEFORE streaming, so we can
-  // return a real 404 here. This pre-check bypasses the entire page render.
-  // Restored after BUY-71746 (554950c7) and its follow-up (7f0cd03e) inadvertently
-  // dropped this gate (BUY-71808).
-  const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(pathname);
-  if (pIdMatch) {
-    const productId = pIdMatch[1];
-    // Check via internal API - if 404, return hard 404 before page streams.
-    try {
-      const apiRes = await fetch(
-        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
-        {
-          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
-          signal: AbortSignal.timeout(3000),
-        }
-      );
-      if (!apiRes.ok) {
-        return new NextResponse(null, { status: 404, statusText: "Product Not Found" });
-      }
-    } catch {
-      // Network error - let page render (will show its own error state)
-    }
-  }
-
-  // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
-  // to the page handler (no middleware redirect/rewrite needed).
-  // This is already handled by the static file bypass above.
-
   // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
   // These expose SEO-friendly URLs that render via the /search page internally.
   const INTENT_LOCATION_MAP: Record<string, string> = {
@@ -788,7 +696,6 @@ export async function middleware(request: NextRequest) {
   }
   if (
     pathname === "/developers/sitemap.xml" ||
-    pathname === "/developers/sitemap-index.xml" ||
     pathname === "/developers/robots/sitemap/us" ||
     pathname === "/us/robots/sitemap/us"
   ) {
@@ -835,11 +742,7 @@ export async function middleware(request: NextRequest) {
     return withBaselineSecurityHeaders(request, response);
   }
 
-  // BUY-71735: also run withAgentAuthHeader on the final fall-through to ensure
-  // Access-Control-Expose-Headers is populated for non-401/403 responses too
-  // (the static headers() in next.config.mjs already covers the 4 main headers,
-  // but this keeps the X-Agent-Auth signal consistent for browser agents).
-  return withAgentAuthHeader(request, withBaselineSecurityHeaders(request, NextResponse.next()));
+  return withBaselineSecurityHeaders(request, NextResponse.next());
 }
 
 export const config = {

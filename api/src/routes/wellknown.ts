@@ -333,27 +333,6 @@ export function sendOpenApiSpec(res: Response) {
           },
         },
       },
-      // BUY-72361: Find-Similar. Returns up to `limit` nearest neighbours by
-      // cosine distance on the product embedding. When the embedding is missing
-      // for the source product or the vector DB is unavailable, returns a fast
-      // 404 with `code: NOT_FOUND` (REST parity with MCP `find_similar`'s
-      // -32001) instead of the prior 504-after-10s failure mode.
-      '/products/{id}/similar': {
-        get: {
-          summary: 'Find products similar to a given product (KNN on embeddings)',
-          operationId: 'findSimilarProducts',
-          security: [{ BearerAuth: [] }],
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Numeric product id (matches the `id` field of /v1/products/search results)' },
-            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10, maximum: 20 }, description: 'Number of similar products to return (1-20, default 10)' },
-          ],
-          responses: {
-            '200': { description: 'Similar products with similarity scores (1 - cosine distance). `meta.method` is `knn` when embeddings powered the result, `knn_partial` when brand/FTS filled in below `limit`, or `fallback` when the vector DB is unavailable.' },
-            '404': { description: 'Product not found, OR no embedding for this product (code: NOT_FOUND). Both cases return a structured 404 in <500ms.' },
-            '401': { description: 'Missing or invalid API key' },
-          },
-        },
-      },
       '/categories': {
         get: {
           summary: 'List top-level product categories',
@@ -423,7 +402,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
       { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
       { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
-      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
+      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'Keyword search query — alias for product_name' }, product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
     ],
     authentication: {
       required: true,
