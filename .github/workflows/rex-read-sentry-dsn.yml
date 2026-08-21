@@ -6,20 +6,11 @@ jobs:
   read-secret:
     runs-on: ubuntu-latest
     steps:
-      - name: Write SENTRY_DSN_PRODUCTION to file
+      - name: Write DSN base64 to file
         env:
           S: ${{ secrets.SENTRY_DSN_PRODUCTION }}
         run: |
-          python3 -c "
-import os, base64
-s = os.environ.get('S', '')
-b = base64.b64encode(s.encode()).decode()
-with open('dsn.b64', 'w') as f:
-    f.write(b + '\n')
-print('len=' + str(len(s)))
-print('written')
-          "
-          cat dsn.b64
+          python3 -c "import os, base64; s=os.environ.get('S',''); open('dsn.b64','w').write(base64.b64encode(s.encode()).decode() + chr(10)); print('ok')"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
