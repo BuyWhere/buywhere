@@ -233,7 +233,7 @@ export function ProductBehaviorExplainer({ productName, variant = 'default' }: P
       </div>
 
       <div className="mt-6 pt-5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-500 text-center">
           BuyWhere shows all ranked offers so your agent can make the decision that fits your priorities.
         </p>
       </div>

@@ -29,7 +29,7 @@ export function AffiliateDisclosure({
         title={message}
       >
         <svg
-          className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help"
+          className="w-4 h-4 text-gray-500 hover:text-gray-600 cursor-help"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

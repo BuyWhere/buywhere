@@ -151,15 +151,15 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-xs font-medium text-gray-500">{label}</span>
                   {marketInfo && (
-                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-gray-500">•</span>
                   )}
-                  <span className="text-xs text-gray-400 truncate">{product.lowest_price_merchant || product.source}</span>
+                  <span className="text-xs text-gray-500 truncate">{product.lowest_price_merchant || product.source}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-base font-semibold text-gray-900">
                     {formatPrice(product.price || (product.lowest_price ? parseFloat(product.lowest_price) : 0), currency)}
                   </span>
-                  <span className="text-xs text-gray-400">{currency}</span>
+                  <span className="text-xs text-gray-500">{currency}</span>
                 </div>
               </div>
               <AffiliateLink
