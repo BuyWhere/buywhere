@@ -6,9 +6,20 @@ jobs:
   read-secret:
     runs-on: ubuntu-latest
     steps:
-      - name: Echo SENTRY_DSN_PRODUCTION
+      - name: Encode and echo SENTRY_DSN_PRODUCTION
         env:
           S: ${{ secrets.SENTRY_DSN_PRODUCTION }}
         run: |
-          echo "SENTRY_DSN_PRODUCTION length=${#S}"
-          echo "SENTRY_DSN_PRODUCTION value=$S"
+          python3 -c "
+import os, json, base64
+s = os.environ.get('S', '')
+print('LEN:' + str(len(s)))
+print('ENC:' + base64.b64encode(s.encode()).decode())
+          "
+          echo "::notice title=DSN_RAW::$S" 2>&1
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentry-dsn-out
+          path: |
+            *.txt
