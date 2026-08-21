@@ -1,0 +1,192 @@
+# footgun-guard-supervisor — BUY-72389 (v1.3 of BUY-72377)
+# Companion to footgun-guard.yml that hard-fails when either guard file is
+# missing from HEAD. Closes the bypass where a single reset-and-reapply commit
+# can delete .github/workflows/footgun-guard.yml (GitHub Actions skips a
+# workflow whose file was deleted in the same commit, so the in-file guard
+# never runs).
+#
+# Why two files? The supervisor and the guarded file live at DIFFERENT paths.
+# To bypass both, a reset-and-reapply must delete BOTH — which requires a
+# much larger file-touch footprint, easier to spot in PR review.
+#
+# Triggers: pull_request to main + push to main.
+# Behavior: hard-fails (exit 1) with ::error:: naming the missing file(s).
+# Override: none — author must restore the missing file in the same PR.
+#
+# Mirrors footgun-guard.yml shape (single job, 8 steps, fetch-depth 0 for diff).
+
+name: footgun-guard-supervisor
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      simulate_footgun:
+        description: 'Set to "true" to delete one of the guard files (test mode)'
+        required: false
+        default: 'false'
+      missing_file:
+        description: 'Path of the guard file to simulate as missing (test mode)'
+        required: false
+        default: '.github/workflows/footgun-guard.yml'
+
+concurrency:
+  group: footgun-guard-supervisor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  supervise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine which paths are required in HEAD
+        run: |
+          set -euo pipefail
+
+          # The set of guard paths that MUST exist in HEAD for the reset-and-reapply
+          # net to be intact. Adding a new guard? Add its path here AND ship the
+          # new file in the same commit so the supervisor's own introduction does
+          # not trip the guard.
+          cat > required-guards.txt <<'EOF'
+          .github/workflows/footgun-guard.yml
+          .github/workflows/footgun-guard-supervisor.yml
+          EOF
+
+          REQUIRED_COUNT=$(wc -l < required-guards.txt)
+          echo "Required guard files: $REQUIRED_COUNT"
+          cat required-guards.txt
+
+      - name: Compute diff base for PR head or push to main
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin main:main >/dev/null 2>&1 || true
+            BASE="origin/main"
+          else
+            BASE="HEAD~1"
+          fi
+          echo "$BASE" > diff-base.txt
+
+          # Record HEAD for self-reference exclusion (when this commit IS the one
+          # that introduces the supervisor, the supervisor's own file will be "new"
+          # at HEAD — that is expected, not a footgun).
+          echo "${{ github.sha }}" > head-sha.txt
+
+          # Files added/removed by this PR/push touching the .github/workflows/ tree.
+          git diff --name-only "$BASE"...HEAD -- .github/workflows/ > workflows-diff.txt || true
+          echo "workflows files touched by this PR/push:"
+          cat workflows-diff.txt
+          echo "---"
+
+      - name: Check each required file exists in HEAD
+        id: presence
+        run: |
+          set -euo pipefail
+
+          # Track which required files are PRESENT vs MISSING. The supervisor must
+          # be present (this file), but so must footgun-guard.yml. A commit that
+          # deletes either is the bypass we're trying to catch.
+          : > present.txt
+          : > missing.txt
+
+          while IFS= read -r required; do
+            [ -z "$required" ] && continue
+            if [ -f "$required" ]; then
+              echo "$required" >> present.txt
+            else
+              echo "$required" >> missing.txt
+              echo "::error::Required guard file missing at HEAD: $required"
+            fi
+          done < required-guards.txt
+
+          PRESENT=$(wc -l < present.txt || echo 0)
+          MISSING=$(wc -l < missing.txt || echo 0)
+          echo "Present: $PRESENT  Missing: $MISSING"
+          echo "missing_count=$MISSING" >> "$GITHUB_OUTPUT"
+
+      - name: Test mode — simulate deletion of a guard file (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch' && inputs.simulate_footgun == 'true'
+        run: |
+          set -euo pipefail
+          # Re-check with a simulated file missing, to verify the hard-fail path.
+          SIM="${{ inputs.missing_file }}"
+          echo "TEST MODE: simulating absence of $SIM"
+          echo "Presence status with $SIM forced-missing:"
+          PRESENT=$(wc -l < present.txt || echo 0)
+          sed -i.bak "/^${SIM//\//\\/}$/d" present.txt || true
+          PRESENT_AFTER=$(wc -l < present.txt || echo 0)
+          echo "$SIM" >> missing.txt
+          MISSING=$(wc -l < missing.txt || echo 0)
+          echo "After simulation — Present: $PRESENT_AFTER  Missing: $MISSING"
+
+      - name: Build presence audit (JSON) for evidence artifact
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > presence-audit.json
+          import json, os, pathlib
+          head_sha = os.environ.get("GITHUB_SHA", "").strip()
+          present = [l.strip() for l in pathlib.Path("present.txt").read_text().splitlines() if l.strip()]
+          missing_paths = [l.strip() for l in pathlib.Path("missing.txt").read_text().splitlines() if l.strip()]
+          required = [l.strip() for l in pathlib.Path("required-guards.txt").read_text().splitlines() if l.strip()]
+          audit = {
+              "guard": "footgun-guard-supervisor",
+              "issue": "BUY-72389",
+              "parent_issue": "BUY-72377",
+              "head_sha": head_sha,
+              "required_files": required,
+              "present_files": present,
+              "missing_files": missing_paths,
+              "guard_intact": len(missing_paths) == 0,
+          }
+          print(json.dumps(audit, indent=2))
+          PY
+          cat presence-audit.json
+
+      - name: 'Emit ::error:: and hard-fail when a guard file is missing'
+        run: |
+          set -euo pipefail
+          MISSING=$(wc -l < missing.txt || echo 0)
+
+          if [ "$MISSING" -eq 0 ]; then
+            echo "Guard intact — all required footgun-guard files present at HEAD."
+            exit 0
+          fi
+
+          echo "::error::BUY-72389 supervisor: footgun-guard net is BROKEN at HEAD."
+          echo "::error::Missing guard file(s):"
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "::error::  MISSING: $f"
+          done < missing.txt
+          echo "::error::A single reset-and-reapply commit deleted these files."
+          echo "::error::The in-file footgun-guard.yml is bypassed when deleted in the same commit (GitHub Actions limitation)."
+          echo "::error::Override path: author must restore ALL missing files in this PR and re-push."
+          exit 1
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: footgun-guard-supervisor-evidence-${{ github.run_id }}
+          path: |
+            required-guards.txt
+            present.txt
+            missing.txt
+            diff-base.txt
+            head-sha.txt
+            workflows-diff.txt
+            presence-audit.json
+          retention-days: 30
+          if-no-files-found: ignore
