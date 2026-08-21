@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
@@ -7,7 +6,6 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
-import { readDb, servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
@@ -179,13 +177,12 @@ const TOOLS = [
   },
   {
     name: 'find_similar',
-    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
     inputSchema: {
       type: 'object',
+      required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'Catalog product id (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
-        product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
+        product_id: { type: 'string', description: 'UUID of the source product' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -244,47 +241,21 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
 // Tool handlers
-// BUY-65939: known FTS stem mismatches — single-word commerce terms that don't
-// match the indexed search_vector vocabulary. Maps to indexed phrase forms.
-// This is a targeted fix to avoid unbounded ILIKE heap scans on the 400M+ table.
-const FTS_STEM_FIX: Record<string, string> = {
-  'phone': 'mobile phone',
-  'android': 'android phone',
-  'iphone': 'iphone phone',
-  'tablet': 'tablet computer',
-  'watch': 'smart watch',
-  'earbuds': 'wireless earbuds',
-  'headphones': 'wireless headphones',
-  'camera': 'digital camera',
-  'speaker': 'bluetooth speaker',
-  'laptop': 'laptop computer',
-  'notebook': 'laptop computer',
-};
-
-function normalizeFtsStem(q: string): string {
-  if (!q) return q;
-  const normalized = q.toLowerCase().trim();
-  return FTS_STEM_FIX[normalized] || q;
-}
-
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const rawQ = (args.q as string) || '';
-  // BUY-65939: normalize FTS stem mismatches to indexed phrase forms
-  const q = normalizeFtsStem(rawQ);
+  const q = (args.q as string) || '';
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const requestedMarket = normalizeMcpMarket(args, q ? 'SG' : '');
-  const region = requestedMarket.dbRegion;
-  // country_code is canonical; `country` kept as alias for backward compat.
-  // deliver_to is the buyer market and must take precedence to prevent
-  // cross-market results when callers pass stale/default country_code values.
+  const region = (args.region as string) || '';
+  // country_code is canonical; `country` kept as alias for backward compat
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const country = requestedMarket.country;
+  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const hasExplicitCountry = !!(args.country_code || args.country);
+  const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -292,17 +263,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
-  const COUNT_CAP = 1001;
 
-  // BUY-68652: mode-aware cache key. Include mode in key so semantic/hybrid cannot
-  // be satisfied by keyword results (and vice versa). When embedding fails and we
-  // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
-  const effectiveCacheMode = useVector ? mode : 'kw';
-  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
-  // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
-  // request (embed/vector unavailable). The result must be cached under the 'kw'
-  // suffix, never the requested-mode key.
-  let keywordFallbackServed = !useVector;
+  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -354,12 +316,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-69823: bound pool acquisition separately from statement_timeout so
   // api.buywhere.ai/mcp fails fast with a standardized envelope under contention
   // instead of consuming the whole 12s query budget before the handler starts.
-  const searchClient = await servingReadDbConnect().catch((err: unknown) => {
-    if (err instanceof ReplicaUnavailableError) {
-      console.warn('[search_products] replica unavailable, falling back to primary:', err.message);
-      return acquireMcpClient();
-    }
-    console.warn('[search_products] db.connect failed:', (err as Error)?.message);
+  const searchClient = await acquireMcpClient().catch((err) => {
+    console.warn('[search_products] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
@@ -370,11 +328,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
-      // BUY-69998: do not run a separate COUNT for keyword searches. Under SG/VN
-      // country/category probes the count can consume the whole statement_timeout
-      // before the bounded result query runs. We report a capped page-derived total
-      // after fetching rows instead.
-      total = 0;
+      const countResult = await searchClient.query(
+        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
+        params
+      );
+      total = parseInt(countResult.rows[0].count, 10);
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -396,7 +354,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         if (queryVec && vectorDb) {
           let candidateIds: string[] = [];
           let vectorCandidateIds: string[] | null = null;
-          let hybridFtsTotal = 0;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
@@ -441,7 +398,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             } catch (ftsErr) {
               console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
             }
-            hybridFtsTotal = Math.min(ftsRows.length, 200); // use bounded FTS fetch as a catalog estimate
             const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
             const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
@@ -458,13 +414,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           if (vectorCandidateIds !== null) {
             candidateIds = vectorCandidateIds;
           }
-          // BUY-68652: hybrid must report the catalog/page total, not the small RRF
-          // candidate cardinality (e.g. 5). Semantic reports its own candidate count;
-          // if the vector leg failed entirely, candidateIds is empty → zero total.
-          // Use hybridFtsTotal (bounded FTS count) as a catalog estimate.
-          total = mode === 'hybrid'
-            ? Math.min(Math.max(hybridFtsTotal, candidateIds.length), COUNT_CAP)
-            : candidateIds.length;
+          total = candidateIds.length;
           const pageIds = candidateIds.slice(offset, offset + limit);
 
           if (pageIds.length === 0) {
@@ -493,7 +443,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
         } else {
           // Embed failed — fall through to keyword FTS
-          keywordFallbackServed = true;
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
@@ -574,24 +523,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     );
   }
 
-  if (q) {
-    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
-  }
-
-  // Defense in depth for buyer-market routing: SQL includes country_code/region
-  // predicates, but this prevents stale cached rows or future query variants from
-  // returning another market in top results.
-  if (country && rows.length > 0) {
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      ((r.country_code as string) || '').toUpperCase() === country
-    );
-  }
-  if (region && rows.length > 0) {
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      ((r.region as string) || '').toLowerCase() === region.toLowerCase()
-    );
-  }
-
   const products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact)
   );
@@ -601,13 +532,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   );
 
   try {
-    // BUY-68652: if the requested mode was semantic/hybrid but embed/vector failed
-    // and we served keyword FTS, cache under the 'kw'-suffixed key so the semantic
-    // cache never gets polluted with keyword rows.
-    const writeKey = keywordFallbackServed && (mode === 'semantic' || mode === 'hybrid')
-      ? cacheKey.replace(/:(semantic|hybrid)$/, ':kw')
-      : cacheKey;
-    await redis.set(writeKey, JSON.stringify(result), 'EX', 60);
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
   } catch (_) { /* cache write failure is non-fatal */ }
 
   return result;
@@ -736,8 +661,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  const dealsClient = await readDb().connect().catch((err: unknown) => {
-    console.error('[mcp] get_deals readDb.connect failed:', err);
+  const dealsClient = await db.connect().catch((err: unknown) => {
+    console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
@@ -840,18 +765,14 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   // BUY-69823: wrap the whole queryPromise in a hard wall-clock timeout so pool
-  // contention + slow queries never exceed ~6s. If timeout fires, return an
-  // explicit unavailable fallback instead of zero-count categories.
+  // contention + slow queries never exceed ~6s. If timeout fires, return hardcoded
+  // categories rather than a hard 5xx.
   const MAT_VIEW_TIMEOUT_MS = 8000;
   const LIVE_TIMEOUT_MS = 1800;
   const HARD_TIMEOUT_MS = 6000;
   const queryPromise = (async () => {
-    const client = await servingReadDbConnect().catch((err: unknown) => {
-      if (err instanceof ReplicaUnavailableError) {
-        console.warn('[list_categories] replica unavailable, falling back to primary:', err.message);
-        return acquireMcpClient();
-      }
-      console.warn('[list_categories] db.connect failed:', (err as Error)?.message);
+    const client = await acquireMcpClient().catch((err) => {
+      console.warn('[list_categories] db.connect failed:', err.message);
       throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
@@ -869,7 +790,6 @@ async function handleListCategories(args: Record<string, unknown>) {
             `SELECT slug, name, product_count
              FROM mcp_category_summary_by_country
              WHERE country_code = $1
-               AND NULLIF(BTRIM(slug), '') IS NOT NULL
              ORDER BY product_count DESC
              LIMIT 100`,
             [country]
@@ -888,7 +808,6 @@ async function handleListCategories(args: Record<string, unknown>) {
                FROM products
                WHERE country_code = $1
                  AND category_path[1] IS NOT NULL
-                 AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                  AND is_active = true
                GROUP BY category_path[1]
                ORDER BY COUNT(*) DESC
@@ -916,7 +835,6 @@ async function handleListCategories(args: Record<string, unknown>) {
                  FROM products
                  WHERE country_code = $1
                    AND category_path[1] IS NOT NULL
-                   AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                    AND is_active = true
                  ORDER BY updated_at DESC
                  LIMIT 50000
@@ -943,11 +861,15 @@ async function handleListCategories(args: Record<string, unknown>) {
         }
       }
       if (rows.length === 0) {
-        rows = buildHardcodedCategories();
+        rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
+          slug: name.toLowerCase().replace(/\s+/g, '-'),
+          name,
+          product_count: 0,
+        }));
       }
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.every((row) => Number(row.product_count) === 0) },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
       };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
@@ -1020,12 +942,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
-  const bestPriceClient = await servingReadDbConnect().catch((err: unknown) => {
-    if (err instanceof ReplicaUnavailableError) {
-      console.warn('[find_best_price] replica unavailable, falling back to primary:', err.message);
-      return acquireMcpClient();
-    }
-    console.warn('[find_best_price] db.connect failed:', (err as Error)?.message);
+  const bestPriceClient = await acquireMcpClient().catch((err) => {
+    console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
@@ -1445,154 +1363,77 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const requestedId = (args.product_id as string || '').trim();
-  const productName = (args.product_name as string || '').trim();
-  const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
-  const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
+  const productId = (args.product_id as string || '').trim();
+  const limit = Math.min(Number(args.limit) || 10, 10);
 
-  let resolvedId = requestedId;
-  if (!resolvedId && productName) {
-    const conditions = ['is_active = true'];
-    const params: unknown[] = [];
-    params.push(productName);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-    if (countryCode) {
-      params.push(countryCode);
-      conditions.push(`country_code = $${params.length}`);
-    }
-    const lookupResult = await db.query(
-      `SELECT id, sku FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
-      params
-    );
-    if (!lookupResult.rows.length) {
-      throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
-    }
-    resolvedId = String((lookupResult.rows[0] as Record<string, unknown>).id);
+  if (!productId) {
+    throw { code: -32602, message: 'missing required parameter: product_id' };
   }
 
-  if (!resolvedId) {
-    throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
-  }
-  // Public contract: product_id is products.id (currently bigint text in MCP JSON).
-  // Legacy vector data in search_proof.product_vectors is keyed by sku, so exact SKU
-  // input remains accepted as a compatibility bridge while canonical coverage catches up.
-  const isNumericProductId = /^\d+$/.test(resolvedId);
-  const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedId);
-  if (!isNumericProductId && isUuidLike) {
-    throw { code: -32602, message: `Invalid product_id format: expected catalog product id or exact SKU, got "${resolvedId}"` };
+  // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
+  // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
+  // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
+  if (!/^\d+$/.test(productId)) {
+    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
   }
 
   if (!vectorDb) {
-    throw { code: -32001, message: 'Vector search not available - vector DB not configured' };
+    throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
   }
 
-  let sourceProductId = resolvedId;
-  let sourceSku: string | null = null;
-  try {
-    const sourceResult = await db.query<{ id: string; sku: string | null }>(
-      isNumericProductId
-        ? `SELECT id::text AS id, sku FROM products WHERE id = $1 AND is_active = true LIMIT 1`
-        : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
-      [resolvedId]
-    );
-    if (sourceResult.rows.length) {
-      sourceProductId = String(sourceResult.rows[0].id);
-      sourceSku = sourceResult.rows[0].sku ? String(sourceResult.rows[0].sku) : null;
-    }
-  } catch {
-    if (!isNumericProductId) sourceSku = resolvedId;
-  }
-  const lookupKeys = Array.from(new Set([sourceProductId, sourceSku, resolvedId].filter(Boolean).map(String)));
-
+  // Step 1: get reference embedding from vector DB
   let refResult;
   try {
-    refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
-      `SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
-         FROM product_embeddings
-        WHERE product_id::text = ANY($1::text[])
-        ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
-        LIMIT 1`,
-      [lookupKeys, sourceProductId]
+    refResult = await vectorDb.query<{ embedding: string }>(
+      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      [productId]
     );
   } catch {
-    refResult = { rows: [] };
+    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
   }
-
   if (!refResult.rows.length) {
-    try {
-      refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
-        `SELECT sku AS vector_key, embedding::text, 'search_proof.product_vectors' AS vector_table
-           FROM search_proof.product_vectors
-          WHERE sku = ANY($1::text[])
-          ORDER BY CASE WHEN sku = $2 THEN 0 ELSE 1 END
-          LIMIT 1`,
-        [lookupKeys, sourceSku || resolvedId]
-      );
-    } catch {
-      refResult = { rows: [] };
-    }
-  }
-
-  if (!refResult.rows.length) {
-    throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
   }
   const refEmbedding = refResult.rows[0].embedding;
-  const vectorKey = refResult.rows[0].vector_key;
-  const vectorTable = refResult.rows[0].vector_table;
 
+  // Step 2: find nearest neighbours in vector DB (excluding source product)
   let nearResult;
-  if (vectorTable === 'search_proof.product_vectors') {
-    try {
-      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
-        `SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
-           FROM search_proof.product_vectors
-          WHERE sku != $2
-          ORDER BY distance LIMIT $3`,
-        [refEmbedding, vectorKey, limit]
-      );
-    } catch {
-      nearResult = { rows: [] };
-    }
-  } else {
-    try {
-      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
-        `SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
-           FROM product_embeddings
-          WHERE product_id::text != $2
-          ORDER BY distance LIMIT $3`,
-        [refEmbedding, vectorKey, limit]
-      );
-    } catch {
-      nearResult = { rows: [] };
-    }
+  try {
+    nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
+      `SELECT product_id, (embedding <=> $1::vector)::float AS distance
+       FROM product_embeddings WHERE product_id != $2
+       ORDER BY distance LIMIT $3`,
+      [refEmbedding, productId, limit]
+    );
+  } catch {
+    throw { code: -32001, message: 'No similar products found' };
   }
   if (!nearResult.rows.length) {
     throw { code: -32001, message: 'No similar products found' };
   }
 
-  const nearKeys = nearResult.rows.map(r => r.vector_key);
-  const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
+  // Step 3: fetch product details from main DB
+  const nearIds = nearResult.rows.map(r => r.product_id);
+  const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
   const detailResult = await db.query(
-    vectorTable === 'search_proof.product_vectors'
-      ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
-      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id::text IN (${ph}) AND is_active = true`,
-    nearKeys
+    `SELECT id, title, price, currency, source AS domain, url, image_url
+     FROM products WHERE id IN (${ph}) AND is_active = true`,
+    nearIds
   );
 
-  const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
-  const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String((r as Record<string, unknown>).sku) : String((r as Record<string, unknown>).id), r]));
-  const similar = nearKeys
+  // Step 4: merge, preserving similarity order
+  const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
+  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+  const similar = nearIds
     .map(id => {
-      const p = byKey.get(id) as Record<string, unknown> | undefined;
+      const p = byId.get(id) as Record<string, unknown> | undefined;
       if (!p) return null;
       const dist = distMap.get(id) ?? 1;
-      const rowCurrency = (p.currency as string) || '';
       return {
         id: p.id,
-        sku: p.sku,
         title: p.title,
         price: p.price,
-        currency: rowCurrency,
+        currency: p.currency,
         domain: p.domain,
         url: p.url,
         image_url: p.image_url,
@@ -1602,13 +1443,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     .filter(Boolean);
 
   return {
-    product_id: sourceProductId,
-    requested_product_id: requestedId || undefined,
-    matched_product_name: productName || undefined,
-    sku: sourceSku,
+    product_id: productId,
     similar,
     total: similar.length,
-    meta: { vector_table: vectorTable, vector_key: vectorKey },
     response_time_ms: Date.now() - t0,
   };
 }
@@ -1629,31 +1466,15 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
-// BUY-70000: every response (success or error) carries `request_id` and a
-// top-level `timestamp` so agent-facing monitoring suites can correlate
-// JSON-RPC calls with query_log entries without scraping server logs.
-// `request_id` prefers a string JSON-RPC id; when the caller used a numeric
-// or null id we fall back to a generated UUID so the field is always present.
-// BUY-70114: `request_id` is always a server-generated UUID for traceability.
-// The JSON-RPC `id` is preserved separately for protocol correlation.
-function jsonrpcRequestId(_id: unknown): string {
-  return randomUUID();
-}
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
+  return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return {
-    jsonrpc: '2.0',
-    id,
-    request_id: jsonrpcRequestId(id),
-    timestamp: new Date().toISOString(),
-    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
-  };
+  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).

@@ -35,29 +35,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
-  title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+  title: "BuyWhere — Find the best prices across every store",
   description:
-    "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+    "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
-    title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+    title: "BuyWhere — Find the best prices across every store",
     description:
-      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "BuyWhere API — Product Catalog for AI Shopping Agents",
+        alt: "BuyWhere — compare prices across every store",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+    title: "BuyWhere — Find the best prices across every store",
     description:
-      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
     images: ["/og-image.png"],
     creator: "@buywhere",
   },
