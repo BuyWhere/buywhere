@@ -33,6 +33,7 @@ import { withAgentHeaders } from './middleware/agentHeaders';
 import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
+import adminEmbeddingsRouter from './routes/admin/embeddings';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
@@ -486,6 +487,10 @@ export function createApp() {
   // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
   // Auth is handled inside the router via Authorization: Bearer <admin key>.
   app.use(adminFxRefreshRouter);
+
+  // BUY-72361: admin endpoint exposing embedding coverage stats. Same admin
+  // authentication as the other /v1/admin/* routes.
+  app.use(adminEmbeddingsRouter);
 
   // 404 fallback
   app.use((_req, res) => {

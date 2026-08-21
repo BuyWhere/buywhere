@@ -1894,9 +1894,28 @@ router.get(
 );
 
 // GET /v1/products/:id/similar — BUY-41134 Find-Similar endpoint
+// BUY-72361: returns 404 NOT_FOUND (REST parity with MCP find_similar) when the
+// product has no embedding, instead of the prior 504-after-10s. The 504 was the
+// wrong failure mode — clients burnt the latency budget on a problem the MCP
+// surface already answers in <100ms with a structured envelope.
 // Primary: KNN on pre-computed embedding from embedding-store.product_embeddings.
-// Fallback: same brand + category (B-tree index) if embedding not yet populated.
+// Fallback: same brand + category (B-tree index) if embedding exists but returns
+// fewer than `limit` rows.
 // Latency target: p95 ≤ 200 ms under load.
+
+// BUY-72361: Promise.race against an explicit deadline. We use this for both the
+// embedding lookup and the KNN query so a slow vectorDb pool can't hang the
+// request — fall through to the structured 404 NOT_FOUND response.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`[products.similar] ${label} timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 router.get(
   '/:id/similar',
   agentDetectMiddleware,
@@ -1905,22 +1924,9 @@ router.get(
   queryLogMiddleware('products.similar'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
-    // BUY-41137: hard ceiling so the request returns a deterministic response even
-    // if pool exhaustion (from a slow vectorDb KNN) would otherwise hang. The prior
-    // version of this hook only logged and never sent a response, leaving clients
-    // hanging until their own socket timeout. The handler now races its work against
-    // this deadline and responds 504 if it loses.
-    let timedOut = false;
-    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
-      timedOut = true;
-      console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
-      if (!res.headersSent) {
-        res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
-      }
-    });
     const { id } = req.params;
     if (!PRODUCT_ID_RE.test(String(id))) {
-      if (!timedOut && !res.headersSent) res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      if (!res.headersSent) res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
       return;
     }
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
@@ -1932,40 +1938,53 @@ router.get(
       [id]
     );
     if (srcResult.rows.length === 0) {
-      if (!timedOut && !res.headersSent) res.status(404).json({ error: 'Product not found' });
+      if (!res.headersSent) res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', meta: { source_id: id, response_time_ms: Date.now() - start } });
       return;
     }
     const src = srcResult.rows[0];
 
     // Phase 1: Try embedding-based KNN (vector store).
-    // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // product_embeddings table (public schema via vectorDb connection).
+    // BUY-54718 / BUY-41137 / BUY-54796 / BUY-72361: use the shared vectorDb pool
+    // and the product_embeddings table. Each query is raced against a short
+    // timeout — if the pool is slow / saturated, return a fast 404 NOT_FOUND
+    // (REST parity with MCP find_similar) instead of a 10-second 504.
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
+    let knnAvailable = false;
+    let notFoundReason: string | null = null;
 
     if (vectorDb) {
       try {
         // Fetch pre-computed embedding for this product.
-        const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`,
-          [id]
+        const embResult = await withTimeout(
+          vectorDb.query<{ embedding: string }>(
+            `SELECT embedding FROM product_embeddings
+             WHERE product_id = $1`,
+            [id]
+          ),
+          1500,
+          'embedding lookup'
         );
         if (embResult.rows.length > 0) {
           const embeddingStr: string = embResult.rows[0].embedding;
           // KNN: rows with smallest cosine distance first.
-          const knnResult = await vectorDb.query<{
-            product_id: string;
-            score: string;
-          }>(
-            `SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
-             FROM product_embeddings
-             WHERE product_id != $2
-             ORDER BY embedding <=> $1::vector
-             LIMIT $3`,
-            [embeddingStr, id, limit]
+          const knnResult = await withTimeout(
+            vectorDb.query<{
+              product_id: string;
+              score: string;
+            }>(
+              `SELECT product_id,
+                      1 - (embedding <=> $1::vector) AS score
+               FROM product_embeddings
+               WHERE product_id != $2
+               ORDER BY embedding <=> $1::vector
+               LIMIT $3`,
+              [embeddingStr, id, limit]
+            ),
+            2500,
+            'KNN'
           );
+          knnAvailable = true;
           const knnIds = knnResult.rows.map((r) => String(r.product_id));
           const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));
 
@@ -1991,17 +2010,46 @@ router.get(
             });
           }
         } else {
-          // No embedding yet — fall through to fallback.
-          similarityFallback = true;
+          // No embedding yet — REST parity with MCP find_similar's
+          // `No embedding found for this product — backfill may still be running`.
+          notFoundReason = 'No embedding found for this product — backfill may still be running';
         }
       } catch (err) {
-        console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
-        similarityFallback = true;
+        // BUY-72361: pool exhaustion / slow vectorDb / KNN timeout — return
+        // 404 NOT_FOUND instead of 504 so callers see parity with MCP.
+        console.warn('[similar] vector KNN failed:', (err as Error).message);
+        notFoundReason = (err as Error).message?.includes('timed out')
+          ? 'Vector DB query timed out — embedding lookup took too long'
+          : 'Vector DB query failed — see server logs';
+        // Don't set similarityFallback — we don't want a brand/FTS fallback that
+        // surfaces 0 useful rows and looks like a 200 success.
       }
     }
 
-    // Phase 2 (fallback): same brand + category, or FTS on title
-    if (similarityFallback || similar.length === 0) {
+    // BUY-72361: missing-embedding or vector failure → fast structured 404
+    // (REST parity with MCP find_similar's -32001 / envelope NOT_FOUND).
+    if (notFoundReason) {
+      if (!res.headersSent) {
+        res.status(404).json({
+          error: 'Not Found',
+          code: 'NOT_FOUND',
+          message: notFoundReason,
+          meta: {
+            source_id: id,
+            method: 'not_found',
+            response_time_ms: Date.now() - start,
+          },
+        });
+      }
+      return;
+    }
+
+    // Phase 2 (fallback): same brand + category, or FTS on title.
+    // Only enter this when KNN ran successfully but returned fewer than
+    // `limit` rows — we don't fabricate neighbours when the embedding is
+    // missing or the vector DB is unavailable.
+    if (similarityFallback || (knnAvailable && similar.length < limit)) {
+      similarityFallback = true;
       const currency = src.currency || 'SGD';
       const sourceCountry = src.country_code || null;
       const brand = src.brand || null;
@@ -2066,13 +2114,22 @@ router.get(
       similarity: row._similarity ?? null,
     }));
 
-    if (timedOut || res.headersSent) return;
+    if (res.headersSent) return;
     res.json({
       data,
       meta: {
         source_id: id,
         count: data.length,
-        method: vectorDb && !similar.length ? 'fallback' : vectorDb ? 'knn' : 'fallback',
+        // BUY-72361: surface whether this response was KNN, brand/FTS fallback,
+        // or vectorDb-unavailable fallback. `knn_partial` means KNN ran but
+        // returned fewer rows than `limit` (we filled up with brand/FTS).
+        method: !vectorDb
+          ? 'fallback'
+          : knnAvailable && similarityFallback
+            ? 'knn_partial'
+            : knnAvailable
+              ? 'knn'
+              : 'fallback',
         response_time_ms: Date.now() - start,
       },
     });

@@ -333,6 +333,27 @@ export function sendOpenApiSpec(res: Response) {
           },
         },
       },
+      // BUY-72361: Find-Similar. Returns up to `limit` nearest neighbours by
+      // cosine distance on the product embedding. When the embedding is missing
+      // for the source product or the vector DB is unavailable, returns a fast
+      // 404 with `code: NOT_FOUND` (REST parity with MCP `find_similar`'s
+      // -32001) instead of the prior 504-after-10s failure mode.
+      '/products/{id}/similar': {
+        get: {
+          summary: 'Find products similar to a given product (KNN on embeddings)',
+          operationId: 'findSimilarProducts',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Numeric product id (matches the `id` field of /v1/products/search results)' },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10, maximum: 20 }, description: 'Number of similar products to return (1-20, default 10)' },
+          ],
+          responses: {
+            '200': { description: 'Similar products with similarity scores (1 - cosine distance). `meta.method` is `knn` when embeddings powered the result, `knn_partial` when brand/FTS filled in below `limit`, or `fallback` when the vector DB is unavailable.' },
+            '404': { description: 'Product not found, OR no embedding for this product (code: NOT_FOUND). Both cases return a structured 404 in <500ms.' },
+            '401': { description: 'Missing or invalid API key' },
+          },
+        },
+      },
       '/categories': {
         get: {
           summary: 'List top-level product categories',
