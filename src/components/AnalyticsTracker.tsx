@@ -22,7 +22,7 @@ export function AnalyticsTracker() {
 
   useEffect(() => {
     // BUY-72699 Defect B: Normalize trailing-slash pathname at capture
-    const cleanPathname = normalizePathname(pathname);
+    const cleanPathname = normalizePathname(pathname ?? ''); // usePathname() is string|null during prerender
 
     if (isGA4Enabled()) {
       const url = `${cleanPathname}${searchParams ? `?${searchParams.toString()}` : ''}`;
