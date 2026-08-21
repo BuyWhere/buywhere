@@ -945,8 +945,8 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+        case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22: agree with response sanitizer
+        case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';

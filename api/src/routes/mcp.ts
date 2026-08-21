@@ -1101,14 +1101,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ), page_ids AS (
          SELECT id, price, updated_at
          FROM cand
-         ORDER BY price ASC, updated_at DESC
+         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
-       ORDER BY pi.price ASC, pi.updated_at DESC`,
+       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       [...params, limit]
     );
   } catch (e: any) {

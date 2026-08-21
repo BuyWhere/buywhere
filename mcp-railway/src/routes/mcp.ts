@@ -966,14 +966,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ), page_ids AS (
          SELECT id, price, updated_at
          FROM cand
-         ORDER BY price ASC, updated_at DESC
+         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
          LIMIT $${params.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
-       ORDER BY pi.price ASC, pi.updated_at DESC`,
+       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       params
     );
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
@@ -995,7 +995,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          ) _recent
          WHERE title ILIKE $${minPrice > 0 ? 3 : 2}
          ${category ? `AND category ILIKE $${minPrice > 0 ? 5 : 4}` : ''}
-         ORDER BY price ASC
+         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST
          LIMIT $${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
         minPrice > 0
           ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
