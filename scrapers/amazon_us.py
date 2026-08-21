@@ -818,12 +818,11 @@ class AmazonUSScraper:
         try:
             asin = str(raw.get("asin", "") or raw.get("sku", "")).strip()
             # BUY-72693: ASINs must be exactly 10 alphanumeric chars (sometimes
-            # 11 with a leading 'B'). Reject synthetic/generator outputs that
-            # pass a numeric padded ASIN (e.g. "B1016162010" 11 chars, or
-            # "B10162255701" 12 chars with appended "01"). The amazon search-
-            # results parser only emits data-asin attributes for real cards,
-            # so this filter is targeted at raw upstream payloads.
-            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{10}", asin):
+            # 11 with a leading 'B'). The B prefix is part of the 10-char
+            # limit — "B09V3KXJPB" is 10 chars total (B + 9), not B+10.
+            # Reject synthetic/generator outputs that exceed 10 chars total
+            # (e.g. "B1016162010" 11 chars, "B10162255701" 12 chars).
+            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{9}", asin):
                 if asin:
                     print(
                         f"[amazon_us] ASIN quarantine: rejected malformed ASIN '{asin}' "
@@ -896,8 +895,8 @@ class AmazonUSScraper:
             asin = (card.get("data-asin") or "").strip()
             # BUY-72693: synthetic generator rows use data-asin values like
             # "B1016162010" (11 chars) or "B10162255701" (12 chars). Amazon
-            # real ASINs are 10 alphanumeric chars (optionally 11 with B prefix).
-            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{10}", asin):
+            # real ASINs are 10 alphanumeric chars total (B prefix is part of the 10).
+            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{9}", asin):
                 continue
 
             title_el = card.select_one("h2 span")
