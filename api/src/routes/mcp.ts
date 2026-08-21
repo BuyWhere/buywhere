@@ -433,7 +433,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 4000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -618,6 +618,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+  } catch (e: any) {
+    if (e && typeof e === 'object' && e.code === '57014') {
+      console.warn('[search_products] BUY-70000: statement_timeout (57014) at 4s — returning degraded response');
+      return buildSearchResponse([], 0, limit, offset, Date.now() - t0, false);
+    }
+    throw e;
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
@@ -1071,7 +1077,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 4000');
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -1105,6 +1111,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ORDER BY pi.price ASC, pi.updated_at DESC`,
       [...params, limit]
     );
+  } catch (e: any) {
+    if (e && typeof e === 'object' && e.code === '57014') {
+      console.warn('[find_best_price] BUY-70000: statement_timeout (57014) at 4s — returning degraded response');
+      return {
+        best_price: null,
+        alternatives: [],
+        meta: { product_name: productName, country_code: country, currency, degraded: true, reason: 'statement_timeout', response_time_ms: Date.now() - t0 },
+      };
+    }
+    throw e;
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -1749,14 +1765,14 @@ function parseUuidBytes(uuid: string): Uint8Array {
 
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result };
+  return { jsonrpc: '2.0', id, result, request_id: randomUUID(), timestamp: new Date().toISOString() };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) }, request_id: randomUUID(), timestamp: new Date().toISOString() };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
@@ -1972,7 +1988,13 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
     }
     if (typeof e.code === 'string' && e.message) {
-      // PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
+      // BUY-70000: statement_timeout (57014) returns SERVICE_UNAVAILABLE (not INTERNAL)
+      // so monitoring/Tune can distinguish timeouts from true crashes.
+      if (e.code === '57014') {
+        console.warn(`[mcp] statement_timeout (57014) — tool timed out at statement_timeout floor`);
+        return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, ErrorCode.SERVICE_UNAVAILABLE));
+      }
+      // Other PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
       console.error(`[mcp] pg error (code=${e.code}):`, e.message);
       return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
     }
