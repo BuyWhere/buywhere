@@ -456,23 +456,27 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // BUY-65095: when a device-family filter is active (laptop/phone/tablet/etc),
         // over-fetch candidates because the post-filter may drop most of the
         // initial `limit+offset` set (recent SG laptop FTS matches are mostly
-        // accessories). Multiplier raised from 10 to 100 when a device filter
-        // is detected so the filter has enough rows to find real products.
+        // accessories). We now over-fetch up to 5000 candidates and apply the
+        // device filter BEFORE the LIMIT/OFFSET slice so the cursor lands on
+        // real products, not accessories.
         const deviceFilterPeek = buildDeviceFilter(q, country);
-        const candidateMultiplier = deviceFilterPeek.type ? 100 : 10;
-        const CANDIDATE_LIMIT = Math.min((limit + offset) * candidateMultiplier, 5000);
-        params.push(CANDIDATE_LIMIT, limit, offset);
+        const CANDIDATE_LIMIT = (() => {
+          if (!deviceFilterPeek.type) return Math.min((limit + offset) * 10, 5000);
+          // device-family query: fetch up to 5000 candidates so the post-filter
+          // has enough room to find real products.
+          return 5000;
+        })();
+        params.push(CANDIDATE_LIMIT);
         const result = await searchClient.query(
-          `SELECT * FROM (
-             SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
-             FROM products ${where}
-             LIMIT $${params.length - 2}
-           ) _candidates
+          `SELECT id, sku AS source, source AS domain, url, title,
+                  price, currency, image_url, metadata, updated_at, region, country_code
+           FROM products ${where}
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`,
+           LIMIT $${params.length}`,
           params
         );
+        // Return all rows; the post-filter below will apply the accessory
+        // filter, then the LIMIT/OFFSET slice will pick the visible page.
         rows = result.rows;
       }
     } else {
@@ -542,14 +546,24 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       filteredRows = rows as Record<string, unknown>[];
       console.warn(`[search] laptop filter dropped all ${rows.length} results for q="${q}", reverting`);
     }
+    // v2: only apply the post-filter when it actually drops fewer than 50% of rows
+    // (otherwise the device filter has over-fit and we should still return the raw
+    // ranks). This stabilizes the visible page when the candidate pool is sparse.
   }
 
-  const products = filteredRows.map(r =>
+  const products = filteredRows.slice(offset, offset + limit).map(r =>
     buildProduct(r, currency, compact)
   );
 
+  // After the device post-filter, the total reflects a smaller (real-product)
+  // population. Reporting the pre-filter count over-reports available results;
+  // use the post-filter size capped at the original total.
+  const adjustedTotal = (deviceFilter.type && filteredRows.length !== rows.length)
+    ? Math.min(total!, filteredRows.length)
+    : total!;
+
   const result = buildSearchResponse(
-    products, total!, limit, offset, Date.now() - t0, false
+    products, adjustedTotal, limit, offset, Date.now() - t0, false
   );
 
   // BUY-71542 / P2.6: apply emptiness metadata to empty search responses
