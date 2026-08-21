@@ -18,7 +18,7 @@ const v2Tools = [
     inputSchema: {
       type: "object",
       properties: {
-        q: { type: "string", description: "Keyword search query" },
+        q: { type: "string", description: "Keyword search query (optional; supports browse-by-category and region-only queries)" },
         deliver_to: {
           type: "string",
           description: "Buyer delivery country/market (ISO 3166-1 alpha-2). REQUIRED.",
@@ -30,7 +30,7 @@ const v2Tools = [
         sort: { type: "string", enum: ["best_value", "lowest_price", "highest_rated"], default: "best_value" },
         limit: { type: "integer", default: 10, description: "Max results (1-50)" },
       },
-      required: ["q", "deliver_to"],
+      required: ["deliver_to"],
     },
   },
   {
@@ -40,14 +40,15 @@ const v2Tools = [
     inputSchema: {
       type: "object",
       properties: {
-        q: { type: "string", description: "Product name to find best price for" },
+        q: { type: "string", description: "Keyword search query — alias for product_name" },
+        product_name: { type: "string", description: "Product name to find best price for (e.g., \"iphone 15 pro 256gb\", \"samsung galaxy s24\")" },
         deliver_to: {
           type: "string",
           description: "Buyer delivery country/market (ISO 3166-1 alpha-2). REQUIRED.",
         },
         category: { type: "string", description: "Category slug filter" },
       },
-      required: ["q", "deliver_to"],
+      required: ["deliver_to"],
     },
   },
   {
