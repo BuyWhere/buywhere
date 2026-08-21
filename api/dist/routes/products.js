@@ -474,16 +474,17 @@ const LIST_SORT_COLUMNS = {
 const LIST_SORT_TTL_SECONDS = 60;
 router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.list'), asyncHandler(async (req, res) => {
     // Backward compatibility: early public docs and clients used
-    // `/v1/products?query=...` for search. Treat that as the canonical
-    // bounded search route instead of falling through to the unsearched list
-    // query, which is intentionally optimized for paginated browsing.
-    const legacyQuery = req.query.query;
-    if (legacyQuery && !req.query.q) {
+    // `/v1/products?q=...` or `/v1/products?query=...` for search. Treat
+    // those as the canonical bounded search route instead of falling through
+    // to the unsearched list query, which is intentionally optimized for
+    // paginated browsing and has its own cache key.
+    const legacySearchQuery = (req.query.q || req.query.query);
+    if (legacySearchQuery) {
         const searchParams = new URLSearchParams();
         for (const [key, value] of Object.entries(req.query)) {
             if (value === undefined)
                 continue;
-            const targetKey = key === 'query' ? 'q' : key;
+            const targetKey = key === 'query' ? 'q' : key === 'country' ? 'country_code' : key;
             if (Array.isArray(value)) {
                 for (const item of value)
                     searchParams.append(targetKey, String(item));

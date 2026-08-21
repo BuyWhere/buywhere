@@ -443,15 +443,16 @@ router.get(
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
     // Backward compatibility: early public docs and clients used
-    // `/v1/products?query=...` for search. Treat that as the canonical
-    // bounded search route instead of falling through to the unsearched list
-    // query, which is intentionally optimized for paginated browsing.
-    const legacyQuery = req.query.query as string | undefined;
-    if (legacyQuery && !req.query.q) {
+    // `/v1/products?q=...` or `/v1/products?query=...` for search. Treat
+    // those as the canonical bounded search route instead of falling through
+    // to the unsearched list query, which is intentionally optimized for
+    // paginated browsing and has its own cache key.
+    const legacySearchQuery = (req.query.q || req.query.query) as string | undefined;
+    if (legacySearchQuery) {
       const searchParams = new URLSearchParams();
       for (const [key, value] of Object.entries(req.query)) {
         if (value === undefined) continue;
-        const targetKey = key === 'query' ? 'q' : key;
+        const targetKey = key === 'query' ? 'q' : key === 'country' ? 'country_code' : key;
         if (Array.isArray(value)) {
           for (const item of value) searchParams.append(targetKey, String(item));
         } else {

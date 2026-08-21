@@ -171,6 +171,16 @@ describe('NL search queries — response correctness', () => {
     assert.equal(responsePage(body).offset, 0);
   });
 
+  it('redirects legacy /v1/products?q=... requests to the canonical search route', async () => {
+    const res = await fetch(`http://localhost:${port}/v1/products?q=asus+rog&country=SG&limit=5`, {
+      headers: { Authorization: 'Bearer test-key' },
+      redirect: 'manual',
+    });
+
+    assert.equal(res.status, 307);
+    assert.equal(res.headers.get('location'), '/v1/products/search?q=asus+rog&country_code=SG&limit=5');
+  });
+
   it('constructs FTS query with plainto_tsquery for NL query', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=gaming+laptop+2026`, {
       headers: { Authorization: 'Bearer test-key' },
