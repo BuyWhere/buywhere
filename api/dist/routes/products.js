@@ -17,6 +17,7 @@ const shipsTo_1 = require("../lib/shipsTo");
 const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
+const identifierDetector_1 = require("../lib/identifierDetector");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
@@ -93,6 +94,132 @@ function dedupeProductRows(rows) {
 }
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+}
+// ── Identifier lookup (BUY-72362). Runs BEFORE tier/keyword/archive/vector.
+// Detects ASIN/EAN/GTIN/UPC/Apple-part/model-number queries and resolves them
+// to an exact match against `gtin` / `mpn` / `sku`. FTS cannot resolve these
+// shapes — ASINs share no meaningful tokens with product titles — and the
+// tokenised fallback for generic SKUs (`SKU-12345` → fishing reels) is a
+// confident wrong answer. Returns true if it handled the request (including
+// the deliberate "no exact match" 0-result case); returns false if the query
+// is not identifier-shaped, so the caller falls through to the FTS path
+// unchanged. Errors also return false to preserve the existing fail-open
+// contract. Cached alongside the FTS path under `search:...` keys.
+async function tryIdentifierLookup(req, res, p) {
+    let client;
+    try {
+        client = await (0, readReplica_1.servingReadDbConnect)();
+    }
+    catch {
+        return false;
+    }
+    try {
+        const conds = [];
+        const params = [];
+        let i = 1;
+        const idIdx = i;
+        params.push(p.id.normalized);
+        i++;
+        conds.push((0, identifierDetector_1.identifierMatchPredicate)(p.id, idIdx).sql);
+        if (p.minPrice != null || p.maxPrice != null) {
+            conds.push(`sp.currency = $${i}`);
+            params.push(p.currency);
+            i++;
+        }
+        if (p.brand) {
+            conds.push(`sp.brand ILIKE $${i}`);
+            params.push(`%${p.brand}%`);
+            i++;
+        }
+        if (p.domain) {
+            conds.push(`sp.source = $${i}`);
+            params.push(p.domain);
+            i++;
+        }
+        conds.push(`sp.is_active = true`);
+        conds.push(`sp.price > 0`);
+        const whereSql = `WHERE ${conds.join(' AND ')}`;
+        const limitIdx = i;
+        params.push(p.limit + 1);
+        i++;
+        const offsetIdx = i;
+        params.push(p.offset);
+        i++;
+        await client.query('BEGIN');
+        await client.query(`SET LOCAL statement_timeout = '2000'`);
+        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+        const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+      sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+      sp.sku AS source_id, sp.brand, sp.mpn, sp.gtin, sp.category_path, sp.category, sp.merchant_id,
+      sp.avg_rating, sp.review_count, sp.created_at, sp.description, sp.metadata,
+      jsonb_build_object('brand', sp.brand, 'category', sp.category,
+        'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+        let rows = [];
+        let source = 'identifier_tier';
+        try {
+            const r = await client.query(`SELECT ${cols} FROM products sp
+         LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+         ${whereSql}
+         ORDER BY sp.id DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`, params);
+            rows = r.rows;
+        }
+        catch (tierErr) {
+            await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => { });
+            source = 'identifier_archive';
+            try {
+                await client.query('SAVEPOINT before_archive');
+                const r = await client.query(`SELECT ${cols.replace(/sp\./g, 'products.')} FROM products
+           LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+           ${whereSql.replace(/sp\./g, 'products.')}
+           ORDER BY products.id DESC
+           LIMIT $${limitIdx} OFFSET $${offsetIdx}`, params);
+                rows = r.rows;
+            }
+            catch (archiveErr) {
+                await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => { });
+                throw archiveErr;
+            }
+        }
+        await client.query('COMMIT');
+        client.release();
+        if (rows.length === 0) {
+            const emptyBody = (0, response_1.buildSearchResponse)([], 0, p.limit, p.offset, Date.now() - p.requestStart, false);
+            emptyBody.source = source;
+            emptyBody.identifier_kind = p.id.kind;
+            annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
+            config_1.redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+            res.set('X-Identifier-Lookup', p.id.kind);
+            res.set('X-Identifier-Resolved', '0');
+            res.json(emptyBody);
+            return true;
+        }
+        const hasMore = rows.length > p.limit;
+        const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
+        const total = p.offset + rows.length;
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
+        responseBody.source = source;
+        responseBody.identifier_kind = p.id.kind;
+        annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
+        config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+        res.set('X-Identifier-Lookup', p.id.kind);
+        res.set('X-Identifier-Resolved', String(rows.length));
+        res.json(responseBody);
+        return true;
+    }
+    catch (e) {
+        try {
+            await client.query('ROLLBACK').catch(() => { });
+        }
+        catch { /* ignore */ }
+        try {
+            client.release();
+        }
+        catch { /* ignore */ }
+        console.warn('[identifier] fell back:', e?.message);
+        return false;
+    }
 }
 // ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
 // (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
@@ -700,6 +827,25 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
+    // FTS entirely. The detector is conservative — it only matches short,
+    // whitespace-free inputs against known global identifier formats, so a
+    // natural-language query never reaches this branch. When it does fire, we
+    // route to an exact-match lookup against `gtin`/`mpn`/`sku` and cache the
+    // zero-result envelope (so `SKU-12345`-style non-matches cannot leak the
+    // FTS fishing-reel noise). The vector arm is gated to `keyword` for the
+    // same reason — ASIN/EAN lookup is a mechanical equality, not a similarity
+    // search.
+    const identifier = (0, identifierDetector_1.detectIdentifier)(rawQuery);
+    if (identifier && !sortRequested) {
+        const handled = await tryIdentifierLookup(req, res, {
+            id: identifier, countryCode, currency, limit, offset, minPrice, maxPrice,
+            brand, domain, compact, requestStart, cacheKey,
+            deliverTo, includeUnshippable,
+        });
+        if (handled)
+            return;
+    }
     // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
     // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
     // tier so the archive path (which honors buildSortOrder) serves it ordered.
@@ -1776,27 +1922,28 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
     });
 }));
 // GET /v1/products/:id/similar — BUY-41134 Find-Similar endpoint
+// BUY-72361: returns 404 NOT_FOUND (REST parity with MCP find_similar) when the
+// product has no embedding, instead of the prior 504-after-10s. The 504 was the
+// wrong failure mode — clients burnt the latency budget on a problem the MCP
+// surface already answers in <100ms with a structured envelope.
 // Primary: KNN on pre-computed embedding from embedding-store.product_embeddings.
-// Fallback: same brand + category (B-tree index) if embedding not yet populated.
+// Fallback: same brand + category (B-tree index) if embedding exists but returns
+// fewer than `limit` rows.
 // Latency target: p95 ≤ 200 ms under load.
+// BUY-72361: Promise.race against an explicit deadline. We use this for both the
+// embedding lookup and the KNN query so a slow vectorDb pool can't hang the
+// request — fall through to the structured 404 NOT_FOUND response.
+function withTimeout(p, ms, label) {
+    return new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`[products.similar] ${label} timed out after ${ms}ms`)), ms);
+        p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    });
+}
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
-    // BUY-41137: hard ceiling so the request returns a deterministic response even
-    // if pool exhaustion (from a slow vectorDb KNN) would otherwise hang. The prior
-    // version of this hook only logged and never sent a response, leaving clients
-    // hanging until their own socket timeout. The handler now races its work against
-    // this deadline and responds 504 if it loses.
-    let timedOut = false;
-    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
-        timedOut = true;
-        console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
-        if (!res.headersSent) {
-            res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
-        }
-    });
     const { id } = req.params;
     if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
-        if (!timedOut && !res.headersSent)
+        if (!res.headersSent)
             res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
         return;
     }
@@ -1805,30 +1952,35 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`, [id]);
     if (srcResult.rows.length === 0) {
-        if (!timedOut && !res.headersSent)
-            res.status(404).json({ error: 'Product not found' });
+        if (!res.headersSent)
+            res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', meta: { source_id: id, response_time_ms: Date.now() - start } });
         return;
     }
     const src = srcResult.rows[0];
     // Phase 1: Try embedding-based KNN (vector store).
-    // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // product_embeddings table (public schema via vectorDb connection).
+    // BUY-54718 / BUY-41137 / BUY-54796 / BUY-72361: use the shared vectorDb pool
+    // and the product_embeddings table. Each query is raced against a short
+    // timeout — if the pool is slow / saturated, return a fast 404 NOT_FOUND
+    // (REST parity with MCP find_similar) instead of a 10-second 504.
     let similar = [];
     let similarityFallback = false;
+    let knnAvailable = false;
+    let notFoundReason = null;
     if (config_1.vectorDb) {
         try {
             // Fetch pre-computed embedding for this product.
-            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`, [id]);
+            const embResult = await withTimeout(config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
+             WHERE product_id = $1`, [id]), 1500, 'embedding lookup');
             if (embResult.rows.length > 0) {
                 const embeddingStr = embResult.rows[0].embedding;
                 // KNN: rows with smallest cosine distance first.
-                const knnResult = await config_1.vectorDb.query(`SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
-             FROM product_embeddings
-             WHERE product_id != $2
-             ORDER BY embedding <=> $1::vector
-             LIMIT $3`, [embeddingStr, id, limit]);
+                const knnResult = await withTimeout(config_1.vectorDb.query(`SELECT product_id,
+                      1 - (embedding <=> $1::vector) AS score
+               FROM product_embeddings
+               WHERE product_id != $2
+               ORDER BY embedding <=> $1::vector
+               LIMIT $3`, [embeddingStr, id, limit]), 2500, 'KNN');
+                knnAvailable = true;
                 const knnIds = knnResult.rows.map((r) => String(r.product_id));
                 const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));
                 if (knnIds.length > 0) {
@@ -1849,17 +2001,45 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
                 }
             }
             else {
-                // No embedding yet — fall through to fallback.
-                similarityFallback = true;
+                // No embedding yet — REST parity with MCP find_similar's
+                // `No embedding found for this product — backfill may still be running`.
+                notFoundReason = 'No embedding found for this product — backfill may still be running';
             }
         }
         catch (err) {
-            console.warn('[similar] vector KNN failed, using fallback:', err.message);
-            similarityFallback = true;
+            // BUY-72361: pool exhaustion / slow vectorDb / KNN timeout — return
+            // 404 NOT_FOUND instead of 504 so callers see parity with MCP.
+            console.warn('[similar] vector KNN failed:', err.message);
+            notFoundReason = err.message?.includes('timed out')
+                ? 'Vector DB query timed out — embedding lookup took too long'
+                : 'Vector DB query failed — see server logs';
+            // Don't set similarityFallback — we don't want a brand/FTS fallback that
+            // surfaces 0 useful rows and looks like a 200 success.
         }
     }
-    // Phase 2 (fallback): same brand + category, or FTS on title
-    if (similarityFallback || similar.length === 0) {
+    // BUY-72361: missing-embedding or vector failure → fast structured 404
+    // (REST parity with MCP find_similar's -32001 / envelope NOT_FOUND).
+    if (notFoundReason) {
+        if (!res.headersSent) {
+            res.status(404).json({
+                error: 'Not Found',
+                code: 'NOT_FOUND',
+                message: notFoundReason,
+                meta: {
+                    source_id: id,
+                    method: 'not_found',
+                    response_time_ms: Date.now() - start,
+                },
+            });
+        }
+        return;
+    }
+    // Phase 2 (fallback): same brand + category, or FTS on title.
+    // Only enter this when KNN ran successfully but returned fewer than
+    // `limit` rows — we don't fabricate neighbours when the embedding is
+    // missing or the vector DB is unavailable.
+    if (similarityFallback || (knnAvailable && similar.length < limit)) {
+        similarityFallback = true;
         const currency = src.currency || 'SGD';
         const sourceCountry = src.country_code || null;
         const brand = src.brand || null;
@@ -1921,14 +2101,23 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         country_code: row.country_code || null,
         similarity: row._similarity ?? null,
     }));
-    if (timedOut || res.headersSent)
+    if (res.headersSent)
         return;
     res.json({
         data,
         meta: {
             source_id: id,
             count: data.length,
-            method: config_1.vectorDb && !similar.length ? 'fallback' : config_1.vectorDb ? 'knn' : 'fallback',
+            // BUY-72361: surface whether this response was KNN, brand/FTS fallback,
+            // or vectorDb-unavailable fallback. `knn_partial` means KNN ran but
+            // returned fewer rows than `limit` (we filled up with brand/FTS).
+            method: !config_1.vectorDb
+                ? 'fallback'
+                : knnAvailable && similarityFallback
+                    ? 'knn_partial'
+                    : knnAvailable
+                        ? 'knn'
+                        : 'fallback',
             response_time_ms: Date.now() - start,
         },
     });
