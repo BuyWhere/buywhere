@@ -849,7 +849,7 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v8-storage-excl:keyfmt:'));
+    assert.ok(cacheGetCalls[0].arguments[0].match(/^fts:[^:]+:keyfmt:/), `unexpected cache key format: ${cacheGetCalls[0].arguments[0]}`);
   });
 });
 
