@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/generate-active-blog-slugs.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:blog-slugs": "node scripts/generate-active-blog-slugs.mjs && git diff --exit-code -- src/lib/active-blog-slugs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",

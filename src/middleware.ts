@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ACTIVE_BLOG_SLUGS as GENERATED_ACTIVE_BLOG_SLUGS } from "@/lib/active-blog-slugs";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -217,46 +218,9 @@ const ACTIVE_DOC_PATHS = new Set([
   "/docs/guides/price-comparison",
 ]);
 
-const ACTIVE_BLOG_SLUGS = new Set([
-  "best-gaming-laptops-us-2026",
-  "best-laptop-deals-singapore",
-  "best-laptop-deals-singapore-june-2026",
-  "best-laptop-deals-under-sgd-2000-singapore",
-  "best-price-tracking-tools-singapore",
-  "best-robot-vacuums-2026-pricing-compared",
-  "best-time-to-buy-cameras",
-  "best-time-to-buy-electronics",
-  "best-time-to-buy-fitness-tech",
-  "best-time-to-buy-headphones",
-  "best-time-to-buy-laptops",
-  "best-time-to-buy-smartphones",
-  "best-time-to-buy-smartwatches",
-  "best-time-to-buy-tvs",
-  "build-shopping-agent-buywhere-mcp",
-  "buywhere-cursor-plugin-launch",
-  "cheapest-iphone-17-singapore-june-2026",
-  "cheapest-iphone-singapore-2026",
-  "cheapest-macbook-air-m3-12-countries-compared",
-  "cite-buywhere-catalog-stats-faq",
-  "amazon-prime-day-2026-preview",
-  "airpods-pro-2-cheapest-us-sg-my-jp",
-  "best-time-to-buy-back-to-school-laptops-2026",
-  "best-time-to-buy-small-kitchen-appliances-2026",
-  "best-noise-cancelling-headphones-2026-bose-sony-sennheiser-apple",
-  "buywhere-vs-google-shopping-vs-amazon-pricing-2026",
-  "compare-headphones-singapore-2026",
-  "compare-product-prices-singapore-2026",
-  "fathers-day-deals-2026",
-  "home-appliance-deals-singapore-2026",
-  "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
-  "openai-agents-sdk-buywhere-mcp-tutorial",
-  "the-mcp-server-discovery-gap",
-  "building-production-mcp-servers",
-  "five-mcp-servers-that-earn-context-window",
-  "mcp-for-ecommerce",
-  "buywhere-mcp-goes-live",
-  "mcp-server-ecosystem-2026",
-]);
+// Generated from content/blog/*.md by scripts/generate-active-blog-slugs.mjs
+// before builds so sitemap-blog.xml and middleware cannot drift.
+const ACTIVE_BLOG_SLUGS = new Set(GENERATED_ACTIVE_BLOG_SLUGS);
 
 function normalizePathname(pathname: string): string {
   if (pathname === "/") {
