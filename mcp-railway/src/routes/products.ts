@@ -945,7 +945,7 @@ router.get(
       buildProduct(row as Record<string, unknown>, 'SGD', false)
     );
 
-    const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
+    const uniqueCurrencies = [...new Set(products.map((p) => typeof p.price === 'object' ? p.price.currency : null).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
 
     const responseBody = buildSearchResponse(products, products.length, ids.length, 0, Date.now() - start, false);

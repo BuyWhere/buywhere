@@ -956,6 +956,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     if (deviceFilter.type === 'laptop') positiveSignals.push('laptop', 'notebook');
     if (deviceFilter.type === 'tablet') positiveSignals.push('tablet');
     if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
+    // BUY-65095: positive signals for new product families so the filter does
+    // not over-match (a row with both "sneaker" and "sock" is genuinely sneakers
+    // with a co-mention, not a sock). Footwear terms appear in real titles
+    // ("Sneakers" / "Trainers" / "Running shoes").
+    if (deviceFilter.type === 'footwear') positiveSignals.push('sneaker', 'sneakers', 'shoe', 'shoes', 'trainer', 'trainers', 'runner', 'runners', 'boot', 'boots', 'loafer', 'loafers', 'sandal', 'sandals', 'slipper', 'slippers', 'cleats', 'football boot', 'soccer boot', 'cross trainer', 'footwear');
+    if (deviceFilter.type === 'apparel') positiveSignals.push('shirt', 'shirts', 'tee', 't-shirt', 'polo', 'dress', 'dresses', 'hoodie', 'hoodies', 'jacket', 'jackets', 'coat', 'coats', 'sweater', 'sweaters', 'jumper', 'shorts', 'pants', 'trousers', 'jeans', 'skirt', 'skirts', 'blouse', 'sweatshirt', 'cardigan', 'leggings', 'pajamas', 'underwear');
     const hasPositive = positiveSignals.some(s => text.includes(s));
     const hasNegative = neg.some(t => text.includes(t));
     if (!hasNegative && hasPositive) return false;
