@@ -913,39 +913,37 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     await bestPriceClient.query('SET statement_timeout = 10000');
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
     const titlePattern = `%${productName}%`;
-    // BUY-69226: title ILIKE drives candidates instead of FTS so we capture
-    // device-model-number matches that FTS misses.
+    // BUY-69226: country-aware title ILIKE drives candidates so we partition-prune
+    // by country_code and match device-model numbers that FTS misses. We order
+    // by recent activity but cap the inner window per-country so a small market
+    // (e.g. US) is not starved by a larger one (SG).
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
          FROM products
          WHERE is_active = true AND price > 0
+           AND country_code = $1
+           AND title ILIKE $2
          ORDER BY updated_at DESC
-         LIMIT $1
+         LIMIT $3
        ) _candidates
-       WHERE country_code = $2
-         AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
        LIMIT $4`,
-      [CANDIDATE_POOL, requestedCountry, titlePattern, CANDIDATE_POOL]
+      [requestedCountry, titlePattern, CANDIDATE_POOL, CANDIDATE_POOL]
     );
-    // BUY-69226: country-only fallback so device queries with no exact title
-    // match still return the country's most recent cheap products.
+    // BUY-69226: country-only fallback so device queries with no title match
+    // still return the country's most recent cheap products.
     if (result.rows.length === 0) {
       result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products
-           WHERE is_active = true AND price > 0
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _candidates
-         WHERE country_code = $2
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at
+         FROM products
+         WHERE is_active = true AND price > 0
+           AND country_code = $1
          ORDER BY price ASC, updated_at DESC
-         LIMIT $3`,
-        [CANDIDATE_POOL, requestedCountry, CANDIDATE_POOL]
+         LIMIT $2`,
+        [requestedCountry, CANDIDATE_POOL]
       );
     }
   } finally {
