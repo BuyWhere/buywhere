@@ -31,6 +31,19 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Set SENTRY_DSN on Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          echo "Setting SENTRY_DSN on Railway (len=${#SENTRY_DSN})"
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "$(python3 -c "import json,os; print(json.dumps({'query':'mutation($input:VariableUpsertInput!){variableUpsert(input:$input){id}}','variables':{'input':{'name':'SENTRY_DSN','value':os.environ['SENTRY_DSN'],'environmentId':'$ENV_ID','serviceId':'$SERVICE_ID'}}}))")")
+          echo "Set env var response: $RESP"
+
       - name: Trigger Railway deploy of this SHA
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -116,10 +129,8 @@ jobs:
             -H "Authorization: Bearer ${API_KEY}")
           echo "$SEARCH_JSON" | jq '{total, first: (.results[0] // null), error}'
           SEARCH_ERROR=$(echo "$SEARCH_JSON" | jq -r '.error // empty')
-          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // empty')
-          # Accept total > 0, or null/empty if results array has items (valid API response)
-          SEARCH_RESULTS=$(echo "$SEARCH_JSON" | jq -r '.results | length // 0')
-          if [[ -n "$SEARCH_ERROR" || ( -z "$SEARCH_TOTAL" && "$SEARCH_RESULTS" == "0" ) ]]; then
+          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // 0')
+          if [[ -n "$SEARCH_ERROR" || "$SEARCH_TOTAL" == "0" ]]; then
             echo "ERROR: search smoke test failed"
             exit 1
           fi
