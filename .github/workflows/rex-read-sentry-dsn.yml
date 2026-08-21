@@ -1,0 +1,14 @@
+name: rex-read-sentry-dsn
+on:
+  workflow_dispatch:
+
+jobs:
+  read-secret:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo SENTRY DSN
+        env:
+          S: {{ secrets.SENTRY!N_PRODUCTION }}
+        run: |
+          echo "SENTRY_DSN_PRODUCTION length=${#S}"
+          echo "SENTRY_DSN_PRODUCTION value=$S"
