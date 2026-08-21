@@ -820,116 +820,124 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
   const region = (args.region as string) || '';
-  const category = (args.category as string) || '';
-  const limit = 10;
 
-  // BUY-67522: infer exact device-family queries and reject accessory results.
-  const deviceFilter = buildDeviceFilter(productName, country);
-
-  // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
-
-  params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-
-  if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
-  }
-  if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
-  }
-  if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
-  }
-
-  // BUY-67522: for exact device queries, enforce a floor that accessories cannot satisfy.
-  if (deviceFilter.minLocal > 0) {
-    params.push(deviceFilter.minLocal);
-    conditions.push(`price >= $${params.length}`);
-  }
-
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  // BUY-69226: align with api-embed implementation — fetch 100 candidates to
+  // compute a stable median-based outlier guard. Title ILIKE gives better recall
+  // for product names with model numbers than search_vector FTS.
+  const CANDIDATE_POOL = 100;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  const bestPriceClient = await acquireMcpClient();
-  let result: { rows: Record<string, unknown>[] };
+  const bestPriceClient = await acquireMcpClient().catch((err: unknown) => {
+    console.warn('[find_best_price] db.connect failed:', (err as Error).message);
+    throw { code: -32603, message: 'Database connection timeout' };
+  });
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
+    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const titlePattern = `%${productName}%`;
+    // BUY-69226: title ILIKE drives candidates instead of FTS so we capture
+    // device-model-number matches that FTS misses.
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at, category, category_path, metadata
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+                country_code, updated_at
+         FROM products
+         WHERE is_active = true AND price > 0
+         ORDER BY updated_at DESC
+         LIMIT $1
        ) _candidates
+       WHERE country_code = $2
+         AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+       LIMIT $4`,
+      [CANDIDATE_POOL, requestedCountry, titlePattern, CANDIDATE_POOL]
     );
+    // BUY-69226: country-only fallback so device queries with no exact title
+    // match still return the country's most recent cheap products.
+    if (result.rows.length === 0) {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $3`,
+        [CANDIDATE_POOL, requestedCountry, CANDIDATE_POOL]
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country] || 'SGD';
-  const toUsd = CURRENCY_RATES[currency] ?? 1;
+  const countryCurrency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
 
-  const neg = deviceFilter.negativeTerms;
-
-  const isAccessory = (r: Record<string, unknown>) => {
-    if (!deviceFilter.type) return false;
-    const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata as Record<string, unknown> : {};
-    const text = [
-      String(r.title || ''),
-      String((r.category_path as string[] | undefined)?.join(' ') || ''),
-      String((r.category as string) || ''),
-      String(metadata.category || ''),
-      String(metadata.product_type || ''),
-    ].join(' ').toLowerCase();
-    // Positive signal: the product_type/category clearly names the device family.
-    const positiveSignals: string[] = [];
-    if (deviceFilter.type === 'phone') positiveSignals.push('smartphone', 'mobile phone', 'mobile phones');
-    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles');
-    if (deviceFilter.type === 'laptop') positiveSignals.push('laptop', 'notebook');
-    if (deviceFilter.type === 'tablet') positiveSignals.push('tablet');
-    if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
-    const hasPositive = positiveSignals.some(s => text.includes(s));
-    const hasNegative = neg.some(t => text.includes(t));
-    // If the title explicitly contains a positive device word and no accessory word, keep it.
-    if (!hasNegative && hasPositive) return false;
-    // If any negative term appears, treat as accessory unless a positive signal also appears.
-    if (hasNegative && !hasPositive) return true;
-    // Fallback: multi-model titles like "For iPhone 15 14 13 ... screen protector" are accessories.
-    if (/\bfor\b.*\b(iphone|galaxy|ipad|ps5|xbox|macbook)\b.*\b\d+\b.*(protector|case|cover|glass|film|cable|adapter|charger|controller|game)\b/.test(text)) return true;
-    if (/\bcompatible\b/.test(text) && hasNegative) return true;
-    return false;
+  // BUY-63229: median-based outlier guard — normalize each row's price to USD by
+  // its own currency so scam listings priced in foreign currency can't slip past.
+  const rowToUsd = (r: Record<string, unknown>) => {
+    const curr = ((r.currency as string) || countryCurrency).toUpperCase();
+    const fxRate = CURRENCY_RATES[curr] ?? 1;
+    const price = r.price != null ? Number(r.price) : 0;
+    return price * fxRate;
   };
 
-  const candidates = result.rows.filter(r => !isAccessory(r));
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  let finalRows = result.rows;
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  if (result.rows.length >= 3) {
+    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+    const mid = Math.floor(sortedUsd.length / 2);
+    medianUsd = sortedUsd.length % 2 === 0
+      ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
+      : sortedUsd[mid];
+    minAllowedUsd = medianUsd * 0.15;
+    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    if (filtered.length > 0) {
+      finalRows = filtered;
+      guardApplied = filtered.length < result.rows.length;
+      if (guardApplied) {
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+      }
+    }
+  }
+
+  const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
+    const price = r.price != null ? parseFloat(r.price as string) : null;
+    const curr = ((r.currency as string) || countryCurrency).toUpperCase();
+    const fxRate = CURRENCY_RATES[curr] ?? 1;
+    return {
+      id: r.id,
+      title: r.title,
+      price: { amount: price, currency: curr },
+      normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
+      merchant: r.domain as string,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+    };
+  });
 
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      guard_applied: guardApplied,
+      ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
+      ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+    },
   };
 }
 
