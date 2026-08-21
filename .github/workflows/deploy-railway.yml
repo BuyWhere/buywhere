@@ -53,11 +53,18 @@ jobs:
           }))
           PYEOF
           )
-          RESP=$(curl -sf "$GQL" \
+          echo "Payload: $PAYLOAD"
+          HTTP_CODE=$(curl -s -o /tmp/sentry_resp.json -w "%{http_code}" "$GQL" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
             -d "$PAYLOAD")
+          RESP=$(cat /tmp/sentry_resp.json)
+          echo "HTTP code: $HTTP_CODE"
           echo "Set env var response: $RESP"
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "ERROR: setting SENTRY_DSN failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
 
       - name: Trigger Railway deploy of this SHA
         env:
