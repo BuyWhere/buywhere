@@ -153,7 +153,9 @@ async function tryTierSearch(
   if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
   let dtIdx = 0;
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
-  const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  // BUY-72744: exclude synthetic Amazon rows in tier search.
+  const synthAmazonExcl = "NOT (sp.source = 'amazon_us' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
+  const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   const limitIdx = i; params.push(p.limit + 1); i++;
   const offsetIdx = i; params.push(p.offset); i++;
@@ -763,6 +765,11 @@ router.get(
     }
 
     const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    // BUY-72744: exclude synthetic Amazon rows with malformed ASINs (not exactly 10 chars starting with B)
+    // and US-priced-as-SGD currency mismatches. The scraper fix is on main but stale catalog rows remain.
+    baseConditions.push(
+      "NOT (merchant_id = 'amazon_us' AND (length(sku) != 10 OR (country_code = 'US' AND currency = 'SGD')))"
+    );
     // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
     // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
     // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
