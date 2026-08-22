@@ -65,12 +65,9 @@ jobs:
           sleep 60
           curl -sf https://api.buywhere.ai/health
           for i in $(seq 1 5); do
-            BODY=$(curl -s -m 15 "https://api.buywhere.ai/v1/products/search?q=nike&limit=3" \
-                   -H "Authorization: Bearer $SMOKE_KEY")
+            BODY=$(curl -s -m 15 "https://api.buywhere.ai/v1/products/search?q=nike&limit=3" -H "Authorization: Bearer $SMOKE_KEY")
             echo "$BODY" | grep -q '"id"' && exit 0
-            CODE=$(curl -s -m 15 -o /dev/null -w "%{http_code}" \
-                   "https://api.buywhere.ai/v1/products/search?q=nike&country_code=SG&limit=1" \
-                   -H "Authorization: Bearer $SMOKE_KEY")
+            CODE=$(curl -s -m 15 -o /dev/null -w "%{http_code}" "https://api.buywhere.ai/v1/products/search?q=nike&country_code=SG&limit=1" -H "Authorization: Bearer $SMOKE_KEY")
             [ "$CODE" = "500" ] && { echo "::error::search returning 500"; exit 1; }
             sleep 45
           done
