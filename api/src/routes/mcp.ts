@@ -11,6 +11,13 @@ import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplic
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 import { buildClickUrl } from '../lib/instrumentation';
+import {
+  recordToolCall,
+  computeSnapshot,
+  getDegradedRegions,
+  SUPPORTED_REGIONS,
+  type SupportedRegion,
+} from '../monitoring/healthSnapshot';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -1914,15 +1921,44 @@ router.get('/metrics', (_req: Request, res: Response) => {
   });
 });
 
-// GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
+// BUY-69817: Helper to extract a normalised region from tool args. Falls back to SG.
+function extractRegion(toolArgs: Record<string, unknown>): SupportedRegion {
+  const raw = (
+    (toolArgs.deliver_to as string)
+    || (toolArgs.country_code as string)
+    || (toolArgs.country as string)
+    || (toolArgs.region as string)
+    || 'SG'
+  ).toString().trim().toUpperCase();
+  const REGION_TO_COUNTRY: Record<string, string> = {
+    SG: 'SG', US: 'US', MY: 'MY', TH: 'TH', VN: 'VN',
+    PH: 'PH', ID: 'ID', GB: 'GB', IN: 'IN', AU: 'AU',
+    SEA: 'SG',
+  };
+  const normalised = REGION_TO_COUNTRY[raw] || raw;
+  return (SUPPORTED_REGIONS as readonly string[]).includes(normalised)
+    ? (normalised as SupportedRegion)
+    : 'SG';
+}
+
+// GET /mcp/health — public health surface with per-tool/per-region breakdown.
 router.get('/health', async (_req: Request, res: Response) => {
   try {
-    const [, pong] = await Promise.all([
-      db.query('SELECT 1'),
+    const [countResult, pong] = await Promise.all([
+      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
       redis.ping(),
     ]);
+    const catalogTotal = parseInt(countResult.rows[0]?.count ?? '0', 10);
+
+    let snapshot;
+    try {
+      snapshot = computeSnapshot();
+    } catch (snapErr) {
+      snapshot = { status: 'ok', server: 'mcp' as const, ts: new Date().toISOString(), tools: {}, regions: {}, catalog: { total_products: catalogTotal } };
+    }
     res.json({
-      status: pong === 'PONG' ? 'ok' : 'degraded',
+      ...snapshot,
+      catalog: { total_products: catalogTotal },
       db: 'ok',
       redis: pong === 'PONG' ? 'ok' : 'degraded',
       ts: new Date().toISOString(),
@@ -1932,6 +1968,48 @@ router.get('/health', async (_req: Request, res: Response) => {
       status: 'down',
       error: (err as Error).message || String(err),
       ts: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /mcp/health/tools — per-tool p50/p95/error rate breakdown.
+router.get('/health/tools', async (_req: Request, res: Response) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({
+      status: snapshot.status,
+      server: 'mcp',
+      ts: snapshot.ts,
+      tools: snapshot.tools,
+    });
+  } catch (err: unknown) {
+    res.status(200).json({
+      status: 'ok',
+      server: 'mcp',
+      ts: new Date().toISOString(),
+      tools: {},
+      note: 'snapshotter degraded',
+    });
+  }
+});
+
+// GET /mcp/health/regions — per-region status with degraded-tool list.
+router.get('/health/regions', async (_req: Request, res: Response) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({
+      status: snapshot.status,
+      server: 'mcp',
+      ts: snapshot.ts,
+      regions: snapshot.regions,
+    });
+  } catch (err: unknown) {
+    res.status(200).json({
+      status: 'ok',
+      server: 'mcp',
+      ts: new Date().toISOString(),
+      regions: {},
+      note: 'snapshotter degraded',
     });
   }
 });
@@ -2010,6 +2088,14 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   const { id, method, params } = body;
   const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
 
+  // BUY-69817: record tool calls into the in-memory health snapshotter and
+  // set the X-BuyWhere-Degraded-Regions header so in-flight agents can self-correct.
+  let _toolName: string | undefined;
+  let _toolArgs: Record<string, unknown> = {};
+  const _startMs = Date.now();
+
+  res.setHeader('X-BuyWhere-Degraded-Regions', getDegradedRegions().join(',') || '');
+
   try {
     switch (method) {
       case 'tools/call': {
@@ -2019,35 +2105,34 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
         }
         // BUY-66684: normalize `cc` to `country_code` so handlers' existing
-        // `args.country_code`/`args.country` lookup logic fires. Some clients
-        // (e.g. Tune probes #363/#367) send `cc` expecting it to be the canonical
-        // short alias. Without this normalization, `cc=US` falls through to the
-        // `q && !region ? 'SG'` default in handleSearchProducts and every market
-        // returns identical SG rows.
+        // `args.country_code`/`args.country` lookup logic fires.
         if (toolArgs.cc != null && toolArgs.country_code == null) {
           toolArgs.country_code = toolArgs.cc;
         }
-        // BUY-22733: surface tool name to queryLog middleware so the finish
-        // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
+        // BUY-22733: surface tool name to queryLog middleware.
         res.locals.mcpToolName = toolName;
+        _toolName = toolName;
+        _toolArgs = toolArgs;
         const result = await dispatchTool(toolName, toolArgs);
+        try {
+          recordToolCall({ tool: toolName, region: extractRegion(toolArgs), latency_ms: Date.now() - _startMs, error: false });
+        } catch {}
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
       }
 
-      // BUY-72102 (re-apply after 2d53dc31 reset): backward compatibility for
-      // direct tool-name JSON-RPC methods (e.g. {"method":"search_products"}).
-      // Some MCP clients and heartbeat probes invoke tools by name instead of
-      // wrapping them in the MCP "tools/call" envelope. Route known tool names
-      // to dispatchTool. BUY-68192 added this fallback to mcp-railway; this
-      // branch keeps parity on api.buywhere.ai after the BUY-72387 mega-reset
-      // accidentally dropped the earlier c9bc8fe3 port.
+      // BUY-72102: backward compatibility for direct tool-name JSON-RPC methods.
       default: {
         const knownTool = TOOLS.find((t) => t.name === method);
         if (knownTool) {
           res.locals.mcpToolName = method;
+          _toolName = method;
+          _toolArgs = args;
           const result = await dispatchTool(method, args);
+          try {
+            recordToolCall({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
+          } catch {}
           return res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));
@@ -2056,11 +2141,13 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
     }
   } catch (err: unknown) {
+    if (_toolName) {
+      try {
+        recordToolCall({ tool: _toolName, region: extractRegion(_toolArgs), latency_ms: Date.now() - _startMs, error: true });
+      } catch {}
+    }
     const e = err as { code?: number | string; message?: string };
-    // BUY-57370: handle both numeric tool-error codes (e.g. -32603) and
-    // PostgreSQL string error codes (e.g. '57014' for statement_timeout).
-    // Without this, PG errors (string codes) always fall through to -32603,
-    // masking the real cause from monitoring/Tune.
+    // BUY-57370: handle both numeric tool-error codes and PG string error codes.
     if (typeof e.code === 'number' && e.message) {
       const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
@@ -2068,13 +2155,10 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
     }
     if (typeof e.code === 'string' && e.message) {
-      // BUY-70000: statement_timeout (57014) returns SERVICE_UNAVAILABLE (not INTERNAL)
-      // so monitoring/Tune can distinguish timeouts from true crashes.
       if (e.code === '57014') {
-        console.warn(`[mcp] statement_timeout (57014) — tool timed out at statement_timeout floor`);
+        console.warn(`[mcp] statement_timeout (57014)`);
         return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, ErrorCode.SERVICE_UNAVAILABLE));
       }
-      // Other PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
       console.error(`[mcp] pg error (code=${e.code}):`, e.message);
       return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
     }

@@ -8,6 +8,13 @@ import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/erro
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 import { buildClickUrl } from '../lib/instrumentation';
+import {
+  recordToolCall,
+  computeSnapshot,
+  getDegradedRegions,
+  SUPPORTED_REGIONS,
+  type SupportedRegion,
+} from '../monitoring/healthSnapshot';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -1737,15 +1744,50 @@ router.get('/metrics', (_req: Request, res: Response) => {
   });
 });
 
-// GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
+// BUY-69817: Helper to extract a normalised region from tool args. Falls back to SG.
+function extractRegion(toolArgs: Record<string, unknown>): SupportedRegion {
+  const raw = (
+    (toolArgs.deliver_to as string)
+    || (toolArgs.country_code as string)
+    || (toolArgs.country as string)
+    || (toolArgs.region as string)
+    || 'SG'
+  ).toString().trim().toUpperCase();
+  const REGION_TO_COUNTRY: Record<string, string> = {
+    SG: 'SG', US: 'US', MY: 'MY', TH: 'TH', VN: 'VN',
+    PH: 'PH', ID: 'ID', GB: 'GB', IN: 'IN', AU: 'AU',
+    SEA: 'SG',
+  };
+  const normalised = REGION_TO_COUNTRY[raw] || raw;
+  return (SUPPORTED_REGIONS as readonly string[]).includes(normalised)
+    ? (normalised as SupportedRegion)
+    : 'SG';
+}
+
+// GET /mcp/health — public health surface.
+// Backward-compatible: returns status/server/ts/catalog keys plus
+// the new per-tool/per-region breakdown (BUY-69817).
 router.get('/health', async (_req: Request, res: Response) => {
   try {
-    const [, pong] = await Promise.all([
-      db.query('SELECT 1'),
+    const [countResult, pong] = await Promise.all([
+      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
       redis.ping(),
     ]);
+    const catalogTotal = parseInt(countResult.rows[0]?.count ?? '0', 10);
+
+    // 503 only if the snapshotter itself cannot produce ANY data.
+    // Degraded status (per-tool/per-region breakdown) is a 200 — agents
+    // need the signal, not an error.
+    let snapshot;
+    try {
+      snapshot = computeSnapshot();
+    } catch (snapErr) {
+      // Failure-open — return stale snapshot, never 5xx.
+      snapshot = { status: 'ok', server: 'mcp' as const, ts: new Date().toISOString(), tools: {}, regions: {}, catalog: { total_products: catalogTotal } };
+    }
     res.json({
-      status: pong === 'PONG' ? 'ok' : 'degraded',
+      ...snapshot,
+      catalog: { total_products: catalogTotal },
       db: 'ok',
       redis: pong === 'PONG' ? 'ok' : 'degraded',
       ts: new Date().toISOString(),
@@ -1755,6 +1797,49 @@ router.get('/health', async (_req: Request, res: Response) => {
       status: 'down',
       error: (err as Error).message || String(err),
       ts: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /mcp/health/tools — per-tool p50/p95/error rate breakdown.
+router.get('/health/tools', async (_req: Request, res: Response) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({
+      status: snapshot.status,
+      server: 'mcp',
+      ts: snapshot.ts,
+      tools: snapshot.tools,
+    });
+  } catch (err: unknown) {
+    // Failure-open: empty toolset is still 200 with last-known snapshot.
+    res.status(200).json({
+      status: 'ok',
+      server: 'mcp',
+      ts: new Date().toISOString(),
+      tools: {},
+      note: 'snapshotter degraded',
+    });
+  }
+});
+
+// GET /mcp/health/regions — per-region status with degraded-tool list.
+router.get('/health/regions', async (_req: Request, res: Response) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({
+      status: snapshot.status,
+      server: 'mcp',
+      ts: snapshot.ts,
+      regions: snapshot.regions,
+    });
+  } catch (err: unknown) {
+    res.status(200).json({
+      status: 'ok',
+      server: 'mcp',
+      ts: new Date().toISOString(),
+      regions: {},
+      note: 'snapshotter degraded',
     });
   }
 });
@@ -1833,6 +1918,17 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   const { id, method, params } = body;
   const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
 
+  // BUY-69817: record tool calls into the in-memory health snapshotter and
+  // set the X-BuyWhere-Degraded-Regions header so in-flight agents can
+  // self-correct. Recording is fire-and-forget and never throws.
+  let _toolName: string | undefined;
+  let _toolArgs: Record<string, unknown> = {};
+  let _startMs = Date.now();
+
+  // Set the degraded-regions header on every response so agents always see
+  // it, including on validation errors.
+  res.setHeader('X-BuyWhere-Degraded-Regions', getDegradedRegions().join(',') || '');
+
   try {
     switch (method) {
       case 'tools/call': {
@@ -1844,7 +1940,18 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
+        _toolName = toolName;
+        _toolArgs = toolArgs;
+        _startMs = Date.now();
         const result = await dispatchTool(toolName, toolArgs);
+        try {
+          recordToolCall({
+            tool: toolName,
+            region: extractRegion(toolArgs),
+            latency_ms: Date.now() - _startMs,
+            error: false,
+          });
+        } catch {}
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
@@ -1858,7 +1965,18 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         const knownTool = TOOLS_ALL.find((t) => t.name === method);
         if (knownTool) {
           res.locals.mcpToolName = method;
+          _toolName = method;
+          _toolArgs = args;
+          _startMs = Date.now();
           const result = await dispatchTool(method, args);
+          try {
+            recordToolCall({
+              tool: method,
+              region: extractRegion(args),
+              latency_ms: Date.now() - _startMs,
+              error: false,
+            });
+          } catch {}
           return res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));
@@ -1867,6 +1985,16 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
     }
   } catch (err: unknown) {
+    if (_toolName) {
+      try {
+        recordToolCall({
+          tool: _toolName,
+          region: extractRegion(_toolArgs),
+          latency_ms: Date.now() - _startMs,
+          error: true,
+        });
+      } catch {}
+    }
     const e = err as { code?: number; message?: string; envelopeCode?: string };
     if (typeof e.code === 'number' && e.message) {
       const envelopeCode = e.envelopeCode || (e.code === -32001 ? ErrorCode.NOT_FOUND

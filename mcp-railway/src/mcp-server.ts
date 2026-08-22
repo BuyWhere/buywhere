@@ -7,6 +7,7 @@ import mcpRouter from './routes/mcp';
 import wellknownRouter from './routes/wellknown';
 import { db, redis } from './config';
 import { shutdownPostHog } from './analytics/posthog';
+import { computeSnapshot } from './monitoring/healthSnapshot';
 
 const MCP_PORT = parseInt(process.env.MCP_PORT || process.env.PORT || '8081');
 
@@ -19,17 +20,51 @@ app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// BUY-69817: public health surface with per-tool/per-region breakdown.
 app.get('/health', async (_req, res) => {
   try {
-    const result = await db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE oid = \'public.products\'::regclass');
+    const [countResult, pong] = await Promise.all([
+      db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE oid = \'public.products\'::regclass'),
+      redis.ping(),
+    ]);
+    const catalogTotal = parseInt(countResult.rows[0].count, 10);
+
+    // Return the new health surface: backward-compatible keys + per-tool/per-region.
+    let snapshot;
+    try {
+      snapshot = computeSnapshot();
+    } catch {
+      snapshot = { status: 'ok' as const, server: 'mcp' as const, ts: new Date().toISOString(), tools: {}, regions: {} };
+    }
     res.json({
-      status: 'ok',
-      server: 'mcp',
+      ...snapshot,
+      catalog: { total_products: catalogTotal },
+      db: 'ok',
+      redis: pong === 'PONG' ? 'ok' : 'degraded',
       ts: new Date().toISOString(),
-      catalog: { total_products: parseInt(result.rows[0].count, 10) },
     });
   } catch (err) {
-    res.status(500).json({ status: 'error', error: String(err) });
+    res.status(503).json({ status: 'down', error: String(err), ts: new Date().toISOString() });
+  }
+});
+
+// BUY-69817: per-tool breakdown.
+app.get('/health/tools', (_req, res) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({ status: snapshot.status, server: 'mcp', ts: snapshot.ts, tools: snapshot.tools });
+  } catch {
+    res.json({ status: 'ok', server: 'mcp', ts: new Date().toISOString(), tools: {}, note: 'snapshotter degraded' });
+  }
+});
+
+// BUY-69817: per-region breakdown.
+app.get('/health/regions', (_req, res) => {
+  try {
+    const snapshot = computeSnapshot();
+    res.json({ status: snapshot.status, server: 'mcp', ts: snapshot.ts, regions: snapshot.regions });
+  } catch {
+    res.json({ status: 'ok', server: 'mcp', ts: new Date().toISOString(), regions: {}, note: 'snapshotter degraded' });
   }
 });
 
