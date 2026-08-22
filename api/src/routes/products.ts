@@ -154,7 +154,7 @@ async function tryTierSearch(
   let dtIdx = 0;
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   // BUY-72744: exclude synthetic Amazon rows in tier search.
-  const synthAmazonExcl = "NOT (sp.source = 'amazon_us' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
+  const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   const limitIdx = i; params.push(p.limit + 1); i++;
@@ -768,7 +768,7 @@ router.get(
     // BUY-72744: exclude synthetic Amazon rows with malformed ASINs (not exactly 10 chars starting with B)
     // and US-priced-as-SGD currency mismatches. The scraper fix is on main but stale catalog rows remain.
     baseConditions.push(
-      "NOT (merchant_id = 'amazon_us' AND (length(sku) != 10 OR (country_code = 'US' AND currency = 'SGD')))"
+      "NOT (merchant_id = 'amazon.com' AND (length(sku) != 10 OR (country_code = 'US' AND currency = 'SGD')))"
     );
     // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
     // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
