@@ -1590,6 +1590,10 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
 
+    // F24b (2026-08-22): deals honors deliver_to like search — annotation happens
+    // post-cache on both paths so cached bodies stay per-request neutral.
+    const deliverTo = (req.query.deliver_to as string | undefined)?.toUpperCase() || undefined;
+    const includeUnshippable = req.query.include_unshippable !== 'false';
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     res.locals.cacheHit = false;
     try {
@@ -1599,6 +1603,7 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        annotateDeliverTo(parsed as Record<string, unknown>, deliverTo, includeUnshippable, ''); // F24b
         recordProductViewsBulk({
           productIds: (parsed.products || parsed.results || parsed.data || [])
             .map((product: { id?: string | number }) => product.id)
@@ -1768,6 +1773,7 @@ router.get(
       req,
     });
 
+    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, ''); // F24b
     res.json(responseBody);
   })
 );
