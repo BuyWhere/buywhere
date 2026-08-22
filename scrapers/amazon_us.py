@@ -817,12 +817,11 @@ class AmazonUSScraper:
     ) -> dict[str, Any] | None:
         try:
             asin = str(raw.get("asin", "") or raw.get("sku", "")).strip()
-            # BUY-72693: ASINs must be exactly 10 alphanumeric chars (sometimes
-            # 11 with a leading 'B'). The B prefix is part of the 10-char
-            # limit — "B09V3KXJPB" is 10 chars total (B + 9), not B+10.
-            # Reject synthetic/generator outputs that exceed 10 chars total
-            # (e.g. "B1016162010" 11 chars, "B10162255701" 12 chars).
-            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{9}", asin):
+            # BUY-72693 / BUY-72739: Real Amazon ASINs are exactly B + 9 alphanumeric
+            # chars (10 total). The synthetic generator produces B + 10 digits (11 chars)
+            # which matched the old "[A-Z0-9]{10}|B[A-Z0-9]{9}" pattern. Now we accept
+            # only the real shape: B[A-Z0-9]{9} (10 chars).
+            if not re.fullmatch(r"B[A-Z0-9]{9}", asin):
                 if asin:
                     print(
                         f"[amazon_us] ASIN quarantine: rejected malformed ASIN '{asin}' "
@@ -893,10 +892,9 @@ class AmazonUSScraper:
 
         for card in soup.select('[data-component-type="s-search-result"][data-asin]'):
             asin = (card.get("data-asin") or "").strip()
-            # BUY-72693: synthetic generator rows use data-asin values like
-            # "B1016162010" (11 chars) or "B10162255701" (12 chars). Amazon
-            # real ASINs are 10 alphanumeric chars total (B prefix is part of the 10).
-            if not re.fullmatch(r"[A-Z0-9]{10}|B[A-Z0-9]{9}", asin):
+            # BUY-72693 / BUY-72739: Real Amazon ASINs are B + 9 alphanumeric (10 chars).
+            # Reject synthetic B[0-9]{10} (11 chars) and other malformed values.
+            if not re.fullmatch(r"B[A-Z0-9]{9}", asin):
                 continue
 
             title_el = card.select_one("h2 span")
