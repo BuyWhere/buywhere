@@ -160,6 +160,9 @@ router = APIRouter(prefix="/products", tags=["products"])
 @limiter.limit(rate_limit_from_request)
 async def list_products(
     request: Request,
+    q: Optional[str] = Query(None, max_length=500, description="Full-text search query (compat alias for /v1/products/search)"),
+    country: Optional[str] = Query(None, max_length=2, description="Filter by country code (e.g., SG, US, VN)"),
+    country_code: Optional[str] = Query(None, max_length=2, description="Alias for country"),
     limit: int = Query(20, ge=1, le=100, description="Results per page (1-100)"),
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
     sort_by: Optional[str] = Query(None, description="Sort order: relevance, price_asc, price_desc, newest"),
@@ -169,8 +172,13 @@ async def list_products(
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
+    if country_code:
+        country = country_code
+
     cache_key = cache.build_cache_key(
         "v1:products:list",
+        q=q,
+        country=country.upper() if country else None,
         limit=limit,
         offset=offset,
         sort_by=sort_by,
@@ -182,13 +190,24 @@ async def list_products(
 
     base_query = select(Product).where(Product.is_active)
 
+    if q:
+        # Compatibility path: public clients and monitors use /v1/products?q=...
+        # as a search endpoint. Keep this in lockstep with /v1/products/search
+        # instead of silently ignoring q and returning cached browse rows.
+        base_query = base_query.where(
+            text("search_vector @@ plainto_tsquery('english', :q)").bindparams(q=q)
+        )
+
+    if country:
+        base_query = base_query.where(Product.country_code == country.upper())
+
     if sort_by == "price_asc":
         base_query = base_query.order_by(Product.price.asc())
     elif sort_by == "price_desc":
         base_query = base_query.order_by(Product.price.desc())
     elif sort_by == "newest":
         base_query = base_query.order_by(Product.created_at.desc())
-    else:
+    elif not q:
         base_query = base_query.order_by(Product.updated_at.desc())
 
     if offset == 0:

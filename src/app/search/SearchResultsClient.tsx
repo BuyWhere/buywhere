@@ -101,6 +101,72 @@ function getCountryOption(value: CountryValue) {
   return COUNTRY_OPTIONS.find((option) => option.value === value) ?? COUNTRY_OPTIONS[0];
 }
 
+// BUY-72907: Extract the actual retailer domain from product URLs.
+// Prior behavior: badges showed "Shopify" / "Google Shopping" for ALL products
+// from those platforms, even when the actual store was identifiable (e.g.
+// a Wellbots product that happened to be on Shopify). Users saw platform names
+// instead of the actual retailer, reducing trust in "View Deal" decisions.
+//
+// Fix: Parse the domain from product URLs as the primary merchant source,
+// falling back to the existing merchant_name/merchant/source chain.
+function extractMerchantFromUrl(url?: string | null): string | null {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Strip common subdomains and TLD suffixes to get the retailer's brand name.
+    // Examples: "www.walmart.com" -> "walmart", "store.wellbots.com" -> "wellbots"
+    const cleaned = hostname
+      .replace(/^www\./, '')
+      .replace(/^store\./, '')
+      .replace(/^m\./, '')
+      .replace(/\.com$/, '')
+      .replace(/\.org$/, '')
+      .replace(/\.net$/, '')
+      .replace(/\.io$/, '');
+
+    // Skip generic/captcha/tracking domains that aren't actual retailers.
+    if (
+      cleaned === 'google' ||
+      cleaned === 'google shopping' ||
+      cleaned === 'facebook' ||
+      cleaned === 'instagram' ||
+      cleaned === 'twitter' ||
+      cleaned === 'linkedin' ||
+      cleaned === 'click' ||
+      cleaned === 'redirect' ||
+      cleaned === 'track' ||
+      cleaned === 'out' ||
+      cleaned === 'go'
+    ) {
+      return null;
+    }
+
+    // Map known domain roots to their display names (handles non-standard casing).
+    // "bestbuy.com" → "Best Buy", "homedepot.com" → "Home Depot", etc.
+    const DOMAIN_DISPLAY: Record<string, string> = {
+      bestbuy: 'Best Buy',
+      homedepot: 'Home Depot',
+      lowes: "Lowe's",
+      bhphotovideo: "B&H",
+      jet: 'Jet',
+      macys: "Macy's",
+      nordstrom: 'Nordstrom',
+      kohls: "Kohl's",
+    };
+    if (DOMAIN_DISPLAY[cleaned]) {
+      return DOMAIN_DISPLAY[cleaned];
+    }
+
+    // Title-case for display.
+    return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return null;
+  }
+}
+
 function formatMerchantName(value?: string | null) {
   if (!value) return 'BuyWhere seller';
   return value
@@ -574,7 +640,21 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // FX-converted — only the displayed currency code tracks the selected
     // country, matching the QA acceptance criterion for f369fdc9.
     currency: fallbackCurrency,
-    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
+    // BUY-72907: prefer the domain extracted from the product URL (the actual
+    // retailer the user would visit) over the platform-level merchant/source
+    // field. A Wellbots product scraped via Shopify should show "Wellbots" from
+    // its URL, not "Shopify" from its source field. Falls back to the legacy
+    // chain so rows without a usable URL are unaffected; MerchantBadge performs
+    // a second cleanup pass for platform/source fallbacks like "Decathlon Sg".
+    merchant: formatMerchantName(
+      extractMerchantFromUrl(item.affiliate_redirect_url) ||
+      extractMerchantFromUrl(item.click_url) ||
+      extractMerchantFromUrl(item.affiliate_url) ||
+      extractMerchantFromUrl(item.buy_url) ||
+      item.merchant_name ||
+      item.merchant ||
+      item.source
+    ),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     // BUY-67977: derive brand from the title when the API does not provide
@@ -590,6 +670,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 // BUY-68365: also exported for the category-mismatch regression test.
 // BUY-67977: also exported for the brand-derivation regression test.
 // BUY-71639: exported for the image-filter regression test.
+// BUY-72907: exported for the merchant-URL regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
@@ -600,6 +681,7 @@ export const __test__ = {
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
   hasUsableProductImage,
+  extractMerchantFromUrl,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
