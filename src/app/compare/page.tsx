@@ -49,6 +49,11 @@ type ComparePageProps = {
   searchParams: Promise<{
     q?: string;
     ids?: string;
+    // BUY-72773: `p` is the share-link alias for `ids` (single product id surfaced
+    // as a short canonical URL on the share button); `from` is the surface tag
+    // for attribution (e.g. "blog-cheapest-macbook-air-m3-12-countries-compared").
+    p?: string;
+    from?: string;
     country?: string;
     country_code?: string;
   }>;
@@ -305,9 +310,15 @@ function ComparisonSearchForm({
 function ComparisonSummary({
   offers,
   query,
+  ids,
+  fromSurface,
+  country,
 }: {
   offers: ComparisonOffer[];
   query?: string;
+  ids: string[];
+  fromSurface: string;
+  country: string;
 }) {
   const bestOffer = findBestOffer(offers);
   const pricedOffers = offers.filter((offer) => offer.price !== null);
@@ -330,7 +341,13 @@ function ComparisonSummary({
               The view below puts retailer, availability, pricing, and outbound affiliate links on one screen so users can act without jumping between result pages.
             </p>
           </div>
-          <ComparisonShareButton title={query ? `BuyWhere compare: ${query}` : "BuyWhere product comparison"} />
+          <ComparisonShareButton
+            title={query ? `BuyWhere compare: ${query}` : "BuyWhere product comparison"}
+            productIds={ids}
+            fromSurface={fromSurface}
+            query={query}
+            country={country}
+          />
         </div>
         {bestOffer ? (
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4 rounded-3xl bg-white/90 p-5 ring-1 ring-emerald-100">
@@ -574,8 +591,14 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
     resolved = {};
   }
   const query = (resolved?.q ?? "").trim();
+  // BUY-72773: `p` is the canonical share-link alias for a single product id;
+  // accept it directly, fall back to legacy `ids`, and join both so URLs like
+  // /compare?p=macbook-air-m3&from=blog-... still work alongside the older
+  // /compare?ids=... form.
+  const rawP = (resolved?.p ?? "").trim();
   const rawIds = resolved?.ids ?? "";
-  const ids = parseIdsParam(rawIds);
+  const ids = parseIdsParam([rawP, rawIds].filter(Boolean).join(","));
+  const fromSurface = (resolved?.from ?? "").trim().toLowerCase().slice(0, 64);
   const country = (resolved?.country_code ?? resolved?.country ?? "").trim().toLowerCase();
   const showComparison = query.length > 0 || ids.length > 0;
   // BUY-67036: belt-and-suspenders around loadComparisonOffers so that even
@@ -636,7 +659,13 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
           {showComparison ? (
             offers.length > 0 ? (
               <div className="space-y-8">
-                <ComparisonSummary offers={offers} query={query || undefined} />
+                <ComparisonSummary
+                  offers={offers}
+                  query={query || undefined}
+                  ids={ids}
+                  fromSurface={fromSurface}
+                  country={country}
+                />
                 {ids.length > 1 ? (
                   <CompareProductsGrid products={compareProducts} title={`Comparing ${compareProducts.length} products`} />
                 ) : (
