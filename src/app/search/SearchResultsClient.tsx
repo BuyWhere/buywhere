@@ -125,9 +125,12 @@ function extractMerchantFromUrl(url?: string | null): string | null {
       .replace(/\.com$/, '')
       .replace(/\.org$/, '')
       .replace(/\.net$/, '')
-      .replace(/\.io$/, '');
+      .replace(/\.io$/, '')
+      .replace(/\.ai$/, '');
 
     // Skip generic/captcha/tracking domains that aren't actual retailers.
+    // BUY-72907: Also skip our own redirect domain - products with buywhere.ai
+    // click/affiliate URLs should fall through to merchant_name/merchant/source.
     if (
       cleaned === 'google' ||
       cleaned === 'google shopping' ||
@@ -139,7 +142,8 @@ function extractMerchantFromUrl(url?: string | null): string | null {
       cleaned === 'redirect' ||
       cleaned === 'track' ||
       cleaned === 'out' ||
-      cleaned === 'go'
+      cleaned === 'go' ||
+      cleaned === 'buywhere'
     ) {
       return null;
     }
