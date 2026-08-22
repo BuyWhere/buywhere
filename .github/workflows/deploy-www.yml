@@ -74,9 +74,7 @@ jobs:
           done
           exit 1
 
-      - name: Smoke test (homepage and API key canary)
-        env:
-          SMOKE_SIGNUP_EMAIL: buywhere-www-smoke+${{ github.run_id }}@buywhere.ai
+      - name: Smoke test (homepage and API canary)
         run: |
           set -euo pipefail
           for i in $(seq 1 12); do
@@ -87,13 +85,9 @@ jobs:
             sleep 10
           done
 
-          BODY=$(curl -fsS --max-time 30 https://api.buywhere.ai/v1/auth/signup \
-            -H 'Content-Type: application/json' \
-            -d "{\"email\":\"$SMOKE_SIGNUP_EMAIL\",\"agent_name\":\"deploy-www smoke\",\"agent_type\":\"github_actions\"}")
-          KEY=$(printf '%s' "$BODY" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('api_key') or data.get('key') or '')")
-          test -n "$KEY"
+          # Use standing monitoring key (BUY-72823: never mint throwaway prod keys in CI)
           SEARCH=$(curl -sS --max-time 20 "https://api.buywhere.ai/v1/products/search?q=nike&limit=1" \
-            -H "Authorization: Bearer $KEY")
+            -H "Authorization: Bearer ${{ secrets.BUYWHERE_MONITORING_KEY }}")
           echo "$SEARCH" | grep -Eq '"(results|products|data)"|"id"'
 
       - name: Auto-rollback on failure
