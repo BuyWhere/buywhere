@@ -416,8 +416,9 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
       if (meta) meta.total = kept.length;
     }
     if (meta) meta.deliver_to = deliverTo;
-  } else if (q && meta) {
-    meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
+  } else if (meta) {
+    // F24 (2026-08-22): hint fires on EVERY deliver_to-less response (was q-only).
+    meta.hint = "IMPORTANT — treat deliver_to as REQUIRED for buyer-facing use: pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank deliverable products first (adds an availability label per product). Without it, results are not shipping-ranked and may be undeliverable to your user. Add include_unshippable=false to return only same-country products.";
   }
 }
 

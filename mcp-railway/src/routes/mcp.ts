@@ -569,6 +569,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
   } catch (_) { /* cache write failure is non-fatal */ }
 
+  // F24 (2026-08-22): nudge agents that skipped deliver_to — added after the
+  // cache write so the cached envelope stays neutral.
+  if (!args.deliver_to) {
+    (result as unknown as Record<string, unknown>).hint =
+      'Treat deliver_to as REQUIRED for buyer-facing use: pass deliver_to=<ISO-3166 country of your end user> to shipping-rank results; without it products may be undeliverable.';
+  }
+
   return result;
 }
 
