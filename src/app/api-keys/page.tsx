@@ -47,10 +47,19 @@ export default function ApiKeysPage() {
     setLoading(true);
 
     try {
+      // attribution (2026-08-22): forward utm params + referrer so api_keys
+      // records where this signup came from (was 100% blind).
+      const usp = new URLSearchParams(window.location.search);
+      const attribution: Record<string, string> = {};
+      for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
+        const v = usp.get(k);
+        if (v) attribution[k] = v.slice(0, 200);
+      }
+      if (document.referrer) attribution.referrer = document.referrer.slice(0, 500);
       const res = await fetch("/api/request-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, useCase }),
+        body: JSON.stringify({ name, email, useCase, ...attribution }),
       });
       const data = await res.json();
       if (!res.ok) {

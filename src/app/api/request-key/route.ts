@@ -31,11 +31,25 @@ function isApiIssuedKey(key: string): boolean {
   return /^bw_[a-f0-9]{32}$/i.test(key);
 }
 
-async function issueApiKey({ name, email, useCase }: { name: string; email: string; useCase: string }): Promise<string> {
+async function issueApiKey({ name, email, useCase, attribution }: { name: string; email: string; useCase: string; attribution?: Record<string, string> }): Promise<string> {
   const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agent_name: name, email, use_case: useCase || undefined }),
+    // attribution (2026-08-22): utm_* forwarded in body; referrer forwarded as
+    // Referer header so the API's referrer-host fallback works.
+    headers: {
+      "Content-Type": "application/json",
+      ...(attribution?.referrer ? { Referer: attribution.referrer } : {}),
+    },
+    body: JSON.stringify({
+      agent_name: name,
+      email,
+      use_case: useCase || undefined,
+      utm_source: attribution?.utm_source,
+      utm_medium: attribution?.utm_medium,
+      utm_campaign: attribution?.utm_campaign,
+      utm_content: attribution?.utm_content,
+      utm_term: attribution?.utm_term,
+    }),
     cache: "no-store",
   });
 
@@ -103,6 +117,11 @@ export async function POST(req: NextRequest) {
     email?: string;
     useCase?: string;
   };
+  const attribution: Record<string, string> = {};
+  for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "referrer"]) {
+    const v = (body as Record<string, unknown>)[k];
+    if (typeof v === "string" && v) attribution[k] = v.slice(0, 500);
+  }
 
   if (!name || !email) {
     return NextResponse.json(
@@ -166,7 +185,7 @@ Free during beta. Fair-use limits apply. Questions? hello@buywhere.ai
   // New registration
   let key: string;
   try {
-    key = await issueApiKey({ name, email, useCase });
+    key = await issueApiKey({ name, email, useCase , attribution });
   } catch {
     return NextResponse.json(
       { error: "Could not create an API key right now. Please try again." },
