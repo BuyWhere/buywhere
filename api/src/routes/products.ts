@@ -538,12 +538,15 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
 
+    const productReadDb = readDb();
     const [countResult, dataResult] = await Promise.all([
       // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
       // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
       // for pagination totals. Exact counts would hit the 30s statement_timeout.
-      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
-      db.query(
+      // Use the serving read pool (same catalog-read path as /v1/products/search) so the
+      // public list route never depends on the API/auth primary for catalog reads.
+      productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
+      productReadDb.query(
         `SELECT ${SELECT_COLUMNS}
          FROM products
          ${whereClause}
