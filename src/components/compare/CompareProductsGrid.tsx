@@ -39,6 +39,12 @@ export interface CompareProduct {
 interface CompareProductsGridProps {
   products: CompareProduct[];
   title?: string;
+  // BUY-72773: forward share-loop context to the embedded ComparisonShareButton so
+  // multi-product views emit the same canonical /compare?p=&from= URL.
+  productIds?: string[];
+  fromSurface?: string;
+  query?: string;
+  country?: string;
 }
 
 function formatPrice(price: number | null, currency: string): string {
@@ -68,6 +74,10 @@ function getFreshnessTier(lastUpdated: string | null): DataFreshness {
 export const CompareProductsGrid = memo(function CompareProductsGrid({
   products,
   title = 'Product Comparison',
+  productIds = [],
+  fromSurface = '',
+  query = '',
+  country = '',
 }: CompareProductsGridProps) {
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
   const [selectCount, setSelectCount] = useState(Math.min(products.length, 4));
@@ -155,7 +165,13 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-semibold text-slate-950">{title}</h2>
-          <ComparisonShareButton title={title} />
+          <ComparisonShareButton
+            title={title}
+            productIds={productIds}
+            fromSurface={fromSurface}
+            query={query}
+            country={country}
+          />
         </div>
         <div className="flex items-center gap-2">
           {[2, 3, 4].map((n) => (
