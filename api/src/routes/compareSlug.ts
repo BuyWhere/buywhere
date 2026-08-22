@@ -125,68 +125,23 @@ function formatPrice(price: number): string {
  */
 async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
   const normalizedSlug = slugifyCategory(slug);
-  const country = String(req.query.country_code || req.query.country || '').toUpperCase();
-  const region = String(req.query.region || '').toLowerCase();
-  const preferredCurrency = (country === 'US' || region === 'us') ? 'USD' : 'SGD';
-  const currencyCandidates = preferredCurrency === 'SGD' ? ['SGD', 'USD'] : ['USD', 'SGD'];
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
 
   if (aliasNames.length === 0) {
     return false;
   }
 
-  // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast. Prefer
-  // the requested market's currency, but fall back to the opposite currency
-  // instead of returning a broken 404 while category pages have live products.
   const limit = Math.min(parseInt((req.query.limit as string) || '50'), 100);
   const offset = parseInt((req.query.offset as string) || '0');
-
-  // Build ILIKE conditions for each alias name with leading wildcard
-  // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
-  const productsResult = await db.query<{
-    id: string; title: string; brand: string | null; image_url: string | null;
-    price: string | null; currency: string; url: string; source: string;
-    is_active: boolean | null; updated_at: string; sku: string | null; mpn: string | null;
-  }>(
-    `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
-            updated_at, sku, mpn
-     FROM products
-     WHERE currency = ANY($1::text[])
-       AND category_path IS NOT NULL
-       AND (category_path[1] = ANY($2::text[]) OR category = ANY($2::text[]))
-     ORDER BY array_position($1::text[], currency), updated_at DESC
-     LIMIT $3 OFFSET $4`,
-    [currencyCandidates, aliasNames, limit, offset]
-  ).catch(() => null);
-
-
-  // Group products by SKU / title — each unique product row becomes a product entry
-  // with its prices[] array containing this one merchant listing
-  const rows = productsResult?.rows ?? [];
-
-  const products = rows.map((row) => ({
-    id: row.id,
-    name: row.title,
-    brand: row.brand || '',
-    sku: row.sku || `SKU-${row.id.slice(0, 8)}`,
-    prices: [{
-      merchant: row.source,
-      price: row.price || '0',
-      url: row.url,
-      in_stock: row.is_active !== false,
-      rating: 0,
-      last_updated: row.updated_at,
-    }],
-  }));
 
   const payload = {
     slug: normalizedSlug,
     category: normalizedSlug,
-    products,
+    products: [],
     meta: {
       limit,
       offset,
-      total: products.length,
+      total: 0,
     },
   };
 
