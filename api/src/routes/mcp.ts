@@ -2094,7 +2094,9 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   let _toolArgs: Record<string, unknown> = {};
   const _startMs = Date.now();
 
-  res.setHeader('X-BuyWhere-Degraded-Regions', getDegradedRegions().join(',') || '');
+  const degradedRegionsHeader = getDegradedRegions().join(',') || '';
+  res.setHeader('X-BuyWhere-Degraded-Region', degradedRegionsHeader);
+  res.setHeader('X-BuyWhere-Degraded-Regions', degradedRegionsHeader);
 
   try {
     switch (method) {

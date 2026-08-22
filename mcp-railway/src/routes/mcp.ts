@@ -1925,9 +1925,12 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   let _toolArgs: Record<string, unknown> = {};
   let _startMs = Date.now();
 
-  // Set the degraded-regions header on every response so agents always see
-  // it, including on validation errors.
-  res.setHeader('X-BuyWhere-Degraded-Regions', getDegradedRegions().join(',') || '');
+  // Set degraded-region headers on every response so agents always see them,
+  // including on validation errors. Both names are kept: spec uses singular,
+  // initial shipped implementation exposed the plural header.
+  const degradedRegionsHeader = getDegradedRegions().join(',') || '';
+  res.setHeader('X-BuyWhere-Degraded-Region', degradedRegionsHeader);
+  res.setHeader('X-BuyWhere-Degraded-Regions', degradedRegionsHeader);
 
   try {
     switch (method) {
