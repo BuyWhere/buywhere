@@ -15,8 +15,9 @@
       "transport_type": "streamable-http",
       "url": "https://mcp.buywhere.ai/mcp",
       "authentication": {
-        "type": "bearer",
-        "description": "Free API key via https://buywhere.ai/api-keys (agent self-registration: POST https://api.buywhere.ai/v1/auth/register). OAuth 2.1 (DCR + PKCE) in progress \u2014 see /v1/oauth/* contract stubs."
+        "type": "oauth2",
+        "description": "OAuth 2.1: dynamic client registration (RFC 7591) + client_credentials live; discovery at https://api.buywhere.ai/.well-known/oauth-authorization-server. Static bearer API keys also accepted (https://buywhere.ai/api-keys).",
+        "authorization_server": "https://api.buywhere.ai"
       }
     }
   ],

@@ -108,4 +108,19 @@ router.post('/token', async (req: Request, res: Response) => {
   }
 });
 
+// RFC 8414 discovery — added in M2 (only live endpoints are advertised; the
+// design doc forbids advertising 501s). M3 adds authorization_endpoint.
+router.get('/.well-known/oauth-authorization-server', (_req: Request, res: Response) => {
+  res.json({
+    issuer: 'https://api.buywhere.ai',
+    registration_endpoint: 'https://api.buywhere.ai/v1/oauth/register',
+    token_endpoint: 'https://api.buywhere.ai/v1/oauth/token',
+    grant_types_supported: ['client_credentials'],
+    token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
+    scopes_supported: ['catalog.read', 'offers.read'],
+    response_types_supported: [],
+    service_documentation: 'https://github.com/BuyWhere/buywhere/blob/main/docs/oauth-design.md',
+  });
+});
+
 export default router;
