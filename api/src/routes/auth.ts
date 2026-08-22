@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
-import { db, FREE_TIER, TIER_LIMITS, redis } from '../config';
+import { db, FREE_TIER, TIER_LIMITS, redis, API_BASE_URL } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
 import { trackRegistration, trackEmailVerified } from '../analytics/posthog';
 import { sendVerificationEmail } from '../email';
@@ -90,7 +90,9 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       .catch(() => {});
   }
 
-  res.status(201).json({
+  // BUY-72775: include verify_url in response when email provided — enables
+  // one-step paste of both api_key and verify_url into framework config.
+  const response: Record<string, unknown> = {
     api_key: rawKey,
     tier: 'unverified',
     email_verified: false,
@@ -99,7 +101,13 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       daily: TIER_LIMITS.unverified.daily,
     },
     docs: 'https://api.buywhere.ai/docs',
-  });
+  };
+
+  if (hasEmail && verificationToken) {
+    response.verify_url = `${API_BASE_URL}/v1/auth/verify?token=${encodeURIComponent(verificationToken)}`;
+  }
+
+  res.status(201).json(response);
 }
 
 router.post('/register', registerAgent);
