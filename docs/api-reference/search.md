@@ -145,3 +145,7 @@ curl -s "https://api.buywhere.ai/v1/products/search?q=laptop+stand&compact=true&
 curl -s "https://api.buywhere.ai/v1/products/search?q=keyboard&fields=id,title,price,url&limit=5" \
   -H "Authorization: Bearer $BUYWHERE_API_KEY"
 ```
+
+
+### shopping_job_id (optional)
+Tag requests with a shopping session/job identifier (URL-safe, max 128 chars). It is logged with the query and threaded into every `click_url` as `job_id`, so clicks (and later conversions) attribute back to the agent's job. Invalid values are silently ignored.

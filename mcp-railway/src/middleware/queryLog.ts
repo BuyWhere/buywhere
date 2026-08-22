@@ -87,6 +87,16 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
  * Attach AFTER agentDetectMiddleware and requireApiKey so req.agentInfo and
  * req.apiKeyRecord are populated.
  */
+
+// WP5 (2026-08-22): shopping_job_id — agents tag a shopping session/job so
+// downstream clicks and conversions attribute back to it. Accepted on any
+// logged endpoint; must be URL-safe, <=128 chars, else ignored.
+function extractJobId(req: Request): string | null {
+  const v = req.query.shopping_job_id;
+  if (typeof v !== 'string' || v.length === 0 || v.length > 128) return null;
+  return /^[A-Za-z0-9._~:-]+$/.test(v) ? v : null;
+}
+
 export function queryLogMiddleware(endpoint: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const start = Date.now();
@@ -96,6 +106,19 @@ export function queryLogMiddleware(endpoint: string) {
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
       res.locals.resultCount = extractResultCount(body, res.statusCode);
+      // WP5: thread shopping_job_id into every click_url (post-cache-write; never cached).
+      const jobId = extractJobId(req);
+      if (jobId && body && typeof body === 'object') {
+        const data = (body as Record<string, unknown>).data;
+        if (Array.isArray(data)) {
+          for (const item of data) {
+            const it = item as Record<string, unknown>;
+            if (typeof it.click_url === 'string' && !it.click_url.includes('job_id=')) {
+              it.click_url = `${it.click_url}&job_id=${encodeURIComponent(jobId)}`;
+            }
+          }
+        }
+      }
       return originalJson(body);
     };
 
@@ -115,8 +138,8 @@ export function queryLogMiddleware(endpoint: string) {
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           status_code, ip_address, user_agent, job_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -130,6 +153,7 @@ export function queryLogMiddleware(endpoint: string) {
           res.statusCode,
           req.ip || null,
           (req.headers['user-agent'] || '').slice(0, 500),
+          extractJobId(req),
         ]
       ).catch(() => {
         // Fire-and-forget — don't crash on log failure

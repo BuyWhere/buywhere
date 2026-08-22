@@ -123,9 +123,11 @@ router.get('/click', async (req: Request, res: Response) => {
   try {
     await db.query(
       `INSERT INTO clicks
-         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [uuidv4(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, merchantId]
+         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id, job_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [uuidv4(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, merchantId,
+       // WP5: shopping-session attribution
+       (typeof req.query.job_id === 'string' && req.query.job_id.length <= 128 && /^[A-Za-z0-9._~:-]+$/.test(req.query.job_id)) ? req.query.job_id : null]
     );
   } catch (err) {
     // Log but don't block the redirect
