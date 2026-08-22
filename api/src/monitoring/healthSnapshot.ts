@@ -204,8 +204,8 @@ export function computeSnapshot(): McpHealthSnapshot {
       const buf = buffers.get(key);
       if (!buf) continue;
       const pruned = pruneOld([...buf.samples]);
-      const { error_rate_5m } = calcToolHealth(pruned);
-      const rs = toolStatus(error_rate_5m, toolHealth.p95_ms);
+      const { p95_ms, error_rate_5m } = calcToolHealth(pruned);
+      const rs = toolStatus(error_rate_5m, p95_ms);
       if (rs === 'down') tools_down.push(tool);
       else if (rs === 'degraded') tools_degraded.push(tool);
       else tools_ok.push(tool);
