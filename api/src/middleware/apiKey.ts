@@ -252,6 +252,41 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     return;
   }
 
+  // OAuth M2 (2026-08-22): opaque access tokens resolve to their linked api_keys
+  // row, so every downstream limit/accounting path applies unchanged.
+  if (key.startsWith('bwoat_')) {
+    const { verifyAccessToken } = await import('../lib/oauthStore');
+    const tok = await verifyAccessToken(key);
+    if (!tok) {
+      sendSpecError(res, 'invalid_api_key', 'Invalid or expired OAuth access token', 401);
+      return;
+    }
+    const r = await db.query(
+      `SELECT id, name, tier, signup_channel, attribution_source FROM api_keys WHERE id = $1 AND is_active = true`,
+      [tok.apiKeyId]
+    );
+    if (!r.rows.length) {
+      sendSpecError(res, 'invalid_api_key', 'OAuth client key disabled', 401);
+      return;
+    }
+    const row = r.rows[0];
+    const limits = TIER_LIMITS[row.tier] ?? TIER_LIMITS.unverified ?? { rpm: 60, daily: 1000 };
+    req.apiKeyRecord = {
+      id: row.id,
+      key,
+      agentName: row.name,
+      tier: row.tier,
+      rpmLimit: limits.rpm,
+      dailyLimit: limits.daily,
+      signupChannel: row.signup_channel,
+      attributionSource: row.attribution_source,
+      dailyRequestCount: 0,
+      dailyResetAt: nextMidnightUTC(),
+    };
+    next();
+    return;
+  }
+
   const jwtPayload = decodeJwtPayload(key);
   if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
     let agentInfo = await getCachedJwtVerification(key);
