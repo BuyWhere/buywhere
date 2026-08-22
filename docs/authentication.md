@@ -122,3 +122,49 @@ curl -X POST "https://api.buywhere.ai/v1/keys/rotate" \
 - Use the `Authorization: Bearer` header, not query parameters.
 - Rotate keys regularly and immediately if compromised.
 - Use the minimum tier that meets your needs.
+
+## OAuth 2.1 (recommended for platforms and registries)
+
+BuyWhere supports OAuth 2.1 alongside static API keys. Discovery:
+`GET https://api.buywhere.ai/.well-known/oauth-authorization-server`
+
+### 1. Register a client (RFC 7591 — open dynamic registration)
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{"client_name": "my-agent-platform", "client_type": "confidential"}'
+```
+
+Returns `client_id` (and `client_secret` once, for confidential clients).
+Public clients (no secret) are supported for the upcoming PKCE flow.
+Rate limit: 5 registrations/hour/IP.
+
+### 2. Get an access token (client_credentials)
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type": "client_credentials", "client_id": "bwc_...", "client_secret": "bwcs_..."}'
+```
+
+Returns `{"access_token": "bwoat_...", "token_type": "Bearer", "expires_in": 3600,
+"scope": "catalog.read offers.read"}`. HTTP Basic client auth is also accepted.
+Tokens expire after 1 hour — re-mint via the same grant.
+
+### 3. Call the API
+
+Use the token exactly like an API key:
+
+```bash
+curl "https://api.buywhere.ai/v1/products/search?q=laptop&deliver_to=US" \
+  -H "Authorization: Bearer bwoat_..."
+```
+
+OAuth tokens inherit the same tiers and rate limits as API keys.
+
+### Roadmap
+
+`authorization_code` + PKCE, refresh tokens, and a consent page are in progress
+(design: `docs/oauth-design.md` in the repo). Until then, user-context flows
+should use static keys.
