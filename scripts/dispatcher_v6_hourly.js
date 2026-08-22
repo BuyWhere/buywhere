@@ -94,10 +94,31 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
   const deltaInsFromStats = toNumber(metrics?.delta_ins_from_stats);
   const ingInsertedRaw = toNumber(metrics?.ing_inserted);
   const ingInserted = ingInsertedRaw ?? 0;
+  const ingRunsRaw = toNumber(metrics?.ing_runs);
   const liveCountDelta = toNumber(metrics?.live_count_delta);
   const nLiveTupDelta = toNumber(metrics?.n_live_tup_delta);
   const statResetDetected = Boolean(metrics?.stat_reset_detected);
   const frozenCounter = deltaInsFromStats === 0 && nLiveTupDelta === 0;
+
+  // Drain-only guard: suppress false-positive FAIL when no ingestion runs occurred
+  // (ing_runs=0, ing_inserted=null|0) but pg_stat shows delta_ins_from_stats > 0
+  // (existing products moved/reindexed by drain). Classifies as PASS so no child
+  // is filed, ending the 15+ consecutive drain-only FAIL-children streak.
+  const isDrainOnly = (
+    deltaInsFromStats !== null &&
+    deltaInsFromStats > 0 &&
+    deltaInsFromStats < target &&
+    ingRunsRaw !== null && ingRunsRaw === 0 &&
+    (ingInsertedRaw == null || ingInsertedRaw === 0)
+  );
+  if (isDrainOnly) {
+    return {
+      verdict: 'PASS',
+      value: deltaInsFromStats,
+      source: 'drain_only_guard',
+      reason: `drain-only: delta_ins_from_stats=${formatNumber(deltaInsFromStats)} < target=${formatNumber(target)} but ing_runs=${ingRunsRaw ?? 0}, ing_inserted=${ingInsertedRaw ?? 0} — no producer activity, false FAIL suppressed`,
+    };
+  }
 
   if (deltaInsFromStats !== null && deltaInsFromStats >= target) {
     return {
@@ -527,6 +548,9 @@ function selfTest() {
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 150000, ing_inserted: 149999 }), false, 'delta_ins_from_stats hard guard pass');
   assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 150000, ing_inserted: 149999 }).source, 'delta_ins_from_stats', 'delta_ins_from_stats remains authoritative');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 149999, n_live_tup_delta: 149999 }), true, 'genuine fail');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 66729, ing_runs: 0, ing_inserted: 0 }), false, 'drain-only guard suppresses false FAIL');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 66729, ing_runs: 0, ing_inserted: 0 }).source, 'drain_only_guard', 'drain-only guard source');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 59976, ing_runs: 9, ing_inserted: 438 }), true, 'producer-active low hour remains genuine fail');
   // v6.4: n_live_tup_delta_guard must be blocked when ing_inserted corroborates a real miss
   // (autovacuum bloat release produced huge n_live_tup_delta but only 18 rows actually inserted).
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 7400000, ing_inserted: 18 }), true, 'v6.4 bloat guard blocks false PASS');
