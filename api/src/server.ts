@@ -20,6 +20,7 @@ import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
 import landingRouter from './routes/landing';
 import clicksRouter from './routes/clicks';
+import oauthRouter from './routes/oauth';
 import merchantsRouter from './routes/merchants';
 import ingestRouter from './routes/ingest';
 import catalogRouter from './routes/catalog';
@@ -275,6 +276,8 @@ export function createApp() {
   // /v1/click alias: the site rewrites buywhere.ai/api/* -> api.buywhere.ai/v1/*,
   // so root-domain click_urls land here (F32).
   app.use('/v1', clicksRouter);
+  // OAuth 2.1 M1 scaffold (docs/oauth-design.md)
+  app.use('/v1/oauth', oauthRouter);
   app.use('/admin', clicksRouter);
 
   // Affiliate redirect (no /v1 prefix — short URLs)
