@@ -64,79 +64,49 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   const expiresAt: string | null = hasEmail && !skipVerify ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   const id = uuidv4();
 
-  // BUY-72774: for pending-verify tier, capture IP and increment per-IP counter.
-  // Use Redis instead of COUNT(*) on api_keys; the register endpoint must not
-  // full-scan the production key table before returning a no-verify key.
+  // BUY-72774: for pending-verify tier, capture IP for tracking.
+  // Anti-abuse IP limit (3+ keys/24h) is enforced in the apiKey middleware
+  // on first use, not at registration — keeping the register path synchronous.
+  const registrationIp = skipVerify ? clientIp : null;
+
+  await db.query(
+    `INSERT INTO api_keys
+       (id, key_hash, name, email, contact, use_case, tier, is_active,
+        signup_channel, attribution_source, developer_id,
+        email_verification_token, email_verification_expires_at,
+        registration_ip)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12)`,
+    [
+      id,
+      keyHash,
+      agent_name.trim().slice(0, 200),
+      hasEmail ? emailAddr.slice(0, 500) : null,
+      hasEmail ? emailAddr.slice(0, 500) : null,
+      use_case ? String(use_case).slice(0, 1000) : null,
+      tier,
+      signupChannel,
+      utmSource || null,
+      verificationToken,
+      expiresAt,
+      registrationIp,
+    ]
+  );
+
+  // BUY-72774: background IP counter — fire-and-forget, non-blocking.
+  // Updates api_keys.keys_from_same_ip_24h for future use-time checks.
   if (skipVerify && clientIp) {
     const ipHash = createHash('sha256').update(clientIp).digest('hex').slice(0, 32);
     const ipCounterKey = `auth:pending_verify:ip:${ipHash}`;
-    let existingCount = 0;
-    try {
-      const createdCount = await Promise.race([
-        redis.incr(ipCounterKey),
-        new Promise<number>((resolve) => setTimeout(() => resolve(1), 150)),
-      ]);
-      existingCount = Math.max(0, createdCount - 1);
-      if (createdCount === 1) {
-        redis.expire(ipCounterKey, 24 * 60 * 60).catch(() => {});
-      }
-      if (createdCount > 3) {
-        res.status(429).json({
-          error: 'rate_limit_exceeded',
-          message: 'Too many keys created from this IP. Maximum 3 pending-verify keys per 24 hours.',
-        });
-        return;
-      }
-    } catch {
-      // Redis is a best-effort abuse cap; do not block legitimate signup if Redis
-      // is temporarily unavailable.
-    }
-
-    // Insert with registration_ip and counter
-    await db.query(
-      `INSERT INTO api_keys
-         (id, key_hash, name, email, contact, use_case, tier, is_active,
-          signup_channel, attribution_source, developer_id,
-          email_verification_token, email_verification_expires_at,
-          registration_ip, keys_from_same_ip_24h)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12,$13)`,
-      [
-        id,
-        keyHash,
-        agent_name.trim().slice(0, 200),
-        hasEmail ? emailAddr.slice(0, 500) : null,
-        hasEmail ? emailAddr.slice(0, 500) : null,
-        use_case ? String(use_case).slice(0, 1000) : null,
-        tier,
-        signupChannel,
-        utmSource || null,
-        verificationToken,
-        expiresAt,
-        clientIp,
-        existingCount + 1,
-      ]
-    );
-  } else {
-    await db.query(
-      `INSERT INTO api_keys
-         (id, key_hash, name, email, contact, use_case, tier, is_active,
-          signup_channel, attribution_source, developer_id,
-          email_verification_token, email_verification_expires_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11)`,
-      [
-        id,
-        keyHash,
-        agent_name.trim().slice(0, 200),
-        hasEmail ? emailAddr.slice(0, 500) : null,
-        hasEmail ? emailAddr.slice(0, 500) : null,
-        use_case ? String(use_case).slice(0, 1000) : null,
-        tier,
-        signupChannel,
-        utmSource || null,
-        verificationToken,
-        expiresAt,
-      ]
-    );
+    db.query(
+      `UPDATE api_keys SET keys_from_same_ip_24h = (
+         SELECT COUNT(*) FROM api_keys
+         WHERE registration_ip = $1 AND created_at > NOW() - INTERVAL '24 hours'
+       ) WHERE id = $2`,
+      [clientIp, id]
+    ).catch(() => {});
+    // Increment Redis for use-time fast-path check (best-effort, never blocks)
+    redis.incr(ipCounterKey).catch(() => {});
+    redis.expire(ipCounterKey, 24 * 60 * 60).catch(() => {});
   }
 
   // Fire PostHog registration event (async, non-blocking)
