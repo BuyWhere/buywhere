@@ -125,14 +125,19 @@ function formatPrice(price: number): string {
  */
 async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
   const normalizedSlug = slugifyCategory(slug);
-  const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+  const country = String(req.query.country_code || req.query.country || '').toUpperCase();
+  const region = String(req.query.region || '').toLowerCase();
+  const preferredCurrency = (country === 'US' || region === 'us') ? 'USD' : 'SGD';
+  const currencyCandidates = preferredCurrency === 'SGD' ? ['SGD', 'USD'] : ['USD', 'SGD'];
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
 
   if (aliasNames.length === 0) {
     return false;
   }
 
-  // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast
+  // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast. Prefer
+  // the requested market's currency, but fall back to the opposite currency
+  // instead of returning a broken 404 while category pages have live products.
   const limit = Math.min(parseInt((req.query.limit as string) || '50'), 100);
   const offset = parseInt((req.query.offset as string) || '0');
 
@@ -147,10 +152,10 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category ILIKE $2
-     ORDER BY updated_at DESC
+     WHERE currency = ANY($1::text[]) AND category ILIKE $2
+     ORDER BY array_position($1::text[], currency), updated_at DESC
      LIMIT $3 OFFSET $4`,
-    [currency, pattern, limit, offset]
+    [currencyCandidates, pattern, limit, offset]
   ).catch(() => null);
 
   if (!productsResult || productsResult.rows.length === 0) {
