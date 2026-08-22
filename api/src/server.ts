@@ -278,6 +278,8 @@ export function createApp() {
   app.use('/v1', clicksRouter);
   // OAuth 2.1 M1 scaffold (docs/oauth-design.md)
   app.use('/v1/oauth', oauthRouter);
+  // RFC 8414 requires root-level discovery; reuse the router's handler path
+  app.use('/', oauthRouter);
   app.use('/admin', clicksRouter);
 
   // Affiliate redirect (no /v1 prefix — short URLs)

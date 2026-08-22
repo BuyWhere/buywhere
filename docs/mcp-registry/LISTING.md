@@ -11,7 +11,7 @@ VN), price comparison with normalized specs, deals discovery, and best-price loo
 Every result carries a tracked outbound link, per-product shipping availability for
 your user's country (deliver_to), and optional per-job attribution (shopping_job_id)
 so clicks and conversions map back to your agent's task. Self-serve key in one POST
-(no email verification required); OAuth 2.1 on the roadmap (contract stubs live).
+(no email verification required), or full OAuth 2.1 (dynamic client registration + client_credentials, LIVE).
 
 ## Quickstart (agents)
 1. POST https://api.buywhere.ai/v1/auth/register?verify=false {"agent_name":"my-agent"}
