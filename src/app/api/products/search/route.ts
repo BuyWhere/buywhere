@@ -8,7 +8,7 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
+const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable', 'region']);
 // BUY-69727: Full device-query + storage-category detection for client-side demotion.
 // Mirrors the isDeviceQuery / isStorageQuery logic from api/src/lib/searchRelevanceTaxonomy.ts
 // to ensure all-words scanning (not just first word).
@@ -482,13 +482,9 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  const country = upstreamParams.get('country');
-  if (country) {
-    if (!upstreamParams.has('country_code')) {
-      upstreamParams.set('country_code', country);
-    }
-    upstreamParams.delete('country');
-  }
+  // BUY-72906: REMOVED the country -> country_code rename. The FastAPI backend
+  // expects 'country' (not 'country_code'), so we now pass it through unchanged.
+  // The deliver_to + include_unshippable params now handle the region filtering.
 
   try {
     const response = await fetch(`${API_BASE_URL}/v1/products/search?${upstreamParams.toString()}`, {
@@ -509,7 +505,7 @@ export async function GET(request: NextRequest) {
     }
 
     const query = upstreamParams.get('q') ?? '';
-    const countryCode = upstreamParams.get('country_code') ?? 'US';
+    const countryCode = upstreamParams.get('country') ?? upstreamParams.get('country_code') ?? 'US';
     const fallback = isDegradedZero(data) ? pickSearchFallback(query, countryCode) : null;
 
     if (fallback) {

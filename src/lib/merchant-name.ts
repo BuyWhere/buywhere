@@ -62,6 +62,24 @@ const MERCHANT_ALIASES: Record<string, string> = {
 // we don't break "google shopping" or "best buy".
 const TRAILING_FILLER = new Set(['retailer', 'com', 'store', 'shop']);
 
+// BUY-72907: Trailing ISO country/region suffixes from upstream ingest lane
+// (e.g. "Decathlon Sg" -> "Decathlon", "Shopee Sg" -> "Shopee",
+// "Lazada My" -> "Lazada"). Stripped AFTER TRAILING_FILLER so we handle both
+// "Bestbuy Sg" -> "Bestbuy" and "Bestbuy Sg Retailer" -> "Best Buy".
+const REGION_SUFFIXES = new Set([
+  // ISO 2-letter country codes (both cases)
+  'us', 'sg', 'my', 'ph', 'th', 'id', 'vn',
+  'au', 'ca', 'uk', 'gb', 'de', 'fr', 'it', 'es', 'nl', 'be', 'at', 'ch',
+  'jp', 'kr', 'cn', 'in', 'br', 'mx', 'ae', 'sa', 'ng', 'za',
+  // Common full-word region/country names that appear in merchant strings
+  'singapore', 'malaysia', 'philippines', 'thailand', 'indonesia', 'vietnam',
+  'australia', 'canada', 'unitedstates', 'unitedkingdom', 'germany', 'france',
+  'spain', 'italy', 'netherlands', 'belgium', 'austria', 'switzerland',
+  'japan', 'korea', 'china', 'india', 'brazil', 'mexico', 'uae', 'saudi',
+  'usa', 'uk', 'sng', // 'sng' from 'shopee_sng'
+  'global', 'intl', 'international',
+]);
+
 /**
  * Strip internal tenant/database suffixes from a merchant string so the
  * public render shows a clean platform/retailer name. Tolerates input that
@@ -115,10 +133,23 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
 
   // Tail of the token list: drop trailing "Retailer" / "Com" filler so that
   // "Shopify Wellbots Com" -> "Wellbots" and "BUY30590 Retailer Bestbuy" ->
-  // "Bestbuy" — then run alias lookup so "Bestbuy" -> "Best Buy".
+  // "Bestbuy" — then strip regional suffixes such as "Sg" / "Us" before alias
+  // lookup so "Decathlon Sg" renders as the retailer, not a country-tagged
+  // source identifier.
   while (remaining.length > 1 && TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase())) {
     remaining.pop();
   }
+  while (remaining.length > 1 && REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())) {
+    remaining.pop();
+  }
+
+  // "Merchant Direct" is not a store; it is a fallback ingestion channel label.
+  // If it is the only surviving merchant string, show the neutral public seller
+  // label rather than leaking backend plumbing into the badge.
+  if (remaining.length === 2 && remaining.join(' ').toLowerCase() === 'merchant direct') {
+    return 'BuyWhere seller';
+  }
+
   const headKey = remaining.join('').toLowerCase();
   if (MERCHANT_ALIASES[headKey]) {
     return MERCHANT_ALIASES[headKey];

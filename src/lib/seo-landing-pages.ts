@@ -65,6 +65,7 @@ export type LandingProduct = {
   productUrl?: string | null;
   brand: string | null;
   category: string | null;
+  countryCode?: string | null;
 };
 
 type SearchApiItem = {
@@ -89,6 +90,7 @@ type SearchApiItem = {
   brand?: string | null;
   updated_at?: string | null;
   category?: string | null;
+  country_code?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -421,6 +423,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     brand: item.brand || null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
+    // BUY-72906: keep the upstream merchant/market country available for
+    // SSR-layer defense-in-depth filtering on country-specific landing pages.
+    countryCode: item.country_code ?? null,
   };
 }
 
@@ -435,6 +440,8 @@ const HOTLINK_BLOCKED_HOSTS = new Set([
   "shopifycdn.com",
   "elescat.store",
   "source.unsplash.com",
+  "images.unsplash.com",
+  "unsplash.com",
 ]);
 
 function isUsableProductImage(imageUrl?: string | null) {
@@ -1207,7 +1214,13 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
+        // BUY-72906: filter country-specific SEO snapshots to merchants/products
+        // in the page's target market. Without this, USD-priced foreign retailers
+        // (e.g. COMPUMARTS) can leak into the US retailers section.
+        deliver_to: config.country,
+        include_unshippable: "false",
         limit: config.excludeAccessories ? "24" : "8",
+        region: config.country,
       });
       if (config.searchCategory) {
         params.set("category", config.searchCategory);
@@ -1251,6 +1264,10 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       for (const item of items) {
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
+        // BUY-72906: defense-in-depth against backend/filter drift — if the
+        // upstream row declares a country that differs from this landing page,
+        // don't render it in a country-specific retailer snapshot.
+        if (product.countryCode && product.countryCode !== config.country) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;

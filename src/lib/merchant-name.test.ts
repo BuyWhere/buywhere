@@ -63,3 +63,31 @@ test("trailing filler words are dropped when a real platform matches first", () 
   assert.equal(stripMerchantTenantSuffix("Shopify Wellbots Com"), "Shopify");
   assert.equal(stripMerchantTenantSuffix("shopify_wellbots_com"), "Shopify");
 });
+
+// BUY-72907 — QA re-verification FAILED 2026-08-22: cards still showed
+// platform names like "Shopify" / "Google Shopping" instead of the actual
+// store, and region-tagged values like "Decathlon Sg" instead of "Decathlon".
+// "merchant_direct" also leaked as the raw channel label. Cover each path
+// that maps a noisy ingest lane string to the public-facing retailer name.
+test("BUY-72907: regional suffix is stripped from retailer names", () => {
+  assert.equal(stripMerchantTenantSuffix("Decathlon Sg"), "Decathlon");
+  assert.equal(stripMerchantTenantSuffix("Decathlon SG"), "Decathlon");
+  assert.equal(stripMerchantTenantSuffix("Shopee Sg"), "Shopee");
+  assert.equal(stripMerchantTenantSuffix("Lazada My"), "Lazada");
+  assert.equal(stripMerchantTenantSuffix("Shopee Sng"), "Shopee");
+  assert.equal(stripMerchantTenantSuffix("Lazada Ph"), "Lazada");
+  assert.equal(stripMerchantTenantSuffix("Amazon Us"), "Amazon");
+  assert.equal(stripMerchantTenantSuffix("Best Buy Us"), "Best Buy");
+});
+
+test("BUY-72907: 'Merchant Direct' maps to neutral public seller label", () => {
+  assert.equal(stripMerchantTenantSuffix("Merchant Direct"), "BuyWhere seller");
+  assert.equal(stripMerchantTenantSuffix("merchant_direct"), "BuyWhere seller");
+  assert.equal(stripMerchantTenantSuffix("MERCHANT DIRECT"), "BuyWhere seller");
+});
+
+test("BUY-72907: trailing filler + regional suffix are both stripped", () => {
+  // "Decathlon Sg Com" -> "Decathlon"
+  assert.equal(stripMerchantTenantSuffix("Decathlon Sg Com"), "Decathlon");
+  assert.equal(stripMerchantTenantSuffix("BUY30590 RETAILER BESTBUY SG"), "Best Buy");
+});
