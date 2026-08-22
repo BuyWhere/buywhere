@@ -367,6 +367,18 @@ const nextConfig = {
         source: '/api/v1/:path*',
         destination: 'https://api.buywhere.ai/v1/:path*',
       },
+      // BUY-72903: /r/* and /go/* are short outbound-redirect URLs served by the
+      // Express redirect router on api.buywhere.ai (no /v1 prefix). Without this
+      // rewrite the Next.js app 404s them and every search-result "View Deal"
+      // link breaks.
+      {
+        source: '/r/:path*',
+        destination: 'https://api.buywhere.ai/r/:path*',
+      },
+      {
+        source: '/go/:path*',
+        destination: 'https://api.buywhere.ai/go/:path*',
+      },
       // /api/* → api.buywhere.ai/v1/*  (legacy v0-style root-domain API calls)
       {
         source: '/api/:path*',
