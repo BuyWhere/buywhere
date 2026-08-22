@@ -667,7 +667,14 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
                   country={country}
                 />
                 {ids.length > 1 ? (
-                  <CompareProductsGrid products={compareProducts} title={`Comparing ${compareProducts.length} products`} />
+                  <CompareProductsGrid
+                    products={compareProducts}
+                    title={`Comparing ${compareProducts.length} products`}
+                    productIds={ids}
+                    fromSurface={fromSurface}
+                    query={query}
+                    country={country}
+                  />
                 ) : (
                   <ComparisonTable offers={offers} />
                 )}
