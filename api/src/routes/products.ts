@@ -37,7 +37,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost-b72693'; // BUY-72693: bust stale synthetic-Amazon search cache entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost-b72744'; // BUY-72744: bust stale synthetic-Amazon search cache entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
