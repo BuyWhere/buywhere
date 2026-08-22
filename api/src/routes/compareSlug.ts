@@ -143,7 +143,6 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
 
   // Build ILIKE conditions for each alias name with leading wildcard
   // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
-  const pattern = `%${normalizedSlug}%`;
   const productsResult = await db.query<{
     id: string; title: string; brand: string | null; image_url: string | null;
     price: string | null; currency: string; url: string; source: string;
@@ -152,19 +151,20 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = ANY($1::text[]) AND category ILIKE $2
+     WHERE currency = ANY($1::text[])
+       AND category_path IS NOT NULL
+       AND (category_path[1] = ANY($2::text[]) OR category = ANY($2::text[]))
      ORDER BY array_position($1::text[], currency), updated_at DESC
      LIMIT $3 OFFSET $4`,
-    [currencyCandidates, pattern, limit, offset]
+    [currencyCandidates, aliasNames, limit, offset]
   ).catch(() => null);
 
-  if (!productsResult || productsResult.rows.length === 0) {
-    return false;
-  }
 
   // Group products by SKU / title — each unique product row becomes a product entry
   // with its prices[] array containing this one merchant listing
-  const products = productsResult.rows.map((row) => ({
+  const rows = productsResult?.rows ?? [];
+
+  const products = rows.map((row) => ({
     id: row.id,
     name: row.title,
     brand: row.brand || '',
