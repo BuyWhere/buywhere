@@ -97,6 +97,13 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMES
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_request_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_reset_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 day');
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS weekly_request_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS weekly_reset_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days');
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS consecutive_outbound_days INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_outbound_date DATE;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS failed_request_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS registration_ip TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS keys_from_same_ip_24h INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_prefix          TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label               TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS fingerprint_hash    TEXT;
@@ -109,6 +116,7 @@ UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact 
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_email_token ON api_keys(email_verification_token) WHERE email_verification_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_keys_pending_verify ON api_keys(tier, created_at) WHERE tier = 'pending_verify';
 
 -- Affiliate redirect click log
 CREATE TABLE IF NOT EXISTS affiliate_clicks (
@@ -796,6 +804,23 @@ export async function runMigrations() {
     console.log('[migration] query_log.cache_hit column ensured (BUY-62708).');
   } catch (err: any) {
     console.warn(`[migration] query_log.cache_hit preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-72774: ensure api_keys columns for pending-verify tier (verify=false registration path)
+  try {
+    await db.query(`
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS weekly_request_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS weekly_reset_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days');
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS consecutive_outbound_days INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_outbound_date DATE;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS failed_request_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS registration_ip TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS keys_from_same_ip_24h INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_api_keys_pending_verify ON api_keys(tier, created_at) WHERE tier = 'pending_verify';
+    `);
+    console.log('[migration] pending-verify columns ensured (BUY-72774).');
+  } catch (err: any) {
+    console.warn(`[migration] pending-verify column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // Separately ensure merchants tables exist — not blocked by failures above.

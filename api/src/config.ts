@@ -127,11 +127,14 @@ export const FREE_TIER = {
   daily: 10000,
 };
 
-export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCap?: number; overageRate?: number }> = {
+export const TIER_LIMITS: Record<string, { rpm: number; daily: number; weekly?: number; monthlyCap?: number; overageRate?: number }> = {
   free: FREE_TIER,
   starter: { rpm: 100, daily: 10000 },
   pro: { rpm: 500, daily: 100000 },
   unverified: { rpm: 20, daily: 1000 },
+  // BUY-72774: pending-verify tier for verify=false registration path
+  // 10 calls/day, 100 calls/week, 2 r/sec burst (rpm=2)
+  pending_verify: { rpm: 2, daily: 10, weekly: 100 },
   verified_agent: { rpm: 200, daily: 10000 },
   enterprise: { rpm: 1000, daily: 100000 },
   platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },

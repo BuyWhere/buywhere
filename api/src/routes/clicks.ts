@@ -143,18 +143,58 @@ router.get('/click', async (req: Request, res: Response) => {
     ? createHash('sha256').update(clientIp).digest('hex')
     : null;
 
+  // BUY-72774: resolve api_key.id for outbound tracking on pending-verify keys
+  let apiKeyId: string | null = null;
+  if (apiKey) {
+    const keyHash = createHash('sha256').update(apiKey).digest('hex');
+    const keyRow = await db.query<{ id: string }>(
+      'SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true',
+      [keyHash]
+    );
+    apiKeyId = keyRow.rows[0]?.id || null;
+  }
+
+  // Align INSERT to actual clicks table schema:
+  // id, product_id, merchant_id, user_id, api_key, referrer, destination_url, ip_hash, source, clicked_at
   try {
     await db.query(
-      `INSERT INTO clicks
-         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id, job_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [uuidv4(), productId, 'api', url, null, req.headers['user-agent'] || null, referrer, merchantId,
-       // WP5: shopping-session attribution
-       (typeof req.query.job_id === 'string' && req.query.job_id.length <= 128 && /^[A-Za-z0-9._~:-]+$/.test(req.query.job_id)) ? req.query.job_id : null]
+      `INSERT INTO clicks (id, product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [uuidv4(), productId, merchantId, apiKey, referrer, url, ipHash, 'api']
     );
   } catch (err) {
     // Log but don't block the redirect
     console.error('[clicks] insert error:', err);
+  }
+
+  // BUY-72774: update pending-verify outbound tracking for auto-promotion
+  // Outbound click → update consecutive days counter + check 3-day promotion
+  if (apiKeyId) {
+    db.query(
+      `UPDATE api_keys
+         SET last_outbound_date = CURRENT_DATE,
+             consecutive_outbound_days =
+               CASE
+                 WHEN last_outbound_date = CURRENT_DATE - INTERVAL '1 day'
+                   THEN consecutive_outbound_days + 1
+                 WHEN last_outbound_date IS NULL OR last_outbound_date < CURRENT_DATE - INTERVAL '1 day'
+                   THEN 1
+                 ELSE consecutive_outbound_days
+               END
+         WHERE id = $1
+           AND tier = 'pending_verify'`,
+      [apiKeyId]
+    ).catch(() => {});
+
+    // Check auto-promotion: 3+ consecutive days with outbound clicks
+    db.query(
+      `UPDATE api_keys
+         SET tier = 'free'
+         WHERE id = $1
+           AND tier = 'pending_verify'
+           AND consecutive_outbound_days >= 3`,
+      [apiKeyId]
+    ).catch(() => {});
   }
 
   res.redirect(302, url);

@@ -213,6 +213,13 @@ function nextMidnightUTC(): Date {
   return d;
 }
 
+function nextWeekUTC(): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 7);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 function tierDailyLimit(tier: string, rowDailyLimit: number | null): number {
   if (rowDailyLimit != null && rowDailyLimit > 0) return rowDailyLimit;
   return (TIER_LIMITS[tier] ?? FREE_TIER).daily;
@@ -285,7 +292,8 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   const keyHashes = apiKeyLookupHashes(key);
   const result = await db.query(
     `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
-            daily_request_count, daily_reset_at, rpm_limit, daily_limit
+            daily_request_count, daily_reset_at, weekly_request_count, weekly_reset_at,
+            created_at, rpm_limit, daily_limit, failed_request_count
      FROM api_keys WHERE key_hash = ANY($1::text[])`,
     [keyHashes]
   );
@@ -302,11 +310,45 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     return;
   }
 
+  // BUY-72774: pending-verify auto-suspend logic
+  // - "key created <1s before first failing request" (track failed_request_count)
+  // - "50 calls with 0 outbound_url clicks"
+  const pvLimits = TIER_LIMITS.pending_verify;
+  const tier = row.tier;
+  const isPendingVerify = tier === 'pending_verify';
+
+  // BUY-72774: 72h expiration for pending-verify keys
+  // If neither email verified nor 3-day outbound click promotion happened, expire after 72h
+  if (isPendingVerify) {
+    const createdAt = row.created_at ? new Date(row.created_at) : null;
+    if (createdAt && Date.now() - createdAt.getTime() > 72 * 60 * 60 * 1000) {
+      await db.query('UPDATE api_keys SET is_active = false WHERE id = $1', [row.id]);
+      sendSpecError(res, 'invalid_api_key', 'Pending-verify key expired after 72 hours. Please re-register or verify your email.', 403);
+      return;
+    }
+  }
+
+  if (isPendingVerify && row.failed_request_count >= 50) {
+    // Auto-suspend: 50+ failed requests (likely bot/abuse)
+    await db.query('UPDATE api_keys SET is_active = false WHERE id = $1', [row.id]);
+    sendSpecError(res, 'invalid_api_key', 'API key suspended due to excessive failed requests.', 403);
+    return;
+  }
+
+  // BUY-72774: auto-suspend if 50+ calls made but zero outbound clicks
+  if (isPendingVerify && row.daily_request_count >= 50 && (row.consecutive_outbound_days || 0) === 0) {
+    await db.query('UPDATE api_keys SET is_active = false WHERE id = $1', [row.id]);
+    sendSpecError(res, 'invalid_api_key', 'API key suspended: no outbound clicks after 50 API calls.', 403);
+    return;
+  }
+
   const dailyLimit = tierDailyLimit(row.tier, row.daily_limit);
   const rpmLimit = tierRpmLimit(row.tier, row.rpm_limit);
 
   let dailyRequestCount = row.daily_request_count || 0;
   let dailyResetAt = row.daily_reset_at ? new Date(row.daily_reset_at) : nextMidnightUTC();
+  let weeklyRequestCount = row.weekly_request_count || 0;
+  let weeklyResetAt = row.weekly_reset_at ? new Date(row.weekly_reset_at) : nextWeekUTC();
   const now = new Date();
 
   if (now >= dailyResetAt) {
@@ -318,8 +360,32 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     ).catch(() => {});
   }
 
+  // Weekly reset for pending-verify tier
+  if (isPendingVerify && now >= weeklyResetAt) {
+    weeklyRequestCount = 0;
+    weeklyResetAt = nextWeekUTC();
+    db.query(
+      'UPDATE api_keys SET weekly_request_count = 0, weekly_reset_at = $1 WHERE id = $2',
+      [weeklyResetAt, row.id]
+    ).catch(() => {});
+  }
+
   if (dailyRequestCount >= dailyLimit) {
     sendDailyLimitError(res, row.tier, dailyLimit, dailyResetAt.toISOString());
+    return;
+  }
+
+  // BUY-72774: weekly limit check for pending-verify tier
+  if (isPendingVerify && weeklyRequestCount >= (pvLimits.weekly || 100)) {
+    const retryAfter = Math.ceil((weeklyResetAt.getTime() - now.getTime()) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    res.status(429).json({
+      error: 'rate_limit_exceeded',
+      message: `Weekly limit of ${pvLimits.weekly} requests reached for pending-verify tier. Resets ${weeklyResetAt.toISOString()}.`,
+      tier: 'pending-verify',
+      limit: pvLimits.weekly,
+      window: '7d',
+    });
     return;
   }
 
@@ -339,10 +405,18 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   res.set('X-RateLimit-Limit-Day', String(dailyLimit));
   res.set('X-RateLimit-Remaining-Day', String(Math.max(0, dailyLimit - dailyRequestCount - 1)));
 
-  db.query(
-    'UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1',
-    [row.id]
-  ).catch(() => {});
+  // Increment both daily and weekly for pending-verify
+  if (isPendingVerify) {
+    db.query(
+      'UPDATE api_keys SET daily_request_count = daily_request_count + 1, weekly_request_count = weekly_request_count + 1, last_used_at = NOW() WHERE id = $1',
+      [row.id]
+    ).catch(() => {});
+  } else {
+    db.query(
+      'UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1',
+      [row.id]
+    ).catch(() => {});
+  }
 
   next();
 }
