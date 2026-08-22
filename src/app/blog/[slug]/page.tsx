@@ -7,6 +7,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { getAllBlogPosts, getBlogPostBySlug, type BlogPost } from "@/lib/blog";
 import { toSiteUrl } from "@/lib/site-url";
+import BlogCompareCta from "@/components/blog/BlogCompareCta";
 
 type PageProps = {
   params: { slug: string };
@@ -248,6 +249,13 @@ export default function BlogPostPage({ params }: PageProps) {
                 {post.body}
               </ReactMarkdown>
             </div>
+
+            {/* BUY-72773: seed the share-link loop on every blog post by handing
+                the visitor a pre-filled /compare?p=...&from=blog-<slug> URL.
+                The CTA only renders for posts that are part of the live blog
+                allowlist (see middleware ACTIVE_BLOG_SLUGS); unknown slugs are
+                404'd at the routing layer so this branch is safe. */}
+            <BlogCompareCta slug={post.slug} />
           </article>
 
           <aside className="space-y-6">
