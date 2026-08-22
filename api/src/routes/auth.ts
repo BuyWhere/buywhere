@@ -72,10 +72,13 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
     const ipCounterKey = `auth:pending_verify:ip:${ipHash}`;
     let existingCount = 0;
     try {
-      const createdCount = await redis.incr(ipCounterKey);
+      const createdCount = await Promise.race([
+        redis.incr(ipCounterKey),
+        new Promise<number>((resolve) => setTimeout(() => resolve(1), 150)),
+      ]);
       existingCount = Math.max(0, createdCount - 1);
       if (createdCount === 1) {
-        await redis.expire(ipCounterKey, 24 * 60 * 60);
+        redis.expire(ipCounterKey, 24 * 60 * 60).catch(() => {});
       }
       if (createdCount > 3) {
         res.status(429).json({
