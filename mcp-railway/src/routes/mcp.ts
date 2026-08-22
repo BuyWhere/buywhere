@@ -923,13 +923,23 @@ async function handleListCategories(args: Record<string, unknown>) {
   }
 }
 
+// BUY-65298: normalize region aliases to ISO country codes (us→US, sea→SG, etc.)
+const REGION_TO_COUNTRY: Record<string, string> = {
+  sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', uk: 'GB', in: 'IN', au: 'AU', sea: 'SG',
+};
+const normalizeCountry = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
+};
+
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productName = ((args.product_name as string) || (args.q as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
-  const region = (args.region as string) || '';
+  // BUY-65298: normalize region→country (us→US, sea→SG) and accept country_code/country aliases.
+  const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
   const category = (args.category as string) || '';
   const limit = 10;
 
@@ -943,13 +953,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(productName);
   conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
 
+  // Only filter by country_code - do NOT also filter by raw region column, as that
+  // conflicts with region aliases (e.g. "us" is not a valid region value in the DB).
   if (country) {
     params.push(country);
     conditions.push(`country_code = $${params.length}`);
-  }
-  if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
   }
   if (category) {
     params.push(`%${category}%`);
