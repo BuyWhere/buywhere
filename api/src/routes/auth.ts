@@ -50,6 +50,18 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   // UTM / attribution from query params or body
   const utmSource = (req.query.utm_source || req.body.utm_source) as string | undefined;
   const utmMedium = (req.query.utm_medium || req.body.utm_medium) as string | undefined;
+  // GTM-attribution (2026-08-22): persist the FULL utm set + a referrer-host
+  // fallback — the columns existed but were never written, leaving attribution
+  // blind (100% 'direct' in the W1 growth analysis).
+  const utmCampaign = (req.query.utm_campaign || req.body.utm_campaign) as string | undefined;
+  const utmContent = (req.query.utm_content || req.body.utm_content) as string | undefined;
+  const utmTerm = (req.query.utm_term || req.body.utm_term) as string | undefined;
+  const clip = (v: string | undefined) => (v ? String(v).slice(0, 200) : null);
+  let referrerHost: string | null = null;
+  try {
+    const ref = req.headers['referer'];
+    if (typeof ref === 'string' && ref) referrerHost = new URL(ref).hostname.slice(0, 200);
+  } catch { /* malformed referer — ignore */ }
   const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
 
   // BUY-72774: determine tier based on verify=false flag
@@ -74,8 +86,8 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
         email_verification_token, email_verification_expires_at,
-        registration_ip)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12)`,
+        registration_ip, utm_source, utm_medium, utm_campaign, utm_content, utm_term)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12,$13,$14,$15,$16,$17)`,
     [
       id,
       keyHash,
@@ -85,10 +97,15 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       use_case ? String(use_case).slice(0, 1000) : null,
       tier,
       signupChannel,
-      utmSource || null,
+      utmSource || referrerHost || null,
       verificationToken,
       expiresAt,
       registrationIp,
+      clip(utmSource),
+      clip(utmMedium),
+      clip(utmCampaign),
+      clip(utmContent),
+      clip(utmTerm),
     ]
   );
 
