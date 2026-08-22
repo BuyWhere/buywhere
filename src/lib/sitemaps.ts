@@ -5,6 +5,7 @@ import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
 import fs from "node:fs";
+import path from "node:path";
 
 function safeGetBlogPosts() {
   try {
@@ -15,6 +16,188 @@ function safeGetBlogPosts() {
     // blog directory not available at runtime
   }
   return [];
+}
+
+// BUY-63866 / BUY-72089: read the latest sitemap-lastmod-override-*.json file
+// (written daily by scripts/update-sitemap-lastmod.mjs) and return a Map<url,
+// lastmod>. The override only contains URLs from the indexing queue — it tells
+// Googlebot "these URLs were touched recently, please re-crawl." When the
+// override is older than 24h we fall back to the natural lastUpdated so a
+// stuck cron doesn't pin stale dates in the sitemap indefinitely.
+//
+// Module-scope memoization (1h TTL) follows the same pattern as merchantCache
+// below: the routes are force-dynamic, so Next.js's data cache is bypassed.
+const LASTMOD_OVERRIDE_TTL_MS = 60 * 60 * 1000;
+const LASTMOD_OVERRIDE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+let cachedLastmodOverride: { urls: Map<string, string>; fetchedAt: number } | null = null;
+
+function readLastmodOverrideFile(filePath: string): { urls: Map<string, string>; date: string | null } | null {
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      date?: string;
+      lastmod?: string;
+      urls?: string[];
+    };
+    if (!parsed || !Array.isArray(parsed.urls) || typeof parsed.lastmod !== "string") {
+      return null;
+    }
+    const urls = new Map<string, string>();
+    for (const u of parsed.urls) {
+      if (typeof u !== "string") continue;
+      const trimmed = u.trim();
+      if (!trimmed) continue;
+      urls.set(trimmed, parsed.lastmod);
+    }
+    return { urls, date: parsed.date ?? null };
+  } catch {
+    return null;
+  }
+}
+
+function readLatestLastmodOverride(): Map<string, string> {
+  const now = Date.now();
+  if (cachedLastmodOverride && now - cachedLastmodOverride.fetchedAt < LASTMOD_OVERRIDE_TTL_MS) {
+    return cachedLastmodOverride.urls;
+  }
+
+  const auditsDir = path.join(process.cwd(), "content", "audits");
+  let latest: { urls: Map<string, string>; mtimeMs: number; isoDate: string } | null = null;
+
+  try {
+    const entries = fs.readdirSync(auditsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const match = entry.name.match(/^sitemap-lastmod-override-(\d{4}-\d{2}-\d{2})\.json$/);
+      if (!match) continue;
+      const filePath = path.join(auditsDir, entry.name);
+      const stat = fs.statSync(filePath);
+      const parsed = readLastmodOverrideFile(filePath);
+      if (!parsed) continue;
+      const isoDate = match[1];
+      if (
+        !latest ||
+        isoDate > latest.isoDate ||
+        (isoDate === latest.isoDate && stat.mtimeMs > latest.mtimeMs)
+      ) {
+        latest = { urls: parsed.urls, mtimeMs: stat.mtimeMs, isoDate };
+      }
+    }
+  } catch {
+    // audits dir missing or unreadable; treat as no override.
+  }
+
+  const urls = latest?.urls ?? new Map<string, string>();
+
+  // Discard stale overrides (>24h old by iso date) so a wedged cron doesn't
+  // hold lastmod pinned at a date Google has already considered fresh.
+  if (latest) {
+    const today = new Date().toISOString().slice(0, 10);
+    const ageDays = daysBetweenIsoDates(latest.isoDate, today);
+    if (ageDays * 24 * 60 * 60 * 1000 > LASTMOD_OVERRIDE_MAX_AGE_MS) {
+      cachedLastmodOverride = { urls: new Map(), fetchedAt: now };
+      return cachedLastmodOverride.urls;
+    }
+  }
+
+  cachedLastmodOverride = { urls, fetchedAt: now };
+  return cachedLastmodOverride.urls;
+}
+
+function daysBetweenIsoDates(a: string, b: string): number {
+  const aMs = Date.parse(`${a}T00:00:00Z`);
+  const bMs = Date.parse(`${b}T00:00:00Z`);
+  if (Number.isNaN(aMs) || Number.isNaN(bMs)) return 0;
+  return Math.abs(bMs - aMs) / (24 * 60 * 60 * 1000);
+}
+
+function applyLastmodOverride(
+  entries: SitemapUrlEntry[],
+  overrides: Map<string, string>,
+): SitemapUrlEntry[] {
+  if (overrides.size === 0) return entries;
+  return entries.map((entry) => {
+    const override = overrides.get(entry.url);
+    if (!override) return entry;
+    return { ...entry, lastModified: override };
+  });
+}
+
+// BUY-63866: sidecar slice of recently-updated US products. Written by
+// scripts/update-sitemap-lastmod.mjs to content/audits/sitemap-products-recent-*.json
+// from the same DB query that builds the indexing queue. The sitemap route
+// appends these entries to its base list so the URLs that actually changed
+// get a fresh <lastmod>. (The base /v1/products?country_code=US sitemap only
+// emits the first page of an unpaginated API response — see
+// src/lib/us-products.ts fetchUSProductPage — so it doesn't see the recent
+// rows on its own.)
+let cachedRecentSlice: { entries: SitemapUrlEntry[]; fetchedAt: number; isoDate: string } | null = null;
+
+function readRecentProductsSlice(): SitemapUrlEntry[] {
+  const now = Date.now();
+  if (cachedRecentSlice && now - cachedRecentSlice.fetchedAt < LASTMOD_OVERRIDE_TTL_MS) {
+    return cachedRecentSlice.entries;
+  }
+
+  const auditsDir = path.join(process.cwd(), "content", "audits");
+  let latest: { entries: SitemapUrlEntry[]; mtimeMs: number; isoDate: string } | null = null;
+
+  try {
+    const entries = fs.readdirSync(auditsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const match = entry.name.match(/^sitemap-products-recent-(\d{4}-\d{2}-\d{2})\.json$/);
+      if (!match) continue;
+      const filePath = path.join(auditsDir, entry.name);
+      const stat = fs.statSync(filePath);
+      let parsed: { entries?: unknown[]; lastmod?: string } | null = null;
+      try {
+        parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      } catch {
+        continue;
+      }
+      if (!parsed || !Array.isArray(parsed.entries)) continue;
+      const sliceEntries: SitemapUrlEntry[] = [];
+      for (const e of parsed.entries) {
+        if (!e || typeof e !== "object") continue;
+        const rec = e as { url?: string; lastModified?: string; changeFrequency?: SitemapUrlEntry["changeFrequency"]; priority?: number };
+        if (typeof rec.url !== "string") continue;
+        sliceEntries.push({
+          url: rec.url,
+          lastModified: rec.lastModified ?? parsed.lastmod ?? new Date().toISOString(),
+          changeFrequency: rec.changeFrequency,
+          priority: typeof rec.priority === "number" ? rec.priority : 0.7,
+        });
+      }
+      const isoDate = match[1];
+      if (
+        !latest ||
+        isoDate > latest.isoDate ||
+        (isoDate === latest.isoDate && stat.mtimeMs > latest.mtimeMs)
+      ) {
+        latest = { entries: sliceEntries, mtimeMs: stat.mtimeMs, isoDate };
+      }
+    }
+  } catch {
+    // audits dir missing or unreadable; treat as empty slice.
+  }
+
+  // Stale-slice guard (same 24h cutoff as the override file).
+  if (latest) {
+    const today = new Date().toISOString().slice(0, 10);
+    const ageDays = daysBetweenIsoDates(latest.isoDate, today);
+    if (ageDays * 24 * 60 * 60 * 1000 > LASTMOD_OVERRIDE_MAX_AGE_MS) {
+      cachedRecentSlice = { entries: [], fetchedAt: now, isoDate: today };
+      return cachedRecentSlice.entries;
+    }
+  }
+
+  cachedRecentSlice = {
+    entries: latest?.entries ?? [],
+    fetchedAt: now,
+    isoDate: latest?.isoDate ?? new Date().toISOString().slice(0, 10),
+  };
+  return cachedRecentSlice.entries;
 }
 
 export const SITEMAP_BASE_URL = "https://buywhere.ai";
@@ -527,6 +710,16 @@ export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
     }
   }
 
+  // BUY-72121 F4: exclude /compare/* URLs because they are fully owned by
+  // sitemap-compare.xml. Without this filter, category hubs like /compare,
+  // /compare/electronics, /compare/fashion appear in BOTH files.
+  const comparePrefixes = Array.from(entries.keys()).filter((path) =>
+    path.startsWith("/compare")
+  );
+  for (const prefix of comparePrefixes) {
+    entries.delete(prefix);
+  }
+
   return Array.from(entries.values());
 }
 
@@ -554,18 +747,39 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
     addEntry(`/compare/${compareCategoryPairSlug(pair)}`, 0.7);
   }
 
-  return Array.from(entries.values());
+  return applyLastmodOverride(Array.from(entries.values()), readLatestLastmodOverride());
 }
 
 export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getUSProducts();
+  const overrides = readLatestLastmodOverride();
 
-  return products.map((product: USProductForSitemap) => ({
+  const entries: SitemapUrlEntry[] = products.map((product: USProductForSitemap) => ({
     url: toSiteUrl(`/products/us/${product.slug}`),
     lastModified: product.lastUpdated,
     changeFrequency: "weekly",
     priority: 0.7,
   }));
+
+  // BUY-63866: append the recently-updated US product slice written daily by
+  // scripts/update-sitemap-lastmod.mjs to content/audits/sitemap-products-recent-*.json.
+  // The base sitemap (above) only emits the first page of /v1/products?country_code=US
+  // because that endpoint's pagination metadata is missing from the response
+  // (see src/lib/us-products.ts fetchUSProductPage). Until that's fixed, the
+  // queue-driven slice is the only way to make <lastmod> relevant to recently-
+  // changed URLs. The dedupe-by-URL keeps the base slice as the source of
+  // truth for entries that overlap.
+  const recent = readRecentProductsSlice();
+  if (recent.length > 0) {
+    const seen = new Set(entries.map((entry) => entry.url));
+    for (const entry of recent) {
+      if (seen.has(entry.url)) continue;
+      seen.add(entry.url);
+      entries.push(entry);
+    }
+  }
+
+  return applyLastmodOverride(entries, overrides);
 }
 
 export async function getProductSitemapChunkCount(): Promise<number> {
@@ -759,27 +973,33 @@ async function fetchIngestedMerchantsFresh(
 
 export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
-  const entries: SitemapUrlEntry[] = [];
+  // BUY-72121 F5: use Map for URL-keyed dedup so duplicate API pages don't
+  // produce duplicate sitemap entries (T395 found 1 self-duplicate for
+  // performance-sg/products consuming a capped slot).
+  const entriesByUrl = new Map<string, SitemapUrlEntry>();
 
   const sgMerchants = await fetchIngestedMerchants("SG");
   for (const merchant of sgMerchants) {
     if (!merchant.is_active) continue;
     const slug = deriveMerchantSlug(merchant);
     const country = merchant.country.toLowerCase();
-    entries.push({
-      // Canonical form (no trailing slash) — matches the <link rel="canonical">
-      // emitted by /[seo-page]/[merchant]/products/page.tsx and the actual
-      // route on disk. Trailing-slash URLs get rewritten (200 via
-      // x-middleware-rewrite) which Google Search Console reports as
-      // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
-      url: toSiteUrl(`/${country}/${slug}/products`),
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
+    const url = toSiteUrl(`/${country}/${slug}/products`);
+    // Canonical form (no trailing slash) — matches the <link rel="canonical">
+    // emitted by /[seo-page]/[merchant]/products/page.tsx and the actual
+    // route on disk. Trailing-slash URLs get rewritten (200 via
+    // x-middleware-rewrite) which Google Search Console reports as
+    // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
+    if (!entriesByUrl.has(url)) {
+      entriesByUrl.set(url, {
+        url,
+        lastModified: now,
+        changeFrequency: "daily",
+        priority: 0.8,
+      });
+    }
   }
 
-  return entries;
+  return Array.from(entriesByUrl.values());
 }
 
 export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
@@ -802,23 +1022,29 @@ export async function getAllRegionMerchantListingSitemapEntries(): Promise<Sitem
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  const entries: SitemapUrlEntry[] = [];
+  // BUY-72121 F5: URL-keyed dedup so duplicate API pages don't produce
+  // duplicate sitemap entries (the F5 self-duplicate was inside one
+  // file; this also catches cross-region dupes in the all-regions fan-out).
+  const entriesByUrl = new Map<string, SitemapUrlEntry>();
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
     for (const merchant of result.value) {
       if (!merchant.is_active) continue;
       const slug = deriveMerchantSlug(merchant);
       const country = merchant.country.toLowerCase();
-      entries.push({
-        // See getMerchantListingSitemapEntries above for the canonical-form
-        // rationale (BUY-42727 trailing-slash 301 fix).
-        url: toSiteUrl(`/${country}/${slug}/products`),
-        lastModified: now,
-        changeFrequency: "daily",
-        priority: 0.8,
-      });
+      const url = toSiteUrl(`/${country}/${slug}/products`);
+      // See getMerchantListingSitemapEntries above for the canonical-form
+      // rationale (BUY-42727 trailing-slash 301 fix).
+      if (!entriesByUrl.has(url)) {
+        entriesByUrl.set(url, {
+          url,
+          lastModified: now,
+          changeFrequency: "daily",
+          priority: 0.8,
+        });
+      }
     }
   }
 
-  return entries;
+  return Array.from(entriesByUrl.values());
 }
