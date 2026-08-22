@@ -35,7 +35,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost'; // BUY-69753: bust stale phone-accessory ranking cache entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost-b72744'; // BUY-72744: bust stale synthetic-Amazon search cache entries
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -172,7 +172,9 @@ async function tryTierSearch(req, res, p) {
         params.push(p.deliverTo);
         i++;
     } // rank-only: local-first ordering, never filters
-    const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+    // BUY-72744: exclude synthetic Amazon rows in tier search.
+    const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
+    const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
     const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
     const limitIdx = i;
     params.push(p.limit + 1);
@@ -192,7 +194,6 @@ async function tryTierSearch(req, res, p) {
     CASE
       WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
         OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0.25 ELSE 1.0
     END`;
     // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -220,7 +221,6 @@ async function tryTierSearch(req, res, p) {
     CASE
       WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
         OR lower(sp.category) LIKE '%laptop%'
-        OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
     const mkQuery = (match, extraFilter = '') => `
@@ -235,12 +235,18 @@ async function tryTierSearch(req, res, p) {
       -- over-fetch that inflated the bitmap into lossy territory for head terms.
       LIMIT 1000
     ), top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
+      -- BUY-54980: the boost/penalty CASE expressions reference sp.* (title,
+      -- category), but cand only exposes (id, search_vector) — sp was never in
+      -- scope here, so every tier query errored at plan time and tryTierSearch
+      -- silently fell back to the slow archive path (~10s cold, 504s).
+      -- Join search_products back in so sp.* resolves.
+      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) AS rank
-      FROM cand ORDER BY rank DESC LIMIT 200
+      FROM cand c JOIN search_products sp ON sp.id = c.id
+      ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
@@ -255,7 +261,6 @@ async function tryTierSearch(req, res, p) {
     CASE
       WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
         OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0 ELSE 1
     END`;
     // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
@@ -454,8 +459,9 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
         if (meta)
             meta.deliver_to = deliverTo;
     }
-    else if (q && meta) {
-        meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
+    else if (meta) {
+        // F24 (2026-08-22): hint fires on EVERY deliver_to-less response (was q-only).
+        meta.hint = "IMPORTANT — treat deliver_to as REQUIRED for buyer-facing use: pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank deliverable products first (adds an availability label per product). Without it, results are not shipping-ranked and may be undeliverable to your user. Add include_unshippable=false to return only same-country products.";
     }
 }
 const router = (0, express_1.Router)();
@@ -771,6 +777,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             return;
     }
     const baseConditions = ['is_active = true', 'price > 0'];
+    // BUY-72744: exclude synthetic Amazon rows with malformed ASINs (not exactly 10 chars starting with B)
+    // and US-priced-as-SGD currency mismatches. The scraper fix is on main but stale catalog rows remain.
+    baseConditions.push("NOT (merchant_id = 'amazon.com' AND (length(sku) != 10 OR (country_code = 'US' AND currency = 'SGD')))");
     // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
     // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
     // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
@@ -946,8 +955,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
         switch (effectiveSort) {
-            case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-            case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+            case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22: agree with response sanitizer
+            case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22
             case 'newest': return 'products.updated_at DESC';
             case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
             case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
