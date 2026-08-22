@@ -64,23 +64,29 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   const expiresAt: string | null = hasEmail && !skipVerify ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   const id = uuidv4();
 
-  // BUY-72774: for pending-verify tier, capture IP and increment per-IP counter
+  // BUY-72774: for pending-verify tier, capture IP and increment per-IP counter.
+  // Use Redis instead of COUNT(*) on api_keys; the register endpoint must not
+  // full-scan the production key table before returning a no-verify key.
   if (skipVerify && clientIp) {
-    // Check how many keys from this IP in last 24h
-    const ipCountResult = await db.query(
-      `SELECT COUNT(*) as cnt FROM api_keys
-       WHERE registration_ip = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
-      [clientIp]
-    );
-    const existingCount = parseInt(ipCountResult.rows[0]?.cnt || '0');
-
-    // Block if 3+ keys from same IP in 24h
-    if (existingCount >= 3) {
-      res.status(429).json({
-        error: 'rate_limit_exceeded',
-        message: 'Too many keys created from this IP. Maximum 3 pending-verify keys per 24 hours.',
-      });
-      return;
+    const ipHash = createHash('sha256').update(clientIp).digest('hex').slice(0, 32);
+    const ipCounterKey = `auth:pending_verify:ip:${ipHash}`;
+    let existingCount = 0;
+    try {
+      const createdCount = await redis.incr(ipCounterKey);
+      existingCount = Math.max(0, createdCount - 1);
+      if (createdCount === 1) {
+        await redis.expire(ipCounterKey, 24 * 60 * 60);
+      }
+      if (createdCount > 3) {
+        res.status(429).json({
+          error: 'rate_limit_exceeded',
+          message: 'Too many keys created from this IP. Maximum 3 pending-verify keys per 24 hours.',
+        });
+        return;
+      }
+    } catch {
+      // Redis is a best-effort abuse cap; do not block legitimate signup if Redis
+      // is temporarily unavailable.
     }
 
     // Insert with registration_ip and counter
