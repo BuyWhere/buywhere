@@ -205,6 +205,12 @@ const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
   'www.neweggimages.com',
   'neweggimages.com',
   'images10.newegg.com',
+  // BUY-72904: contents.mediadecathlon.com serves HTTP 410 (WediaGone) for deleted
+  // or unavailable product assets. The server returns a 259-byte PNG placeholder.
+  // Block at the host level — Decathlon product URLs are Wedia-based and can
+  // become 410 at any time when inventory is retired.
+  'contents.mediadecathlon.com',
+  'www.contents.mediadecathlon.com',
 ]);
 
 function hasUsableProductImage(value?: string | null) {
