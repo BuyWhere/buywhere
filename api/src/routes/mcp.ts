@@ -18,6 +18,34 @@ import {
   SUPPORTED_REGIONS,
   type SupportedRegion,
 } from '../monitoring/healthSnapshot';
+import {
+  startShoppingJobFunnel,
+  resolveShoppingJobId,
+  recordJobCreated,
+  recordProductResolved,
+  recordExecutableOfferFound,
+  recordOutboundLinkReturned,
+} from '../monitoring/shoppingJobFunnel';
+
+// BUY-73521: start funnel writer on module load (idempotent).
+startShoppingJobFunnel();
+
+// BUY-73521: v2 buyer-context tools that participate in the purchase funnel.
+// All have REQUIRED deliver_to per the v2 wire contract (BUY-72533).
+const V2_BUYER_TOOLS = new Set([
+  'search_products_v2',
+  'find_best_price_v2',
+  'get_product_v2',
+  'compare_products_v2',
+  'get_deals_v2',
+]);
+
+// BUY-73521: REST endpoints that participate in the purchase funnel.
+const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
+  '/v1/products/search',
+  '/v1/products/deals',
+  '/v1/products/compare',
+]);
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -2115,10 +2143,50 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         res.locals.mcpToolName = toolName;
         _toolName = toolName;
         _toolArgs = toolArgs;
+        // BUY-73521: extract raw API key for funnel tracking (hashed, never stored raw)
+        const rawApiKey = (req as Request & { apiKey?: { rawKey?: string } }).apiKey?.rawKey;
+        // BUY-73521: resolve shopping_job_id — client-supplied or server-minted.
+        // Only buyer-context v2 tools participate in the funnel.
+        let funnelJobId: string | undefined;
+        let funnelIsReplay = false;
+        if (V2_BUYER_TOOLS.has(toolName)) {
+          const clientJobId = (args as Record<string, unknown>).shopping_job_id
+            ?? (args as Record<string, unknown>).job_id
+            ?? null;
+          const resolved = resolveShoppingJobId(clientJobId, toolArgs);
+          funnelJobId = resolved.jobId;
+          funnelIsReplay = resolved.isReplay;
+          // BUY-73521: record job_created stage.
+          recordJobCreated({
+            shoppingJobId: funnelJobId,
+            isReplay: funnelIsReplay,
+            toolName,
+            args: toolArgs,
+            apiKey: rawApiKey,
+          });
+        }
         const result = await dispatchTool(toolName, toolArgs);
         try {
           recordToolCall({ tool: toolName, region: extractRegion(toolArgs), latency_ms: Date.now() - _startMs, error: false });
         } catch {}
+        // BUY-73521: record funnel stages from the result.
+        // recordProductResolved fires when product ids are in the response.
+        // recordExecutableOfferFound fires when merchant+price+deliverability are present.
+        // recordOutboundLinkReturned fires when outbound_url is in the response.
+        if (funnelJobId) {
+          try {
+            recordProductResolved({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            recordExecutableOfferFound({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            recordOutboundLinkReturned({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+          } catch (e) {
+            console.warn('[mcp][funnel] record error:', e);
+          }
+        }
+        // BUY-73521: inject shopping_job_id into the response JSON so callers can
+        // continue the session without re-supplying it.
+        if (funnelJobId && result && typeof result === 'object') {
+          (result as Record<string, unknown>).shopping_job_id = funnelJobId;
+        }
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
