@@ -1685,9 +1685,9 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
 export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   "air-purifier-singapore": {
     slug: "air-purifier-singapore",
-    title: "Best Air Purifiers in Singapore 2026 | Compare Prices Across Top Retailers",
+    title: "Best Air Purifiers in Singapore 2026 — Prices & Buying Guide",
     description:
-      "Compare the best air purifiers in Singapore with live BuyWhere product results, retailer benchmarks, and quick buying advice across Dyson, Philips, Xiaomi, Sharp, and Sterra.",
+      "Find the best air purifiers in Singapore. Compare prices across Dyson, Philips, Xiaomi, Sharp, Sterra and more. Get buying advice and live deals.",
     heroEyebrow: "Singapore Home Guide",
     heroTitle: "Best Air Purifiers in Singapore",
     heroBody:
@@ -1696,8 +1696,18 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "air purifier",
-    backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
+    searchQuery: "best air purifier Singapore",
+    backupQueries: [
+      "best air purifier Singapore",
+      "cheap air purifier Singapore",
+      "air purifier price Singapore",
+      "air purifier Singapore buy",
+      "best value air purifier Singapore",
+      "Coway air purifier",
+      "Levoit air purifier",
+      "Blueair air purifier",
+      "Xiaomi air purifier",
+    ],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
