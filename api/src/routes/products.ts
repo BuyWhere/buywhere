@@ -37,7 +37,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost-b72744'; // BUY-72744: bust stale synthetic-Amazon search cache entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v10'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -811,7 +811,13 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
+      // Explicit country_code is a HARD filter (SEV-1 2026-08-23): the previous
+      // `(country_code = $X OR country_code IS NULL)` leaked untagged rows into
+      // every market — MY/DE/ID/PH (and even XX) returned identical null-country
+      // results. countryCode is only set here when the caller passed the param
+      // explicitly (no silent default since the BUY-6598 hotfix), so untagged
+      // rows still surface when no country is requested.
+      baseConditions.push(`country_code = $${baseIdx}`);
       baseParams.push(countryCode);
       baseIdx++;
     }
