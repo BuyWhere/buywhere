@@ -106,7 +106,10 @@ test("QA-sampled SEO pages keep credible image-backed fallback catalogs", async 
       const products = await getSeoLandingProducts(seoLandingPages[slug]);
       assert.ok(products.length >= 4, `${slug} should render at least 4 product cards`);
       for (const product of products) {
-        assert.match(product.imageUrl || "", /^https?:\/\//, `${slug} rendered ${product.name} without a real remote product image URL`);
+        // BUY-70187: hotlink-blocked hosts render through /api/image-proxy
+        // (a real remote fetch, just routed server-side), so accept either
+        // a direct https URL or the proxy form.
+        assert.match(product.imageUrl || "", /^(https?:\/\/|\/api\/image-proxy\?url=)/, `${slug} rendered ${product.name} without a real remote product image URL`);
         assert.notEqual(product.href, "#", `${slug} rendered ${product.name} without a product/search link`);
       }
     }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HOTLINK_BLOCKED_HOSTS, viaImageProxy } from "@/lib/hotlink-hosts";
 import { toSiteUrl } from "@/lib/site-url";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
@@ -405,8 +406,10 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     // reserved for the legitimate fallback cases:
     //   - no upstream image_url at all
     //   - upstream URL is on the hotlink-blocked host denylist
+    // BUY-70187: hotlink-blocked host images go through /api/image-proxy
+    // instead of the branded SVG placeholder.
     imageUrl: isUsableProductImage(imageUrl)
-      ? imageUrl
+      ? viaImageProxy(imageUrl)
       : brandedProductPlaceholderSvg(
           item.brand || null,
           item.name || null,
@@ -429,28 +432,24 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   };
 }
 
-// Hosts that historically serve 200 to bots but 403/404 inside a browser.
-// Treat them as unreachable so the placeholder path takes over instead of
-// rendering a broken-image icon on the live SEO landing pages.
-const HOTLINK_BLOCKED_HOSTS = new Set([
-  "courts.com.sg",
-  "www.courts.com.sg",
-  "dlcdnwebimgs.asus.com",
-  "www.asus.com",
-  "shopifycdn.com",
-  "elescat.store",
-  "source.unsplash.com",
-  "images.unsplash.com",
-  "unsplash.com",
-]);
-
+// Hosts that historically serve 200 to bots but 403/404 inside a browser
+// now live in src/lib/hotlink-hosts.ts (BUY-70187). Instead of dropping
+// those images to the branded SVG placeholder, we rewrite them through the
+// server-side /api/image-proxy route. The proxy fetches with a browser-like
+// UA and streams the real bytes; if the upstream truly 403/404s,
+// ProductGridImage's onError handler still lands on the branded SVG.
+// (images.unsplash.com / unsplash.com were added to the blocklist upstream
+// and are preserved in the shared module.)
 function isUsableProductImage(imageUrl?: string | null) {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  if (imageUrl.startsWith("/api/image-proxy")) return true;
 
   try {
     const url = new URL(imageUrl);
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70187: blocked hosts are usable VIA the proxy — the caller rewrites
+    // them with viaImageProxy before rendering.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
     return !url.hostname.endsWith(".elescat.store");
   } catch {
     return false;
@@ -610,12 +609,17 @@ function brandedProductPlaceholderSvg(
 export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  // BUY-70187: proxy URLs are trusted at SSR — the actual reachability is
+  // enforced per-request by /api/image-proxy (which 502s and triggers the
+  // client onError SVG fallback when the upstream is truly dead).
+  if (imageUrl.startsWith("/api/image-proxy")) return true;
   try {
     const url = new URL(imageUrl);
-    // Known hotlink-protected hosts always serve a broken image in the browser
-    // even when the HEAD probe is green. Skip the probe and mark them
-    // unreachable so the branded placeholder path takes over.
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70187: blocked-host URLs are rendered through /api/image-proxy,
+    // which enforces real reachability per-request (502 → client onError SVG
+    // fallback). Trust them here so the SSR filter doesn't drop the product
+    // before the proxy even gets a chance.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -746,12 +750,18 @@ async function verifyUsableImageContent(
   timeoutMs = 3000,
 ): Promise<boolean> {
   try {
-    const url = new URL(imageUrl);
     // BUY-63954: data: URIs (our deterministic branded SVG card) bypass the
     // JPEG/PNG shape probe — there are no SOF/IHDR markers to parse and the
     // SVG already renders identically in every browser/headless environment.
+    if (imageUrl.startsWith("data:")) return true;
+    // BUY-70187: relative proxy URLs are trusted (and can't be parsed by
+    // `new URL` anyway). Real bytes are enforced by /api/image-proxy.
+    if (imageUrl.startsWith("/api/image-proxy")) return true;
+    const url = new URL(imageUrl);
     if (url.protocol === "data:") return true;
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70187: blocked-host URLs are rendered through the proxy and skip
+    // the shape probe — the client onError path handles upstream failures.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
       url.hostname === "m.media-amazon.com" ||
@@ -1125,6 +1135,9 @@ export async function getSeoLandingFallbackProduct(
             `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
           );
           imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        } else {
+          // BUY-70187: render blocked-host images through /api/image-proxy.
+          imageUrl = viaImageProxy(imageUrl)!;
         }
       } else {
         imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
@@ -1165,6 +1178,9 @@ export async function getSeoLandingFallbackProductBySlug(
             `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
           );
           imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        } else {
+          // BUY-70187: render blocked-host images through /api/image-proxy.
+          imageUrl = viaImageProxy(imageUrl)!;
         }
       } else {
         imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
@@ -1194,7 +1210,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
       }
       const reachable = await verifyReachableImage(fb.imageUrl);
-      if (reachable) return fb;
+      // BUY-70187: blocked-host fallback images render through the proxy.
+      if (reachable) return { ...fb, imageUrl: viaImageProxy(fb.imageUrl) ?? fb.imageUrl };
       console.warn(
         `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
       );
