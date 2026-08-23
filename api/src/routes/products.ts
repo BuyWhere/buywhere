@@ -38,7 +38,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'iphone-accessory-demote-v11'; // BUY-65550: bust stale iPhone accessory ranking cache entries; add 'iphone' to accessory pattern
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v10'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -196,16 +196,13 @@ async function tryTierSearch(
         OR lower(sp.category) ~* '\\m(smartphone|phone|android)\\M'
       THEN 2.0 ELSE 1.0
     END`;
-  // BUY-69753 / BUY-65550: phone accessory penalty mirrors the laptop accessory
-  // penalty above. Match the Apple shorthand too: "iPhone 15 Pro Case" does not
-  // contain the standalone word "phone", but it is still an accessory and must
-  // rank below actual handsets for high-intent iPhone searches.
+  // BUY-69753: phone accessory penalty mirrors the laptop accessory penalty above.
+  // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
   const phoneAccessoryPenalty = `
     CASE
-      WHEN (lower(sp.title) ~* '\\m(phone|iphone)\\M'
-          OR lower(coalesce(sp.category,'')) ~* '\\m(phone|iphone)\\M')
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cases|cover|covers|protector|protectors|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|lens|screen)\\M'
-          OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers|protector|protectors)\\M')
+      WHEN lower(sp.title) ~* '\\mphone\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter)\\M'
+          OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
       THEN 0.15 ELSE 1.0
     END`;
 
@@ -573,8 +570,7 @@ router.get(
       // table size. Falls back to pg_class.reltuples only if EXPLAIN itself
       // errors so the route never 500s on the count sub-query.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products ${whereClause}`,
-        params
+        `EXPLAIN SELECT 1 FROM products ${whereClause}`
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
         const match = planRow.match(/rows=(\d+)/);
@@ -1114,7 +1110,7 @@ router.get(
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -1228,7 +1224,7 @@ router.get(
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
               FROM top_ids
-              JOIN products ON products.id = top_ids.id
+              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
@@ -2647,7 +2643,7 @@ export async function warmSearchCache(): Promise<void> {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
