@@ -92,6 +92,8 @@ type SearchApiItem = {
   updated_at?: string | null;
   category?: string | null;
   country_code?: string | null;
+  // BUY-73322: region metadata for filtering non-local merchants
+  region?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -1282,6 +1284,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
+        // BUY-73322: reject region=global on country-specific pages BEFORE normalization.
+        // The search API's country=US filter passes region=global merchants (e.g.
+        // google_shopping, woocommerce) that ship worldwide but aren't US retailers.
+        const region = item.region?.toLowerCase();
+        if (config.country && region === "global") continue;
+
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
         // BUY-72906: defense-in-depth against backend/filter drift — if the
