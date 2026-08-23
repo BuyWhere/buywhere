@@ -26,6 +26,7 @@ Full-text search across 5M+ products with filtering by country, brand, category,
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query (full-text search) |
 | `country_code` | string | No | Two-letter country code: `SG`, `US`, `MY`, `TH`, `ID`, `VN`, `PH`. Default: `SG` |
+| `deliver_to` | string | No (v1) / **Yes (v2)** | Buyer delivery country (ISO 3166-1 alpha-2). On v1, filters by delivery destination. On v2 MCP tools (`search_products_v2`), this parameter is **required** and routes results to deliverable products only. |
 | `region` | string | No | `SEA` for all Southeast Asian markets |
 | `category` | string | No | Category name filter (case-insensitive partial match) |
 | `brand` | string | No | Brand name filter (case-insensitive partial match) |
@@ -50,9 +51,23 @@ When using the `fields` parameter, you can request any combination of:
 ## Example Request
 
 ```bash
-curl -s "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&country_code=SG&max_price=200&sort=price_asc&limit=5" \
+curl -s "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&country_code=SG&deliver_to=SG&max_price=200&sort=price_asc&limit=5" \
   -H "Authorization: Bearer $BUYWHERE_API_KEY"
 ```
+
+## MCP v2 Migration
+
+For MCP clients, prefer the v2 tools and include `deliver_to` on every call:
+
+```text
+search_products_v2(q="wireless headphones", deliver_to="SG")
+find_best_price_v2(product_name="iphone 15 pro", deliver_to="US")
+get_deals_v2(deliver_to="MY", min_discount=20)
+```
+
+`deliver_to` is an ISO 3166-1 alpha-2 country code such as `SG`, `US`, or `MY`. It tells BuyWhere where the buyer needs delivery, so the API can filter out unshippable offers and rank market-relevant products higher.
+
+**v1 compatibility:** HTTP `/v1/products/search` and legacy MCP tools still accept calls without `deliver_to`, but agents should migrate to v2 by adding the destination field. Calls to v2 tools without `deliver_to` return `-32602 INVALID_PARAMETER`.
 
 ## Response
 
