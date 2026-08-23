@@ -34,7 +34,7 @@ export default function ServerSideLoginForm() {
       } else {
         setError("Invalid API key. Please check and try again.");
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);

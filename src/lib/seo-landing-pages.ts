@@ -1091,6 +1091,9 @@ export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): 
 export async function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
+  // slug is preserved for backwards compatibility (BUY-69630 callers still
+  // pass it for logging purposes), but is not consulted inside the function.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   slug?: string,
 ): Promise<LandingProduct | null> {
   const normalizedRegion = region.toUpperCase();
