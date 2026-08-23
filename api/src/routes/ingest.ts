@@ -337,6 +337,22 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.image_url === 'string') product.image_url = p.image_url;
   if (typeof p.category === 'string') product.category = p.category;
   if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
+  // BUY-72080: derive category_path when the writer omits it — fall back to top-level
+  // category, then metadata.product_type / metadata.category, so rows are never stored
+  // with an empty taxonomy path.
+  if (!product.category_path || product.category_path.length === 0) {
+    let derived: string | null =
+      typeof p.category === 'string' && p.category.trim() ? p.category.trim() : null;
+    if (!derived && p.metadata && typeof p.metadata === 'object') {
+      const meta = p.metadata as Record<string, unknown>;
+      if (typeof meta.product_type === 'string' && meta.product_type.trim()) derived = meta.product_type.trim();
+      else if (typeof meta.category === 'string' && meta.category.trim()) derived = meta.category.trim();
+    }
+    if (derived) {
+      product.category = derived;
+      product.category_path = [derived].slice(0, 10);
+    }
+  }
   if (typeof p.brand === 'string') product.brand = String(p.brand).slice(0, 200);
   if (typeof p.is_active === 'boolean') product.is_active = p.is_active;
   if (typeof p.is_available === 'boolean') product.is_available = p.is_available;
