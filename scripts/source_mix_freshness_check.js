@@ -49,11 +49,13 @@ const RECONCILIATION_GAP_PCT_THRESHOLD = 0.10; // 10% of ing_inserted
 const RECONCILIATION_WINDOW_HOURS = 24;
 
 function buildConnectionString() {
-  const raw = process.env.DATABASE_URL ||
-    process.env.CANONICAL_DATABASE_URL ||
-    process.env.BUYWHERE_DATABASE_URL;
+  // BUY-73337: prefer CANONICAL_DATABASE_URL (catalog DSN) so an ambient
+  // DATABASE_URL (control-plane roundhouse) can never poison catalog queries.
+  const raw = process.env.CANONICAL_DATABASE_URL ||
+    process.env.BUYWHERE_DATABASE_URL ||
+    process.env.DATABASE_URL;
   if (!raw) {
-    throw new Error('Set DATABASE_URL, CANONICAL_DATABASE_URL, or BUYWHERE_DATABASE_URL.');
+    throw new Error('Set CANONICAL_DATABASE_URL, BUYWHERE_DATABASE_URL, or DATABASE_URL.');
   }
   return raw;
 }
