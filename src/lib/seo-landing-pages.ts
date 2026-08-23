@@ -1704,19 +1704,19 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
 export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   "air-purifier-singapore": {
     slug: "air-purifier-singapore",
-    title: "Best Air Purifiers in Singapore 2026 | Compare Prices Across Top Retailers",
+    title: "Best Air Purifier Singapore 2026 | Compare Prices, Filters & Deals",
     description:
-      "Compare the best air purifiers in Singapore with live BuyWhere product results, retailer benchmarks, and quick buying advice across Dyson, Philips, Xiaomi, Sharp, and Sterra.",
-    heroEyebrow: "Singapore Home Guide",
-    heroTitle: "Best Air Purifiers in Singapore",
+      "Find the best air purifier in Singapore by price, room size, filter cost, and live retailer deals across Dyson, Philips, Xiaomi, Sharp, Sterra, Coway, and Levoit.",
+    heroEyebrow: "Singapore Air Purifier Price Guide",
+    heroTitle: "Best Air Purifier Singapore: Prices, Filters & Deals",
     heroBody:
-      "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether local retailers are running bundle promotions. This page combines those shopper questions with live BuyWhere search results so you can move from research to purchase faster.",
+      "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether Shopee, Lazada, or local retailers are running bundle promotions. This page combines those shopper questions with live BuyWhere search results so you can find the best, cheapest, or most practical air purifier faster.",
     canonicalPath: "/air-purifier-singapore",
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "air purifier",
-    backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
+    searchQuery: "air purifier Singapore",
+    backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
