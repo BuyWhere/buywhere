@@ -437,6 +437,11 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
+// BUY-73584: v2 cache namespace. v1 `list:` entries cached a body whose
+// pagination.total was the GLOBAL pg_class.reltuples (372M for every country) —
+// a bad estimate frozen into Redis for the TTL window. Bump the key so live
+// requests can never serve the poisoned entries.
+const LIST_CACHE_PREFIX = 'listv2';
 
 router.get(
   '/',
@@ -486,7 +491,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -541,12 +546,32 @@ router.get(
 
     const productReadDb = readDb();
     const [countResult, dataResult] = await Promise.all([
-      // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
-      // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
-      // for pagination totals. Exact counts would hit the 30s statement_timeout.
-      // Use the serving read pool (same catalog-read path as /v1/products/search) so the
-      // public list route never depends on the API/auth primary for catalog reads.
-      productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
+      // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
+      // country + active + priced + optional category), not the global pg_class
+      // reltuples which is the SAME 372M for every country. The previous code
+      // returned total=372022976 / total_pages=186M for every call regardless
+      // of country — clients rendering `total_pages > X` overflowed and dropped
+      // the row set, surfacing as "count=0 with stale cached Ritter Sport".
+      //
+      // EXPLAIN pulls the planner's row estimate from pg_stats histograms (no
+      // table scan, sub-200ms verified on the live replica for US/SG/GB/DE).
+      // The returned number is approximate (planner accuracy is histogram-
+      // dependent), accurate enough for pagination totals. Exact counts would
+      // hit the 30s statement_timeout and were always approximate at this
+      // table size. Falls back to pg_class.reltuples only if EXPLAIN itself
+      // errors so the route never 500s on the count sub-query.
+      productReadDb.query(
+        `EXPLAIN SELECT 1 FROM products ${whereClause}`
+      ).then((r) => {
+        const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
+        const match = planRow.match(/rows=(\d+)/);
+        if (match) return { rows: [{ count: parseInt(match[1], 10) }] };
+        throw new Error('planner_estimate_missing');
+      }).catch(async (err) => {
+        console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
+        const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
+        return fb;
+      }),
       productReadDb.query(
         `SELECT ${SELECT_COLUMNS}
          FROM products
