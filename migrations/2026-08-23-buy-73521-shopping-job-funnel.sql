@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS monitoring.shopping_job_funnel (
     deliver_to          TEXT         NOT NULL,          -- buyer market (ISO country code)
     country_code        TEXT         NULL,              -- normalized country from request
     query_text          TEXT         NULL,              -- search query (redacted if needed)
-    product_id          UUID         NULL,              -- resolved product
+    product_id          TEXT         NULL,              -- resolved product id (products.id is BIGINT returned as string)
     merchant_id         TEXT         NULL,              -- merchant identifier
     merchant_name       TEXT         NULL,              -- merchant display name
     offer_url_present   BOOLEAN      NOT NULL DEFAULT false,

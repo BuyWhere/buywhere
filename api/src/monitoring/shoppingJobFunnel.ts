@@ -92,7 +92,7 @@ function deriveQueryText(args: Record<string, unknown> | null | undefined): stri
 /**
  * Extract product IDs from tool response — used for product_resolved stage
  */
-function extractProductIds(result: unknown): string[] {
+export function extractProductIds(result: unknown): string[] {
   if (!result || typeof result !== 'object') return [];
 
   const r = result as Record<string, unknown>;
@@ -141,7 +141,7 @@ function extractProductIds(result: unknown): string[] {
 /**
  * Check if response has outbound URLs (executable offer + outbound link)
  */
-function hasOutboundUrl(result: unknown): boolean {
+export function hasOutboundUrl(result: unknown): boolean {
   if (!result || typeof result !== 'object') return false;
 
   const r = result as Record<string, unknown>;

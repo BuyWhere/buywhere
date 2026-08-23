@@ -22,6 +22,8 @@ import {
   recordProductResolved,
   recordExecutableOfferFound,
   recordOutboundLinkReturned,
+  extractProductIds,
+  hasOutboundUrl,
 } from '../monitoring/shoppingJobFunnel';
 
 // BUY-73521: start funnel writer on module load (idempotent).
@@ -1997,11 +1999,23 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           });
         } catch {}
         // BUY-73521: record downstream funnel stages from the result.
+        // Only fire each stage if the result actually contains that stage's data.
         if (funnelJobId) {
+          const productIds = extractProductIds(result);
+          const offerUrlPresent = hasOutboundUrl(result);
           try {
-            recordProductResolved({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
-            recordExecutableOfferFound({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
-            recordOutboundLinkReturned({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            // product_resolved: at least one product id in response
+            if (productIds.length > 0) {
+              recordProductResolved({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            }
+            // executable_offer_found: merchant + (price available or offer url)
+            if (productIds.length > 0 && offerUrlPresent) {
+              recordExecutableOfferFound({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            }
+            // outbound_link_returned: outbound_url present
+            if (offerUrlPresent) {
+              recordOutboundLinkReturned({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
+            }
           } catch (e) {
             console.warn('[mcp][funnel] record error:', e);
           }
