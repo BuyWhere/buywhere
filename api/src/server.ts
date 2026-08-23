@@ -30,6 +30,7 @@ import webhooksRouter from './routes/webhooks';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
 import { histogramLatencyMiddleware } from './middleware/latency';
+import { agentHeadersMiddleware } from './middleware/agentHeaders';
 import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
@@ -62,6 +63,9 @@ export function createApp() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(compression());
+
+  // BUY-73471: P2.3 HTTP headers for AI agent discovery — must be before routes
+  app.use(agentHeadersMiddleware);
 
   // Sentry request context — attaches user/country/method for error tracking
   app.use(sentryRequestHandler);
