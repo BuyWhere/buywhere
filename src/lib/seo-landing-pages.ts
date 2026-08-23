@@ -1825,7 +1825,10 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       // catalog id for Lenovo Yoga 7 2-in-1 (Gen 10 Copilot+). HEAD 200
       // image/jpeg, 94 KB.
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_4_fe2f5f9a-dbf5-40e7-bb11-da5d2cb87e05.jpg?v=1780473543", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
-      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
+      // BUY-73324: Acer CDN image fails to load in browsers (CORS/referrer block).
+      // Swap to Shopify-hosted product image which allows cross-origin loading.
+      // Verified 2026-08-23: 200 OK, access-control-allow-origin: *, 103KB JPEG.
+      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://cdn.shopify.com/s/files/1/0678/0964/0661/files/1_1a71ef36-229c-4672-bf42-44d13a08217b.jpg?v=1779441759", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       // BUY-72472: i.dell.com XPS-14 hero now 404s. Swap to BuyWhere
       // catalog's Dell Alienware 16 Aurora hero (Dell sub-brand, same
       // merchant family). HEAD 200 image/png, 1 MB.
