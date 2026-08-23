@@ -1,9 +1,0 @@
-{
-  "pipeline": "pinterest_ingestion",
-  "issue": "BUY-18009",
-  "ingested_at": "2026-05-15T19:05:05.412467",
-  "total": 24,
-  "inserted": 24,
-  "updated": 0,
-  "failed": 0
-}
