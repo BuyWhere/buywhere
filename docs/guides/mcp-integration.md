@@ -12,14 +12,33 @@ BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and any [Model Co
 
 Once connected, your AI agent has access to these tools:
 
-| Tool | Description |
-|------|-------------|
-| `search_products` | Keyword search with country, category, price, and brand filters |
-| `get_product` | Fetch full product details by UUID |
-| `compare_products` | Side-by-side comparison of 2–10 products |
-| `get_deals` | Find discounted products |
-| `list_categories` | Browse the product category taxonomy |
-| `find_best_price` | Locate the cheapest option across all merchants |
+| Tool | Version | Description |
+|------|---------|-------------|
+| `search_products` | v1 (legacy) | Keyword search with country, category, price, and brand filters |
+| `search_products_v2` | **v2 (recommended)** | Keyword search with **required** `deliver_to` parameter |
+| `get_product` | v1 (legacy) | Fetch full product details by UUID |
+| `get_product_v2` | **v2 (recommended)** | Fetch full product details with **required** `deliver_to` |
+| `compare_products` | v1 (legacy) | Side-by-side comparison of 2–10 products |
+| `compare_products_v2` | **v2 (recommended)** | Compare products with **required** `deliver_to` |
+| `get_deals` | v1 (legacy) | Find discounted products |
+| `get_deals_v2` | **v2 (recommended)** | Find deals with **required** `deliver_to` |
+| `list_categories` | v1 | Browse the product category taxonomy |
+| `find_best_price` | v1 (legacy) | Locate the cheapest option across all merchants |
+| `find_best_price_v2` | **v2 (recommended)** | Find best price with **required** `deliver_to` |
+
+### About `deliver_to`
+
+The v2 tools require a `deliver_to` parameter — the buyer's delivery destination as an ISO 3166-1 alpha-2 country code (e.g., `"SG"`, `"US"`, `"MY"`).
+
+**Why it matters:**
+- Filters out products that cannot be shipped to the buyer's location
+- Improves relevance by ranking deliverable products higher
+- Prevents wasted agent cycles on unshippable items
+
+**Migration from v1:**
+- Add `deliver_to` to your tool calls (required on v2)
+- Example: `search_products_v2(q="laptop", deliver_to="SG")`
+- v1 tools remain available but lack deliverable filtering
 
 ## Setup: Claude Desktop
 
