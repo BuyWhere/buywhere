@@ -1,16 +1,17 @@
 ---
 title: "MCP Integration"
-description: "BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and any Model Context Protocol (MCP)(https://modelcontextprotocol.io/) client. This guide…"
+description: "BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and any Model Context Protocol (MCP)(https://modelcontextprotocol.io/) client. This guide shows you how to set it up and migrate to v2 tools for full buyer-market support."
 public: true
+lastUpdated: "2026-08-23"
 ---
 
 # AI Agent Integration via MCP
 
 BuyWhere works natively with Claude Desktop, Cursor, Windsurf, and any [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) client. This guide shows you how to set it up.
 
-## What You Get
+## Available Tools
 
-Once connected, your AI agent has access to these tools:
+The BuyWhere MCP server exposes 13 tools (8 v1, 5 v2):
 
 | Tool | Description |
 |------|-------------|
@@ -20,6 +21,76 @@ Once connected, your AI agent has access to these tools:
 | `get_deals` | Find discounted products |
 | `list_categories` | Browse the product category taxonomy |
 | `find_best_price` | Locate the cheapest option across all merchants |
+| `search_products_v2` | **REQUIRED `deliver_to`**. Full-text + semantic search with buyer-market ranking |
+| `get_product_v2` | **REQUIRED `deliver_to`**. Product details with resolved click-tracker URL |
+| `compare_products_v2` | **REQUIRED `deliver_to`**. Side-by-side comparison for buyer market |
+| `get_deals_v2` | **REQUIRED `deliver_to`**. Discounted products scoped to buyer market |
+| `find_best_price_v2` | **REQUIRED `deliver_to`**. Best price with shopping session ID for multi-merchant handoff |
+
+## The `deliver_to` Parameter
+
+**Every v2 tool requires `deliver_to`.** It is the buyer's ISO 3166-1 alpha-2 country code (uppercase).
+
+```
+deliver_to: "SG" | "US" | "MY" | "TH" | "VN" | "PH" | "ID" | "GB" | ...
+```
+
+### Why `deliver_to` matters
+
+- **Filters undeliverable products** — results that cannot ship to the buyer are excluded
+- **Ranks local-first** — products from merchants in the buyer's country appear first
+- **Adds availability labels** — each result carries `availability: "local" | "ships_to_you" | "unavailable" | "unknown"` backed by verified shipping policies for 28,000+ stores
+- **Prevents all-market scans** — without it, results span all countries and may be undeliverable
+
+Always pass the end user's country, not the product's origin country.
+
+## Migrating from v1 to v2
+
+v1 tools are deprecated and will stop accepting calls on 2026-12-31Z. Migrating takes two changes:
+
+### 1. Rename the tool
+
+| v1 | v2 |
+|----|----|
+| `search_products` | `search_products_v2` |
+| `get_product` | `get_product_v2` |
+| `compare_products` | `compare_products_v2` |
+| `get_deals` | `get_deals_v2` |
+| `find_best_price` | `find_best_price_v2` |
+
+### 2. Add `deliver_to`
+
+Add `deliver_to` to every v2 tool call with the buyer's country:
+
+```json
+// v1 call
+{
+  "name": "search_products",
+  "arguments": { "q": "wireless headphones", "country_code": "SG" }
+}
+
+// v2 call — add deliver_to
+{
+  "name": "search_products_v2",
+  "arguments": { "q": "wireless headphones", "deliver_to": "SG" }
+}
+```
+
+```json
+// v1 call
+{
+  "name": "find_best_price",
+  "arguments": { "q": "iphone 15 pro" }
+}
+
+// v2 call — add deliver_to, get shopping_job_id for multi-merchant handoff
+{
+  "name": "find_best_price_v2",
+  "arguments": { "q": "iphone 15 pro", "deliver_to": "SG" }
+}
+```
+
+> **Note:** In v2 tools, `deliver_to` takes precedence over `country_code`/`country` and determines buyer-market ranking and availability labels. You can omit `country_code` in v2 calls — `deliver_to` is the canonical market parameter.
 
 ## Setup: Claude Desktop
 
@@ -95,7 +166,7 @@ Once connected, ask your AI agent:
 
 > "Track the price history for this laptop over the last 30 days"
 
-The agent will automatically use BuyWhere's tools to search products, compare prices, and find deals.
+The agent will automatically use BuyWhere v2 tools with `deliver_to` to search products, compare prices, and find deals for your buyer market.
 
 ## Using the TypeScript SDK
 
@@ -106,14 +177,16 @@ npm install @buywhere/sdk
 ```
 
 ```typescript
+import { BuyWhereClient } from '@buywhere/sdk';
 
 const client = new BuyWhereClient({
   apiKey: process.env.BUYWHERE_API_KEY,
 });
 
+// v2: always pass deliver_to
 const results = await client.search.search({
-  q: "mechanical keyboard",
-  country_code: "SG",
+  q: 'mechanical keyboard',
+  deliver_to: 'SG', // REQUIRED in v2
   limit: 5,
 });
 
@@ -127,12 +200,13 @@ npm install @buywhere/buywhere-langchain
 ```
 
 ```typescript
+import { BuyWhereTools } from '@buywhere/buywhere-langchain';
 
 const tools = new BuyWhereTools({
   apiKey: process.env.BUYWHERE_API_KEY,
 });
 
-// Use with any LangChain agent
+// Tools are v2 by default — deliver_to is passed per-call
 const agent = createAgent({
   tools: tools.getTools(),
   // ...
