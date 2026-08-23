@@ -1855,14 +1855,21 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       //   - Dell i.dell.com XPS-14 hero now 404s
       // Each new URL was checked to return 200 image/jpeg|png from
       // buywhere.ai/api/products/search results.
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      // BUY-69924 follow-up: Unsplash is denied by isUsableProductImage, so it
+      // silently becomes a branded SVG at SSR. Use a BuyWhere catalog product
+      // photo instead; HEAD 200 image/png, 1080×1080, 531 KB.
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://cdn.shopify.com/s/files/1/0615/1631/6729/files/AppleMacBookAirM3-Laptop-Midnight.png?v=1711884718", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
       // catalog id 61164186 — HP OmniBook 7, ASUS's stablemate on the same
       // techdaddyaccs Shopify tenant. HEAD 200 image/jpeg, 88 KB.
       { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://hnsgsfp.imgix.net/4/images/detailed/153/Slide1_mw7f-5x.JPG?fit=fill&bg=0", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       // catalog id for Lenovo Yoga 7 2-in-1 (Gen 10 Copilot+). HEAD 200
       // image/jpeg, 94 KB.
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_4_fe2f5f9a-dbf5-40e7-bb11-da5d2cb87e05.jpg?v=1780473543", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
-      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
+      // BUY-69924 QA re-open: Acer's own static-ecapac asset is a 500×500
+      // logo-style packshot that VidMee flags as a brand placeholder. Use the
+      // BuyWhere catalog's Harvey Norman Acer Swift Go 14 photo instead; HEAD
+      // 200 image/jpeg, 1536×901, non-square.
+      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://hnsgsfp.imgix.net/4/images/detailed/188/Acer_Swift_Go_14_14-inch_Intel_Core_U5-226V-16GB-512GB_Laptop_-_Steam_Blue_(SFG14-75-518E)_01.JPG?fit=fill&bg=0FFF&w=1536&h=901&auto=format,compress", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       // BUY-72472: i.dell.com XPS-14 hero now 404s. Swap to BuyWhere
       // catalog's Dell Alienware 16 Aurora hero (Dell sub-brand, same
       // merchant family). HEAD 200 image/png, 1 MB.
