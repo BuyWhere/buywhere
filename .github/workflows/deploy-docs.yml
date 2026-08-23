@@ -9,9 +9,22 @@ on:
   workflow_dispatch:
 
 jobs:
+  guard:
+    name: Verify main-only dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-65234)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
   deploy-docs:
     runs-on: ubuntu-latest
     environment: production
+    needs: [guard]
     steps:
       - uses: actions/checkout@v4
 
