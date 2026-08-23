@@ -561,7 +561,8 @@ router.get(
       // table size. Falls back to pg_class.reltuples only if EXPLAIN itself
       // errors so the route never 500s on the count sub-query.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products ${whereClause}`
+        `EXPLAIN SELECT 1 FROM products ${whereClause}`,
+        params
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
         const match = planRow.match(/rows=(\d+)/);
