@@ -104,9 +104,16 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
   // (ing_runs=0, ing_inserted=null|0) but pg_stat shows delta_ins_from_stats > 0
   // (existing products moved/reindexed by drain). Classifies as PASS so no child
   // is filed, ending the 15+ consecutive drain-only FAIL-children streak.
+  // DRAIN_ONLY_MAX_DELTA (2026-08-23, BUY-69897): cap the guard at a noise floor.
+  // Uncapped, this guard PASSed every ing_runs=0 hour regardless of delta size,
+  // masking genuine low-throughput hours (e.g. 2026-08-23 09Z delta=98,915 was
+  // wrongly PASSed). Drain reindex noise observed historically is < ~30K/hour;
+  // 50K is a conservative ceiling that still covers the drain-only streak hours.
+  const drainOnlyMaxDelta = Number(process.env.DRAIN_ONLY_MAX_DELTA) || 50_000;
   const isDrainOnly = (
     deltaInsFromStats !== null &&
     deltaInsFromStats > 0 &&
+    deltaInsFromStats < drainOnlyMaxDelta &&
     deltaInsFromStats < target &&
     ingRunsRaw !== null && ingRunsRaw === 0 &&
     (ingInsertedRaw == null || ingInsertedRaw === 0)
@@ -551,8 +558,14 @@ function selfTest() {
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 150000, ing_inserted: 149999 }), false, 'delta_ins_from_stats hard guard pass');
   assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 150000, ing_inserted: 149999 }).source, 'delta_ins_from_stats', 'delta_ins_from_stats remains authoritative');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 149999, n_live_tup_delta: 149999 }), true, 'genuine fail');
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 66729, ing_runs: 0, ing_inserted: 0 }), false, 'drain-only guard suppresses false FAIL');
-  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 66729, ing_runs: 0, ing_inserted: 0 }).source, 'drain_only_guard', 'drain-only guard source');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 30000, ing_runs: 0, ing_inserted: 0 }), false, 'drain-only guard suppresses false FAIL');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 30000, ing_runs: 0, ing_inserted: 0 }).source, 'drain_only_guard', 'drain-only guard source');
+  // BUY-69897 (2026-08-23): ing_runs=0 alone must not PASS large-below-target deltas
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 98915, ing_runs: 0, ing_inserted: 0 }), true, 'BUY-69897 ing_runs=0 cannot override large low delta');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 98915, ing_runs: 0, ing_inserted: 0 }).source, 'delta_ins_from_stats', 'BUY-69897 large low delta falls to delta_ins_from_stats FAIL');
+  // still a suppressed drain-only hour below the 50K noise floor
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 4571, ing_runs: 0, ing_inserted: 0 }), false, 'drain-only hour below noise floor still suppressed');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 4571, ing_runs: 0, ing_inserted: 0 }).source, 'drain_only_guard', 'below-floor hour keeps drain_only_guard PASS');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 59976, ing_runs: 9, ing_inserted: 438 }), true, 'producer-active low hour remains genuine fail');
   // v6.4: n_live_tup_delta_guard must be blocked when ing_inserted corroborates a real miss
   // (autovacuum bloat release produced huge n_live_tup_delta but only 18 rows actually inserted).
@@ -579,7 +592,7 @@ function selfTest() {
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 10000, cycle_marker_inserted: 10000 }), true, 'low cycle_marker + low ingestion still fails');
   // Frozen counters + high cycle_marker = PASS
   assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 100, cycle_marker_inserted: 200000 }).source, 'cycle_marker_fallback', 'frozen counters with high cycle_marker uses fallback');
-  console.log('dispatcher_v6_hourly self-test: 19 passed');
+  console.log('dispatcher_v6_hourly self-test: 23 passed');
 }
 
 if (require.main === module) {
