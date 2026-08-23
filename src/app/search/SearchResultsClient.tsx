@@ -37,9 +37,15 @@ type CountryValue = (typeof COUNTRY_OPTIONS)[number]['value'];
 type SearchResultsClientProps = {
   initialQuery?: string;
   initialCountry?: string;
+  initialItems?: SearchApiItem[];
+  initialTotal?: number;
+  initialHasMore?: boolean;
+  initialNextCursor?: string | null;
+  initialDegraded?: boolean;
+  initialDegradedHint?: string | null;
 };
 
-type SearchApiItem = {
+export type SearchApiItem = {
   id: number | string;
   name?: string | null;
   title?: string | null;
@@ -964,33 +970,49 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
 export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
+  initialItems = [],
+  initialTotal = 0,
+  initialHasMore = false,
+  initialNextCursor = null,
+  initialDegraded = false,
+  initialDegradedHint = null,
 }: SearchResultsClientProps) {
   const initialSearchQuery = initialQuery.trim();
   const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
+  const initialCountryValue = normalizeCountry(initialCountry);
+  const initialCountryOption = getCountryOption(initialCountryValue);
+  const initialProducts = useMemo(
+    () => sortProductsByRelevance(
+      initialItems.map((item) => normalizeProduct(item, initialCountryOption.currency)),
+      initialSearchQuery
+    ).slice(0, PAGE_SIZE),
+    [initialCountryOption.currency, initialItems, initialSearchQuery]
+  );
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
   const urlSearchParams = useMemo(() => new URLSearchParams(searchParamsString), [searchParamsString]);
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
-  const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
+  const [country, setCountry] = useState<CountryValue>(initialCountryValue);
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
-  const [products, setProducts] = useState<SearchCardProduct[]>([]);
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [products, setProducts] = useState<SearchCardProduct[]>(initialProducts);
+  const [total, setTotal] = useState(initialTotal || initialProducts.length);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery && initialProducts.length === 0);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [degraded, setDegraded] = useState(false);
-  const [degradedHint, setDegradedHint] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(initialDegraded);
+  const [degradedHint, setDegradedHint] = useState<string | null>(initialDegradedHint);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
   const [hasHydrated, setHasHydrated] = useState(false);
   const lastRequestKeyRef = useRef<string | null>(null);
+  const initialResultsServedRef = useRef(initialProducts.length > 0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
 
@@ -1214,6 +1236,11 @@ export default function SearchResultsClient({
   }, [activeCountry.apiValue, activeCountry.currency, country, debouncedQuery]);
 
   useEffect(() => {
+    if (initialResultsServedRef.current) {
+      initialResultsServedRef.current = false;
+      return;
+    }
+
     const controller = new AbortController();
 
     void fetchResults({

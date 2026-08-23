@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import SearchResultsClient from './SearchResultsClient';
+import SearchResultsClient, { type SearchApiItem } from './SearchResultsClient';
+import { headers } from 'next/headers';
 import Schema from '@/components/Schema';
 import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildSearchPageSchema } from '@/lib/page-schema';
@@ -100,6 +101,67 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   };
 }
 
+// BUY-66902: server-side fetch of the first results page so product names,
+// prices, merchants, and CTAs land in the initial HTML for crawlers/LLMs.
+// Runs only when the request already carries a query (a bare /search hit would
+// otherwise pay an API round-trip to render nothing). Mirrors the client's
+// initial request exactly (limit 40) so hydration swaps in identical data.
+// Any failure is swallowed — SSR results are strictly a crawler enhancement;
+// the client fetch path remains the interactive source of truth.
+const SSR_FETCH_LIMIT = 40;
+
+async function fetchInitialResults(
+  query: string,
+  country: string
+): Promise<{
+  items: SearchApiItem[];
+  total: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  degraded: boolean;
+  degradedHint: string | null;
+} | null> {
+  if (query.trim().length < 2) return null;
+
+  let origin = 'https://buywhere.ai';
+  try {
+    const headerList = headers();
+    const host = headerList.get('x-forwarded-host') ?? headerList.get('host');
+    const proto = headerList.get('x-forwarded-proto') ?? 'https';
+    if (host) origin = `${proto}://${host}`;
+  } catch {
+    // keep the public default
+  }
+
+  const params = new URLSearchParams({
+    q: query.trim(),
+    country: country.toLowerCase() === 'sg' ? 'SG' : 'US',
+    limit: String(SSR_FETCH_LIMIT),
+  });
+
+  try {
+    const response = await fetch(`${origin}/api/products/search?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const items: SearchApiItem[] =
+      data.data || data.items || data.results || data.products || [];
+    if (!Array.isArray(items)) return null;
+    return {
+      items: items.slice(0, 20),
+      total: typeof data.total === 'number' ? data.total : items.length,
+      hasMore: Boolean(data.has_more ?? data.hasMore ?? items.length >= SSR_FETCH_LIMIT),
+      nextCursor: data.next_cursor ?? data.nextCursor ?? null,
+      degraded: Boolean(data.degraded),
+      degradedHint: typeof data.hint === 'string' && data.hint.trim() ? data.hint : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   let resolved: Awaited<SearchPageProps['searchParams']> = {};
   try {
@@ -110,6 +172,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const initialQuery = safeString(resolved?.q);
   const initialCountry = safeString(resolved?.country);
+
+  const initialResults = await fetchInitialResults(initialQuery, initialCountry);
 
   const schema = buildSearchPageSchema({
     path: '/search',
@@ -126,7 +190,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           server-side against state-tree-derived searchParams (RSC nav),
           returning an opaque 500. The client component handles its own
           loading state internally. */}
-      <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
+      <SearchResultsClient
+        initialQuery={initialQuery}
+        initialCountry={initialCountry}
+        initialItems={initialResults?.items}
+        initialTotal={initialResults?.total}
+        initialHasMore={initialResults?.hasMore}
+        initialNextCursor={initialResults?.nextCursor}
+        initialDegraded={initialResults?.degraded}
+        initialDegradedHint={initialResults?.degradedHint}
+      />
     </>
   );
 }
