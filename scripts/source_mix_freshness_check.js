@@ -104,7 +104,9 @@ async function getHourSourceMix(client, hourStart) {
 }
 
 async function getCandidateFreshness(client) {
-  const result = await client.query(`
+  let result;
+  try {
+    result = await client.query(`
     SELECT
       (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
       (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
@@ -116,6 +118,26 @@ async function getCandidateFreshness(client) {
               AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
       NOW()                                                              AS now_ts
   `);
+  } catch (err) {
+    // Graceful degradation: merchant_candidates table may not exist yet (42P01 = undefined_table).
+    // Return candidate fields as null/0 so downstream freshness evaluation still runs.
+    if (err.code === '42P01') {
+      result = await client.query(`
+        SELECT
+          NULL::timestamptz AS newest_candidate,
+          NULL::timestamptz AS newest_validated,
+          0 AS total_candidates,
+          0 AS validated_candidates,
+          (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
+          (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
+          (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
+                  AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
+          NOW()                                                              AS now_ts
+      `);
+    } else {
+      throw err;
+    }
+  }
   const row = result.rows[0] || {};
   const hoursSince = (col) => {
     const ts = row[col];
@@ -161,12 +183,21 @@ async function getCounterProductsReconciliation(client, hourStart) {
     productsCountTimedOut = true;
   }
 
-  const newestCreatedAt = await client.query(`SELECT MAX(created_at) AS max FROM products`);
+  let productsCreatedAtMax = null;
+  let productsCreatedAtMaxTimedOut = false;
+  try {
+    // This query can time out on a 400M+ row table. Wrap in try/catch for graceful degradation.
+    const newestCreatedAt = await client.query(`SELECT MAX(created_at) AS max FROM products`);
+    productsCreatedAtMax = newestCreatedAt.rows[0]?.max;
+  } catch (err) {
+    productsCreatedAtMaxTimedOut = true;
+  }
   return {
     canonical_ing_inserted: ingInserted,
     products_created_in_hour: productsCount,
     products_count_timed_out: productsCountTimedOut,
-    products_created_at_max: newestCreatedAt.rows[0]?.max,
+    products_created_at_max: productsCreatedAtMax,
+    products_created_at_max_timed_out: productsCreatedAtMaxTimedOut,
     gap_inserted_minus_products: ingInserted !== null && productsCount !== null
       ? ingInserted - productsCount
       : null,
