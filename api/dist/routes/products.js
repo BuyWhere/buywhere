@@ -563,8 +563,8 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
         // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
         // for pagination totals. Exact counts would hit the 30s statement_timeout.
-        config_1.db.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, (params || []), { rowMode: 'array' }).then((r) => {
-            const planRow = String(r.rows[0]?.[0] || '');
+        config_1.db.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, params).then((r) => {
+            const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
             if (match) return { rows: [{ count: parseInt(match[1], 10) }] };
             return config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
