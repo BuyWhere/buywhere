@@ -13,6 +13,7 @@ import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compar
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
 import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
+import { PRICE_BANDS } from '../lib/pricing';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
@@ -147,6 +148,14 @@ async function tryTierSearch(
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
   if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  // BUY-73321: exclude price outliers from search results using currency-aware bands.
+  // Prevents ingestion-cleaned outliers from surfacing in the search tier.
+  { const band = PRICE_BANDS[p.currency.toUpperCase()] || PRICE_BANDS["SGD"];
+    if (band) {
+      conds.push(`sp.price >= $${i}`); params.push(band.warnLow); i++;
+      conds.push(`sp.price <= $${i}`); params.push(band.warnHigh); i++;
+    }
+  }
   // DEF-02: category filter that actually works — normalize the stored category to a
   // slug (lower, spaces->hyphens) and compare to the slug param, instead of the old
   // broken `category ILIKE '%pet-supplies%'` substring match.

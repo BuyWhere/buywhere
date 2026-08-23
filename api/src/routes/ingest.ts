@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
+import { validatePrice } from '../lib/pricing';
 
 const router = Router();
 
@@ -321,6 +322,15 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (!p.title || typeof p.title !== 'string') return { valid: null, error: err('Missing title', 'validation_title_required') };
   if (p.price === undefined || p.price === null || typeof p.price !== 'number' || p.price < 0) {
     return { valid: null, error: err('Missing or invalid price (must be >= 0)', 'validation_price_non_positive') };
+  }
+  // BUY-73321: reject price outliers at ingest time to protect search result quality.
+  const priceCurrency = typeof p.currency === 'string' ? p.currency : 'SGD';
+  const priceCheck = validatePrice(p.price, priceCurrency);
+  if (priceCheck.verdict === 'hard_reject') {
+    return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_outlier') };
+  }
+  if (priceCheck.verdict === 'outlier') {
+    console.warn(`[ingest] price outlier: sku=${sku} price=${p.price} ${priceCurrency} — ${priceCheck.reason}`);
   }
   if (!p.url || typeof p.url !== 'string') return { valid: null, error: err('Missing url', 'validation_url_invalid') };
 
