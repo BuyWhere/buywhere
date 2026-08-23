@@ -1968,7 +1968,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         _toolArgs = toolArgs;
         _startMs = Date.now();
         // BUY-73521: extract raw API key for funnel tracking (hashed, never stored raw)
-        const rawApiKey = (req as Request & { apiKey?: { rawKey?: string } }).apiKey?.rawKey;
+        const rawApiKey = (req as unknown as { apiKeyRecord?: { key?: string } }).apiKeyRecord?.key;
         // BUY-73521: resolve shopping_job_id — client-supplied or server-minted.
         let funnelJobId: string | undefined;
         let funnelIsReplay = false;
