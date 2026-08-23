@@ -482,7 +482,10 @@ async function run(options = {}) {
         '--write',
         '--json',
       ], {
-        timeout: 30_000,
+        // BUY-73337: MAX(created_at) on ~400M rows can take 60-90s under
+        // statement_timeout; 30s execFile kill made every tick log
+        // [freshness-check:fail] with no FATAL detail.
+        timeout: 180_000,
         env: process.env,
       });
       if (stdout && stdout.trim()) {
