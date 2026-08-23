@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { HOTLINK_BLOCKED_HOSTS, viaImageProxy } from "@/lib/hotlink-hosts";
 import { toSiteUrl } from "@/lib/site-url";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+import {
+  type CountryCode,
+  filterProductsForCountry,
+  isMerchantAllowedForCountry,
+} from "@/lib/merchant-allowlist";
 
 const BASE_URL = "https://buywhere.ai";
 // Origin used to call BuyWhere's own Next.js route handlers from a server
@@ -61,6 +66,8 @@ export type LandingProduct = {
   price: number | null;
   currency: string;
   merchant: string;
+  /** BUY-73640: raw upstream merchant slug for country allowlist filtering */
+  merchantSlug?: string | null;
   imageUrl: string | null;
   href: string;
   productUrl?: string | null;
@@ -391,6 +398,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   }
 
   const imageUrl = item.image_url || item.image || null;
+  const rawMerchantSlug = item.merchant || item.source || null;
 
   return {
     id: String(item.id),
@@ -398,6 +406,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
+    merchantSlug: rawMerchantSlug ? rawMerchantSlug.toLowerCase().trim() : null,
     // BUY-64056 (restored; re-revert by BUY-72387 / 2d53dc31 was a silent
     // scope-creep revert that put us back at 100% SVG placeholders on the
     // 4 SG SEO landing pages): preserve real merchant/CDN product photos
@@ -1200,12 +1209,16 @@ export async function getSeoLandingFallbackProductBySlug(
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  // Filter and repair fallback products up-front: trustcheck + image probe.
+  const allowlistCountry = config.country as CountryCode;
+  // Filter and repair fallback products up-front: country allowlist + trustcheck + image probe.
   // The static fallback list (e.g. Dyson/Philips/Xiaomi URLs in
   // config.fallbackProducts) can also contain dead CDN URLs — replacing the
   // image with a brand-coloured SVG here means the page never falls back to a
   // generic placeholder icon when live products are unavailable (BUY-64729).
-  const trustedFallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  // BUY-73640: run the same hard geo merchant allowlist over curated fallback
+  // products so a future editorial row cannot reintroduce a non-US merchant on
+  // /best-*-us (or a non-SG merchant on /best-*-singapore).
+  const trustedFallback = filterProductsForCountry(config.fallbackProducts, allowlistCountry).filter(isTrustedFallbackProduct);
   const fallback = await Promise.all(
     trustedFallback.map(async (fb) => {
       if (!fb.imageUrl) {
@@ -1289,6 +1302,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // google_shopping, woocommerce) that ship worldwide but aren't US retailers.
         const region = item.region?.toLowerCase();
         if (config.country && region === "global") continue;
+
+        // BUY-73640 / BUY-73322-FIX: the backend returns merchant metadata as a
+        // bare string slug, not a nested object with region/countryCode. Hard
+        // gate on the raw slug before normalization so CompuMarts / non-US / no
+        // merchant rows never enter the live card set or downstream JSON-LD.
+        if (!isMerchantAllowedForCountry(item, allowlistCountry)) continue;
 
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;

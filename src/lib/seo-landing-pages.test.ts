@@ -20,7 +20,8 @@ function makeSearchItem(id: string, title: string, price = 199) {
     title,
     price_amount: price,
     price_currency: "USD",
-    merchant_name: "Test Merchant",
+    merchant: "bestbuy_us",
+    merchant_name: "Best Buy",
     click_url: `https://merchant.example/${id}`,
     image_url: `https://images.example/${id}.jpg`,
   };
@@ -261,6 +262,169 @@ test("BUY-72906: US SEO landing search passes deliver_to + include_unshippable=f
   }
 });
 
+// ---------------------------------------------------------------------------
+// BUY-73640 / BUY-73322-FIX: hard US merchant allowlist
+//
+// The /v1/products/search backend returns merchant metadata as a bare string slug
+// (e.g. "newegg_us", "compumarts"), NOT a nested object with region/countryCode.
+// The previous filter (BUY-72906) only checked countryCode, so CompuMarts leaked
+// through when their row had no countryCode or had a mismatched one.
+//
+// The hard allowlist now gates at the slug level before normalization. Three
+// regression layers:
+//
+//   1. Source: merchant-allowlist.ts declares the slug sets and the
+//      isMerchantAllowedForCountry / filterProductsForCountry helpers.
+//   2. Wire: the US/SG filter runs inside the per-item loop in getSeoLandingProducts.
+//   3. Functional: a US SEO page must keep allowed US merchants and drop
+//      CompuMarts / non-US / unknown-merchant rows entirely.
+// ---------------------------------------------------------------------------
+
+test("BUY-73640: source declares merchant allowlist constants + filter helpers", () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.ok(source.includes("isMerchantAllowedForCountry(item, allowlistCountry)"), "US/SG merchant slug gate must run inside per-item loop");
+});
+
+test("BUY-73640: US SEO page drops compumarts + non-US + unknown-merchant live products", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            { id: "p1", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1999, price_currency: "USD", merchant: "bestbuy_us", merchant_name: "Best Buy", click_url: "https://example.com/p1", image_url: "https://images.example/p1.jpg" },
+            { id: "p2", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1899, price_currency: "USD", merchant: "amazon_us", merchant_name: "Amazon US", click_url: "https://example.com/p2", image_url: "https://images.example/p2.jpg" },
+            // compumarts — known leak target (BUY-73322)
+            { id: "p3", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1799, price_currency: "USD", merchant: "compumarts", merchant_name: "COMPUMARTS", click_url: "https://example.com/p3", image_url: "https://images.example/p3.jpg" },
+            // non-US slug (noon = UAE)
+            { id: "p4", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1699, price_currency: "USD", merchant: "noon", merchant_name: "Noon", click_url: "https://example.com/p4", image_url: "https://images.example/p4.jpg" },
+            // unknown merchant (no slug at all — must be excluded per spec point 3)
+            { id: "p5", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1599, price_currency: "USD", merchant_name: "Mystery Store", click_url: "https://example.com/p5", image_url: "https://images.example/p5.jpg" },
+            // valid US slug variant (newegg, no _us suffix)
+            { id: "p6", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1899, price_currency: "USD", merchant: "newegg", merchant_name: "Newegg", click_url: "https://example.com/p6", image_url: "https://images.example/p6.jpg" },
+          ],
+          meta: { total: 6, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    const merchants = products.map((p) => p.merchant);
+    assert.ok(merchants.some((m) => m === "Best Buy"), "Best Buy must be included");
+    assert.ok(merchants.some((m) => m === "Amazon"), "Amazon must be included (normalized label)");
+    assert.ok(merchants.some((m) => m === "Newegg"), "Newegg (no _us suffix) must be included");
+    assert.ok(!merchants.some((m) => m.toLowerCase().includes("compumart") || m.toLowerCase() === "compumarts"), "COMPUMARTS must be absent");
+    assert.ok(!merchants.some((m) => m === "Noon"), "Noon (UAE) must be absent");
+    assert.ok(!merchants.some((m) => m === "Mystery Store"), "Unknown-merchant rows must be absent");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-73640: SG SEO page keeps Singapore merchants and drops US merchants", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            { id: "sg1", title: "Dyson Air Purifier", price_amount: 699, price_currency: "SGD", merchant: "shopee_sg", merchant_name: "Shopee Singapore", click_url: "https://example.com/sg1", image_url: "https://images.example/sg1.jpg" },
+            { id: "sg2", title: "Dyson Air Purifier", price_amount: 649, price_currency: "SGD", merchant: "lazada_sg", merchant_name: "Lazada Singapore", click_url: "https://example.com/sg2", image_url: "https://images.example/sg2.jpg" },
+            { id: "sg3", title: "Dyson Air Purifier", price_amount: 899, price_currency: "SGD", merchant: "bestbuy_us", merchant_name: "Best Buy US", click_url: "https://example.com/sg3", image_url: "https://images.example/sg3.jpg" },
+            { id: "sg4", title: "Dyson Air Purifier", price_amount: 599, price_currency: "SGD", merchant: "walmart_us", merchant_name: "Walmart US", click_url: "https://example.com/sg4", image_url: "https://images.example/sg4.jpg" },
+            // valid SG slug variant (no _sg suffix)
+            { id: "sg5", title: "Dyson Air Purifier", price_amount: 679, price_currency: "SGD", merchant: "courts", merchant_name: "Courts Singapore", click_url: "https://example.com/sg5", image_url: "https://images.example/sg5.jpg" },
+          ],
+          meta: { total: 5, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["air-purifier-singapore"]);
+    const merchants = products.map((p) => p.merchant);
+    assert.ok(merchants.some((m) => m === "Shopee Singapore" || m === "Shopee"), "Shopee must be included");
+    assert.ok(merchants.some((m) => m === "Lazada Singapore" || m === "Lazada"), "Lazada must be included");
+    assert.ok(merchants.some((m) => m === "Courts Singapore" || m === "Courts"), "Courts (no _sg suffix) must be included");
+    assert.ok(!merchants.some((m) => m === "Best Buy US" || m === "Best Buy"), "Best Buy US must be absent from SG page");
+    assert.ok(!merchants.some((m) => m === "Walmart US" || m === "Walmart"), "Walmart US must be absent from SG page");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-73640: curated fallback products are filtered through the same geo allowlist", async () => {
+  const originalFetch = globalThis.fetch;
+  // Return zero live products so the page falls through entirely to curated fallbacks
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    // Use a SG config whose curated fallback contains only SG merchants.
+    // If filterProductsForCountry leaks a non-SG merchant through, this test fails.
+    const products = await getSeoLandingProducts(seoLandingPages["air-purifier-singapore"]);
+    assert.ok(products.length >= 4, "SG page must render at least 4 curated fallback products");
+    for (const product of products) {
+      assert.ok(
+        ["Shopee", "Lazada", "Courts", "Dyson", "Philips", "Xiaomi", "Samsung", "Apple", "Harvey Norman", "Gain City"].some(
+          (allowed) => product.merchant.toLowerCase().includes(allowed.toLowerCase()),
+        ),
+        `fallback product merchant "${product.merchant}" must be a known SG retailer`,
+      );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-73640: merchantSlug is preserved on normalized LandingProduct for future allowlist use", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            { id: "x1", title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070", price_amount: 1999, price_currency: "USD", merchant: "walmart_us", merchant_name: "Walmart", click_url: "https://example.com/x1", image_url: "https://images.example/x1.jpg" },
+          ],
+          meta: { total: 1, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    assert.ok(products.length > 0, "should have at least one product");
+    assert.equal(
+      products[0].merchantSlug,
+      "walmart_us",
+      "merchantSlug must be preserved (lowercased, trimmed) from raw upstream merchant field",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("BUY-72906: foreign-merchant products (COMPUMARTS/AE) are dropped from US SEO snapshot", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -274,6 +438,7 @@ test("BUY-72906: foreign-merchant products (COMPUMARTS/AE) are dropped from US S
               title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
               price_amount: 1999,
               price_currency: "USD",
+              merchant: "bestbuy_us",
               merchant_name: "Best Buy",
               click_url: "https://merchant.example/us-live",
               image_url: "https://images.example/us-live.jpg",
@@ -284,6 +449,7 @@ test("BUY-72906: foreign-merchant products (COMPUMARTS/AE) are dropped from US S
               title: "Gaming Laptop RTX 5070",
               price_amount: 1800,
               price_currency: "USD",
+              merchant: "compumarts",
               merchant_name: "COMPUMARTS",
               click_url: "https://merchant.example/ae-live",
               image_url: "https://images.example/ae-live.jpg",
