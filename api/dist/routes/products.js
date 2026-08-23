@@ -566,12 +566,12 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         config_1.db.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
-            if (match) return { rows: [{ count: parseInt(match[1], 10) }] };
-            return config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
-        }).catch(err => {
-            console.warn('[products.list] EXPLAIN estimate failed:', err?.message || err);
-            return config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
-        }),
+            if (match) {
+                const n = parseInt(match[1], 10);
+                return { rows: [{ count: n }] };
+            }
+            return { rows: [{ count: 0 }] };
+        }).catch(() => { return { rows: [{ count: 0 }] }; }),
         config_1.db.query(`SELECT ${SELECT_COLUMNS}
          FROM products
          ${whereClause}
