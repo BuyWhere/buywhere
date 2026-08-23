@@ -8,7 +8,7 @@ import {
   buildProductDetailGraph,
 } from "@/lib/product-schema";
 
-type SchemaNode = Record<string, any>;
+type SchemaNode = Record<string, unknown>;
 
 // BUY-69663 — AEO integrity contract for product-cluster JSON-LD:
 // real data only, no undefined leakage, absolute URLs, one publisher @id.

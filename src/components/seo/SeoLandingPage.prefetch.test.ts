@@ -19,7 +19,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const here = fileURLToPath(new URL(".", import.meta.url));
 const sourcePath = fileURLToPath(new URL("./SeoLandingPage.tsx", import.meta.url));
 const source = readFileSync(sourcePath, "utf8");
 

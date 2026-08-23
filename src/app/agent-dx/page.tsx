@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -274,7 +273,7 @@ export default function AgentDxPage() {
               </p>
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">deliver_to format</p>
-                <pre className="mt-2 text-sm font-mono text-slate-800">ISO 3166-1 alpha-2 country code (e.g. "SG", "US", "MY", "TH", "VN", "ID")</pre>
+                <pre className="mt-2 text-sm font-mono text-slate-800">ISO 3166-1 alpha-2 country code (e.g. &quot;SG&quot;, &quot;US&quot;, &quot;MY&quot;, &quot;TH&quot;, &quot;VN&quot;, &quot;ID&quot;)</pre>
               </div>
             </div>
           </section>

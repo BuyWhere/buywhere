@@ -1002,6 +1002,12 @@ export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntr
   return Array.from(entriesByUrl.values());
 }
 
+export async function getMerchantSitemapChunk(page: number): Promise<SitemapUrlEntry[]> {
+  const entries = await getMerchantListingSitemapEntries();
+  const start = (page - 1) * MAX_URLS_PER_SITEMAP;
+  return entries.slice(start, start + MAX_URLS_PER_SITEMAP);
+}
+
 export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
   const ALL_REGIONS = ["SG", "US", "MY", "TH", "ID", "PH", "VN"];
