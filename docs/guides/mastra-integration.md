@@ -24,7 +24,7 @@ Once connected, your Mastra agent has access to:
 ## Prerequisites
 
 - Node.js 18+
-- A BuyWhere API key — get one free at [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+- A BuyWhere API key — get one free at [buywhere.ai/api-keys](https://buywhere.ai/api-keys) — or let your agent self-register in one call (no email, no human): `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" -H "Content-Type: application/json" -d '{"agent_name":"my-agent"}'`
 - Mastra `0.2.0` or later
 
 ## Quick Start

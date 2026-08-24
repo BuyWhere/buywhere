@@ -13,7 +13,7 @@ const apiCatalog = {
         scheme: "Bearer",
         documentationUrl: "https://buywhere.ai/api-keys",
         selfService: true,
-        selfServiceDescription: "POST /v1/auth/register with {\"agent_name\":\"<name>\"} returns api_key in 3 seconds, no email required",
+        selfServiceDescription: "POST /v1/auth/register?verify=false with {\"agent_name\":\"<name>\"} returns api_key instantly — no email, no human; 1,000 requests/day free",
       },
       pricing: {
         free: {

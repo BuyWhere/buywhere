@@ -11,7 +11,7 @@ Build a CLI tool that searches for a product across multiple retailers and shows
 ## Prerequisites
 
 - Python 3.8+
-- A BuyWhere API key ([get one free](https://buywhere.ai/api-keys))
+- A BuyWhere API key ([get one free](https://buywhere.ai/api-keys)) — or let your agent self-register in one call (no email, no human): `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" -H "Content-Type: application/json" -d '{"agent_name":"my-agent"}'`
 - `httpx` (`pip install httpx`)
 
 ## The Code

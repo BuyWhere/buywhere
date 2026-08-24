@@ -251,6 +251,13 @@ function buildServerCard() {
       type: "apiKey",
       scheme: "Bearer",
       documentation: "https://buywhere.ai/api-keys",
+      registration: {
+        description: "Agents self-register with zero human steps",
+        method: "POST",
+        url: "https://api.buywhere.ai/v1/auth/register?verify=false",
+        body: { agent_name: "<your-agent-name>" },
+        returns: "api_key — 1,000 requests/day free, instantly",
+      },
     },
     sunset: {
       v1_deprecation: "2026-10-01T00:00:00Z",

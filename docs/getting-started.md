@@ -13,6 +13,12 @@ BuyWhere is a product catalog API built for AI agents and developers. Search 5M+
 Register for a free API key:
 
 ```bash
+# Agents (recommended): no email, no human steps
+curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \
+  -H "Content-Type: application/json" -d '{"agent_name": "my-agent"}'
+# -> {"api_key": "bw_...", "rate_limit": {"rpm": 60, "daily": 1000, "week": 5000}}
+# Optional: register WITH an email (below) then verify to unlock 10,000/day.
+
 curl -X POST https://api.buywhere.ai/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{

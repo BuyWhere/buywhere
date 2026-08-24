@@ -94,7 +94,7 @@ Add `deliver_to` to every v2 tool call with the buyer's country:
 
 ## Setup: Claude Desktop
 
-1. Get a BuyWhere API key at [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+1. Get a BuyWhere API key at [buywhere.ai/api-keys](https://buywhere.ai/api-keys) — or let your agent self-register in one call (no email, no human): `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" -H "Content-Type: application/json" -d '{"agent_name":"my-agent"}'`
 
 2. Open your Claude Desktop config file:
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
