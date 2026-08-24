@@ -46,7 +46,7 @@ function buildJsonLd(data: BrandData) {
     '@type': 'CollectionPage',
     name: `${data.name} Products — BuyWhere`,
     description: data.description,
-    url: `/brands/brand/${data.slug}`,
+    url: `/brands/${data.slug}`,
     mainEntity: {
       '@type': 'ItemList',
       name: `${data.name} Products`,
@@ -194,7 +194,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${brand.name} Products — Compare Prices | BuyWhere`,
     description: brand.description,
-    alternates: { canonical: `/brands/brand/${slug}` },
+    alternates: { canonical: `/brands/${slug}` },
   };
 }
 

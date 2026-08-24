@@ -49,7 +49,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
     '@type': 'CollectionPage',
     name: `${brand.name} Deals — BuyWhere`,
     description: `Find the best ${brand.name} deals and discounts. Compare prices across retailers.`,
-    url: `/brands/brand/${slug}/deals`,
+    url: `/brands/${slug}/deals`,
   };
 
   return (
@@ -66,7 +66,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/brand/${slug}`}
+              href={`/brands/${slug}`}
               className="text-blue-600 hover:underline"
             >
               {brand.name}
@@ -92,7 +92,7 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
               Check back soon for the latest {brand.name} discounts.
             </p>
             <Link
-              href={`/brands/brand/${slug}`}
+              href={`/brands/${slug}`}
               className="text-blue-600 hover:underline mt-4 inline-block"
             >
               View all {brand.name} products
@@ -115,7 +115,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${brand.name} Deals — Compare Prices | BuyWhere`,
     description: `Find the best ${brand.name} deals and discounts. Compare prices across retailers.`,
-    alternates: { canonical: `/brands/brand/${slug}/deals` },
+    alternates: { canonical: `/brands/${slug}/deals` },
   };
 }
 

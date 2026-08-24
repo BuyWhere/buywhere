@@ -65,7 +65,7 @@ export default async function BrandsPage() {
                 {brands.map((brand) => (
                   <Link
                     key={brand.slug}
-                    href={`/brand/${brand.slug}`}
+                    href={`/brands/${brand.slug}`}
                     className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-center group"
                   >
                     {brand.logo_url && (
