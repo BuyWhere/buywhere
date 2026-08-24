@@ -188,7 +188,7 @@ export function queryLogMiddleware(endpoint: string) {
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, returned_product_ids, response_time_ms,
            status_code, ip_address, user_agent, cache_hit, job_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::bigint[], $11, $12, $13, $14, $15)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -206,10 +206,8 @@ export function queryLogMiddleware(endpoint: string) {
           res.locals.cacheHit ?? null,
           extractJobId(req),
         ]
-      ).catch((err: any) => {
+      ).catch(() => {
         // Fire-and-forget — don't crash on log failure
-        // BUY-74173 DEBUG: surface error so we can find silent insert failures
-        console.error('[queryLog] INSERT failed:', err?.code, err?.message?.slice(0, 300), 'endpoint=', endpoint);
       });
 
       // BUY-22733: source-of-truth usage telemetry to PostHog.
