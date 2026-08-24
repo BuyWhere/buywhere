@@ -1744,13 +1744,13 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
 export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   "air-purifier-singapore": {
     slug: "air-purifier-singapore",
-    title: "Best Air Purifier Singapore 2026 | Compare Prices, Filters & Deals",
+    title: "Best Air Purifier Singapore \u2014 From S$249 | Updated August 2026",
     description:
-      "Find the best air purifier in Singapore by price, room size, filter cost, and live retailer deals across Dyson, Philips, Xiaomi, Sharp, Sterra, Coway, and Levoit.",
-    heroEyebrow: "Singapore Air Purifier Price Guide",
+      "Compare the best air purifiers in Singapore from S$249. Live prices from Shopee, Lazada, and brand stores for Dyson, Philips, Xiaomi, and Sharp \u2014 updated August 2026.",
+    heroEyebrow: "Singapore Air Purifier Price Guide \u2014 Updated August 2026",
     heroTitle: "Best Air Purifier Singapore: Prices, Filters & Deals",
     heroBody:
-      "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether Shopee, Lazada, or local retailers are running bundle promotions. This page combines those shopper questions with live BuyWhere search results so you can find the best, cheapest, or most practical air purifier faster.",
+      "The best air purifiers in Singapore in 2026 are the Xiaomi Smart Air Purifier 4 (S$249, best value), Philips 3000i Series (S$459, best all-round), and Dyson Purifier Cool Gen1 (S$699, premium). BuyWhere compares live prices from Shopee, Lazada, and brand stores so you get the cheapest deal \u2014 including vouchers and bundle offers that change daily.",
     canonicalPath: "/air-purifier-singapore",
     country: "SG",
     currency: "SGD",
@@ -1763,11 +1763,12 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     comparisonSectionTitle: "Popular air purifier picks at a glance",
     comparisonColumns: ["Model", "Price", "Coverage", "Filter", "Best For"],
     comparisonRows: [
-      { Model: "Dyson Purifier Cool Gen1", Price: "S$699", Coverage: "Large rooms", Filter: "HEPA + carbon", "Best For": "Premium all-rounder" },
-      { Model: "Philips 3000i Series", Price: "S$459", Coverage: "Living rooms", Filter: "NanoProtect HEPA", "Best For": "Balanced family choice" },
       { Model: "Xiaomi Smart Air Purifier 4", Price: "S$249", Coverage: "Bedrooms", Filter: "True HEPA", "Best For": "Best value" },
-      { Model: "Sharp Plasmacluster FP-J80E", Price: "S$399", Coverage: "Medium rooms", Filter: "HEPA + deodorising", "Best For": "Quiet operation" },
-      { Model: "Sterra Breeze Pro", Price: "S$329", Coverage: "Bedrooms", Filter: "HEPA", "Best For": "Local DTC option" },
+      { Model: "Coway Storm", Price: "S$349", Coverage: "Bedrooms / pet homes", Filter: "Dual HEPA + deodorisation", "Best For": "Pet owners" },
+      { Model: "Sharp Plasmacluster FP-J80E", Price: "S$399", Coverage: "Medium rooms", Filter: "HEPA + deodorising", "Best For": "Haze season" },
+      { Model: "Philips 3000i Series", Price: "S$459", Coverage: "Living rooms", Filter: "NanoProtect HEPA", "Best For": "Balanced family choice" },
+      { Model: "Levoit Core 600S", Price: "S$489", Coverage: "Large rooms (500+ sq ft)", Filter: "H13 True HEPA", "Best For": "Highest CADR in class" },
+      { Model: "Dyson Purifier Cool Gen1", Price: "S$699", Coverage: "Large rooms", Filter: "HEPA + carbon", "Best For": "Premium all-rounder" },
     ],
     highlightSectionTitle: "What matters most for SG buyers",
     highlights: [
@@ -1786,7 +1787,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     ],
     adviceSectionTitle: "How to choose an air purifier",
     advicePoints: [
-      "Match the purifier's room-size recommendation to your actual bedroom or living room, not just the marketing headline.",
+      "Match the purifier\u2019s room-size recommendation to your actual bedroom or living room, not just the marketing headline.",
       "If haze, dust, or pet dander is the concern, prioritize true HEPA filtration over app features.",
       "Compare official brand stores, Shopee Mall, LazMall, and major electronics chains before buying.",
       "Double-check the annual filter cost so a cheaper upfront unit does not become the more expensive long-term option.",
@@ -1796,7 +1797,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       {
         question: "What is the best air purifier in Singapore right now?",
         answer:
-          "For many households, the Philips 3000i and Dyson Purifier Cool remain strong picks because they balance filtration performance, local availability, and trusted after-sales support.",
+          "The Xiaomi Smart Air Purifier 4 (S$249) is the best value pick for most HDB bedrooms. The Philips 3000i (S$459) is the best all-round family choice, and the Dyson Purifier Cool Gen1 (S$699) is the premium option with air-quality display.",
       },
       {
         question: "Is an air purifier worth buying in Singapore?",
@@ -1806,7 +1807,22 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       {
         question: "What should I compare besides price?",
         answer:
-          "Look at room coverage, noise, official warranty coverage, and the ongoing cost of filters before choosing the cheapest listing.",
+          "Look at room coverage, noise on low setting, official warranty coverage, and the ongoing cost of filters before choosing the cheapest listing.",
+      },
+      {
+        question: "How much does an air purifier cost in Singapore?",
+        answer:
+          "Budget air purifiers start from S$89\u2013S$150 (Xiaomi, Midea), mid-range models run S$250\u2013S$500 (Philips, Sharp, Coway), and premium units from Dyson and Samsung cost S$600\u2013S$1,200. Filter replacement (S$12\u2013S$40 per cycle) adds S$50\u2013S$160 per year. Check BuyWhere for live landed prices including voucher discounts.",
+      },
+      {
+        question: "Which air purifier is best for HDB bedrooms?",
+        answer:
+          "For a typical HDB bedroom (150\u2013300 sq ft), the Xiaomi Smart Air Purifier 4 (S$249) and Philips 3000i (S$459) are top picks. Both operate below 40 dB on low \u2014 quiet enough for sleeping. Avoid large-capacity units designed for 500+ sq ft as they waste energy in smaller rooms.",
+      },
+      {
+        question: "When is the best time to buy an air purifier in Singapore?",
+        answer:
+          "Prices drop most during Shopee 7.7, 9.9, and 11.11 sale events. Lazada 12.12 and Christmas sales also offer significant vouchers (S$30\u2013S$100 off). Set a price alert on BuyWhere to catch flash deals \u2014 some models see 15\u201325% discounts during these windows.",
       },
     ],
     shopperCta: {
