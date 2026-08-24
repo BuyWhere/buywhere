@@ -79,6 +79,7 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     for (const file of walk(apiSrcRoot)) {
       const rel = path.relative(apiSrcRoot, file);
       if (rel === path.join('routes', 'products.ts')) continue; // handled by warmSearchCache + live-block tests below
+      if (rel === path.join('routes', 'mcp.ts')) continue; // BUY-74181: MCP hybrid ranks its bounded 200-candidate FTS slice.
       const source = fs.readFileSync(file, 'utf8');
       const lines = source.split('\n');
       lines.forEach((line, i) => {
