@@ -680,7 +680,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // them via products_pkey reverse scan within 30s. On the partitioned
         // table, the same predicate prunes to the PH partition (one of 30+
         // partitions) and returns in <500ms.
-        productReadDb.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`).then((r) => {
+        productReadDb.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
             if (match)

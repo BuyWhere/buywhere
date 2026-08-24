@@ -657,7 +657,8 @@ router.get(
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products ${whereClause}`
+        `EXPLAIN SELECT 1 FROM products ${whereClause}`,
+        params
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
         const match = planRow.match(/rows=(\d+)/);
