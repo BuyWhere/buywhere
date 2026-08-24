@@ -623,7 +623,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             }
             try {
               const ftsResult = await searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where}
+                `SELECT id FROM (
+                   SELECT id, search_vector, updated_at
+                   FROM products ${where}
+                   LIMIT 200
+                 ) _c
                  ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, updated_at DESC
                  LIMIT 200`,
                 params
