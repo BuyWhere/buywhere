@@ -91,6 +91,7 @@ const TOOLS = [
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
@@ -140,6 +141,7 @@ const TOOLS = [
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -169,6 +171,7 @@ const TOOLS = [
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
       },
     },
@@ -240,6 +243,7 @@ const V2_TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
         deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
@@ -293,6 +297,7 @@ const V2_TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -311,6 +316,7 @@ const V2_TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
       },
     },
@@ -1459,6 +1465,24 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
 
 // BUY-69625: Validate country_code against each tool's supported enum.
+// BUY-73666: `market` is a common agent alias for `country_code`. When agents pass
+// market=MY it was silently ignored because no handler read args.market, causing
+// every non-SG query to fall through to the SG default. Normalize once at
+// dispatch time so all downstream handlers see country_code set correctly.
+const MARKET_TO_COUNTRY: Record<string, string> = {
+  sg: "SG", us: "US", my: "MY", th: "TH", vn: "VN",
+  gb: "GB", uk: "GB", in: "IN", au: "AU", ph: "PH", id: "ID",
+};
+
+function normalizeMarketArg(args: Record<string, unknown>): void {
+  const market = (args.market as string || "").trim();
+  if (!market) return;
+  const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+  if (!args.country_code && !args.country) {
+    args.country_code = mapped;
+  }
+}
+
 // A bogus code (e.g. "ZZ") silently falls through to default-market queries,
 // making it impossible to verify the filter was honoured.
 const VALID_COUNTRY_CODES: Record<string, string[]> = {
@@ -1471,12 +1495,13 @@ const VALID_COUNTRY_CODES: Record<string, string[]> = {
 function validateCountryCode(toolName: string, args: Record<string, unknown>): void {
   const allowed = VALID_COUNTRY_CODES[toolName];
   if (!allowed) return; // tool doesn't use country_code
-  const raw = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const raw = ((args.country_code as string) || (args.country as string) || (args.market as string) || '').toUpperCase();
   if (raw && !allowed.includes(raw)) {
     throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
   }
 }
 async function dispatchTool(name: string, args: Record<string, unknown>) {
+  normalizeMarketArg(args);
   validateCountryCode(name, args);
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
