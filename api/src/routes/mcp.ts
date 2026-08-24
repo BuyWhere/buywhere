@@ -958,7 +958,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 15000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
+    await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; mirror of mcp-railway/src/routes/mcp.ts to avoid drift. FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave.
     // BUY-68615: force index path on production catalog DB.
     // At 400M+ rows, the planner may choose seqscan even with the discount index,
     // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
@@ -1245,7 +1245,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 4000');
+    await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
