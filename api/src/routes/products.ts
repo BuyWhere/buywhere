@@ -117,7 +117,7 @@ async function tryTierSearch(
     q: string; countryCode?: string; currency: string; limit: number; offset: number;
     minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
-    deliverTo?: string; includeUnshippable?: boolean;
+    deliverTo?: string; includeUnshippable?: boolean; deliverToInferred?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -354,7 +354,7 @@ async function tryTierSearch(
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
-    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q, p.deliverToInferred === true);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
       const rp = p.cacheKey.split(':');
@@ -408,7 +408,9 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
 // v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
 // per-merchant ships-to enrichment lands. Never hides results unless the caller
 // explicitly sets include_unshippable=false.
-function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | undefined, includeUnshippable: boolean, q: string): void {
+// BUY-73952: `inferred` (default false) — when true, stamps meta.deliver_to_inferred=true so
+// callers know the buyer-market was implicit, derived from country_code.
+function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | undefined, includeUnshippable: boolean, q: string, inferred = false): void {
   const items = (body.data as Array<Record<string, unknown>>) || [];
   const meta = body.meta as Record<string, unknown> | undefined;
   if (deliverTo) {
@@ -425,7 +427,10 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
       body.data = kept;
       if (meta) meta.total = kept.length;
     }
-    if (meta) meta.deliver_to = deliverTo;
+    if (meta) {
+      meta.deliver_to = deliverTo;
+      if (inferred) meta.deliver_to_inferred = true;
+    }
   } else if (meta) {
     // F24 (2026-08-22): hint fires on EVERY deliver_to-less response (was q-only).
     meta.hint = "IMPORTANT — treat deliver_to as REQUIRED for buyer-facing use: pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank deliverable products first (adds an availability label per product). Without it, results are not shipping-ranked and may be undeliverable to your user. Add include_unshippable=false to return only same-country products.";
@@ -717,6 +722,13 @@ router.get(
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
+    // BUY-73952: deliver_to default inference — agent queries that supply country_code but omit
+    // deliver_to should still get shipping-ranked results. Infer deliver_to from country_code
+    // when it's missing, and stamp meta.deliver_to_inferred=true so callers know the rank was
+    // implicit. Keeps include_unshippable=true (default) so cross-region discovery still works.
+    const explicitDeliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
+    const deliverToInferred = !explicitDeliverTo && !!countryCode;
+    const deliverTo = explicitDeliverTo || (deliverToInferred ? countryCode : undefined);
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -735,7 +747,7 @@ router.get(
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
-    const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
+    // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
     const includeUnshippable = req.query.include_unshippable !== 'false';
     const buildV1SearchEmptiness = (apiError = false) => deriveEmptiness({
       regionHasAnyData: true,
@@ -845,7 +857,7 @@ router.get(
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain, compact, requestStart, cacheKey,
-        deliverTo, includeUnshippable,
+        deliverTo, includeUnshippable, deliverToInferred,
       });
       if (handled) return;
     }
@@ -1120,7 +1132,7 @@ router.get(
         countryCode || null,
         fallbackProducts.length === 0 ? buildV1SearchEmptiness(false) : null,
       );
-      annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
+      annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q, deliverToInferred);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
       res.json(responseBody);
@@ -1626,7 +1638,7 @@ router.get(
       countryCode || null,
       filteredProducts.length === 0 ? buildV1SearchEmptiness(false) : null,
     );
-    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
+    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q, deliverToInferred);
 
     // Cache result in Redis (fire-and-forget)
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
@@ -1693,7 +1705,10 @@ router.get(
 
     // F24b (2026-08-22): deals honors deliver_to like search — annotation happens
     // post-cache on both paths so cached bodies stay per-request neutral.
+    // BUY-73952: default deliver_to from country_code when omitted.
     const deliverTo = (req.query.deliver_to as string | undefined)?.toUpperCase() || undefined;
+    const deliverToInferred = !deliverTo && !!countryCode;
+    const effectiveDeliverTo = deliverTo || (deliverToInferred ? countryCode : undefined);
     const includeUnshippable = req.query.include_unshippable !== 'false';
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     res.locals.cacheHit = false;
@@ -1704,7 +1719,7 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
-        annotateDeliverTo(parsed as Record<string, unknown>, deliverTo, includeUnshippable, ''); // F24b
+        annotateDeliverTo(parsed as Record<string, unknown>, effectiveDeliverTo, includeUnshippable, '', deliverToInferred); // F24b
         recordProductViewsBulk({
           productIds: (parsed.products || parsed.results || parsed.data || [])
             .map((product: { id?: string | number }) => product.id)
@@ -1874,7 +1889,7 @@ router.get(
       req,
     });
 
-    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, ''); // F24b
+    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, effectiveDeliverTo, includeUnshippable, '', deliverToInferred); // F24b
     res.json(responseBody);
   })
 );
