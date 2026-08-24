@@ -508,13 +508,17 @@ router.get(
     const countryCode = rawCountry;
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
-    // Sort — whitelist to safe columns, default to created_at desc
-    const sortParam = (req.query.sort as string) || 'created_at';
-    const sortColumn = LIST_SORT_COLUMNS[sortParam] || 'created_at';
+    // Sort — whitelist to safe columns. The default browse path deliberately has no
+    // ORDER BY: the production country/currency/id list index is invalid, and forcing
+    // id DESC makes low-volume countries scan/sort for 20s+ before returning any rows.
+    // Explicit sort requests keep the documented behaviour; smoke/default clients get
+    // the fast bounded country index scan instead of a 500/timeout.
+    const requestedSortParam = req.query.sort as string | undefined;
+    const sortColumn = requestedSortParam ? (LIST_SORT_COLUMNS[requestedSortParam] || 'created_at') : '';
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -562,10 +566,7 @@ router.get(
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
 
-    // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
-    // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
-    // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
-    const orderBy = `ORDER BY products.id DESC`;
+    const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
 
     const productReadDb = readDb();
     const [countResult, dataResult] = await Promise.all([

@@ -19,6 +19,16 @@ describe('BUY-73753: /v1/products list contract', () => {
     assert.doesNotMatch(listRoute, /countryCode\s*=.*\|\|\s*'SG'/);
   });
 
+  it('keeps the default country browse path unordered so low-volume markets do not full-sort', () => {
+    const listRouteStart = productsSource.indexOf('// GET /v1/products');
+    const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
+    const listRoute = productsSource.slice(listRouteStart, searchRouteStart);
+
+    assert.match(listRoute, /const requestedSortParam = req\.query\.sort/);
+    assert.match(listRoute, /const orderBy = sortColumn \? `ORDER BY products\.\$\{sortColumn\} \$\{order\}, products\.id DESC` : ''/);
+    assert.doesNotMatch(listRoute, /const orderBy = `ORDER BY products\.id DESC`/);
+  });
+
   it('projects category_path through the canonical product response', () => {
     const responseSource = readFileSync(join(__dirname, '../src/lib/response.ts'), 'utf8');
     assert.match(responseSource, /category_path/);
