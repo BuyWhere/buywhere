@@ -1,10 +1,10 @@
 # BuyWhere API
 
-The product catalog API for AI agent commerce — search, compare, and track prices across 40+ retailers in Southeast Asia and the US.
+The product catalog API for AI agent commerce — search, compare, and track prices across 900,000+ merchants in the US and Southeast Asia.
 
 ## Overview
 
-BuyWhere is an agent-native product catalog API indexing 5M+ products from 40+ retailers across Singapore, Malaysia, Indonesia, Thailand, the Philippines, Vietnam, and the United States. It is purpose-built for AI shopping agents: BM25-ranked search, structured price comparison, deals discovery, and affiliate link tracking out of the box. The API is MCP-compatible and works with Claude Desktop, Cursor, LangChain, CrewAI, and any MCP-enabled AI client.
+BuyWhere is an agent-native product catalog API indexing 300M+ products from 900,000+ merchants across Singapore, Malaysia, Indonesia, Thailand, the Philippines, Vietnam, and the United States. It is purpose-built for AI shopping agents: BM25-ranked search, structured price comparison, deals discovery, and affiliate link tracking out of the box. The API is MCP-compatible and works with Claude Desktop, Cursor, LangChain, CrewAI, and any MCP-enabled AI client.
 
 ## Quick Start
 
