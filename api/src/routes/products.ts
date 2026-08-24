@@ -23,6 +23,28 @@ import { embedQuery } from '../jobs/embedProducts';
 import { semanticLookup as semLookup, semanticRegister as semRegister, semanticEnabled as semEnabled } from '../lib/semanticCache';
 
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+const AMAZON_STALENESS_DAYS = 60;
+const AMAZON_STALE_RANK_MULTIPLIER = 0.35;
+const AMAZON_TARGETED_RANK_BOOST = 1.15;
+const AMAZON_TRUST_CATEGORIES = ['electronics', 'home-living'];
+const AMAZON_TRUST_MIN_PRICE = 10;
+const AMAZON_TRUST_MAX_PRICE = 200;
+
+function amazonRankMultiplierSql(alias: string): string {
+  return `
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%' AND ${alias}.updated_at < NOW() - INTERVAL '${AMAZON_STALENESS_DAYS} days'
+      THEN ${AMAZON_STALE_RANK_MULTIPLIER}
+      ELSE 1.0
+    END *
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%'
+        AND ${alias}.price BETWEEN ${AMAZON_TRUST_MIN_PRICE} AND ${AMAZON_TRUST_MAX_PRICE}
+        AND lower(regexp_replace(coalesce(${alias}.category,''),'\\s+','-','g')) IN (${AMAZON_TRUST_CATEGORIES.map((category) => `'${category}'`).join(', ')})
+      THEN ${AMAZON_TARGETED_RANK_BOOST}
+      ELSE 1.0
+    END`;
+}
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -215,7 +237,7 @@ async function tryTierSearch(
     END`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector FROM search_products sp
+      SELECT id, search_vector, title, category, source, price, updated_at FROM search_products sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -229,7 +251,8 @@ async function tryTierSearch(
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) AS rank
+            (${phoneAccessoryPenalty}) *
+            (${amazonRankMultiplierSql('cand')}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -260,7 +283,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -271,7 +294,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -290,7 +313,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -1171,7 +1194,8 @@ router.get(
                      OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
-                 END AS rank
+                 END *
+                 ${amazonRankMultiplierSql('rhp')} AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
@@ -1284,7 +1308,9 @@ router.get(
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code,
+                       ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                       ${amazonRankMultiplierSql('rcp')} AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
@@ -1451,7 +1477,7 @@ router.get(
                  ), fts_top AS (
                    SELECT id
                    FROM fts_cand
-                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                   ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products')}) DESC
                    LIMIT 200
                  )
                  SELECT id FROM fts_top`,

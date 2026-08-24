@@ -2,7 +2,7 @@
   "$schema": "https://glama.ai/mcp/schemas/connector.json",
   "name": "buywhere",
   "display_name": "BuyWhere",
-  "description": "Product catalog API built for AI agents \u2014 381M+ products from 900,000+ merchants that want to be discovered (Shopify, WooCommerce, and independent retailers worldwide). Search, compare offers, find deals, and route to merchants. Pass deliver_to (buyer's country) on every search for fast, market-scoped results.",
+  "description": "Product catalog API built for AI agents \u2014 300M+ products from 900,000+ merchants that want to be discovered (Shopify, WooCommerce, and independent retailers worldwide). Search, compare offers, find deals, and route to merchants. Pass deliver_to (buyer's country) on every search for fast, market-scoped results.",
   "icon_url": "https://buywhere.ai/assets/icon.png",
   "public_repository": true,
   "homepage_url": "https://buywhere.ai",
@@ -32,7 +32,7 @@
   "tools": [
     {
       "name": "search_products",
-      "description": "Full-text + semantic product search over 381M+ products. ALWAYS pass deliver_to (buyer's ISO country code) for fast, market-scoped results."
+      "description": "Full-text + semantic product search over 300M+ products. ALWAYS pass deliver_to (buyer's ISO country code) for fast, market-scoped results."
     },
     {
       "name": "get_product",

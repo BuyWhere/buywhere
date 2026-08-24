@@ -4,13 +4,13 @@
 name: buywhere
 displayName: BuyWhere MCP Server
 description: >
-  The product catalog built for AI agents: 300M+ products from 238,000+ direct merchants
+  The product catalog built for AI agents: 300M+ products from 900,000+ direct merchants
   that want to be discovered (Shopify, WooCommerce, and independent retailers worldwide).
   Search, compare offers across merchants, find deals, browse categories, and route buyers
   to the merchant — all through a single MCP endpoint. Pass deliver_to (the buyer's country)
   on every search for fast, market-scoped results.
 
-version: 1.0.0
+version: 1.1.0
 license: MIT
 
 mcp:
@@ -27,7 +27,7 @@ tools:
   - name: search_products
     description: >
       Full-text product search with price, category, merchant, region, and rating filters.
-      Search across 300M+ products from 238,000+ direct merchants worldwide. ALWAYS pass
+      Search across 300M+ products from 900,000+ direct merchants worldwide. ALWAYS pass
       deliver_to (buyer's ISO country code) for fast, market-scoped results. Supports multiple currencies (SGD, USD, MYR,
       IDR, THB, PHP, VND) and compact JSON mode for AI agents.
     inputSchema:

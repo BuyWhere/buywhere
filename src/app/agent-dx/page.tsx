@@ -438,6 +438,74 @@ export default function AgentDxPage() {
             </div>
           </section>
 
+          <section className="border-b border-slate-200 bg-white py-16">
+            <div className="mx-auto max-w-4xl px-4 sm:px-6">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Empty results</p>
+              <h2 className="mt-3 text-3xl font-bold text-slate-900">When a v2 tool returns zero products</h2>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                Empty results are still <code className="font-mono">200 OK</code>. The response includes a
+                <code className="font-mono">meta.emptiness_reason</code> enum so your agent can distinguish
+                &ldquo;no catalog data&rdquo; from &ldquo;query mismatch&rdquo; from &ldquo;API degraded.&rdquo; The field appears only when the
+                result array is empty; non-empty responses never carry it.
+              </p>
+
+              <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="min-w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold"><code className="font-mono">emptiness_reason</code></th>
+                      <th className="px-4 py-3 font-semibold">What it means</th>
+                      <th className="px-4 py-3 font-semibold">What your agent should do</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {[
+                      ["no_data", "Region has zero products indexed.", "Treat as authoritative; no retry."],
+                      ["no_match", "Region has products, but query/filters excluded all of them.", "Widen query or drop filters; do not retry the same query."],
+                      ["api_error", "Downstream error caused the engine to fall back to empty.", "Retry once with a short backoff (≤2s); surface as ambiguous if still empty."],
+                      ["quota", "Rate-limit guardrail tripped.", "Wait for the rate-limit window; do not retry-storm."],
+                      ["region_unsupported", "Country code is not in the supported set.", "Re-issue with a supported region."],
+                      ["category_unsupported", "Category slug is unknown or in transition.", "Drop category or consult /v1/categories."],
+                      ["deliver_to_missing", "You omitted deliver_to/country_code, but the catalog has matches elsewhere.", "Re-issue with deliver_to set to the buyer's country."],
+                      ["invalid_deliver_to", "deliver_to is not a supported ISO code (MCP v2 only).", "Use a supported code from the hint field."],
+                    ].map(([reason, meaning, action]) => (
+                      <tr key={reason}>
+                        <td className="px-4 py-3 font-mono text-slate-700">{reason}</td>
+                        <td className="px-4 py-3 text-slate-600">{meaning}</td>
+                        <td className="px-4 py-3 text-slate-600">{action}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-8 rounded-2xl bg-slate-50 p-6">
+                <p className="text-sm font-semibold text-slate-700">Confidence field</p>
+                <p className="mt-2 text-base leading-7 text-slate-600">
+                  Every empty result also carries <code className="font-mono">meta.confidence</code> of{" "}
+                  <code className="font-mono">high</code> or <code className="font-mono">low</code>. When
+                  confidence is <code className="font-mono">low</code>, your agent should retry once after a
+                  short backoff; otherwise, treat the reason as authoritative.
+                </p>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-6">
+                <p className="text-sm font-semibold text-indigo-700">Diagnostic block</p>
+                <p className="mt-2 text-base leading-7 text-indigo-900">
+                  <code className="font-mono">meta.diagnostic</code> includes{" "}
+                  <code className="font-mono">engine_status</code>,{" "}
+                  <code className="font-mono">indexed_for_region</code>,{" "}
+                  <code className="font-mono">category_recognized</code>,{" "}
+                  <code className="font-mono">rate_limit_remaining</code>, and{" "}
+                  <code className="font-mono">deliver_to_present</code>. See the full reference in{" "}
+                  <a href="/docs/errors#empty-result-envelope-metaemptiness_reason" className="font-semibold underline decoration-indigo-400 underline-offset-2">
+                    Error Reference → Empty-Result Envelope
+                  </a>.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="bg-[linear-gradient(135deg,#0f172a_0%,#111827_60%,#1d4ed8_100%)] py-16 text-white">
             <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Acceptance contract</p>

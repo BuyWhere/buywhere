@@ -29,6 +29,8 @@ export interface CanonicalProduct {
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
+  // BUY-74173: disclose Amazon price staleness to agents/UI.
+  price_as_of?: string;
   // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
   affiliate_url?: string | null;
   // BUY-52474: tracking URLs the FE should use for outbound clicks so that

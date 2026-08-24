@@ -45,6 +45,40 @@ function classifyIsAgent(req: Request): boolean {
  * - Error responses (4xx+) → null
  * - JSON-RPC → unwrap text content and recurse
  */
+function extractReturnedProductIds(body: unknown, statusCode: number): string[] | null {
+  if (statusCode >= 400) return null;
+  if (!body || typeof body !== 'object') return null;
+
+  const b = body as Record<string, unknown>;
+  if (b.jsonrpc === '2.0') {
+    const result = b.result;
+    if (result && typeof result === 'object') {
+      const r = result as Record<string, unknown>;
+      if (Array.isArray(r.content) && r.content.length === 1) {
+        const content = r.content[0] as Record<string, unknown>;
+        if (content.type === 'text' && typeof content.text === 'string') {
+          try {
+            return extractReturnedProductIds(JSON.parse(content.text), 200);
+          } catch { /* not JSON — skip */ }
+        }
+      }
+    }
+    return null;
+  }
+
+  const candidates = [b.data, b.results, b.products, b.items]
+    .find((value): value is Array<Record<string, unknown>> => Array.isArray(value));
+  if (!candidates) return null;
+
+  const ids = candidates
+    .map((item) => item && typeof item === 'object' ? (item as Record<string, unknown>).id : null)
+    .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
+    .map(String)
+    .slice(0, 100);
+
+  return ids.length > 0 ? ids : null;
+}
+
 function extractResultCount(body: unknown, statusCode: number): number | null {
   if (statusCode >= 400) return null;
   if (!body || typeof body !== 'object') return null;
@@ -106,6 +140,7 @@ export function queryLogMiddleware(endpoint: string) {
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
       res.locals.resultCount = extractResultCount(body, res.statusCode);
+      res.locals.returnedProductIds = extractReturnedProductIds(body, res.statusCode);
       // WP5: thread shopping_job_id into every click_url (runs after the route's
       // cache write serialized the body, so the decoration is never cached).
       const jobId = extractJobId(req);
@@ -151,9 +186,9 @@ export function queryLogMiddleware(endpoint: string) {
       db.query(
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
-           endpoint, query_text, result_count, response_time_ms,
+           endpoint, query_text, result_count, returned_product_ids, response_time_ms,
            status_code, ip_address, user_agent, cache_hit, job_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -163,6 +198,7 @@ export function queryLogMiddleware(endpoint: string) {
           endpoint,
           queryText,
           res.locals.resultCount ?? null,
+          res.locals.returnedProductIds ?? null,
           responseTimeMs,
           res.statusCode,
           req.ip || null,

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
+const semanticCache_1 = require("../lib/semanticCache");
 const posthog_1 = require("../analytics/posthog");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -46,6 +47,39 @@ function classifyIsAgent(req) {
  * - Error responses (4xx+) → null
  * - JSON-RPC → unwrap text content and recurse
  */
+function extractReturnedProductIds(body, statusCode) {
+    if (statusCode >= 400)
+        return null;
+    if (!body || typeof body !== 'object')
+        return null;
+    const b = body;
+    if (b.jsonrpc === '2.0') {
+        const result = b.result;
+        if (result && typeof result === 'object') {
+            const r = result;
+            if (Array.isArray(r.content) && r.content.length === 1) {
+                const content = r.content[0];
+                if (content.type === 'text' && typeof content.text === 'string') {
+                    try {
+                        return extractReturnedProductIds(JSON.parse(content.text), 200);
+                    }
+                    catch { /* not JSON — skip */ }
+                }
+            }
+        }
+        return null;
+    }
+    const candidates = [b.data, b.results, b.products, b.items]
+        .find((value) => Array.isArray(value));
+    if (!candidates)
+        return null;
+    const ids = candidates
+        .map((item) => item && typeof item === 'object' ? item.id : null)
+        .filter((id) => typeof id === 'string' || typeof id === 'number')
+        .map(String)
+        .slice(0, 100);
+    return ids.length > 0 ? ids : null;
+}
 function extractResultCount(body, statusCode) {
     if (statusCode >= 400)
         return null;
@@ -70,6 +104,11 @@ function extractResultCount(body, statusCode) {
         }
         return null;
     }
+    // Timeout/degraded empty responses are NOT true zero-result searches —
+    // logging them as 0 poisons the zero-result KPI. Log null instead.
+    const meta = b.meta;
+    if (meta && meta.degraded === true && Array.isArray(b.data) && b.data.length === 0)
+        return null;
     if (Array.isArray(b.data))
         return b.data.length;
     if (Array.isArray(b.results))
@@ -85,6 +124,15 @@ function extractResultCount(body, statusCode) {
  * Attach AFTER agentDetectMiddleware and requireApiKey so req.agentInfo and
  * req.apiKeyRecord are populated.
  */
+// WP5 (2026-08-22): shopping_job_id — agents tag a shopping session/job so
+// downstream clicks and conversions attribute back to it. Accepted on any
+// logged endpoint; must be URL-safe, <=128 chars, else ignored.
+function extractJobId(req) {
+    const v = req.query.shopping_job_id;
+    if (typeof v !== 'string' || v.length === 0 || v.length > 128)
+        return null;
+    return /^[A-Za-z0-9._~:-]+$/.test(v) ? v : null;
+}
 function queryLogMiddleware(endpoint) {
     return (req, res, next) => {
         const start = Date.now();
@@ -93,10 +141,33 @@ function queryLogMiddleware(endpoint) {
         const originalJson = res.json.bind(res);
         res.json = function (body) {
             res.locals.resultCount = extractResultCount(body, res.statusCode);
+            res.locals.returnedProductIds = extractReturnedProductIds(body, res.statusCode);
+            // WP5: thread shopping_job_id into every click_url (runs after the route's
+            // cache write serialized the body, so the decoration is never cached).
+            const jobId = extractJobId(req);
+            if (jobId && body && typeof body === 'object') {
+                const data = body.data;
+                if (Array.isArray(data)) {
+                    for (const item of data) {
+                        const it = item;
+                        if (typeof it.click_url === 'string' && !it.click_url.includes('job_id=')) {
+                            it.click_url = `${it.click_url}&job_id=${encodeURIComponent(jobId)}`;
+                        }
+                    }
+                }
+            }
             return originalJson(body);
         };
         // Hook into response finish to capture status code, timing, and result count
         res.once('finish', () => {
+            // Central semantic-cache registration (2026-08-06): the search route stashes
+            // scope/qNorm/vector/cacheKey on cache miss; every successful store path
+            // (tier, archive, fallback) then gets registered here exactly once.
+            if (res.locals.semScope && res.locals.semQNorm && res.locals.semCacheKey &&
+                res.statusCode === 200 && (res.locals.resultCount ?? 0) > 0 &&
+                res.locals.cacheHit !== true) {
+                (0, semanticCache_1.semanticRegister)(config_1.redis, res.locals.semScope, res.locals.semQNorm, res.locals.semVec ?? null, res.locals.semCacheKey).catch(() => { });
+            }
             const apiKeyRecord = req.apiKeyRecord;
             // Log all requests — unauthenticated ones recorded with null api_key_id
             // so we capture total demand even before API key adoption ramps up.
@@ -106,9 +177,9 @@ function queryLogMiddleware(endpoint) {
             const queryText = req.query.q || req.query.ids || null;
             config_1.db.query(`INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
-           endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent, cache_hit)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, [
+           endpoint, query_text, result_count, returned_product_ids, response_time_ms,
+           status_code, ip_address, user_agent, cache_hit, job_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15)`, [
                 apiKeyRecord?.id ?? null,
                 apiKeyRecord?.agentName ?? null,
                 req.agentInfo?.framework || 'unknown',
@@ -117,11 +188,13 @@ function queryLogMiddleware(endpoint) {
                 endpoint,
                 queryText,
                 res.locals.resultCount ?? null,
+                res.locals.returnedProductIds ?? null,
                 responseTimeMs,
                 res.statusCode,
                 req.ip || null,
                 (req.headers['user-agent'] || '').slice(0, 500),
                 res.locals.cacheHit ?? null,
+                extractJobId(req),
             ]).catch(() => {
                 // Fire-and-forget — don't crash on log failure
             });

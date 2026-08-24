@@ -23,6 +23,27 @@ const embedProducts_1 = require("../jobs/embedProducts");
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+const AMAZON_STALENESS_DAYS = 60;
+const AMAZON_STALE_RANK_MULTIPLIER = 0.35;
+const AMAZON_TARGETED_RANK_BOOST = 1.15;
+const AMAZON_TRUST_CATEGORIES = ['electronics', 'home-living'];
+const AMAZON_TRUST_MIN_PRICE = 10;
+const AMAZON_TRUST_MAX_PRICE = 200;
+function amazonRankMultiplierSql(alias) {
+    return `
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%' AND ${alias}.updated_at < NOW() - INTERVAL '${AMAZON_STALENESS_DAYS} days'
+      THEN ${AMAZON_STALE_RANK_MULTIPLIER}
+      ELSE 1.0
+    END *
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%'
+        AND ${alias}.price BETWEEN ${AMAZON_TRUST_MIN_PRICE} AND ${AMAZON_TRUST_MAX_PRICE}
+        AND lower(regexp_replace(coalesce(${alias}.category,''),'\\s+','-','g')) IN (${AMAZON_TRUST_CATEGORIES.map((category) => `'${category}'`).join(', ')})
+      THEN ${AMAZON_TARGETED_RANK_BOOST}
+      ELSE 1.0
+    END`;
+}
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
 // path is still ~15-75ms; the 5s ceiling was below the latency budget the API
@@ -240,7 +261,7 @@ async function tryTierSearch(req, res, p) {
     END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector FROM search_products sp
+      SELECT id, search_vector, title, category, source, price, updated_at FROM search_products sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -254,7 +275,8 @@ async function tryTierSearch(req, res, p) {
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) AS rank
+            (${phoneAccessoryPenalty}) *
+            (${amazonRankMultiplierSql('cand')}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -284,7 +306,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -295,7 +317,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -314,7 +336,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
     try {
@@ -386,7 +408,7 @@ async function tryTierSearch(req, res, p) {
         const total = p.offset + rows.length;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
         responseBody.source = 'search_products_tier';
-        annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+        annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q, p.deliverToInferred === true);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
         if ((0, semanticCache_1.semanticEnabled)() && p.offset === 0) {
             const rp = p.cacheKey.split(':');
@@ -444,7 +466,9 @@ function mergeRrfCandidateIds(ftsIds, semanticIds, limit) {
 // v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
 // per-merchant ships-to enrichment lands. Never hides results unless the caller
 // explicitly sets include_unshippable=false.
-function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
+// BUY-73952: `inferred` (default false) — when true, stamps meta.deliver_to_inferred=true so
+// callers know the buyer-market was implicit, derived from country_code.
+function annotateDeliverTo(body, deliverTo, includeUnshippable, q, inferred = false) {
     const items = body.data || [];
     const meta = body.meta;
     if (deliverTo) {
@@ -465,8 +489,11 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
             if (meta)
                 meta.total = kept.length;
         }
-        if (meta)
+        if (meta) {
             meta.deliver_to = deliverTo;
+            if (inferred)
+                meta.deliver_to_inferred = true;
+        }
     }
     else if (meta) {
         // F24 (2026-08-22): hint fires on EVERY deliver_to-less response (was q-only).
@@ -479,7 +506,7 @@ const router = (0, express_1.Router)();
 // Query params: page (default 1), limit (default 20, max 100),
 //               category (slug, matches category_path[1] case-insensitively),
 //               sort (price|name|created_at), order (asc|desc),
-//               country_code (default SG), currency
+//               country_code/country (required), currency
 // Response: { data: Product[], pagination: { page, limit, total, total_pages } }
 const LIST_SORT_COLUMNS = {
     price: 'price',
@@ -522,17 +549,35 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const rawLimit = parseInt(req.query.limit || '20');
     const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20), 100);
     const offset = (page - 1) * limit;
-    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
+    // Filters — country_code is REQUIRED for /v1/products (BUY-73753).
+    // Historically it defaulted to 'SG' which meant a missing-param request
+    // silently served the SG cohort regardless of caller locale. Shopper
+    // confirmed the silent-fallback defect on 2026-08-24T02:25Z (first 20
+    // rows = SG even when caller did not request SG). Return an explicit
+    // 400 country_required error so clients can self-correct instead of
+    // getting a wrong-cohort page.
     const category = req.query.category;
     // BUY-73199: accept both `country` (contract param) and `country_code` (legacy alias)
-    const countryCode = (req.query.country || req.query.country_code)?.toUpperCase() || 'SG';
+    const rawCountry = (req.query.country || req.query.country_code)?.toUpperCase();
+    if (!rawCountry) {
+        return res.status(400).json({
+            error: 'country_required',
+            message: 'country (or country_code) query parameter is required (e.g. ?country=SG, US, PH, ID, JP, GB, DE, AU). The /v1/products endpoint never falls back to a default cohort; pick the market you want.',
+            allowed: Object.keys(response_1.COUNTRY_CURRENCY),
+        });
+    }
+    const countryCode = rawCountry;
     const currency = req.query.currency || (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD');
-    // Sort — whitelist to safe columns, default to created_at desc
-    const sortParam = req.query.sort || 'created_at';
-    const sortColumn = LIST_SORT_COLUMNS[sortParam] || 'created_at';
+    // Sort — whitelist to safe columns. The default browse path deliberately has no
+    // ORDER BY: the production country/currency/id list index is invalid, and forcing
+    // id DESC makes low-volume countries scan/sort for 20s+ before returning any rows.
+    // Explicit sort requests keep the documented behaviour; smoke/default clients get
+    // the fast bounded country index scan instead of a 500/timeout.
+    const requestedSortParam = req.query.sort;
+    const sortColumn = requestedSortParam ? (LIST_SORT_COLUMNS[requestedSortParam] || 'created_at') : '';
     const orderParam = req.query.order?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
-    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
@@ -576,10 +621,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
-    // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
-    // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
-    // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
-    const orderBy = `ORDER BY products.id DESC`;
+    const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
     const productReadDb = (0, readReplica_1.readDb)();
     const [countResult, dataResult] = await Promise.all([
         // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
@@ -596,6 +638,14 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // hit the 30s statement_timeout and were always approximate at this
         // table size. Falls back to pg_class.reltuples only if EXPLAIN itself
         // errors so the route never 500s on the count sub-query.
+        //
+        // BUY-73753: query products_partitioned (LIST-partitioned by
+        // country_code) instead of products (unpartitioned 367M-row table).
+        // On the unpartitioned table, WHERE country_code = 'PH' forced a seq
+        // scan because PH rows live at low IDs and the planner couldn't reach
+        // them via products_pkey reverse scan within 30s. On the partitioned
+        // table, the same predicate prunes to the PH partition (one of 30+
+        // partitions) and returns in <500ms.
         productReadDb.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
@@ -661,6 +711,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                     response_time_ms: Date.now() - requestStart,
                     cached: false,
                     degraded: true,
+                    emptiness_reason: 'api_error',
+                    confidence: 'low',
+                    diagnostic: {
+                        engine_status: 'error',
+                        indexed_for_region: true,
+                        category_recognized: true,
+                        rate_limit_remaining: null,
+                        deliver_to_present: Boolean(req.query.deliver_to || req.query.country_code || req.query.country),
+                    },
                 },
             };
             res.status(200).json(degradedBody);
@@ -693,6 +752,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
     const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
+    // BUY-73952: deliver_to default inference — agent queries that supply country_code but omit
+    // deliver_to should still get shipping-ranked results. Infer deliver_to from country_code
+    // when it's missing, and stamp meta.deliver_to_inferred=true so callers know the rank was
+    // implicit. Keeps include_unshippable=true (default) so cross-region discovery still works.
+    const explicitDeliverTo = (req.query.deliver_to || '').toUpperCase() || undefined;
+    const deliverToInferred = !explicitDeliverTo && !!countryCode;
+    const deliverTo = explicitDeliverTo || (deliverToInferred ? countryCode : undefined);
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -711,8 +777,22 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
-    const deliverTo = (req.query.deliver_to || '').toUpperCase() || undefined;
+    // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
     const includeUnshippable = req.query.include_unshippable !== 'false';
+    const buildV1SearchEmptiness = (apiError = false) => (0, response_1.deriveEmptiness)({
+        regionHasAnyData: true,
+        categoryHasAnyData: true,
+        apiError,
+        rateLimited: false,
+        regionSupported: !countryCode || Boolean(response_1.COUNTRY_CURRENCY[countryCode]),
+        categoryRequested: Boolean(category || categoryId || categoryPath?.length),
+        requestedCategory: category || categoryPath?.join('/') || categoryId || null,
+        requestedCountry: countryCode || null,
+        rateLimitRemaining: null,
+        deliverToPresent: Boolean(deliverTo || countryCode),
+        unfilteredHasAnyData: null,
+        queryAmbiguous: null,
+    });
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
@@ -808,7 +888,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
             category, brand, domain, compact, requestStart, cacheKey,
-            deliverTo, includeUnshippable,
+            deliverTo, includeUnshippable, deliverToInferred,
         });
         if (handled)
             return;
@@ -1060,8 +1140,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
         const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
-        const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore);
-        annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
+        const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore, countryCode || null, fallbackProducts.length === 0 ? buildV1SearchEmptiness(false) : null);
+        annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q, deliverToInferred);
         config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
         res.set('X-Search-Fallback', source);
         res.json(responseBody);
@@ -1098,7 +1178,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                      OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
-                 END AS rank
+                 END *
+                 ${amazonRankMultiplierSql('rhp')} AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
@@ -1207,7 +1288,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code,
+                       ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                       ${amazonRankMultiplierSql('rcp')} AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
@@ -1367,7 +1450,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                  ), fts_top AS (
                    SELECT id
                    FROM fts_cand
-                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                   ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products')}) DESC
                    LIMIT 200
                  )
                  SELECT id FROM fts_top`, searchParams);
@@ -1538,8 +1621,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false);
-    annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false, countryCode || null, filteredProducts.length === 0 ? buildV1SearchEmptiness(false) : null);
+    annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q, deliverToInferred);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics
@@ -1593,7 +1676,10 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const offset = parseInt(req.query.offset || '0');
     // F24b (2026-08-22): deals honors deliver_to like search — annotation happens
     // post-cache on both paths so cached bodies stay per-request neutral.
+    // BUY-73952: default deliver_to from country_code when omitted.
     const deliverTo = req.query.deliver_to?.toUpperCase() || undefined;
+    const deliverToInferred = !deliverTo && !!countryCode;
+    const effectiveDeliverTo = deliverTo || (deliverToInferred ? countryCode : undefined);
     const includeUnshippable = req.query.include_unshippable !== 'false';
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     res.locals.cacheHit = false;
@@ -1604,7 +1690,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
-            annotateDeliverTo(parsed, deliverTo, includeUnshippable, ''); // F24b
+            annotateDeliverTo(parsed, effectiveDeliverTo, includeUnshippable, '', deliverToInferred); // F24b
             (0, instrumentation_1.recordProductViewsBulk)({
                 productIds: (parsed.products || parsed.results || parsed.data || [])
                     .map((product) => product.id)
@@ -1760,7 +1846,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         source: 'products.deals',
         req,
     });
-    annotateDeliverTo(responseBody, deliverTo, includeUnshippable, ''); // F24b
+    annotateDeliverTo(responseBody, effectiveDeliverTo, includeUnshippable, '', deliverToInferred); // F24b
     res.json(responseBody);
 }));
 // GET /v1/products/compare?ids=id1,id2,id3

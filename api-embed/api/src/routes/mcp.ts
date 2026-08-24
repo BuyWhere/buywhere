@@ -105,7 +105,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        region: { type: 'string', enum: ['us', 'sg', 'my', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
+        region: { type: 'string', enum: ['us', 'sg', 'my', 'th', 'vn', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
       },
@@ -194,6 +194,22 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
+const REGION_TO_COUNTRY: Record<string, string> = {
+  sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', uk: 'GB',
+  in: 'IN', au: 'AU', ph: 'PH', id: 'ID', sea: 'SG',
+};
+
+function normalizeCountryAndRegion(args: Record<string, unknown>) {
+  const rawCountry = String((args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
+  const rawRegion = String((args.region as string) || '').trim();
+  const regionCountry = rawRegion ? (REGION_TO_COUNTRY[rawRegion.toLowerCase()] || '') : '';
+  return {
+    rawCountry,
+    regionCountry,
+    region: regionCountry ? '' : rawRegion,
+  };
+}
+
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
@@ -202,13 +218,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const region = (args.region as string) || '';
-  // country_code is canonical; `country` kept as alias for backward compat
+  const normalizedMarket = normalizeCountryAndRegion(args);
+  const region = normalizedMarket.region;
+  // country_code is canonical; `country` kept as alias for backward compat.
+  // BUY-70350: callers can pass ISO market aliases via `region` (e.g. region=th).
+  // Treat those as country_code filters instead of products.region predicates.
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.country_code || args.country);
+  const rawCountry = normalizedMarket.rawCountry || normalizedMarket.regionCountry;
   const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
@@ -633,15 +651,7 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const regionCountry: Record<string, string> = {
-    us: 'US',
-    sg: 'SG',
-    my: 'MY',
-    gb: 'GB',
-    uk: 'GB',
-    in: 'IN',
-    au: 'AU',
-  };
+  const regionCountry = REGION_TO_COUNTRY;
   const region = ((args.region as string) || '').toLowerCase();
   const country = (((args.country_code as string) || (args.country as string) || regionCountry[region]) || 'SG').toUpperCase();
   const cacheKey = `categories_mcp:top100:${country}`;
