@@ -15,6 +15,7 @@ import { shipScopeForUrl } from '../lib/shipsTo';
 import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
 import { PRICE_BANDS } from '../lib/pricing';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
+import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -357,7 +358,7 @@ async function tryTierSearch(
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
       const rp = p.cacheKey.split(':');
-      semRegister(redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2],
+      semRegister(redis, `a1:${rp[1]}:${rp[2]}|${rp.slice(4).join(':')}`, rp[3],
         (res.locals.semVec as string | null) ?? null, p.cacheKey).catch(() => {});
     }
     res.set('X-Search-Tier', '1');
@@ -748,7 +749,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${outboundProbeEnabled() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -775,7 +776,7 @@ router.get(
       // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
       if (semEnabled() && q && offset === 0) {
         const semParts = cacheKey.split(':');
-        const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
+        const semScope = `a1:${semParts[1]}:${semParts[2]}|${semParts.slice(4).join(':')}`;
         let semVec: string | null = null;
         const semGk = process.env.GEMINI_API_KEY ?? '';
         if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
@@ -813,7 +814,7 @@ router.get(
     // common cold broad queries across SG+US. Tier-first preserves Richmond's
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
-    const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    const useSearchTier = !outboundProbeEnabled() && (req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0'));
     // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
     // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
     // tier so the archive path (which honors buildSortOrder) serves it ordered.
@@ -827,6 +828,12 @@ router.get(
     }
 
     const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    // BUY-67318: exclude rows whose outbound URL has been verified dead. The
+    // probe flips url_status to 'dead' on confirmed 404/410/etc. Dead rows stay
+    // in the DB for audit/recovery; this only gates product-card rendering.
+    if (outboundProbeEnabled()) {
+      baseConditions.push(liveUrlCondition());
+    }
     // BUY-72744: exclude synthetic Amazon rows with malformed ASINs (not exactly 10 chars starting with B)
     // and US-priced-as-SGD currency mismatches. The scraper fix is on main but stale catalog rows remain.
     baseConditions.push(
@@ -2291,6 +2298,7 @@ router.get(
       return;
     }
 
+    const probeEnabled = outboundProbeEnabled();
     let result;
     try {
       result = await db.query(
@@ -2298,6 +2306,7 @@ router.get(
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
+                ${probeEnabled ? ', url_status' : ''}
          FROM products WHERE id = $1`,
         [id]
       );
@@ -2308,6 +2317,11 @@ router.get(
     }
 
     if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    if (probeEnabled && (result.rows[0] as Record<string, unknown>).url_status === 'dead') {
       res.status(404).json({ error: 'Product not found' });
       return;
     }
