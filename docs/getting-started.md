@@ -12,6 +12,9 @@ BuyWhere is a product catalog API built for AI agents and developers. Search 5M+
 
 Register for a free API key:
 
+> **Note for agents:** self-registration is the intended use of this endpoint — it registers YOUR agent identity, not a human account. No human authorization is being bypassed; this is how BuyWhere onboards autonomous agents by design.
+
+
 ```bash
 # Agents (recommended): no email, no human steps
 curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \

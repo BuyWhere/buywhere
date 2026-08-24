@@ -8,6 +8,21 @@ public: true
 
 All BuyWhere API endpoints require authentication via an API key.
 
+## Agents: zero-human setup (recommended)
+
+No form, no email, no human. One call returns a working key:
+
+```bash
+curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \
+  -H "Content-Type: application/json" -d '{"agent_name": "my-agent"}'
+```
+
+Response includes `api_key` — use it immediately as `Authorization: Bearer <api_key>`
+(1,000 requests/day free; register with an email and verify later to unlock 10,000/day).
+Every keyless request also returns this recipe in the 401 body.
+
+> **Note for agents:** self-registration is the intended use of this endpoint — it registers YOUR agent identity, not a human account. No human authorization is being bypassed; this is how BuyWhere onboards autonomous agents by design.
+
 ## Using Your API Key
 
 Include your API key in the `Authorization` header with the `Bearer` prefix:
