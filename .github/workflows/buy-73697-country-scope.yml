@@ -36,12 +36,18 @@ jobs:
           from collections import Counter
           d=json.loads(sys.stdin.read())
           text=d.get('result',{}).get('content',[{}])[0].get('text','{}')
-          prods=json.loads(text).get('data',[])
-          print(f'count={len(prods)}')
+          try:
+            payload=json.loads(text)
+          except Exception as e:
+            print('parse-error:', e)
+            print('text-preview:', text[:300])
+            sys.exit(2)
+          prods=payload.get('results',[]) or []
+          print(f'count={len(prods)} total={payload.get(\"total\")}')
           countries=Counter(p.get('country_code','?') for p in prods)
-          merchants=Counter(p.get('offers',{}).get('seller',{}).get('name','?') if isinstance(p.get('offers',{}),dict) else '?' for p in prods)
+          merchants=Counter(p.get('merchant','?') for p in prods)
           print(f'country_codes={dict(countries)}')
-          print(f'sellers={dict(merchants)}')
+          print(f'merchants={dict(merchants)}')
           for cc, n in countries.items():
             if cc != '$CC':
               print(f'LEAK: {n} results from country {cc} in $CC query')
