@@ -4,6 +4,7 @@ import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
+import { countryLandingPages } from "@/lib/country-landings";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -658,6 +659,17 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.8,
+    });
+  }
+  // BUY-74238: add country landing pages (sg/my/ph and others) to sitemap.
+  // The config drives both metadata + page render; the page route files live
+  // under src/app/{slug}/page.tsx for every entry in countryLandingPages.
+  for (const slug of Object.keys(countryLandingPages)) {
+    upsert({
+      url: toSiteUrl(`/${slug}/`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
     });
   }
 
