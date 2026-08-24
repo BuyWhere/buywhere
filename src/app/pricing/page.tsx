@@ -252,11 +252,10 @@ export default function PricingPage() {
                         tier.highlighted ? "text-indigo-600" : "text-gray-900"
                       }`}
                     >
-                      <span className="sr-only">{tier.name}</span>
-                      <span aria-hidden="true" className="block">{tier.name}</span>
+                      <span className="block">{tier.name}</span>
                       {tier.highlighted && (
-                        <span aria-hidden="true" className="mt-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                          Popular
+                        <span className="mt-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                          {" Popular"}
                         </span>
                       )}
                     </th>
