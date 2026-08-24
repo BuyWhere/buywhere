@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$(dirname "$OUTPUT_PATH")"
 
-          QUERY='fresh-term-73697'
+          QUERY='laptop'  # BUY-73697 — use warm-seed query so 2nd hit hits Redis
           COUNTRIES=(SG US PH ID TH)
 
           jq -n --arg q "$QUERY" --arg ts "$(date -u +%FT%TZ)" '{
