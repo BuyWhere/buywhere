@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { generateShopeeSgDeeplink, isAffiliateWrapped } from '../lib/involveAsia';
 import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
@@ -241,6 +242,35 @@ const redirectHandler = async (req: Request, res: Response) => {
     console.warn(`[redirect] replacing confirmed broken destination for product ${productId}`);
     destinationUrl = brokenDestinationFallback;
   }
+
+  // Involve Asia (2026-08-24): shopee.sg destinations get a commission-bearing
+  // tracking link at click time (offer 5035, Shopee SG - CPS). Generated links are
+  // cached into affiliate_links so subsequent clicks skip the API call. Fails soft.
+  try {
+    const destHost = new URL(destinationUrl).hostname.replace(/^www\./, '');
+    if (destHost === 'shopee.sg' && !isAffiliateWrapped(destinationUrl)) {
+      const dl = await generateShopeeSgDeeplink(destinationUrl, productId);
+      if (dl) {
+        const rawUrl = destinationUrl;
+        destinationUrl = dl;
+        (async () => {
+          try {
+            if (affiliateLinkId) {
+              await db.query(`UPDATE affiliate_links SET affiliate_url = $1 WHERE id = $2`, [dl, affiliateLinkId]);
+            } else {
+              await db.query(
+                `INSERT INTO affiliate_links (id, slug, product_id, merchant_id, destination_url, affiliate_url)
+                 VALUES (gen_random_uuid(), 'involve_asia', $1, $2, $3, $4)`,
+                [productId, merchantId, rawUrl, dl]
+              );
+            }
+          } catch (err) {
+            console.warn('[redirect] IA link cache write failed:', (err as Error).message);
+          }
+        })();
+      }
+    }
+  } catch { /* bad URL — proceed unwrapped */ }
 
   // Determine API key for attribution
   const authHeader = req.headers['authorization'] || '';
