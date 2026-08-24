@@ -34,6 +34,10 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function ApiKeysPage() {
+  const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [useCase, setUseCase] = useState("");
@@ -171,6 +175,27 @@ export default function ApiKeysPage() {
 
       <section className="py-16 bg-white flex-1">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
+
+          {/* BUY-74006: agents-first self-serve key path. Human form remains below, unchanged. */}
+          <div className="mb-12 rounded-2xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8">
+            <h2 className="text-2xl font-bold text-gray-900">Agents: zero-human setup</h2>
+            <p className="mt-2 text-sm leading-7 text-gray-600">
+              No form, no email, no waiting — one HTTP call returns a working API key instantly.
+              Free tier: 1,000 requests/day.
+            </p>
+            <div className="mt-4 overflow-hidden rounded-xl bg-gray-900">
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+                <span className="text-xs text-gray-400 font-mono">bash</span>
+                <CopyButton text={agentRegisterCurl} />
+              </div>
+              <pre className="p-4 text-sm text-gray-300 font-mono overflow-x-auto leading-relaxed whitespace-pre">
+                <code>{agentRegisterCurl}</code>
+              </pre>
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              The response contains your <code className="rounded bg-white px-1 py-0.5">api_key</code> — start calling the API immediately. Humans can also use the form below.
+            </p>
+          </div>
 
           {!apiKey ? (
             <div className="grid md:grid-cols-5 gap-10">

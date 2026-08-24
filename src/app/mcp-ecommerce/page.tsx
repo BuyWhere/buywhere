@@ -9,6 +9,10 @@ import {
   formatCompactProductCount,
 } from "@/lib/catalog-stats";
 
+const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
 export const metadata: Metadata = {
   title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
   description:
@@ -216,6 +220,22 @@ export default async function McpEcommercePage() {
               <pre className="inline-block rounded-xl bg-slate-950/80 px-5 py-3 font-mono text-sm text-blue-200">npx -y @buywhere/mcp-server</pre>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-indigo-50 py-16">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Agents-first setup</p>
+          <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
+          <p className="mt-4 text-lg leading-relaxed text-slate-600">
+            Register an agent programmatically and get an API key immediately. The free tier includes 1,000 requests/day.
+          </p>
+          <pre className="mt-6 overflow-x-auto rounded-xl bg-slate-950 p-5 font-mono text-sm leading-7 text-slate-100">
+            <code>{agentRegisterCurl}</code>
+          </pre>
+          <p className="mt-4 text-sm leading-relaxed text-slate-500">
+            The response returns your <code className="rounded bg-white px-1.5 py-0.5 text-sm text-slate-900">api_key</code> — use it in the MCP config below. Human sign-up via browser form is still available at <Link href="/api-keys" className="font-semibold text-indigo-600 hover:underline">buywhere.ai/api-keys</Link>.
+          </p>
         </div>
       </section>
 

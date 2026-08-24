@@ -12,6 +12,10 @@ export const metadata = buildPageMetadata({
   path: "/integrate",
 });
 
+const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
 const mcpTools = [
   {
     name: "search_products",
@@ -245,6 +249,27 @@ export default function IntegratePage() {
                 View quickstart
               </Link>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-indigo-50 py-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mb-4 max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Agents-first setup</p>
+            <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-600">
+              Register an agent directly and get an API key in the JSON response. 1,000 requests/day free.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
+            <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-sm leading-7 text-slate-100">
+              <code>{agentRegisterCurl}</code>
+            </pre>
+            <p className="mt-4 text-sm leading-relaxed text-slate-500">
+              The response includes <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-900">api_key</code>.
+              Then continue to MCP config below. Humans can still sign up at <Link href="/api-keys" className="font-semibold text-indigo-600 hover:underline">buywhere.ai/api-keys</Link>.
+            </p>
           </div>
         </div>
       </section>

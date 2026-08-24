@@ -453,6 +453,7 @@ test("BUY-73640: merchantSlug is preserved on normalized LandingProduct for futu
 // ---------------------------------------------------------------------------
 
 test("BUY-73741: disallowed merchant text denylist catches CompuMarts + Arabic + UAE retailers", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { containsDisallowedMerchantText } = require("@/lib/merchant-allowlist");
   assert.ok(containsDisallowedMerchantText("CompuMarts"), "CompuMarts label must be flagged");
   assert.ok(containsDisallowedMerchantText("compumart"), "lowercase variant must be flagged");
@@ -547,6 +548,7 @@ test("BUY-73741: US SEO page drops row whose merchant_name carries Arabic script
 });
 
 test("BUY-73741: JSON-LD seller list is allowlist-pure after final gate", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { buildSeoLandingSchema } = require("@/lib/seo-landing-pages");
   const products = [
     {

@@ -14,6 +14,10 @@ export const metadata = buildPageMetadata({
   path: "/quickstart",
 });
 
+const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
 const curlExample = `# Always pass deliver_to (buyer's country) — it scopes the search to that
 # market so results come back in ~200ms instead of timing out on a global scan.
 curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&deliver_to=SG&limit=5" \\
@@ -227,6 +231,24 @@ export default function QuickstartPage() {
                 <p className="mt-1 text-sm leading-6 text-slate-300">{item.text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white py-12">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="rounded-[2rem] border border-indigo-100 bg-indigo-50 p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-indigo-600">Agents-first setup</p>
+            <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+              Skip the human form when you are provisioning an agent. This call returns an <code className="rounded bg-white px-1.5 py-0.5 text-sm text-slate-900">api_key</code> instantly with 1,000 requests/day free.
+            </p>
+            <div className="mt-6">
+              <CodeBlock label="agent key registration" code={agentRegisterCurl} />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-500">
+              Prefer a browser flow? The human self-serve form remains available at <Link href="/api-keys" className="font-semibold text-indigo-600 hover:underline">buywhere.ai/api-keys</Link>.
+            </p>
           </div>
         </div>
       </section>
