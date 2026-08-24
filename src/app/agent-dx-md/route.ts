@@ -275,6 +275,32 @@ lives in the top-level \`x-buywhere-v2\` extension field.
 
 </details>
 
+## Empty-result envelope (\`meta.emptiness_reason\`)
+
+When a v2 tool returns \`200 OK\` with zero products, the response includes
+\`meta.emptiness_reason\` so the agent can distinguish "no catalog data" from
+"query mismatch" from "API degraded." This field appears **only** when the
+result array is empty; non-empty responses never carry it.
+
+| \`emptiness_reason\` | What it means | What your agent should do |
+|---|---|---|
+| \`no_data\` | Region has zero products indexed. | Treat as authoritative; no retry. |
+| \`no_match\` | Region has products, but query/filters excluded all of them. | Widen query or drop filters; do not retry the same query. |
+| \`api_error\` | Downstream error caused the engine to fall back to empty. | Retry once with a short backoff (≤2s); surface as ambiguous if still empty. |
+| \`quota\` | Rate-limit guardrail tripped. | Wait for the rate-limit window; do not retry-storm. |
+| \`region_unsupported\` | Country code is not in the supported set. | Re-issue with a supported region. |
+| \`category_unsupported\` | Category slug is unknown or in transition. | Drop category or consult \`/v1/categories\`. |
+| \`deliver_to_missing\` | You omitted \`deliver_to\`/\`country_code\`, but the catalog has matches elsewhere. | Re-issue with \`deliver_to\` set to the buyer's country. |
+| \`invalid_deliver_to\` | \`deliver_to\` is not a supported ISO code (MCP v2 only). | Use a supported code from the \`hint\` field. |
+
+Every empty result also carries \`meta.confidence\` (\`high\` or \`low\`). When
+confidence is \`low\`, the agent should retry once after a short backoff;
+otherwise, treat the reason as authoritative.
+
+\`meta.diagnostic\` includes \`engine_status\`, \`indexed_for_region\`,
+\`category_recognized\`, \`rate_limit_remaining\`, and \`deliver_to_present\`. See the
+full reference in [\`/docs/errors#empty-result-envelope-metaemptiness_reason\`](/docs/errors#empty-result-envelope-metaemptiness_reason).
+
 ## Acceptance contract
 
 The README at \`/agent-dx\` is the canonical copy of this document. The MCP
