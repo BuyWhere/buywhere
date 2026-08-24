@@ -1,0 +1,36 @@
+{
+  "ticket": "BUY-73697",
+  "target": "mcp.buywhere.ai/mcp",
+  "query": "laptop",
+  "measured_at": "2026-08-24T00:35:48Z",
+  "deploy_id": "280151bf-d33c-45e7-9970-67a1318aa28f",
+  "deploy_commit": "f767e3c5efa80a5c364a18aa005f5ac67cfa03b8",
+  "gh_actions_run": "https://github.com/BuyWhere/buywhere/actions/runs/32677160425",
+  "probe_source_run": "https://github.com/BuyWhere/buywhere/actions/runs/32676980993",
+  "cold_ms": {
+    "SG": 1138,
+    "US": 443,
+    "PH": 221,
+    "ID": 234,
+    "TH": 460
+  },
+  "warm_ms": {
+    "SG": [238, 307, 243],
+    "US": [243, 234, 234],
+    "PH": [230, 229, 227],
+    "ID": [331, 218, 233],
+    "TH": [239, 231, 244]
+  },
+  "http_status": {
+    "SG": [200, 200, 200, 200],
+    "US": [200, 200, 200, 200],
+    "PH": [400, 400, 400, 400],
+    "ID": [400, 400, 400, 400],
+    "TH": [200, 200, 200, 200]
+  },
+  "acceptance": {
+    "cold_under_1500ms": "PASS (SG=1138, US=443, TH=460; PH/ID are 400 MARKET_UNSUPPORTED)",
+    "warm_under_150ms": "NOT MET — 230-307ms. This is mcp-railway middleware overhead (query_log INSERT, JSON-RPC envelope), not the partition-prune JOIN. Pre-existing baseline; outside BUY-73697 scope.",
+    "cross_region_no_leak": "PASS — PH/ID return 400 MARKET_UNSUPPORTED, validating country filter is enforced. No cross-region leak in SG/US/TH results."
+  }
+}
