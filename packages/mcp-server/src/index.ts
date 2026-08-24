@@ -285,16 +285,13 @@ const TOOLS: Tool[] = [
       properties: {
         q: {
           type: 'string',
-          description: 'Keyword search query — alias for product_name',
+          description:
+            'Keyword search query (alias for product_name; prefer product_name).',
         },
         product_name: {
           type: 'string',
           description:
             'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
-        },
-        q: {
-          type: 'string',
-          description: 'Alias for product_name (deprecated, use product_name).',
         },
         category: { type: 'string', description: 'Category to filter by' },
         country_code: {
