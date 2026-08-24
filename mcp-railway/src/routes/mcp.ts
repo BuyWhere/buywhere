@@ -607,7 +607,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     products, total!, limit, offset, Date.now() - t0, false
   );
   if (q && products.length === 0) {
-    (result.meta as Record<string, unknown>).emptiness_reason = 'no_match';
+    (result.meta as unknown as Record<string, unknown>).emptiness_reason = 'no_match';
   }
 
   try {

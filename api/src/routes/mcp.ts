@@ -804,7 +804,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     emptiness,
   );
   if (q && products.length === 0) {
-    (result.meta as Record<string, unknown>).emptiness_reason = 'no_match';
+    (result.meta as unknown as Record<string, unknown>).emptiness_reason = 'no_match';
   }
 
   try {
