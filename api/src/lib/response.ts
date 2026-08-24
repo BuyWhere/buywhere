@@ -95,6 +95,7 @@ export function buildProduct(
     image_url: normalizeImageUrl(row.image_url),
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
+    category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
     updated_at: (row.updated_at as string) || null,
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
