@@ -195,8 +195,10 @@ function queryLogMiddleware(endpoint) {
                 (req.headers['user-agent'] || '').slice(0, 500),
                 res.locals.cacheHit ?? null,
                 extractJobId(req),
-            ]).catch(() => {
+            ]).catch((err) => {
                 // Fire-and-forget — don't crash on log failure
+                // BUY-74173 DEBUG: surface error so we can find silent insert failures
+                console.error('[queryLog] INSERT failed:', err?.code, err?.message?.slice(0, 300), 'endpoint=', endpoint);
             });
             // BUY-22733: source-of-truth usage telemetry to PostHog.
             // Skip unauthenticated requests — no api_key_id to attribute.
