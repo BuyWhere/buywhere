@@ -49,7 +49,7 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
     '@type': 'WebPage',
     name: `${brand.name} Cashback — BuyWhere`,
     description: `Earn cashback on ${brand.name} purchases. Shop through BuyWhere and get rewards back.`,
-    url: `/brands/brand/${slug}/deals/earn`,
+    url: `/brands/${slug}/deals/earn`,
   };
 
   return (
@@ -66,14 +66,14 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/brand/${slug}`}
+              href={`/brands/${slug}`}
               className="text-blue-600 hover:underline"
             >
               {brand.name}
             </Link>
             <span className="mx-2">/</span>
             <Link
-              href={`/brands/brand/${slug}/deals`}
+              href={`/brands/${slug}/deals`}
               className="text-blue-600 hover:underline"
             >
               Deals
@@ -123,7 +123,7 @@ export default async function BrandsBrandDealsEarnPage({ params }: PageProps) {
 
           <section className="text-center">
             <Link
-              href={`/brands/brand/${slug}`}
+              href={`/brands/${slug}`}
               className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               Browse {brand.name} Products
@@ -146,7 +146,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `Earn Cashback on ${brand.name} — BuyWhere`,
     description: `Earn cashback on ${brand.name} purchases. Shop through BuyWhere and get rewards back.`,
-    alternates: { canonical: `/brands/brand/${slug}/deals/earn` },
+    alternates: { canonical: `/brands/${slug}/deals/earn` },
   };
 }
 
