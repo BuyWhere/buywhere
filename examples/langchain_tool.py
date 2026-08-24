@@ -9,7 +9,7 @@ H = {"Authorization": f"Bearer {os.environ['BUYWHERE_API_KEY']}"}
 
 @tool
 def buywhere_search(query: str, deliver_to: str = "US") -> str:
-    """Search 380M+ real products. deliver_to = ISO country of the end user
+    """Search 300M+ real products. deliver_to = ISO country of the end user
     (required for correct shipping-aware ranking). Returns title, price,
     availability, and a tracked buy link per product."""
     r = requests.get(

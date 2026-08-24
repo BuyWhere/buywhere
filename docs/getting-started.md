@@ -1,12 +1,12 @@
 ---
 title: "Getting Started"
-description: "BuyWhere is a product catalog API built for AI agents and developers. Search 5M+ products from 40+ retailers across Southeast Asia and the US, compare…"
+description: "BuyWhere is a product catalog API built for AI agents and developers. Search 300M+ products from 40+ retailers across Southeast Asia and the US, compare…"
 public: true
 ---
 
 # Getting Started
 
-BuyWhere is a product catalog API built for AI agents and developers. Search 5M+ products from 40+ retailers across Southeast Asia and the US, compare prices, track deals, and integrate product data into any application or AI workflow.
+BuyWhere is a product catalog API built for AI agents and developers. Search 300M+ products from 40+ retailers across Southeast Asia and the US, compare prices, track deals, and integrate product data into any application or AI workflow.
 
 ## Get Your API Key
 

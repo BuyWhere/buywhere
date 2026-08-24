@@ -1,12 +1,12 @@
 # MCP directory listing copy (submission-ready)
 
 ## Short (<=160 chars)
-Agent-native shopping: search 380M+ deduplicated products across US+SEA, compare
+Agent-native shopping: search 300M+ products across US+SEA, compare
 prices, find deals. Shipping-aware. Free key, 30s to first call.
 
 ## Long
 BuyWhere is a product catalog built FOR agents, not scraped for them. One MCP server
-gives your agent: keyword search over 380M+ deduplicated products (US, SG, MY, ID, TH,
+gives your agent: keyword search over 300M+ products (US, SG, MY, ID, TH,
 VN), price comparison with normalized specs, deals discovery, and best-price lookup.
 Every result carries a tracked outbound link, per-product shipping availability for
 your user's country (deliver_to), and optional per-job attribution (shopping_job_id)
