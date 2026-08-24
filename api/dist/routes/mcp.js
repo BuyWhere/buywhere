@@ -562,7 +562,11 @@ async function handleSearchProducts(args) {
                             vecRows = vecRows.filter(r => allowedIds.has(r.product_id));
                         }
                         try {
-                            const ftsResult = await searchClient.query(`SELECT id FROM products ${where}
+                            const ftsResult = await searchClient.query(`SELECT id FROM (
+                   SELECT id, search_vector, updated_at
+                   FROM products ${where}
+                   LIMIT 200
+                 ) _c
                  ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, updated_at DESC
                  LIMIT 200`, params);
                             ftsRows = ftsResult.rows;
