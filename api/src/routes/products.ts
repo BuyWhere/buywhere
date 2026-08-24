@@ -583,8 +583,16 @@ router.get(
       // hit the 30s statement_timeout and were always approximate at this
       // table size. Falls back to pg_class.reltuples only if EXPLAIN itself
       // errors so the route never 500s on the count sub-query.
+      //
+      // BUY-73753: query products_partitioned (LIST-partitioned by
+      // country_code) instead of products (unpartitioned 367M-row table).
+      // On the unpartitioned table, WHERE country_code = 'PH' forced a seq
+      // scan because PH rows live at low IDs and the planner couldn't reach
+      // them via products_pkey reverse scan within 30s. On the partitioned
+      // table, the same predicate prunes to the PH partition (one of 30+
+      // partitions) and returns in <500ms.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products ${whereClause}`
+        `EXPLAIN SELECT 1 FROM products_partitioned ${whereClause}`
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
         const match = planRow.match(/rows=(\d+)/);
@@ -592,12 +600,12 @@ router.get(
         throw new Error('planner_estimate_missing');
       }).catch(async (err) => {
         console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
-        const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
+        const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products_partitioned'`);
         return fb;
       }),
       productReadDb.query(
         `SELECT ${SELECT_COLUMNS}
-         FROM products
+         FROM products_partitioned
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
