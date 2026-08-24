@@ -18,6 +18,7 @@ describe('buildProduct', () => {
     country_code: 'SG',
     updated_at: '2026-05-03T00:00:00Z',
     metadata: { brand: 'Test', category: 'Electronics' },
+    category_path: ['Electronics', 'Laptops'],
   };
 
   it('builds canonical product from DB row (non-compact)', () => {
@@ -33,6 +34,7 @@ describe('buildProduct', () => {
     assert.equal(product.region, 'SEA');
     assert.equal(product.country_code, 'SG');
     assert.ok(product.updated_at);
+    assert.deepEqual(product.category_path, ['Electronics', 'Laptops']);
     assert.deepEqual(product.metadata, { brand: 'Test', category: 'Electronics' });
     assert.equal(product.has_affiliate_tracking, true);
     assert.equal(product.is_affiliate, true);
@@ -219,5 +221,10 @@ describe('COUNTRY_CURRENCY', () => {
     assert.equal(COUNTRY_CURRENCY.VN, 'VND');
     assert.equal(COUNTRY_CURRENCY.TH, 'THB');
     assert.equal(COUNTRY_CURRENCY.MY, 'MYR');
+    assert.equal(COUNTRY_CURRENCY.PH, 'PHP');
+    assert.equal(COUNTRY_CURRENCY.ID, 'IDR');
+    assert.equal(COUNTRY_CURRENCY.JP, 'JPY');
+    assert.equal(COUNTRY_CURRENCY.DE, 'EUR');
+    assert.equal(COUNTRY_CURRENCY.AU, 'AUD');
   });
 });

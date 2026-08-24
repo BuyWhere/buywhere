@@ -19,7 +19,7 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
   // Single-currency regions stored under EUR/USD on the catalog:
-  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
+  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
 
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.

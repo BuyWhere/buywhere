@@ -438,7 +438,7 @@ const router = Router();
 // Query params: page (default 1), limit (default 20, max 100),
 //               category (slug, matches category_path[1] case-insensitively),
 //               sort (price|name|created_at), order (asc|desc),
-//               country_code (default SG), currency
+//               country_code/country (required), currency
 // Response: { data: Product[], pagination: { page, limit, total, total_pages } }
 const LIST_SORT_COLUMNS: Record<string, string> = {
   price: 'price',
