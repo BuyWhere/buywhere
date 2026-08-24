@@ -491,7 +491,7 @@ router.get(
       // BUY-31228 stays in place as the safety net.
       dataQuery = `
         WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
           ${whereClause}
           ORDER BY rank DESC
@@ -499,7 +499,7 @@ router.get(
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -509,14 +509,14 @@ router.get(
       // FTS match set times out cold (see api/ tree for the full note).
       dataQuery = q ? `
         WITH sort_hits AS MATERIALIZED (
-          SELECT id
+          SELECT id, country_code
           FROM products
           ${whereClause}
           LIMIT ${SORT_CANDIDATE_CAP}
         )
         SELECT ${joinedColumns}
         FROM sort_hits
-        JOIN products ON products.id = sort_hits.id
+        JOIN products ON products.id = sort_hits.id AND products.country_code = sort_hits.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -1639,14 +1639,14 @@ export async function warmSearchCache(): Promise<void> {
       // same slow path. Mirrors the live handler's CTE exactly so warm entries match cache keys.
       const dataQuery = `
         WITH top_ids AS (
-          SELECT id
+          SELECT id, country_code
           FROM products
           ${whereClause}
           LIMIT ${CANDIDATE_CAP}
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
