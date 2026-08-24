@@ -607,7 +607,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     products, total!, limit, offset, Date.now() - t0, false
   );
   if (q && products.length === 0) {
-    (result.meta as unknown as Record<string, unknown>).emptiness_reason = 'no_match';
+    // BUY-73908: stamp emptiness_reason onto the canonical envelope so v2
+    // callers see the same diagnostic the REST path emits. Use any cast
+    // to bypass the missing-index-signature error on SearchResponse.
+    (result as any).meta = { ...(result as any).meta, emptiness_reason: 'no_match' };
   }
 
   try {
