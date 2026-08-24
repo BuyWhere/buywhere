@@ -179,7 +179,7 @@ function queryLogMiddleware(endpoint) {
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, returned_product_ids, response_time_ms,
            status_code, ip_address, user_agent, cache_hit, job_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[], $11, $12, $13, $14, $15)`, [
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::bigint[], $11, $12, $13, $14, $15)`, [
                 apiKeyRecord?.id ?? null,
                 apiKeyRecord?.agentName ?? null,
                 req.agentInfo?.framework || 'unknown',
