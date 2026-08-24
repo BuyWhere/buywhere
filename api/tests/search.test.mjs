@@ -260,7 +260,10 @@ describe('NL search queries — response correctness', () => {
     );
     assert.ok(tierCall, 'Expected tier query before archive fallback');
     assert.ok(!tierCall.arguments[0].includes('sp.currency = $'), 'Currency is rank-only unless price filters are present');
-    assert.deepEqual(tierCall.arguments[1].slice(0, 4), ['wireless headphones', 'wireless | headphones', 'US', 21]);
+    // BUY-73321: PRICE_BANDS inserted warnLow (USD=0.5) and warnHigh (USD=15000)
+    // between countryCode and deliverTo. With country_code=US (no min/maxPrice),
+    // params are: [q, or, countryCode, warnLow, warnHigh, deliverTo, limit, offset].
+    assert.deepEqual(tierCall.arguments[1].slice(0, 7), ['wireless headphones', 'wireless | headphones', 'US', 0.5, 15000, 'US', 21]);
   });
 
   it('falls back to archive search when requested tier returns no rows', async () => {
@@ -336,7 +339,10 @@ describe('NL search queries — response correctness', () => {
     assert.ok(laptopFallbackCall, 'Expected bounded title fallback query');
     assert.ok(laptopFallbackCall.arguments[0].includes('LIMIT 1000'));
     assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY'));
-    assert.deepEqual(laptopFallbackCall.arguments[1], ['asus rog laptop', 'asus | rog | laptop', 'US', 21, 0]);
+    // BUY-73321: PRICE_BANDS inserted warnLow (USD=0.5) and warnHigh (USD=15000)
+    // between countryCode and deliverTo. With country_code=US (no min/maxPrice),
+    // params are: [q, or, countryCode, warnLow, warnHigh, deliverTo, limit, offset].
+    assert.deepEqual(laptopFallbackCall.arguments[1], ['asus rog laptop', 'asus | rog | laptop', 'US', 0.5, 15000, 'US', 21, 0]);
   });
 
   it('applies price range filters with NL query', async () => {
@@ -651,7 +657,7 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::bigint[]) AND')) {
         return Promise.resolve({ rows: [{ id: '2' }, { id: '3' }] });
       }
-      if (typeof sql === 'string' && sql.includes('ORDER BY ts_rank(search_vector')) {
+      if (typeof sql === 'string' && /ORDER BY \(?ts_rank\(search_vector/.test(sql)) {
         return Promise.resolve({ rows: [{ id: '1' }, { id: '2' }] });
       }
       if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
@@ -676,8 +682,11 @@ describe('NL search queries — response correctness', () => {
     assert.equal(vectorQueryMock.mock.calls.length, 1);
     assert.deepEqual(responseResults(body).map((product) => product.id).slice(0, 3), ['2', '1', '3']);
 
+    // BUY-74181: fts_top ORDER BY is parenthesized around the rank expression
+    // (`ORDER BY (ts_rank(search_vector, ...) * amazon_mult) DESC`), so the
+    // substring is `ORDER BY (ts_rank(search_vector` (with paren) — accept either.
     const ftsRankingCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank(search_vector')
+      c => typeof c.arguments[0] === 'string' && /ORDER BY \(?ts_rank\(search_vector/.test(c.arguments[0])
     );
     assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
     const sql = ftsRankingCall.arguments[0];
@@ -849,7 +858,10 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].match(/^fts:[^:]+:keyfmt:/), `unexpected cache key format: ${cacheGetCalls[0].arguments[0]}`);
+    // BUY-74205 (outbound probe) inserted a `probeN:` segment between the cache
+    // version and the qNorm, so the key is `fts:<ver>:probe0:keyfmt:...`.
+    // Accept any non-empty segment between the version and `keyfmt`.
+    assert.ok(cacheGetCalls[0].arguments[0].match(/^fts:[^:]+:[^:]+:keyfmt:/), `unexpected cache key format: ${cacheGetCalls[0].arguments[0]}`);
   });
 });
 
@@ -876,7 +888,10 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   // The storage-category exclusion fragment, matching both the `sp.` (tier) and
   // `products` (archive) alias forms. After BUY-69727 the SQL uses ILIKE ANY
   // (replaced ~* POSIX regex to eliminate live-leak ambiguity with spaces).
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
+  // Accept both coalesce arg orderings (tier uses sp.category; archive uses metadata->>'category' FIRST
+  // then category — order is non-semantic but tests written against the old tier path expected the
+  // reverse). The fallback `category(?:\s+COALESCE\s+metadata->>'category')?` matches both.
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category'\s*,\s*)?category(?:\s*,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   const deviceQueries = [
     'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',
@@ -967,7 +982,10 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
   let port;
 
   // Matches the ILIKE ANY fragment in the SQL (from searchRelevanceTaxonomy.ts)
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
+  // Accept both coalesce arg orderings (tier uses sp.category; archive uses metadata->>'category' FIRST
+  // then category — order is non-semantic but tests written against the old tier path expected the
+  // reverse). The fallback `category(?:\s+COALESCE\s+metadata->>'category')?` matches both.
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category'\s*,\s*)?category(?:\s*,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   before(async () => {
     const express = require('express');

@@ -1464,7 +1464,10 @@ router.get(
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+        // Reuse the semantic-cache embedding if it was already computed above
+        // (avoids a duplicate Gemini API call when both the semantic cache
+        // lookup and the vector query path are active for the same request).
+        const queryVector = (res.locals.semVec as string | null) ?? await getCachedQueryEmbedding(q, geminiKey);
         if (queryVector) {
           try {
             // BUY-63271: mark a savepoint before any local (client) queries so a statement

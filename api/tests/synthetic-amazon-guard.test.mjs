@@ -27,7 +27,10 @@ describe('BUY-72744: synthetic Amazon search-result guard', () => {
   it('archive search baseConditions exclude amazon.com rows with malformed ASINs or US-priced-as-SGD currency', () => {
     const searchIdx = source.indexOf("router.get(\n  '/search',");
     assert.ok(searchIdx > -1, "Could not find router.get('/search'…) in products.ts");
-    const slice = source.slice(searchIdx, searchIdx + 12000);
+    // BUY-74246 + earlier additions grew products.ts past 12KB after '/search'.
+    // Slice the full archive handler (we just need to see the baseConditions block
+    // near the start of the handler, which is well within 18KB).
+    const slice = source.slice(searchIdx, searchIdx + 18000);
 
     assert.match(slice, /merchant_id\s*=\s*'amazon\.com'/, 'archive search must target amazon.com rows');
     assert.match(slice, /length\(sku\)\s*!=\s*10/, 'archive search must reject malformed ASIN lengths');
