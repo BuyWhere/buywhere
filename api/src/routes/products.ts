@@ -8,7 +8,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, deriveEmptiness } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -675,6 +675,15 @@ router.get(
             response_time_ms: Date.now() - requestStart,
             cached: false,
             degraded: true,
+            emptiness_reason: 'api_error',
+            confidence: 'low',
+            diagnostic: {
+              engine_status: 'error',
+              indexed_for_region: true,
+              category_recognized: true,
+              rate_limit_remaining: null,
+              deliver_to_present: Boolean(req.query.deliver_to || req.query.country_code || req.query.country),
+            },
           },
         };
         res.status(200).json(degradedBody);
@@ -728,6 +737,20 @@ router.get(
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
+    const buildV1SearchEmptiness = (apiError = false) => deriveEmptiness({
+      regionHasAnyData: true,
+      categoryHasAnyData: true,
+      apiError,
+      rateLimited: false,
+      regionSupported: !countryCode || Boolean(COUNTRY_CURRENCY[countryCode]),
+      categoryRequested: Boolean(category || categoryId || categoryPath?.length),
+      requestedCategory: category || categoryPath?.join('/') || categoryId || null,
+      requestedCountry: countryCode || null,
+      rateLimitRemaining: null,
+      deliverToPresent: Boolean(deliverTo || countryCode),
+      unfilteredHasAnyData: null,
+      queryAmbiguous: null,
+    });
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -1093,7 +1116,9 @@ router.get(
         buildProduct(row as Record<string, unknown>, currency, compact)
       );
       const responseBody = buildSearchResponse(
-        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
+        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore,
+        countryCode || null,
+        fallbackProducts.length === 0 ? buildV1SearchEmptiness(false) : null,
       );
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
@@ -1597,7 +1622,9 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false
+      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false,
+      countryCode || null,
+      filteredProducts.length === 0 ? buildV1SearchEmptiness(false) : null,
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
