@@ -71,6 +71,35 @@ function releaseClientSafely(client) {
         // Swallow release errors — pool will remove the bad client anyway.
     }
 }
+// BUY-74181: product_embeddings lives in a separate vector DB without country/region
+// columns, so a global nearest-neighbour set can leak out-of-market candidates into
+// hybrid/semantic results. Re-scope vector candidates against the catalog before RRF
+// or detail fetch so ranking and pagination are computed on the buyer's market only.
+async function filterVectorCandidatesByMarket(client, candidateIds, country, region) {
+    if (candidateIds.length === 0)
+        return [];
+    if (!country && !region)
+        return candidateIds;
+    const params = [candidateIds];
+    const conditions = ['id = ANY($1::uuid[])', 'is_active = true'];
+    if (country) {
+        params.push(country.toUpperCase());
+        conditions.push(`country_code = $${params.length}`);
+    }
+    if (region) {
+        params.push(region.toLowerCase());
+        conditions.push(`region = $${params.length}`);
+    }
+    try {
+        const result = await client.query(`SELECT id FROM products WHERE ${conditions.join(' AND ')}`, params);
+        const allowed = new Set(result.rows.map((r) => r.id));
+        return candidateIds.filter(id => allowed.has(id));
+    }
+    catch (err) {
+        console.warn('[search] vector candidate market filter failed, using global set:', err.message);
+        return candidateIds;
+    }
+}
 function normalizeMcpMarket(args, defaultCountry = '') {
     const rawRegion = String(args.region || '').trim();
     const regionLower = rawRegion.toLowerCase();
@@ -502,7 +531,9 @@ async function handleSearchProducts(args) {
                             const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'gemini-embedding-001@512'
                  ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
-                            vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+                            // BUY-74181: re-scope global vector candidates to the requested market
+                            // before pagination so semantic search does not return out-of-market rows.
+                            vectorCandidateIds = (await filterVectorCandidatesByMarket(searchClient, vecRows.rows.map(r => r.product_id), country, region)).slice(0, limit + offset);
                         }
                         catch (vecErr) {
                             console.warn('[search] vector query failed, falling back to FTS:', vecErr.message);
@@ -523,6 +554,12 @@ async function handleSearchProducts(args) {
                         }
                         catch (vecErr) {
                             console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
+                        }
+                        // BUY-74181: filter global vector candidates to the requested market
+                        // before RRF so hybrid ranking cannot be dominated by out-of-market rows.
+                        if (vecRows.length > 0 && (country || region)) {
+                            const allowedIds = new Set(await filterVectorCandidatesByMarket(searchClient, vecRows.map(r => r.product_id), country, region));
+                            vecRows = vecRows.filter(r => allowedIds.has(r.product_id));
                         }
                         try {
                             const ftsResult = await searchClient.query(`SELECT id FROM products ${where}

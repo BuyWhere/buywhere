@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
+import type { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
@@ -88,6 +89,42 @@ function releaseClientSafely(client: any) {
 }
 
 type McpMarket = { country: string; dbRegion: string; rawRegion: string };
+
+// BUY-74181: product_embeddings lives in a separate vector DB without country/region
+// columns, so a global nearest-neighbour set can leak out-of-market candidates into
+// hybrid/semantic results. Re-scope vector candidates against the catalog before RRF
+// or detail fetch so ranking and pagination are computed on the buyer's market only.
+async function filterVectorCandidatesByMarket(
+  client: PoolClient,
+  candidateIds: string[],
+  country: string,
+  region: string
+): Promise<string[]> {
+  if (candidateIds.length === 0) return [];
+  if (!country && !region) return candidateIds;
+
+  const params: unknown[] = [candidateIds];
+  const conditions = ['id = ANY($1::uuid[])', 'is_active = true'];
+  if (country) {
+    params.push(country.toUpperCase());
+    conditions.push(`country_code = $${params.length}`);
+  }
+  if (region) {
+    params.push(region.toLowerCase());
+    conditions.push(`region = $${params.length}`);
+  }
+  try {
+    const result = await client.query<{ id: string }>(
+      `SELECT id FROM products WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+    const allowed = new Set(result.rows.map((r: { id: string }) => r.id));
+    return candidateIds.filter(id => allowed.has(id));
+  } catch (err) {
+    console.warn('[search] vector candidate market filter failed, using global set:', (err as Error).message);
+    return candidateIds;
+  }
+}
 
 function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''): McpMarket {
   const rawRegion = String(args.region || '').trim();
@@ -544,7 +581,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                  ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               );
-              vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+              // BUY-74181: re-scope global vector candidates to the requested market
+              // before pagination so semantic search does not return out-of-market rows.
+              vectorCandidateIds = (await filterVectorCandidatesByMarket(
+                searchClient,
+                vecRows.rows.map(r => r.product_id),
+                country,
+                region
+              )).slice(0, limit + offset);
             } catch (vecErr) {
               console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
               vectorCandidateIds = null;
@@ -565,6 +609,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               vecRows = vecResult.rows;
             } catch (vecErr) {
               console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
+            }
+            // BUY-74181: filter global vector candidates to the requested market
+            // before RRF so hybrid ranking cannot be dominated by out-of-market rows.
+            if (vecRows.length > 0 && (country || region)) {
+              const allowedIds = new Set(await filterVectorCandidatesByMarket(
+                searchClient,
+                vecRows.map(r => r.product_id),
+                country,
+                region
+              ));
+              vecRows = vecRows.filter(r => allowedIds.has(r.product_id));
             }
             try {
               const ftsResult = await searchClient.query<{ id: string }>(
