@@ -158,43 +158,54 @@ periodicTimer.unref();
 // ─── GET /stats ─────────────────────────────────────────────────────────
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
-    // 1. Try Redis cache first
+    // 1. Try Redis cache first, but reject approximate cached values (BUY-74088)
     const cached = await redis.get(CACHE_KEY).catch(() => null);
     if (cached) {
       const stats: CatalogStatsResult = JSON.parse(cached);
+      if (!stats.approximate) {
+        triggerBackgroundRefresh().catch(() => {});
+        res.json({
+          data: {
+            total_products: stats.total_products,
+            total_merchants: stats.total_merchants,
+            active_products: stats.active_products,
+          },
+          meta: {
+            approximate: false,
+            source: stats.source,
+            ts: stats.collected_at,
+          },
+        });
+        return;
+      }
+      // Approximate cache is not acceptable for this endpoint; fall through to exact count
+      console.warn('[catalog/stats] cached stats are approximate, forcing exact recount (BUY-74088)');
+    }
+
+    // 2. No exact cache — MUST run exact count (BUY-74088: /v1/catalog/stats must always return meta.approximate=false)
+    const exact = await tryExactCount(60000);
+    if (exact) {
+      await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => {});
       triggerBackgroundRefresh().catch(() => {});
       res.json({
         data: {
-          total_products: stats.total_products,
-          total_merchants: stats.total_merchants,
-          active_products: stats.active_products,
+          total_products: exact.total_products,
+          total_merchants: exact.total_merchants,
+          active_products: exact.active_products,
         },
         meta: {
-          approximate: stats.approximate,
-          source: stats.source,
-          ts: stats.collected_at,
+          approximate: false,
+          source: exact.source,
+          ts: exact.collected_at,
         },
       });
       return;
     }
 
-    // 2. No cache — collect fresh stats (fast estimate)
-    const stats = await collectStats();
-    await redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL).catch(() => {});
-    triggerBackgroundRefresh().catch(() => {});
-
-    res.json({
-      data: {
-        total_products: stats.total_products,
-        total_merchants: stats.total_merchants,
-        active_products: stats.active_products,
-      },
-      meta: {
-        approximate: stats.approximate,
-        source: stats.source,
-        ts: stats.collected_at,
-      },
-    });
+    // 3. Exact count failed — 500 error (no approximate fallback allowed per BUY-13412/BUY-13414/BUY-21972)
+    console.error('[catalog/stats] exact count failed, refusing to serve approximate stats');
+    res.status(500).json({ error: 'Exact count failed; approximate stats not allowed' });
+    return;
   } catch (err) {
     console.error('[catalog/stats] error:', err);
     res.status(500).json({ error: 'Internal server error' });
