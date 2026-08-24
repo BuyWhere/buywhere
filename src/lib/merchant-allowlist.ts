@@ -349,3 +349,35 @@ export function filterApiItemsForCountry<T extends { merchant?: string | null; s
     return allowlist.has(slug);
   });
 }
+
+// BUY-73741: hard text denylist. Even with the slug + label allowlists above,
+// a row can still render CompuMarts / Arabic / namshi / mumzworld / noon /
+// sharafdg / carrefour text on a US SEO page if:
+//
+//   1. the upstream `merchant_name` carries the Arabic script or branded
+//      variant slug ("سوق الكمبيوتر") rather than the bare slug,
+//   2. a curated fallback row was edited with a non-US merchant label,
+//   3. the JSON-LD seller block is built from a different list than the
+//      product cards.
+//
+// This regex set catches every leaked form observed in QA captures
+// (vidmee://asset/vidmee_ss_e1a5b9d7dd166dd52b3c0866) regardless of
+// casing or whitespace. The function returns true if the label contains
+// any disallowed merchant text. Callers must drop the product entirely —
+// rewriting the label to a generic placeholder would still leak the
+// disallowed merchant to QA via the breadcrumb / merchant badge / "Buy at"
+// button copy.
+export const DISALLOWED_MERCHANT_TEXT_PATTERNS: readonly RegExp[] = [
+  /compumart/i,
+  /سوق/,           // "سوق الكمبيوتر" (Arabic "سوق" = "market")
+  /\bnamshi\b/i,
+  /\bmumzworld\b/i,
+  /\bnoon\b/i,
+  /\bsharaf(?:\s*dg)?\b/i,
+  /\bcarrefour\b/i,
+];
+
+export function containsDisallowedMerchantText(label: string | null | undefined): boolean {
+  if (!label) return false;
+  return DISALLOWED_MERCHANT_TEXT_PATTERNS.some((re) => re.test(label));
+}

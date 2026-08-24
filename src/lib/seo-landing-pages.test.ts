@@ -425,6 +425,160 @@ test("BUY-73640: merchantSlug is preserved on normalized LandingProduct for futu
   }
 });
 
+// ---------------------------------------------------------------------------
+// BUY-73741: defense-in-depth final-pipeline gate keeps CompuMarts / Arabic
+// / namshi / mumzworld / noon / sharafdg / carrefour out of the rendered
+// catalog snapshot AND the JSON-LD ItemList, even when upstream
+// `merchant_name` carries the disallowed text instead of the bare slug.
+//
+// The previous BUY-73640 fix only fired on the raw merchant SLUG. QA
+// VidMee render_and_analyze on /best-gaming-laptops-us
+// (vidmee://asset/vidmee_ss_e1a5b9d7dd166dd52b3c0866) captured
+// "CompuMarts" + Arabic text "سوق الكمبيوتر" on the hydrated page,
+// indicating a leak path where merchant_name carried the branded text
+// without a corresponding forbidden slug. The final-pipeline gate re-runs
+// the country allowlist on the rendered merchant LABEL (matching what QA
+// captures) plus a hard text denylist that drops any row containing
+// disallowed merchant substrings.
+//
+// Three regression layers:
+//   1. Source: merchant-allowlist.ts exports containsDisallowedMerchantText
+//      and DISALLOWED_MERCHANT_TEXT_PATTERNS covering CompuMarts, Arabic
+//      script, and the six banned UAE/KSA retailer names.
+//   2. Schema: buildSeoLandingSchema() applies the same gate to the
+//      JSON-LD seller list so crawlers and QA can't see what the visible
+//      cards don't.
+//   3. End-to-end SSR: getSeoLandingProducts() return path applies
+//      applyFinalCountryGate() on every branch (live, top-up, fallback).
+// ---------------------------------------------------------------------------
+
+test("BUY-73741: disallowed merchant text denylist catches CompuMarts + Arabic + UAE retailers", () => {
+  const { containsDisallowedMerchantText } = require("@/lib/merchant-allowlist");
+  assert.ok(containsDisallowedMerchantText("CompuMarts"), "CompuMarts label must be flagged");
+  assert.ok(containsDisallowedMerchantText("compumart"), "lowercase variant must be flagged");
+  assert.ok(containsDisallowedMerchantText("COMPUMARTS"), "uppercase variant must be flagged");
+  assert.ok(containsDisallowedMerchantText("سوق الكمبيوتر"), "Arabic script must be flagged");
+  assert.ok(containsDisallowedMerchantText("Buy at سوق الكمبيوتر"), "Arabic inside copy must be flagged");
+  assert.ok(containsDisallowedMerchantText("Namshi"), "Namshi must be flagged");
+  assert.ok(containsDisallowedMerchantText("MumzWorld"), "MumzWorld must be flagged");
+  assert.ok(containsDisallowedMerchantText("noon"), "noon must be flagged");
+  assert.ok(containsDisallowedMerchantText("Sharaf DG"), "Sharaf DG must be flagged");
+  assert.ok(containsDisallowedMerchantText("Carrefour UAE"), "Carrefour must be flagged");
+  // False positives the regex set must NOT trigger on:
+  assert.ok(!containsDisallowedMerchantText("Amazon"), "Amazon must NOT be flagged");
+  assert.ok(!containsDisallowedMerchantText("Best Buy"), "Best Buy must NOT be flagged");
+  assert.ok(!containsDisallowedMerchantText("Newegg"), "Newegg must NOT be flagged");
+  assert.ok(!containsDisallowedMerchantText("Walmart US"), "Walmart US must NOT be flagged");
+});
+
+test("BUY-73741: US SEO page drops row whose merchant_name carries Arabic script (slug-gate bypass)", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "good1",
+              title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
+              price_amount: 1999,
+              price_currency: "USD",
+              merchant: "bestbuy_us",
+              merchant_name: "Best Buy",
+              click_url: "https://example.com/good1",
+              image_url: "https://images.example/good1.jpg",
+            },
+            // Hydra: bare slug looks innocuous ("shopify_us"), but the
+            // merchant_name carries the branded Arabic text VidMee captured.
+            // The previous BUY-73640 slug gate passed this through.
+            {
+              id: "hydra1",
+              title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
+              price_amount: 1899,
+              price_currency: "USD",
+              merchant: "shopify_us",
+              merchant_name: "سوق الكمبيوتر",
+              click_url: "https://example.com/hydra1",
+              image_url: "https://images.example/hydra1.jpg",
+            },
+            // Hydrated CompuMarts text alongside an allowed slug — also a
+            // known bypass pattern (BUY-72906 left this path open).
+            {
+              id: "hydra2",
+              title: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
+              price_amount: 1799,
+              price_currency: "USD",
+              merchant: "bestbuy_us",
+              merchant_name: "CompuMarts",
+              click_url: "https://example.com/hydra2",
+              image_url: "https://images.example/hydra2.jpg",
+            },
+          ],
+          meta: { total: 3, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    const merchants = products.map((p) => p.merchant);
+    assert.ok(merchants.includes("Best Buy"), "Best Buy must be included");
+    for (const merchant of merchants) {
+      assert.ok(
+        !/compumart/i.test(merchant),
+        `CompuMarts label must not appear in rendered products: got "${merchant}"`,
+      );
+      assert.ok(
+        !/سوق/.test(merchant),
+        `Arabic script must not appear in rendered products: got "${merchant}"`,
+      );
+      assert.ok(
+        !/\bnamshi\b|\bmumzworld\b|\bnoon\b|\bsharafdg\b|\bcarrefour\b/i.test(merchant),
+        `UAE retailer name must not appear in rendered products: got "${merchant}"`,
+      );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-73741: JSON-LD seller list is allowlist-pure after final gate", () => {
+  const { buildSeoLandingSchema } = require("@/lib/seo-landing-pages");
+  const products = [
+    {
+      id: "live1",
+      name: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
+      price: 1999,
+      currency: "USD",
+      merchant: "Best Buy",
+      brand: "ASUS",
+      category: "Gaming Laptops",
+      imageUrl: "https://images.example/live1.jpg",
+      href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us",
+    },
+    {
+      id: "leaked1",
+      name: "ASUS ROG Zephyrus G16 Gaming Laptop RTX 5070",
+      price: 1799,
+      currency: "USD",
+      merchant: "CompuMarts",
+      brand: "ASUS",
+      category: "Gaming Laptops",
+      imageUrl: "https://images.example/leaked1.jpg",
+      href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us",
+    },
+  ];
+  const schema = buildSeoLandingSchema(seoLandingPages["best-gaming-laptops-us"], products);
+  const schemaText = JSON.stringify(schema);
+  assert.ok(!/compumart/i.test(schemaText), `JSON-LD must not contain CompuMarts; got: ${schemaText}`);
+  assert.ok(!/سوق/.test(schemaText), `JSON-LD must not contain Arabic script; got: ${schemaText}`);
+  assert.ok(/Best Buy/i.test(schemaText), "JSON-LD must still include Best Buy");
+});
+
 test("BUY-72906: foreign-merchant products (COMPUMARTS/AE) are dropped from US SEO snapshot", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -1115,4 +1269,35 @@ test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+// ---------------------------------------------------------------------------
+// BUY-73741: live SSR HTML regression. QA VidMee at 2026-08-24T02:10Z
+// captured CompuMarts + Arabic script on the hydrated /best-gaming-laptops-us
+// page. This test fetches the live page and asserts the rendered HTML
+// contains zero disallowed merchant strings anywhere (cards + JSON-LD + nav).
+//
+// The test is opt-in via the BUY-73741_LIVE_HTML_GUARD=1 env var because it
+// requires network access from the test runner. CI on github-actions
+// (deploy-www.yml `next-build` job) sets this flag so the regression guard
+// runs against every PR. Local runs default to skipping.
+// ---------------------------------------------------------------------------
+test("BUY-73741: live SSR HTML for /best-gaming-laptops-us contains zero CompuMarts / Arabic / non-US merchant", async () => {
+  if (process.env.BUY_73741_LIVE_HTML_GUARD !== "1") {
+    console.warn("[BUY-73741] skipping live HTML guard (set BUY_73741_LIVE_HTML_GUARD=1 to enable)");
+    return;
+  }
+  const response = await fetch("https://buywhere.ai/best-gaming-laptops-us", {
+    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+  });
+  assert.ok(response.ok, `live fetch returned ${response.status}`);
+  const html = await response.text();
+  assert.ok(html.length > 1000, "page should have substantial HTML");
+  assert.doesNotMatch(html, /compumart/i, "live SSR HTML must not contain CompuMarts");
+  assert.doesNotMatch(html, /سوق/, "live SSR HTML must not contain Arabic script");
+  assert.doesNotMatch(
+    html,
+    /\bnamshi\b|\bmumzworld\b/i,
+    "live SSR HTML must not contain Namshi / MumzWorld",
+  );
 });

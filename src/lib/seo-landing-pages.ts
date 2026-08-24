@@ -4,6 +4,7 @@ import { toSiteUrl } from "@/lib/site-url";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 import {
   type CountryCode,
+  containsDisallowedMerchantText,
   filterProductsForCountry,
   isMerchantAllowedForCountry,
 } from "@/lib/merchant-allowlist";
@@ -1380,6 +1381,18 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // Carry seenIds across the verified list so fallback top-up dedup still works.
   const verifiedProducts = verified;
 
+  // BUY-73741 (defense-in-depth final pipeline): every return path below goes
+  // through this guard so a row that slipped past the per-item filter (e.g. an
+  // upstream row whose `merchant_name` carried Arabic script, or a future
+  // curated fallback edit) cannot reach the rendered page. The per-item loop
+  // filters on the raw merchant SLUG, but this final pass filters on the
+  // RENDERED merchant LABEL plus the disallowed-text denylist — exactly the
+  // text VidMee captured on the hydrated page.
+  const applyFinalCountryGate = (products: LandingProduct[]): LandingProduct[] => {
+    const labelAllowed = filterProductsForCountry(products, allowlistCountry);
+    return labelAllowed.filter((p) => !containsDisallowedMerchantText(p.merchant));
+  };
+
   if (verifiedProducts.length >= 4) {
     // BUY-67622 (v3): stable-sort so hero-promised brands lead. Without this,
     // a Shark card can land at position 1 on a page whose hero promises
@@ -1392,7 +1405,23 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featured = [...verifiedProducts].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId),
     );
-    return featured.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+    const finalProducts = applyFinalCountryGate(featured).slice(0, 8);
+    if (finalProducts.length < 4) {
+      console.warn(
+        `[seo] ${config.slug}: BUY-73741 final gate dropped below 4 cards (${featured.length} -> ${finalProducts.length}). Falling back to top-up branch.`,
+      );
+      // Top up with allowlist-pure fallbacks to keep the page useful.
+      const topUp: LandingProduct[] = [...finalProducts];
+      for (const fb of fallback) {
+        if (topUp.length >= 4) break;
+        if (!seenIds.has(fb.id)) {
+          seenIds.add(fb.id);
+          topUp.push(withFallbackDetailUrl(fb, config.country));
+        }
+      }
+      return applyFinalCountryGate(topUp).slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+    }
+    return finalProducts.map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -1412,7 +1441,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredTopUp = [...topUp].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId),
     );
-    return featuredTopUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    return applyFinalCountryGate(featuredTopUp).slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
@@ -1428,9 +1457,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredFallback = [...fallback].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId),
     );
-    return featuredFallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+    return applyFinalCountryGate(featuredFallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
   }
-  return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+  return applyFinalCountryGate(fallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(
@@ -1512,10 +1541,21 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
   // upstream catalog changed).
   const resolvedHeroTitle = resolveHeroTitle(config, products);
 
-  // Deduplicate products by name so each distinct product becomes a top-level
-  // Product node with an AggregateOffer summarising every merchant listing it.
-  // Falls back to the page's curated fallbackProducts when live search is empty.
-  const schemaProducts = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  // BUY-73741: schema must reflect the SAME allowlist-pure product list as the
+  // rendered cards. JSON-LD is fed into crawlers (Googlebot, Bingbot) and QA
+  // tools, so a leak here would still be picked up by future VidMee runs even
+  // after the visible cards were clean. We drop (a) rows whose merchant label
+  // does not resolve to an allowed retailer for the page's country, and (b)
+  // rows whose merchant label contains disallowed merchant text (CompuMarts,
+  // Arabic script, namshi, mumzworld, noon, sharafdg, carrefour).
+  const allowlistCountry = config.country as CountryCode;
+  const schemaSource = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  const schemaProducts = schemaSource.filter((p) => {
+    if (!p || !p.name) return false;
+    if (!filterProductsForCountry([p], allowlistCountry).length) return false;
+    if (containsDisallowedMerchantText(p.merchant)) return false;
+    return true;
+  });
   const productGroups = Array.from(
     schemaProducts
       .filter((p) => p && p.name)
