@@ -592,7 +592,7 @@ router.get(
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products_partitioned ${whereClause}`
+        `EXPLAIN SELECT 1 FROM products ${whereClause}`
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
         const match = planRow.match(/rows=(\d+)/);
@@ -600,12 +600,12 @@ router.get(
         throw new Error('planner_estimate_missing');
       }).catch(async (err) => {
         console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
-        const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products_partitioned'`);
+        const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
         return fb;
       }),
       productReadDb.query(
         `SELECT ${SELECT_COLUMNS}
-         FROM products_partitioned
+         FROM products
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
