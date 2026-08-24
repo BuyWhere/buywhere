@@ -24,12 +24,24 @@ function generateVerificationToken(): string {
 // POST /v1/developers/signup
 // Headless agent self-registration — requires email for verification
 async function registerAgent(req: Request, res: Response): Promise<void> {
-  const { agent_name, email, contact, use_case } = req.body;
+  const { agent_name, email, contact, use_case, is_internal: reqIsInternal } = req.body;
 
   if (!agent_name || typeof agent_name !== 'string') {
     res.status(400).json({ error: 'agent_name is required' });
     return;
   }
+
+  // BUY-72823: internal-flag registration — only honored when the caller
+  // presents the shared BUYWHERE_SIGNUP_SECRET header. Without the secret,
+  // any "is_internal" in the body is silently ignored (column default = false).
+  const headerSecret = req.headers['x-buywhere-signup-secret'];
+  const envSecret = process.env.BUYWHERE_SIGNUP_SECRET;
+  const isInternal = !!(
+    reqIsInternal === true &&
+    envSecret &&
+    typeof headerSecret === 'string' &&
+    headerSecret === envSecret
+  );
 
   const emailAddr = (email || contact || '') as string;
   const hasEmail = emailAddr.length > 0;
@@ -57,8 +69,9 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
     `INSERT INTO api_keys
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
-        email_verification_token, email_verification_expires_at)
-      VALUES ($1,$2,$3,$4,$5,$6,'unverified',true,$7,$8,'self-registered',$9,$10)`,
+        email_verification_token, email_verification_expires_at,
+        is_internal)
+      VALUES ($1,$2,$3,$4,$5,$6,'unverified',true,$7,$8,'self-registered',$9,$10,$11)`,
     [
       id,
       keyHash,
@@ -70,6 +83,7 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       utmSource || null,
       verificationToken,
       expiresAt,
+      isInternal,
     ]
   );
 
