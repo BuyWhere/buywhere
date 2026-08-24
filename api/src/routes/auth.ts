@@ -25,7 +25,7 @@ function generateVerificationToken(): string {
 // Headless agent self-registration — requires email for verification
 // BUY-72774: verify=false query param skips email verification and issues pending-verify tier
 async function registerAgent(req: Request, res: Response): Promise<void> {
-  const { agent_name, email, contact, use_case } = req.body;
+  const { agent_name, email, contact, use_case, is_internal: reqIsInternal } = req.body;
   // BUY-72774: verify=false → issue pending-verify tier, skip verification email
   const skipVerify = req.query.verify === 'false';
 
@@ -33,6 +33,20 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'agent_name is required' });
     return;
   }
+
+  // BUY-72823: internal-flag registration — only honored when the caller
+  // presents the shared BUYWHERE_SIGNUP_SECRET header. Without the secret,
+  // any "is_internal" in the body is silently ignored (column default = false).
+  // This lets fleet-testing harnesses mint keys invisible to growth cohorts
+  // without exposing the flag to arbitrary public signups.
+  const headerSecret = req.headers['x-buywhere-signup-secret'];
+  const envSecret = process.env.BUYWHERE_SIGNUP_SECRET;
+  const isInternal = !!(
+    reqIsInternal === true &&
+    envSecret &&
+    typeof headerSecret === 'string' &&
+    headerSecret === envSecret
+  );
 
   const emailAddr = (email || contact || '') as string;
   const hasEmail = emailAddr.length > 0;
@@ -86,8 +100,9 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
         email_verification_token, email_verification_expires_at,
-        registration_ip, utm_source, utm_medium, utm_campaign, utm_content, utm_term)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12,$13,$14,$15,$16,$17)`,
+        registration_ip, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+        is_internal)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [
       id,
       keyHash,
@@ -106,6 +121,7 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       clip(utmCampaign),
       clip(utmContent),
       clip(utmTerm),
+      isInternal,
     ]
   );
 
