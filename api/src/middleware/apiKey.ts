@@ -248,7 +248,20 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
 
   if (!key) {
     res.set('WWW-Authenticate', 'Bearer realm="buywhere"');
-    sendSpecError(res, 'missing_api_key', 'API key required. Get one at https://buywhere.ai/dashboard', 401);
+    // 2026-08-24 (Richmond): agents must be able to self-serve with ZERO human
+    // steps — the 401 itself carries the machine-actionable recipe.
+    res.status(401).json({
+      error: 'missing_api_key',
+      message: 'No API key. Agents: self-register in one call — no email, no human, key returned instantly.',
+      register: {
+        method: 'POST',
+        url: 'https://api.buywhere.ai/v1/auth/register?verify=false',
+        content_type: 'application/json',
+        body: { agent_name: '<your-agent-name>' },
+        returns: 'api_key (use as Authorization: Bearer <api_key>); 1000 requests/day free',
+        oauth_alternative: 'https://api.buywhere.ai/.well-known/oauth-authorization-server',
+      },
+    });
     return;
   }
 

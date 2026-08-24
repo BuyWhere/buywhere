@@ -100,6 +100,8 @@ export const FREE_TIER = {
 };
 
 export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCap?: number; overageRate?: number }> = {
+  // 2026-08-24: agent self-serve tier (was missing here — keys fell back to FREE_TIER)
+  pending_verify: { rpm: 60, daily: 1000 },
   free: FREE_TIER,
   starter: { rpm: 100, daily: 10000 },
   pro: { rpm: 500, daily: 100000 },
