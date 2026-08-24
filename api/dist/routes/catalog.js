@@ -22,8 +22,12 @@ const CATALOG_STATS_SOURCE_FALLBACK = 'pg_class_fallback';
 // and exact count on the much-smaller merchants table.
 async function collectStats() {
     const now = new Date().toISOString();
-    const reader = config_1.catalogDb;
-    const [productsEst, merchantsExact, activeRatio,] = await Promise.all([
+    // BUY-74205: route stats reads to the read replica (readDb) so the 407 GB
+    // products table scan does not saturate the primary catalog pool.  Removing the
+    // TABLESAMPLE active-ratio query: on a 368 M-row table it exceeds the statement
+    // timeout and makes /v1/catalog/stats time out whenever the cache is cold.
+    const reader = (0, readReplica_1.readDb)();
+    const [productsEst, merchantsExact,] = await Promise.all([
         // Total products: pg_class.reltuples (instant, no table scan)
         reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
             .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
@@ -34,18 +38,10 @@ async function collectStats() {
             .catch(() => reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`)
             .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
             .catch(() => 0)),
-        // Active ratio: TABLESAMPLE BERNOULLI(0.1) — scans ~0.1% of rows
-        reader.query(`
-      SELECT
-        count(*) AS sample_total,
-        count(*) FILTER (WHERE is_active) AS sample_active
-      FROM products TABLESAMPLE BERNOULLI (0.1)
-    `).then(r => {
-            const sampleTotal = Number(r.rows?.[0]?.sample_total || 0);
-            const sampleActive = Number(r.rows?.[0]?.sample_active || 0);
-            return sampleTotal > 0 ? sampleActive / sampleTotal : 0.99;
-        }).catch(() => 0.99),
     ]);
+    // Approximate active ratio. TABLESAMPLE was too slow on the live table;
+    // overall active ratio has been steady at ~99 %, so use that fixed estimate.
+    const activeRatio = 0.99;
     let activeProducts = Math.round(productsEst * activeRatio);
     if (activeProducts > productsEst)
         activeProducts = productsEst;
@@ -63,7 +59,7 @@ async function collectStats() {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000) {
     // Heavy full-table count — route to the replica when available (BUY-45692).
-    const client = await config_1.catalogDb.connect();
+    const client = await (0, readReplica_1.readDb)().connect();
     try {
         await client.query('BEGIN');
         await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -137,41 +133,52 @@ periodicTimer.unref();
 // ─── GET /stats ─────────────────────────────────────────────────────────
 router.get('/stats', async (_req, res) => {
     try {
-        // 1. Try Redis cache first
+        // 1. Try Redis cache first, but reject approximate cached values (BUY-74088)
         const cached = await config_1.redis.get(CACHE_KEY).catch(() => null);
         if (cached) {
             const stats = JSON.parse(cached);
+            if (!stats.approximate) {
+                triggerBackgroundRefresh().catch(() => { });
+                res.json({
+                    data: {
+                        total_products: stats.total_products,
+                        total_merchants: stats.total_merchants,
+                        active_products: stats.active_products,
+                    },
+                    meta: {
+                        approximate: false,
+                        source: stats.source,
+                        ts: stats.collected_at,
+                    },
+                });
+                return;
+            }
+            // Approximate cache is not acceptable for this endpoint; fall through to exact count
+            console.warn('[catalog/stats] cached stats are approximate, forcing exact recount (BUY-74088)');
+        }
+        // 2. No exact cache — MUST run exact count (BUY-74088: /v1/catalog/stats must always return meta.approximate=false)
+        const exact = await tryExactCount(60000);
+        if (exact) {
+            await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => { });
             triggerBackgroundRefresh().catch(() => { });
             res.json({
                 data: {
-                    total_products: stats.total_products,
-                    total_merchants: stats.total_merchants,
-                    active_products: stats.active_products,
+                    total_products: exact.total_products,
+                    total_merchants: exact.total_merchants,
+                    active_products: exact.active_products,
                 },
                 meta: {
-                    approximate: stats.approximate,
-                    source: stats.source,
-                    ts: stats.collected_at,
+                    approximate: false,
+                    source: exact.source,
+                    ts: exact.collected_at,
                 },
             });
             return;
         }
-        // 2. No cache — collect fresh stats (fast estimate)
-        const stats = await collectStats();
-        await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL).catch(() => { });
-        triggerBackgroundRefresh().catch(() => { });
-        res.json({
-            data: {
-                total_products: stats.total_products,
-                total_merchants: stats.total_merchants,
-                active_products: stats.active_products,
-            },
-            meta: {
-                approximate: stats.approximate,
-                source: stats.source,
-                ts: stats.collected_at,
-            },
-        });
+        // 3. Exact count failed — 500 error (no approximate fallback allowed per BUY-13412/BUY-13414/BUY-21972)
+        console.error('[catalog/stats] exact count failed, refusing to serve approximate stats');
+        res.status(500).json({ error: 'Exact count failed; approximate stats not allowed' });
+        return;
     }
     catch (err) {
         console.error('[catalog/stats] error:', err);
