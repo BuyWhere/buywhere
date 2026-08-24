@@ -29,20 +29,54 @@ const AMAZON_TARGETED_RANK_BOOST = 1.15;
 const AMAZON_TRUST_CATEGORIES = ['electronics', 'home-living'];
 const AMAZON_TRUST_MIN_PRICE = 10;
 const AMAZON_TRUST_MAX_PRICE = 200;
-function amazonRankMultiplierSql(alias) {
+// BUY-74173 (ops evidence 2026-08-24): Keepa-fresh amazon_us rows now ship
+// metadata->>'monthly_sold' (Amazon sales velocity, integers up to ~6 figures).
+// The Owala FreeSip wake showed these rows at positions 7-10 on a matching query
+// even though their prices beat stale junk-priced Google Shopping hits at 3-4.
+// Log-scale velocity boost (1+ln(1+ms)/ln(50), capped at 5.0) so that:
+//   monthly_sold=10     -> 1.61x   |   1000 -> 2.77x
+//   monthly_sold=100    -> 2.18x   |  10000 -> 3.36x
+//   monthly_sold=20000  -> 3.53x
+// Tier (search_products) does NOT yet carry metadata; amazonRankMultiplierSql
+// callers that pass a tier alias (sp/cand) omit this term. Archive callers
+// (rhp/rcp/products) compute it from JSONB. Multiplicative with staleness + trust.
+const AMAZON_VELOCITY_LOG_BASE = 50; // ln(1+ms)/ln(50) gives the curve above
+const AMAZON_VELOCITY_MAX = 5.0; // cap so a single row can't dominate
+// Build the monthly_sold velocity factor for archive (`products`-aliased) call
+// sites. Returns "1.0" when the row is non-amazon or metadata->>'monthly_sold'
+// is null/non-numeric, so the SQL is always safe to multiply in.
+function amazonVelocityMultiplierSql(alias) {
     return `
     CASE
-      WHEN lower(${alias}.source) LIKE '%amazon%' AND ${alias}.updated_at < NOW() - INTERVAL '${AMAZON_STALENESS_DAYS} days'
-      THEN ${AMAZON_STALE_RANK_MULTIPLIER}
-      ELSE 1.0
-    END *
-    CASE
       WHEN lower(${alias}.source) LIKE '%amazon%'
-        AND ${alias}.price BETWEEN ${AMAZON_TRUST_MIN_PRICE} AND ${AMAZON_TRUST_MAX_PRICE}
-        AND lower(regexp_replace(coalesce(${alias}.category,''),'\\s+','-','g')) IN (${AMAZON_TRUST_CATEGORIES.map((category) => `'${category}'`).join(', ')})
-      THEN ${AMAZON_TARGETED_RANK_BOOST}
+        AND (${alias}.metadata->>'monthly_sold') ~ '^[0-9]+(\\.[0-9]+)?$'
+      THEN LEAST(
+        ${AMAZON_VELOCITY_MAX},
+        1.0 + ln(1 + (${alias}.metadata->>'monthly_sold')::numeric) / ln(${AMAZON_VELOCITY_LOG_BASE})
+      )
       ELSE 1.0
     END`;
+}
+// `includeVelocity` = true for archive paths that read from `products`
+// (where Keepa rows land), false for tier paths reading `search_products`
+// (no metadata column until BUY-73784 tier refresh unblocks).
+function amazonRankMultiplierSql(alias, includeVelocity) {
+    const velocity = includeVelocity ? ` * (${amazonVelocityMultiplierSql(alias)})` : '';
+    return `
+    (
+      CASE
+        WHEN lower(${alias}.source) LIKE '%amazon%' AND ${alias}.updated_at < NOW() - INTERVAL '${AMAZON_STALENESS_DAYS} days'
+        THEN ${AMAZON_STALE_RANK_MULTIPLIER}
+        ELSE 1.0
+      END *
+      CASE
+        WHEN lower(${alias}.source) LIKE '%amazon%'
+          AND ${alias}.price BETWEEN ${AMAZON_TRUST_MIN_PRICE} AND ${AMAZON_TRUST_MAX_PRICE}
+          AND lower(regexp_replace(coalesce(${alias}.category,''),'\\s+','-','g')) IN (${AMAZON_TRUST_CATEGORIES.map((category) => `'${category}'`).join(', ')})
+        THEN ${AMAZON_TARGETED_RANK_BOOST}
+        ELSE 1.0
+      END
+    )${velocity}`;
 }
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -276,7 +310,7 @@ async function tryTierSearch(req, res, p) {
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) *
-            (${amazonRankMultiplierSql('cand')}) AS rank
+            (${amazonRankMultiplierSql('cand', false)}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -306,7 +340,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -317,7 +351,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -336,7 +370,7 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp')})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
     try {
@@ -1179,7 +1213,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
                  END *
-                 ${amazonRankMultiplierSql('rhp')} AS rank
+                 ${amazonRankMultiplierSql('rhp', true)} AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
@@ -1290,7 +1324,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
               ), top_ids AS (
                 SELECT rc.id, rc.country_code,
                        ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                       ${amazonRankMultiplierSql('rcp')} AS rank
+                       ${amazonRankMultiplierSql('rcp', true)} AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
@@ -1450,7 +1484,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                  ), fts_top AS (
                    SELECT id
                    FROM fts_cand
-                   ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products')}) DESC
+                   ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
                    LIMIT 200
                  )
                  SELECT id FROM fts_top`, searchParams);
