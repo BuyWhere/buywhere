@@ -56,6 +56,7 @@ export function buildProduct(
     image_url: (row.image_url as string) || null,
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
+    category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
     updated_at: (row.updated_at as string) || null,
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),

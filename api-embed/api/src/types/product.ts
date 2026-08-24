@@ -18,6 +18,7 @@ export interface CanonicalProduct {
   image_url: string | null;
   region: string | null;
   country_code: string | null;
+  category_path: string[] | null;
   updated_at: string | null;
   // Compact-mode only (agent-optimized extras):
   canonical_id?: string;
