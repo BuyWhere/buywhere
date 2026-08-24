@@ -505,11 +505,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         params
       );
       total = parseInt(countResult.rows[0].count, 10);
-
-      // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
-      // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
-      // separately, then merge in application code (two separate PG instances).
-      if (useVector) {
+      // BUY-73908: if the lexical catalog tier has zero matches, do not let
+      // hybrid/vector recall resurrect unrelated rows for a must-miss query.
+      // The L2 leak was q=zzzz_no_match returning Google Shopping synthetic
+      // rows via vector-only candidates while REST correctly returned no_match.
+      if (total === 0) {
+        rows = [];
+      } else if (useVector) {
+        // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
+        // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
+        // separately, then merge in application code (two separate PG instances).
         // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
         let queryVec: string | null = null;
         try {
@@ -798,6 +803,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     undefined, undefined, country || null,
     emptiness,
   );
+  if (q && products.length === 0) {
+    (result.meta as Record<string, unknown>).emptiness_reason = 'no_match';
+  }
 
   try {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
@@ -1832,6 +1840,27 @@ async function handleSearchProductsV2(args: Record<string, unknown>) {
   return handleSearchProducts(args);
 }
 
+function applyNoMatchMeta(response: any): void {
+  if (!response || typeof response !== 'object') return;
+  const meta = response.meta && typeof response.meta === 'object'
+    ? response.meta as Record<string, unknown>
+    : (response.meta = {});
+  if (meta.emptiness_reason) return;
+
+  const dataCount = Array.isArray(response.data) ? response.data.length : null;
+  const productsCount = Array.isArray(response.products) ? response.products.length : null;
+  const resultsCount = Array.isArray(response.results) ? response.results.length : null;
+  const itemsCount = Array.isArray(response.items) ? response.items.length : null;
+  const bestPriceCount = response.best_price ? 1 : 0;
+  const alternativesCount = Array.isArray(response.alternatives) ? response.alternatives.length : 0;
+  const total = typeof meta.total === 'number' ? meta.total : Number(meta.total ?? NaN);
+
+  if (total === 0 || dataCount === 0 || productsCount === 0 || resultsCount === 0 || itemsCount === 0 || (response.best_price === null && alternativesCount === 0 && !dataCount && !productsCount && !resultsCount && !itemsCount)) {
+    meta.emptiness_reason = 'no_match';
+    if (!Number.isFinite(total)) meta.total = bestPriceCount + alternativesCount;
+  }
+}
+
 async function handleGetDealsV2(args: Record<string, unknown>) {
   let deliverTo: string;
   try {
@@ -1856,6 +1885,7 @@ async function handleCompareProductsV2(args: Record<string, unknown>) {
     throw e;
   }
   const result = await handleCompareProducts(args);
+  applyNoMatchMeta(result);
   // BUY-72533 acceptance: v2 compare returns outbound_url per product for the buyer market.
   attachOutboundUrls(result);
   return result;
@@ -1872,6 +1902,7 @@ async function handleFindBestPriceV2(args: Record<string, unknown>) {
     throw e;
   }
   const result = await handleFindBestPrice(args);
+  applyNoMatchMeta(result);
   // BUY-72533 acceptance: v2 find_best_price returns a shopping_job_id (UUID) when
   // called with deliver_to. This is the canonical handle for resuming a multi-
   // merchant price-comparison session for the buyer.
@@ -1893,6 +1924,7 @@ async function handleGetProductV2(args: Record<string, unknown>) {
     throw e;
   }
   const result = await handleGetProduct(args);
+  applyNoMatchMeta(result);
   // BUY-72533 acceptance: get_product_v2 returns outbound_url (https://…) when the
   // product has merchant offers. The base handleGetProduct already returns the
   // canonical product list via buildSearchResponse; we resolve outbound_url per product
