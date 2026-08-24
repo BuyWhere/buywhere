@@ -380,7 +380,9 @@ async function handleSearchProducts(args) {
                             console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
                         }
                         try {
-                            const ftsResult = await searchClient.query(`SELECT id FROM products ${where} LIMIT 200`, params);
+                            const ftsResult = await searchClient.query(`SELECT id FROM products ${where}
+                 ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, updated_at DESC
+                 LIMIT 200`, params);
                             ftsRows = ftsResult.rows;
                         }
                         catch (ftsErr) {
