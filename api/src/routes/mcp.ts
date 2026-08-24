@@ -1807,6 +1807,26 @@ function requireDeliverTo(args: Record<string, unknown>, toolName: string): stri
   return normalised;
 }
 
+// BUY-73952: deliver_to default inference — v2 callers that supply country_code
+// (or its alias `country`) but omit deliver_to still get shipping-ranked results.
+// Mirrors the REST contract in routes/products.ts: set deliver_to = country_code
+// when missing, and let the caller distinguish the inferred case via meta.deliver_to_inferred.
+// Returns true when inference happened so the wrapper can stamp the flag in response.meta.
+function inferDeliverTo(args: Record<string, unknown>): boolean {
+  const existing = typeof args.deliver_to === 'string' ? args.deliver_to.trim() : '';
+  if (existing) return false;
+  const cc = typeof args.country_code === 'string' ? args.country_code.trim() : '';
+  const countryAlias = typeof args.country === 'string' ? args.country.trim() : '';
+  const source = cc || countryAlias;
+  if (!source) return false;
+  const normalised = source.toUpperCase();
+  // Only infer supported ISO-alpha-2 codes; otherwise fall through and let
+  // requireDeliverTo reject with INVALID_DELIVER_TO (BUY-72700).
+  if (!/^[A-Z]{2}$/.test(normalised) || !VALID_DELIVER_TO.has(normalised)) return false;
+  args.deliver_to = normalised;
+  return true;
+}
+
 // BUY-72700: Build a 200-OK response with empty results and meta.emptiness_reason.
 function buildInvalidDeliverToResponse(toolName: string, rawDeliverTo: string) {
   return {
@@ -1829,7 +1849,10 @@ function buildInvalidDeliverToResponse(toolName: string, rawDeliverTo: string) {
 
 async function handleSearchProductsV2(args: Record<string, unknown>) {
   let deliverTo: string;
+  let inferred = false;
   try {
+    // BUY-73952: infer deliver_to from country_code/country when omitted.
+    inferred = inferDeliverTo(args);
     deliverTo = requireDeliverTo(args, 'search_products_v2');
   } catch (e: any) {
     if (e?.code === 'INVALID_DELIVER_TO') {
@@ -1837,7 +1860,13 @@ async function handleSearchProductsV2(args: Record<string, unknown>) {
     }
     throw e;
   }
-  return handleSearchProducts(args);
+  const result = await handleSearchProducts(args);
+  applyNoMatchMeta(result);
+  // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
+  if (inferred && result && typeof result === 'object' && (result as any).meta && typeof (result as any).meta === 'object') {
+    ((result as any).meta as Record<string, unknown>).deliver_to_inferred = true;
+  }
+  return result;
 }
 
 function applyNoMatchMeta(response: any): void {
@@ -1863,7 +1892,10 @@ function applyNoMatchMeta(response: any): void {
 
 async function handleGetDealsV2(args: Record<string, unknown>) {
   let deliverTo: string;
+  let inferred = false;
   try {
+    // BUY-73952: infer deliver_to from country_code/country when omitted.
+    inferred = inferDeliverTo(args);
     deliverTo = requireDeliverTo(args, 'get_deals_v2');
   } catch (e: any) {
     if (e?.code === 'INVALID_DELIVER_TO') {
@@ -1871,12 +1903,21 @@ async function handleGetDealsV2(args: Record<string, unknown>) {
     }
     throw e;
   }
-  return handleGetDeals(args);
+  const result = await handleGetDeals(args);
+  applyNoMatchMeta(result);
+  // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
+  if (inferred && result && typeof result === 'object' && (result as any).meta && typeof (result as any).meta === 'object') {
+    ((result as any).meta as Record<string, unknown>).deliver_to_inferred = true;
+  }
+  return result;
 }
 
 async function handleCompareProductsV2(args: Record<string, unknown>) {
   let deliverTo: string;
+  let inferred = false;
   try {
+    // BUY-73952: infer deliver_to from country_code/country when omitted.
+    inferred = inferDeliverTo(args);
     deliverTo = requireDeliverTo(args, 'compare_products_v2');
   } catch (e: any) {
     if (e?.code === 'INVALID_DELIVER_TO') {
@@ -1886,6 +1927,10 @@ async function handleCompareProductsV2(args: Record<string, unknown>) {
   }
   const result = await handleCompareProducts(args);
   applyNoMatchMeta(result);
+  // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
+  if (inferred && result && typeof result === 'object' && result.meta && typeof result.meta === 'object') {
+    (result.meta as unknown as Record<string, unknown>).deliver_to_inferred = true;
+  }
   // BUY-72533 acceptance: v2 compare returns outbound_url per product for the buyer market.
   attachOutboundUrls(result);
   return result;
@@ -1893,7 +1938,10 @@ async function handleCompareProductsV2(args: Record<string, unknown>) {
 
 async function handleFindBestPriceV2(args: Record<string, unknown>) {
   let deliverTo: string;
+  let inferred = false;
   try {
+    // BUY-73952: infer deliver_to from country_code/country when omitted.
+    inferred = inferDeliverTo(args);
     deliverTo = requireDeliverTo(args, 'find_best_price_v2');
   } catch (e: any) {
     if (e?.code === 'INVALID_DELIVER_TO') {
@@ -1903,6 +1951,10 @@ async function handleFindBestPriceV2(args: Record<string, unknown>) {
   }
   const result = await handleFindBestPrice(args);
   applyNoMatchMeta(result);
+  // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
+  if (inferred && result && typeof result === 'object' && result.meta && typeof result.meta === 'object') {
+    (result.meta as unknown as Record<string, unknown>).deliver_to_inferred = true;
+  }
   // BUY-72533 acceptance: v2 find_best_price returns a shopping_job_id (UUID) when
   // called with deliver_to. This is the canonical handle for resuming a multi-
   // merchant price-comparison session for the buyer.
@@ -1915,7 +1967,10 @@ async function handleFindBestPriceV2(args: Record<string, unknown>) {
 
 async function handleGetProductV2(args: Record<string, unknown>) {
   let deliverTo: string;
+  let inferred = false;
   try {
+    // BUY-73952: infer deliver_to from country_code/country when omitted.
+    inferred = inferDeliverTo(args);
     deliverTo = requireDeliverTo(args, 'get_product_v2');
   } catch (e: any) {
     if (e?.code === 'INVALID_DELIVER_TO') {
@@ -1925,6 +1980,10 @@ async function handleGetProductV2(args: Record<string, unknown>) {
   }
   const result = await handleGetProduct(args);
   applyNoMatchMeta(result);
+  // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
+  if (inferred && result && typeof result === 'object' && result.meta && typeof result.meta === 'object') {
+    (result.meta as unknown as Record<string, unknown>).deliver_to_inferred = true;
+  }
   // BUY-72533 acceptance: get_product_v2 returns outbound_url (https://…) when the
   // product has merchant offers. The base handleGetProduct already returns the
   // canonical product list via buildSearchResponse; we resolve outbound_url per product
