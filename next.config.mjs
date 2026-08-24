@@ -280,6 +280,40 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-70756: six affiliate-intent aliases previously fell through to the
+      // branded homepage 404 shell. Route each to /earn so organic search and
+      // external links (Reddit, X, partner directories) land on the cashback
+      // page instead of a generic not-found.
+      {
+        source: '/affiliate',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/earn',
+        permanent: true,
+      },
       // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
       // permanentRedirect) so production probes receive a true HTTP 308 instead of
       // the App Router shell-render trick.
