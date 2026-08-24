@@ -45,6 +45,27 @@ function isAllowedDestination(url) {
         return false;
     }
 }
+// F32 (2026-08-22): the static allowlist froze at 12 SG launch domains while the
+// catalog grew to 150K merchants — /api/click 403'd its own generated URLs for
+// everything else. Product-anchored validation: the destination is permitted when
+// its hostname matches the referenced product's stored URL hostname. Still closed
+// to arbitrary redirects (an attacker-supplied url must match the product row).
+async function productAnchoredDestination(url, productId) {
+    if (!productId)
+        return false;
+    try {
+        const destHost = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+        const r = await config_1.db.query('SELECT url FROM products WHERE id = $1 LIMIT 1', [productId]);
+        const stored = r.rows[0]?.url;
+        if (!stored)
+            return false;
+        const storedHost = new URL(stored).hostname.replace(/^www\./, '').toLowerCase();
+        return destHost === storedHost;
+    }
+    catch {
+        return false;
+    }
+}
 function merchantFromUrl(url) {
     try {
         return new URL(url).hostname.replace(/^www\./, '');
@@ -73,17 +94,33 @@ function requireAdminKey(req, res, next) {
 // ---------------------------------------------------------------------------
 // GET /api/click
 // ---------------------------------------------------------------------------
+router.get('/kpi-history', requireAdminKey, async (req, res) => {
+    const days = Math.min(90, Math.max(1, parseInt(req.query.days) || 30));
+    try {
+        const r = await config_1.catalogDb.query(`SELECT day, total_calls, calls_external, search_calls, zero_result_calls,
+              search_success_pct, p50_ms, p95_ms, products_est, merchants_total,
+              merchants_monetizable, clicks_total, active_ext_keys, dev_keys_external
+       FROM kpi_daily
+       WHERE day > current_date - $1::int
+       ORDER BY day`, [days]);
+        res.json({ data: r.rows });
+    }
+    catch (err) {
+        console.error('[kpi-history] query error:', err);
+        res.status(500).json({ error: 'kpi query failed' });
+    }
+});
 router.get('/click', async (req, res) => {
     const url = req.query.url;
     if (!url) {
         res.status(400).json({ error: 'Missing required query param: url' });
         return;
     }
-    if (!isAllowedDestination(url)) {
+    const productId = req.query.product_id || null;
+    if (!isAllowedDestination(url) && !(await productAnchoredDestination(url, productId))) {
         res.status(403).json({ error: 'Destination not permitted' });
         return;
     }
-    const productId = req.query.product_id || null;
     const merchantId = req.query.merchant || merchantFromUrl(url);
     const auth = req.headers['authorization'] || '';
     const apiKey = auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
@@ -92,14 +129,44 @@ router.get('/click', async (req, res) => {
     const ipHash = clientIp
         ? (0, crypto_1.createHash)('sha256').update(clientIp).digest('hex')
         : null;
+    // BUY-72774: resolve api_key.id for outbound tracking on pending-verify keys
+    let apiKeyId = null;
+    if (apiKey) {
+        const keyHash = (0, crypto_1.createHash)('sha256').update(apiKey).digest('hex');
+        const keyRow = await config_1.db.query('SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true', [keyHash]);
+        apiKeyId = keyRow.rows[0]?.id || null;
+    }
+    // Align INSERT to actual clicks table schema:
+    // id, product_id, merchant_id, user_id, api_key, referrer, destination_url, ip_hash, source, clicked_at
     try {
-        await config_1.db.query(`INSERT INTO clicks
-         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, null, req.headers['user-agent'] || null, referrer, merchantId]);
+        await config_1.db.query(`INSERT INTO clicks (id, product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, merchantId, apiKey, referrer, url, ipHash, 'api']);
     }
     catch (err) {
         // Log but don't block the redirect
         console.error('[clicks] insert error:', err);
+    }
+    // BUY-72774: update pending-verify outbound tracking for auto-promotion
+    // Outbound click → update consecutive days counter + check 3-day promotion
+    if (apiKeyId) {
+        config_1.db.query(`UPDATE api_keys
+         SET last_outbound_date = CURRENT_DATE,
+             consecutive_outbound_days =
+               CASE
+                 WHEN last_outbound_date = CURRENT_DATE - INTERVAL '1 day'
+                   THEN consecutive_outbound_days + 1
+                 WHEN last_outbound_date IS NULL OR last_outbound_date < CURRENT_DATE - INTERVAL '1 day'
+                   THEN 1
+                 ELSE consecutive_outbound_days
+               END
+         WHERE id = $1
+           AND tier = 'pending_verify'`, [apiKeyId]).catch(() => { });
+        // Check auto-promotion: 3+ consecutive days with outbound clicks
+        config_1.db.query(`UPDATE api_keys
+         SET tier = 'free'
+         WHERE id = $1
+           AND tier = 'pending_verify'
+           AND consecutive_outbound_days >= 3`, [apiKeyId]).catch(() => { });
     }
     res.redirect(302, url);
 });

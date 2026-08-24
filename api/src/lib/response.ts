@@ -83,6 +83,7 @@ export function buildProduct(
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
+  const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
   const destinationUrl = affiliateUrl ?? (row.url as string);
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
@@ -110,6 +111,7 @@ export function buildProduct(
     updated_at: (row.updated_at as string) || null,
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
+    ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
@@ -162,6 +164,7 @@ export function buildProduct(
   return base;
 }
 
+// BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response is empty AND the caller derived an emptiness reason, attach the emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses ignore this (reasons are only meaningful for empty results).
 export function buildSearchResponse(
   products: CanonicalProduct[],
   total: number,
@@ -172,10 +175,6 @@ export function buildSearchResponse(
   degraded?: boolean,
   hasMore?: boolean,
   expectedCountryCode?: string | null,
-  // BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response
-  // is empty AND the caller derived an emptiness reason, attach the
-  // emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses
-  // ignore this (reasons are only meaningful for empty results).
   emptiness?: {
     emptiness_reason: EmptinessReason;
     confidence: SearchConfidence;

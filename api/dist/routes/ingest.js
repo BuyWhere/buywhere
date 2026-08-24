@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
+const pricing_1 = require("../lib/pricing");
 const router = (0, express_1.Router)();
 const SOURCE_NORMALIZATION = {
     'challenger': 'challenger_sg',
@@ -251,6 +252,15 @@ function validateProduct(item, index, source) {
         return { valid: null, error: err('Missing title', 'validation_title_required') };
     if (p.price === undefined || p.price === null || typeof p.price !== 'number' || p.price < 0) {
         return { valid: null, error: err('Missing or invalid price (must be >= 0)', 'validation_price_non_positive') };
+    }
+    // BUY-73321: reject price outliers at ingest time to protect search result quality.
+    const priceCurrency = typeof p.currency === 'string' ? p.currency : 'SGD';
+    const priceCheck = (0, pricing_1.validatePrice)(p.price, priceCurrency);
+    if (priceCheck.verdict === 'hard_reject') {
+        return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_outlier') };
+    }
+    if (priceCheck.verdict === 'outlier') {
+        console.warn(`[ingest] price outlier: sku=${sku} price=${p.price} ${priceCurrency} — ${priceCheck.reason}`);
     }
     if (!p.url || typeof p.url !== 'string')
         return { valid: null, error: err('Missing url', 'validation_url_invalid') };

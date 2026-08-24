@@ -242,6 +242,7 @@ CREATE TABLE IF NOT EXISTS query_log (
   query_intent TEXT,
   product_categories TEXT[],
   result_count INTEGER,
+  returned_product_ids TEXT[],
   response_time_ms INTEGER,
   status_code INTEGER NOT NULL DEFAULT 200,
   ip_address INET,
@@ -628,6 +629,15 @@ export async function runMigrations() {
     console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
   } catch (err: any) {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-74173: query_log returned_product_ids must exist before handlers can
+  // instrument served-vs-clicked preference.
+  try {
+    await db.query('ALTER TABLE query_log ADD COLUMN IF NOT EXISTS returned_product_ids text[]');
+    console.log('[migration] query_log.returned_product_ids column ensured (BUY-74173).');
+  } catch (err: any) {
+    console.warn(`[migration] query_log.returned_product_ids preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // Separately ensure merchants tables exist — not blocked by failures above.
