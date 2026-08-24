@@ -155,6 +155,7 @@ const TOOLS = [
       properties: {
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         region: { type: 'string', description: 'Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).' },
       },
     },
