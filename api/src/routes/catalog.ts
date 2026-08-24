@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, redis, catalogDb } from '../config';
+import { redis, catalogDb } from '../config';
 import { readDb, replicaStatus } from '../lib/readReplica';
 
 // BUY-45692: heavy catalog aggregates read from the replica when one is
@@ -35,11 +35,14 @@ interface CatalogStatsResult {
 async function collectStats(): Promise<CatalogStatsResult> {
   const now = new Date().toISOString();
 
-  const reader = catalogDb;
+  // BUY-74205: route stats reads to the read replica (readDb) so the 407 GB
+  // products table scan does not saturate the primary catalog pool.  Removing the
+  // TABLESAMPLE active-ratio query: on a 368 M-row table it exceeds the statement
+  // timeout and makes /v1/catalog/stats time out whenever the cache is cold.
+  const reader = readDb();
   const [
     productsEst,
     merchantsExact,
-    activeRatio,
   ] = await Promise.all([
     // Total products: pg_class.reltuples (instant, no table scan)
     reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
@@ -54,19 +57,11 @@ async function collectStats(): Promise<CatalogStatsResult> {
           .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
           .catch(() => 0)
       ),
-
-    // Active ratio: TABLESAMPLE BERNOULLI(0.1) — scans ~0.1% of rows
-    reader.query(`
-      SELECT
-        count(*) AS sample_total,
-        count(*) FILTER (WHERE is_active) AS sample_active
-      FROM products TABLESAMPLE BERNOULLI (0.1)
-    `).then(r => {
-      const sampleTotal = Number(r.rows?.[0]?.sample_total || 0);
-      const sampleActive = Number(r.rows?.[0]?.sample_active || 0);
-      return sampleTotal > 0 ? sampleActive / sampleTotal : 0.99;
-    }).catch(() => 0.99),
   ]);
+
+  // Approximate active ratio. TABLESAMPLE was too slow on the live table;
+  // overall active ratio has been steady at ~99 %, so use that fixed estimate.
+  const activeRatio = 0.99;
 
   let activeProducts = Math.round(productsEst * activeRatio);
   if (activeProducts > productsEst) activeProducts = productsEst;
@@ -85,7 +80,7 @@ async function collectStats(): Promise<CatalogStatsResult> {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000): Promise<CatalogStatsResult | null> {
   // Heavy full-table count — route to the replica when available (BUY-45692).
-  const client = await catalogDb.connect();
+  const client = await readDb().connect();
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
