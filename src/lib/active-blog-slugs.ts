@@ -44,4 +44,5 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "mcp-for-ecommerce",
   "mcp-server-ecosystem-2026",
   "the-mcp-server-discovery-gap",
+  "true-zero-human-self-serve-mcp-2026",
 ];
