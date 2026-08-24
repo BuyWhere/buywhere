@@ -1819,11 +1819,10 @@ function inferDeliverTo(args: Record<string, unknown>): boolean {
   const countryAlias = typeof args.country === 'string' ? args.country.trim() : '';
   const source = cc || countryAlias;
   if (!source) return false;
-  const normalised = source.toUpperCase();
-  // Only infer supported ISO-alpha-2 codes; otherwise fall through and let
-  // requireDeliverTo reject with INVALID_DELIVER_TO (BUY-72700).
-  if (!/^[A-Z]{2}$/.test(normalised) || !VALID_DELIVER_TO.has(normalised)) return false;
-  args.deliver_to = normalised;
+  // BUY-73952: per parent spec, deliver_to defaults to country_code verbatim.
+  // requireDeliverTo will reject unsupported / non-ISO-alpha-2 codes with the
+  // structured INVALID_DELIVER_TO envelope (BUY-72700) rather than missing-deliver_to.
+  args.deliver_to = source.toUpperCase();
   return true;
 }
 
