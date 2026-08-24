@@ -386,6 +386,30 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   let weeklyResetAt = row.weekly_reset_at ? new Date(row.weekly_reset_at) : nextWeekUTC();
   const now = new Date();
 
+  // BUY-73693: a row with daily_reset_at=NULL falls back to nextMidnightUTC()
+  // (tomorrow midnight), which makes the row forever-stuck at the cap until a
+  // fresh reset_at is written. For monitoring-tier keys (no entry in
+  // TIER_LIMITS) that were created without a reset_at, the first request to
+  // arrive after a cap hit would never reset. Initialize the reset window
+  // from row creation time when reset_at is missing AND a counter is present,
+  // so the counter can recover on the next request.
+  if (!row.daily_reset_at && dailyRequestCount > 0) {
+    const createdAt = row.created_at ? new Date(row.created_at) : null;
+    const firstReset = createdAt
+      ? new Date(Math.ceil(createdAt.getTime() / 86400000) * 86400000)
+      : nextMidnightUTC();
+    if (now >= firstReset) {
+      dailyRequestCount = 0;
+      dailyResetAt = nextMidnightUTC();
+      db.query(
+        'UPDATE api_keys SET daily_request_count = 0, daily_reset_at = $1 WHERE id = $2',
+        [dailyResetAt, row.id]
+      ).catch(() => {});
+    } else {
+      dailyResetAt = firstReset;
+    }
+  }
+
   if (now >= dailyResetAt) {
     dailyRequestCount = 0;
     dailyResetAt = nextMidnightUTC();
