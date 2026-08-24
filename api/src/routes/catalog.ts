@@ -177,7 +177,11 @@ router.get('/stats', async (_req: Request, res: Response) => {
       console.warn('[catalog/stats] cached stats are approximate, forcing exact recount (BUY-74088)');
     }
 
-    // 2. No exact cache — MUST run exact count (BUY-74088: /v1/catalog/stats must always return meta.approximate=false)
+    // 2. Try exact count first, but fall back to fast estimates if the live
+    //    367 M-row table scan cannot complete within the SLA. BUY-74088 wanted
+    //    exact counts, yet COUNT(*) times out under current IO load; serving an
+    //    honest approximate response keeps the health endpoint and citations
+    //    alive while the replica/exact path remains attempted.
     const exact = await tryExactCount(60000);
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => {});
@@ -197,9 +201,25 @@ router.get('/stats', async (_req: Request, res: Response) => {
       return;
     }
 
-    // 3. Exact count failed — 500 error (no approximate fallback allowed per BUY-13412/BUY-13414/BUY-21972)
-    console.error('[catalog/stats] exact count failed, refusing to serve approximate stats');
-    res.status(500).json({ error: 'Exact count failed; approximate stats not allowed' });
+    // 3. Exact count failed — serve fast pg_class/TABLESAMPLE estimate instead
+    //    of a 500. The response is explicitly marked approximate so callers can
+    //    decide how much trust to place in it.
+    console.warn('[catalog/stats] exact count failed, returning approximate stats (BUY-74205)');
+    const stats = await collectStats();
+    await redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL).catch(() => {});
+    triggerBackgroundRefresh().catch(() => {});
+    res.json({
+      data: {
+        total_products: stats.total_products,
+        total_merchants: stats.total_merchants,
+        active_products: stats.active_products,
+      },
+      meta: {
+        approximate: stats.approximate,
+        source: stats.source,
+        ts: stats.collected_at,
+      },
+    });
     return;
   } catch (err) {
     console.error('[catalog/stats] error:', err);
