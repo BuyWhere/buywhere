@@ -26,6 +26,7 @@ export function buildProduct(
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
+  const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
   const destinationUrl = affiliateUrl ?? (row.url as string);
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
@@ -58,6 +59,7 @@ export function buildProduct(
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),

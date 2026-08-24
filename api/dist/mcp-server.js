@@ -11,6 +11,7 @@ const cors_1 = __importDefault(require("cors"));
 const mcp_1 = __importDefault(require("./routes/mcp"));
 const config_1 = require("./config");
 const posthog_1 = require("./analytics/posthog");
+const healthSnapshot_1 = require("./monitoring/healthSnapshot");
 const MCP_PORT = parseInt(process.env.MCP_PORT || process.env.PORT || '8081');
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -19,18 +20,51 @@ app.use(express_1.default.json());
 app.get('/healthz', (_req, res) => {
     res.json({ status: 'ok' });
 });
+// BUY-69817: public health surface with per-tool/per-region breakdown.
 app.get('/health', async (_req, res) => {
     try {
-        const result = await config_1.db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE oid = \'public.products\'::regclass');
+        const [countResult, pong] = await Promise.all([
+            config_1.db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE oid = \'public.products\'::regclass'),
+            config_1.redis.ping(),
+        ]);
+        const catalogTotal = parseInt(countResult.rows[0].count, 10);
+        let snapshot;
+        try {
+            snapshot = (0, healthSnapshot_1.computeSnapshot)();
+        }
+        catch {
+            snapshot = { status: 'ok', server: 'mcp', ts: new Date().toISOString(), tools: {}, regions: {} };
+        }
         res.json({
-            status: 'ok',
-            server: 'mcp',
+            ...snapshot,
+            catalog: { total_products: catalogTotal },
+            db: 'ok',
+            redis: pong === 'PONG' ? 'ok' : 'degraded',
             ts: new Date().toISOString(),
-            catalog: { total_products: parseInt(result.rows[0].count, 10) },
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', error: String(err) });
+        res.status(503).json({ status: 'down', error: String(err), ts: new Date().toISOString() });
+    }
+});
+// BUY-69817: per-tool breakdown.
+app.get('/health/tools', (_req, res) => {
+    try {
+        const snapshot = (0, healthSnapshot_1.computeSnapshot)();
+        res.json({ status: snapshot.status, server: 'mcp', ts: snapshot.ts, tools: snapshot.tools });
+    }
+    catch {
+        res.json({ status: 'ok', server: 'mcp', ts: new Date().toISOString(), tools: {}, note: 'snapshotter degraded' });
+    }
+});
+// BUY-69817: per-region breakdown.
+app.get('/health/regions', (_req, res) => {
+    try {
+        const snapshot = (0, healthSnapshot_1.computeSnapshot)();
+        res.json({ status: snapshot.status, server: 'mcp', ts: snapshot.ts, regions: snapshot.regions });
+    }
+    catch {
+        res.json({ status: 'ok', server: 'mcp', ts: new Date().toISOString(), regions: {}, note: 'snapshotter degraded' });
     }
 });
 app.use('/mcp', mcp_1.default);
@@ -40,6 +74,23 @@ app.use('/', mcp_1.default);
 app.use((_req, res) => {
     res.status(404).json({ error: 'not found' });
 });
+// BUY-56185 / BUY-60097: Detect statement_timeout poisoned connections.
+// When PostgreSQL's statement_timeout fires, the query is cancelled but the
+// connection enters PQTRANS_INERROR state. Returning such a connection to the
+// pool poisons every subsequent query. client.state returns 'error' in this state.
+function releaseClientSafely(client) {
+    try {
+        if (client && typeof client.state === 'string' && client.state === 'error') {
+            client.release(true); // discard — do NOT return poisoned connection to pool
+        }
+        else {
+            client.release();
+        }
+    }
+    catch (_) {
+        // Swallow release errors — pool will remove the bad client anyway.
+    }
+}
 async function warmupMcpCaches() {
     // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not a plain column).
     const client = await config_1.db.connect();
@@ -128,7 +179,8 @@ async function warmupMcpCaches() {
         }
     }
     finally {
-        client.release();
+        // BUY-60097: discard connections poisoned by statement_timeout
+        releaseClientSafely(client);
     }
 }
 const server = app.listen(MCP_PORT, () => {

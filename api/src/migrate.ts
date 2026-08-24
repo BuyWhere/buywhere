@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS query_log (
   query_intent TEXT,
   product_categories TEXT[],
   result_count INTEGER,
+  returned_product_ids TEXT[],
   response_time_ms INTEGER,
   status_code INTEGER NOT NULL DEFAULT 200,
   ip_address INET,
@@ -853,15 +854,17 @@ export async function runMigrations() {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
-  // BUY-62708: ensure query_log.cache_hit exists independently of the MIGRATION block
-  // (added to CREATE TABLE inside MIGRATION, but live DBs created before BUY-62708 ran
-  // never received the ALTER because migrate.ts does not execute /migrations/*.sql
-  // standalone files; this preflight closes that gap idempotently).
+  // BUY-62708 / BUY-74173: ensure query_log telemetry columns exist independently
+  // of the MIGRATION block (live DBs created before these columns landed never run
+  // standalone /migrations/*.sql files).
   try {
-    await db.query('ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean');
-    console.log('[migration] query_log.cache_hit column ensured (BUY-62708).');
+    await db.query(`
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean;
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS returned_product_ids text[];
+    `);
+    console.log('[migration] query_log telemetry columns ensured (BUY-62708/BUY-74173).');
   } catch (err: any) {
-    console.warn(`[migration] query_log.cache_hit preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    console.warn(`[migration] query_log telemetry column preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // BUY-72774: ensure api_keys columns for pending-verify tier (verify=false registration path)

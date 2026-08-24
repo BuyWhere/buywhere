@@ -20,12 +20,26 @@ function generateVerificationToken() {
 // POST /v1/auth/register
 // POST /v1/developers/signup
 // Headless agent self-registration — requires email for verification
+// BUY-72774: verify=false query param skips email verification and issues pending-verify tier
 async function registerAgent(req, res) {
-    const { agent_name, email, contact, use_case } = req.body;
+    const { agent_name, email, contact, use_case, is_internal: reqIsInternal } = req.body;
+    // BUY-72774: verify=false → issue pending-verify tier, skip verification email
+    const skipVerify = req.query.verify === 'false';
     if (!agent_name || typeof agent_name !== 'string') {
         res.status(400).json({ error: 'agent_name is required' });
         return;
     }
+    // BUY-72823: internal-flag registration — only honored when the caller
+    // presents the shared BUYWHERE_SIGNUP_SECRET header. Without the secret,
+    // any "is_internal" in the body is silently ignored (column default = false).
+    // This lets fleet-testing harnesses mint keys invisible to growth cohorts
+    // without exposing the flag to arbitrary public signups.
+    const headerSecret = req.headers['x-buywhere-signup-secret'];
+    const envSecret = process.env.BUYWHERE_SIGNUP_SECRET;
+    const isInternal = !!(reqIsInternal === true &&
+        envSecret &&
+        typeof headerSecret === 'string' &&
+        headerSecret === envSecret);
     const emailAddr = (email || contact || '');
     const hasEmail = emailAddr.length > 0;
     // Email is OPTIONAL for agent self-service (MCP/API are agent-only; no human signup required).
@@ -40,30 +54,79 @@ async function registerAgent(req, res) {
     // UTM / attribution from query params or body
     const utmSource = (req.query.utm_source || req.body.utm_source);
     const utmMedium = (req.query.utm_medium || req.body.utm_medium);
+    // GTM-attribution (2026-08-22): persist the FULL utm set + a referrer-host
+    // fallback — the columns existed but were never written, leaving attribution
+    // blind (100% 'direct' in the W1 growth analysis).
+    const utmCampaign = (req.query.utm_campaign || req.body.utm_campaign);
+    const utmContent = (req.query.utm_content || req.body.utm_content);
+    const utmTerm = (req.query.utm_term || req.body.utm_term);
+    const clip = (v) => (v ? String(v).slice(0, 200) : null);
+    let referrerHost = null;
+    try {
+        const ref = req.headers['referer'];
+        if (typeof ref === 'string' && ref)
+            referrerHost = new URL(ref).hostname.slice(0, 200);
+    }
+    catch { /* malformed referer — ignore */ }
     const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
-    const verificationToken = hasEmail ? generateVerificationToken() : null;
-    const expiresAt = hasEmail ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+    // BUY-72774: determine tier based on verify=false flag
+    const tier = skipVerify ? 'pending_verify' : 'unverified';
+    // Capture registration IP for anti-abuse (pending-verify tier)
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() ??
+        req.headers['x-real-ip'] ??
+        req.ip ??
+        null;
+    const verificationToken = hasEmail && !skipVerify ? generateVerificationToken() : null;
+    const expiresAt = hasEmail && !skipVerify ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
     const id = (0, uuid_1.v4)();
+    // BUY-72774: for pending-verify tier, capture IP for tracking.
+    // Anti-abuse IP limit (3+ keys/24h) is enforced in the apiKey middleware
+    // on first use, not at registration — keeping the register path synchronous.
+    const registrationIp = skipVerify ? clientIp : null;
     await config_1.db.query(`INSERT INTO api_keys
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
-        email_verification_token, email_verification_expires_at)
-      VALUES ($1,$2,$3,$4,$5,$6,'unverified',true,$7,$8,'self-registered',$9,$10)`, [
+        email_verification_token, email_verification_expires_at,
+        registration_ip, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+        is_internal)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,'self-registered',$10,$11,$12,$13,$14,$15,$16,$17,$18)`, [
         id,
         keyHash,
         agent_name.trim().slice(0, 200),
         hasEmail ? emailAddr.slice(0, 500) : null,
-        hasEmail ? emailAddr.slice(0, 500) : null, // also set contact for backward compat
+        hasEmail ? emailAddr.slice(0, 500) : null,
         use_case ? String(use_case).slice(0, 1000) : null,
+        tier,
         signupChannel,
-        utmSource || null,
+        utmSource || referrerHost || null,
         verificationToken,
         expiresAt,
+        registrationIp,
+        clip(utmSource),
+        clip(utmMedium),
+        clip(utmCampaign),
+        clip(utmContent),
+        clip(utmTerm),
+        isInternal,
     ]);
+    // BUY-72774: background IP counter — fire-and-forget, non-blocking.
+    // Updates api_keys.keys_from_same_ip_24h for future use-time checks.
+    if (skipVerify && clientIp) {
+        const ipHash = (0, crypto_1.createHash)('sha256').update(clientIp).digest('hex').slice(0, 32);
+        const ipCounterKey = `auth:pending_verify:ip:${ipHash}`;
+        config_1.db.query(`UPDATE api_keys SET keys_from_same_ip_24h = (
+         SELECT COUNT(*) FROM api_keys
+         WHERE registration_ip = $1 AND created_at > NOW() - INTERVAL '24 hours'
+       ) WHERE id = $2`, [clientIp, id]).catch(() => { });
+        // Increment Redis for use-time fast-path check (best-effort, never blocks)
+        config_1.redis.incr(ipCounterKey).catch(() => { });
+        config_1.redis.expire(ipCounterKey, 24 * 60 * 60).catch(() => { });
+    }
     // Fire PostHog registration event (async, non-blocking)
     (0, posthog_1.trackRegistration)(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
     // Send verification email only when an email was supplied (optional for agents)
-    if (hasEmail && verificationToken) {
+    // BUY-72774: skip email when verify=false (pending-verify tier has no email)
+    if (hasEmail && verificationToken && !skipVerify) {
         (0, email_1.sendVerificationEmail)(emailAddr, verificationToken)
             .then((sent) => {
             if (sent) {
@@ -72,16 +135,26 @@ async function registerAgent(req, res) {
         })
             .catch(() => { });
     }
-    res.status(201).json({
+    // BUY-72775: include verify_url in response when email provided — enables
+    // one-step paste of both api_key and verify_url into framework config.
+    // BUY-72774: verify=false path has no email verification.
+    const pvLimits = config_1.TIER_LIMITS.pending_verify;
+    const response = {
         api_key: rawKey,
-        tier: 'unverified',
+        tier: skipVerify ? 'pending-verify' : 'unverified',
         email_verified: false,
         rate_limit: {
-            rpm: config_1.TIER_LIMITS.unverified.rpm,
-            daily: config_1.TIER_LIMITS.unverified.daily,
+            rpm: skipVerify ? pvLimits.rpm : config_1.TIER_LIMITS.unverified.rpm,
+            daily: skipVerify ? pvLimits.daily : config_1.TIER_LIMITS.unverified.daily,
+            ...(skipVerify ? { week: pvLimits.weekly } : {}),
         },
+        ...(skipVerify ? { cap: { day: pvLimits.daily, wk: pvLimits.weekly } } : {}),
         docs: 'https://api.buywhere.ai/docs',
-    });
+    };
+    if (hasEmail && verificationToken) {
+        response.verify_url = `${config_1.API_BASE_URL}/v1/auth/verify?token=${encodeURIComponent(verificationToken)}`;
+    }
+    res.status(201).json(response);
 }
 router.post('/register', registerAgent);
 router.post('/signup', registerAgent);
@@ -92,15 +165,22 @@ router.get('/verify', async (req, res) => {
         (0, errors_1.sendError)(res, errors_2.ErrorCode.INVALID_PARAMETER, 'Verification token is required.');
         return;
     }
+    // BUY-72774: check current tier to determine promotion target
+    // pending_verify -> free (via email verification), unverified -> verified_agent
+    const currentTierResult = await config_1.db.query(`SELECT tier FROM api_keys
+     WHERE email_verification_token = $1
+       AND email_verified = false
+       AND (email_verification_expires_at IS NULL OR email_verification_expires_at > NOW())`, [token]);
+    const newTier = currentTierResult.rows[0]?.tier === 'pending_verify' ? 'free' : 'verified_agent';
     const result = await config_1.db.query(`UPDATE api_keys
        SET email_verified = true,
            email_verification_token = NULL,
            email_verification_expires_at = NULL,
-           tier = 'verified_agent'
+           tier = $2
      WHERE email_verification_token = $1
        AND email_verified = false
        AND (email_verification_expires_at IS NULL OR email_verification_expires_at > NOW())
-     RETURNING id, email, tier, rpm_limit, daily_limit`, [token]);
+     RETURNING id, email, tier, rpm_limit, daily_limit`, [token, newTier]);
     if (result.rows.length === 0) {
         // Check if token exists but expired
         const expired = await config_1.db.query(`SELECT id FROM api_keys

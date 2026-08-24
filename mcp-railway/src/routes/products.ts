@@ -18,6 +18,28 @@ import { embedQuery } from '../jobs/embedProducts';
 import { normalizeQuery, semanticLookup, semanticRegister, semanticEnabled } from '../lib/semanticCache';
 
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+const AMAZON_STALENESS_DAYS = 60;
+const AMAZON_STALE_RANK_MULTIPLIER = 0.35;
+const AMAZON_TARGETED_RANK_BOOST = 1.15;
+const AMAZON_TRUST_CATEGORIES = ['electronics', 'home-living'];
+const AMAZON_TRUST_MIN_PRICE = 10;
+const AMAZON_TRUST_MAX_PRICE = 200;
+
+function amazonRankMultiplierSql(alias: string): string {
+  return `
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%' AND ${alias}.updated_at < NOW() - INTERVAL '${AMAZON_STALENESS_DAYS} days'
+      THEN ${AMAZON_STALE_RANK_MULTIPLIER}
+      ELSE 1.0
+    END *
+    CASE
+      WHEN lower(${alias}.source) LIKE '%amazon%'
+        AND ${alias}.price BETWEEN ${AMAZON_TRUST_MIN_PRICE} AND ${AMAZON_TRUST_MAX_PRICE}
+        AND lower(regexp_replace(coalesce(${alias}.category,''),'\\s+','-','g')) IN (${AMAZON_TRUST_CATEGORIES.map((category) => `'${category}'`).join(', ')})
+      THEN ${AMAZON_TARGETED_RANK_BOOST}
+      ELSE 1.0
+    END`;
+}
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -491,7 +513,9 @@ router.get(
       // BUY-31228 stays in place as the safety net.
       dataQuery = `
         WITH top_ids AS (
-          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id, country_code,
+                 ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 ${amazonRankMultiplierSql('products')} AS rank
           FROM products
           ${whereClause}
           ORDER BY rank DESC
@@ -603,7 +627,7 @@ router.get(
               `SELECT id
                FROM products
                ${whereClause}
-               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+               ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products')}) DESC
                LIMIT 200`,
               searchParams
             );
