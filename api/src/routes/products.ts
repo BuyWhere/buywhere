@@ -488,10 +488,24 @@ router.get(
     const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20), 100);
     const offset = (page - 1) * limit;
 
-    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
+    // Filters — country_code is REQUIRED for /v1/products (BUY-73753).
+    // Historically it defaulted to 'SG' which meant a missing-param request
+    // silently served the SG cohort regardless of caller locale. Shopper
+    // confirmed the silent-fallback defect on 2026-08-24T02:25Z (first 20
+    // rows = SG even when caller did not request SG). Return an explicit
+    // 400 country_required error so clients can self-correct instead of
+    // getting a wrong-cohort page.
     const category = req.query.category as string | undefined;
     // BUY-73199: accept both `country` (contract param) and `country_code` (legacy alias)
-    const countryCode = ((req.query.country as string | undefined) || (req.query.country_code as string | undefined))?.toUpperCase() || 'SG';
+    const rawCountry = ((req.query.country as string | undefined) || (req.query.country_code as string | undefined))?.toUpperCase();
+    if (!rawCountry) {
+      return res.status(400).json({
+        error: 'country_required',
+        message: 'country (or country_code) query parameter is required (e.g. ?country=SG, US, PH, ID, JP, GB, DE, AU). The /v1/products endpoint never falls back to a default cohort; pick the market you want.',
+        allowed: Object.keys(COUNTRY_CURRENCY),
+      });
+    }
+    const countryCode = rawCountry;
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc

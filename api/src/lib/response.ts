@@ -7,8 +7,19 @@ export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
 
+// BUY-73753: include every active market code so the LIST/SIMILAR/DEALS
+// paths can build a `WHERE currency = $1 AND country_code = $2` predicate
+// that matches the rows actually stored under that country. Without a
+// mapping, the fallback ('SGD') used to mismatch on PH/ID/JP/DE/AU and
+// the planner was full-scanning for non-SG/US cohorts. Active set is
+// the union of the openapi /mcp enum, the fleet onboarding targets, and
+// the BUY-73330 gate probe; expand deliberately (any value absent here
+// silently returns zero rows + a 30s seq-scan timeout).
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
+  // Single-currency regions stored under EUR/USD on the catalog:
+  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
 
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
