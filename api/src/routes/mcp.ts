@@ -1377,6 +1377,10 @@ async function handleListCategories(args: Record<string, unknown>) {
         }));
       }
       const data = {
+        // BUY-71112: expose both `categories` (canonical) and `data` (legacy)
+        // so callers expecting either key keep working. Mirrors the
+        // mcp-railway fix in PR #692; same probe evidence.
+        categories: rows,
         data: rows,
         meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
       };
@@ -1405,12 +1409,19 @@ async function handleListCategories(args: Record<string, unknown>) {
   categoryListInflight.set(country, queryPromise);
   try {
     const rows = await Promise.race([queryPromise.then(r => r.data), hardTimeoutPromise]);
-    const result = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false, unavailable: false } };
+    const result = { categories: rows, data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false, unavailable: false } };
     return result;
   } catch (err) {
     // If the promise rejects, return hardcoded categories with a warning
     console.warn('[list_categories] unexpected error, returning hardcoded:', err);
     return {
+      categories: [
+        { slug: 'electronics', name: 'Electronics', product_count: 0 },
+        { slug: 'computers', name: 'Computers', product_count: 0 },
+        { slug: 'mobile-phones', name: 'Mobile Phones', product_count: 0 },
+        { slug: 'home', name: 'Home', product_count: 0 },
+        { slug: 'fashion', name: 'Fashion', product_count: 0 },
+      ],
       data: [
         { slug: 'electronics', name: 'Electronics', product_count: 0 },
         { slug: 'computers', name: 'Computers', product_count: 0 },
