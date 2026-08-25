@@ -22,53 +22,89 @@ const AI_AGENT_DESCRIPTOR = {
   llms_txt: 'https://buywhere.ai/llms.txt',
 };
 
+// BUY-75173: align api /.well-known/agent.json with apex public/.well-known/agent.json
+// (version 1.1.0). Object is byte-equivalent to public/.well-known/agent.json when
+// serialised by res.json() — same keys, same order, same values.
 const A2A_AGENT_CARD = {
   name: 'BuyWhere',
-  description: 'Agent-native product catalog API for AI agent commerce',
+  description:
+    'Real-time shopping API and agent-native product catalog for AI agents: 381M+ products from 900,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
   provider: {
     organization: 'BuyWhere',
     url: 'https://buywhere.ai',
   },
-  version: '1.0.0',
+  version: '1.1.0',
   capabilities: {
-    streaming: false,
+    streaming: true,
     pushNotifications: false,
+    stateTransitionHistory: true,
+  },
+  authentication: {
+    schemes: ['apiKey', 'oauth2'],
   },
   defaultInputModes: ['text'],
-  defaultOutputModes: ['text'],
+  defaultOutputModes: ['text', 'json'],
   skills: [
     {
-      id: 'product_search',
+      id: 'product-search',
       name: 'Product Search',
-      description: 'Search 300M+ products worldwide by keyword, category, price range — pass deliver_to (user country) for deliverable-first ranking with availability labels',
-      tags: ['ecommerce', 'search', 'products'],
-      examples: ['Find espresso machines under 500 USD deliverable to Canada', 'Search wireless headphones under 150 EUR with deliver_to=DE and availability labels'],
+      description:
+        'Search 381M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
+      tags: ['e-commerce', 'search', 'products', 'availability'],
+      examples: [
+        'Find wireless earbuds under 150 USD that ship to US',
+        'Find coffee makers deliverable to Singapore with local or ships_to_you availability',
+      ],
     },
     {
-      id: 'product_compare',
-      name: 'Product Comparison',
-      description: 'Compare products across global storefronts by normalized price, rating, specs, merchant, and availability for a requested delivery location',
-      tags: ['ecommerce', 'comparison', 'price'],
-      examples: ['Compare iPhone 16 Pro prices available to ship to Australia', 'Which standing desks are deliverable to Singapore with the best normalized USD price?'],
+      id: 'location-aware-shopping',
+      name: 'Location-Aware Shopping',
+      description:
+        'Use deliver_to=<ISO country> to rank products your end user can actually receive; every result includes availability: local, ships_to_you, unavailable, or unknown.',
+      tags: ['delivery', 'availability', 'cross-border', 'ranking'],
+      examples: [
+        'Show laptop deals deliverable to AU and hide unavailable results',
+        'Find skincare products that ship to GB with availability labels',
+      ],
     },
     {
-      id: 'deal_finder',
+      id: 'cross-storefront-comparison',
+      name: 'Cross-Storefront Product Comparison',
+      description:
+        'Compare products, prices, attributes, and availability across 900,000+ independent storefronts worldwide.',
+      tags: ['comparison', 'price-comparison', 'affiliate', 'merchant'],
+      examples: [
+        'Compare iPhone 16 Pro Max prices across stores that ship to Singapore',
+        'Find equivalent robot vacuums across US and EU storefronts with best delivered price',
+      ],
+    },
+    {
+      id: 'deal-finder',
       name: 'Deal Finder',
-      description: 'Find best deals and discounts across 900,000+ merchants worldwide, filtered or ranked by availability for the user delivery location',
-      tags: ['ecommerce', 'deals', 'discounts'],
-      examples: ['Show me the best laptop deals deliverable to the United Kingdom today', 'Find discounted running shoes that are local or ships_to_you for deliver_to=SG'],
+      description:
+        'Find discounted products and price drops across the global catalog, with filters for category, currency, country, and deliverability.',
+      tags: ['deals', 'discounts', 'pricing'],
+      examples: [
+        'Show the best monitor deals today that ship to CA',
+        'Find air purifier discounts deliverable to SG under 300 SGD',
+      ],
     },
   ],
   protocols: {
     mcp: {
-      serverUrl: 'https://api.buywhere.ai/mcp/sse',
-      transport: 'sse',
-      note: 'Use /mcp/sse for SSE clients; https://api.buywhere.ai/mcp is the canonical MCP endpoint in llms.txt and remains valid.',
+      serverUrl: 'https://api.buywhere.ai/mcp',
+      transport: 'streamable-http',
+      notes:
+        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
     },
     a2a: {
       serverUrl: 'https://api.buywhere.ai/a2a',
       transport: 'json',
+    },
+    rest: {
+      serverUrl: 'https://api.buywhere.ai/v1',
+      transport: 'https',
     },
   },
   contact: {
