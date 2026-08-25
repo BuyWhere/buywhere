@@ -228,7 +228,7 @@ export default function BlogPostPage({ params }: PageProps) {
               <div className="mt-4 space-y-4">
                 {relatedPosts.map((relatedPost) => (
                   <div key={relatedPost.slug} className="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                       {formatDate(relatedPost.publishedAt)}
                     </p>
                     <Link
