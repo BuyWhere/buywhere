@@ -162,10 +162,11 @@ export default async function USProductSlugPage({ params }: PageProps) {
   // price table (visible to crawlers without JS) and the client island's
   // initialData. Fetching twice would double upstream load, so issue both reads
   // in parallel and reuse the raw payload for the SSR table.
-  const [initialData, rawMatches] = await Promise.all([
-    fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct),
+  const [fetchedProduct, rawMatches] = await Promise.all([
+    fetchUSProductSSR(resolvedProduct.id),
     fetchUSProductMatchesRaw(resolvedProduct.id),
   ]);
+  const initialData = fetchedProduct ?? buildResolvedProductFallback(resolvedProduct);
 
   const pagePath = `/products/us/${resolvedProduct.slug}`;
 
