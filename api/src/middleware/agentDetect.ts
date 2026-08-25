@@ -81,6 +81,7 @@ declare global {
         dailyLimit: number;
         signupChannel: string | null;
         attributionSource: string | null;
+  isInternal?: boolean;
         dailyRequestCount: number;
         dailyResetAt: Date;
       };
