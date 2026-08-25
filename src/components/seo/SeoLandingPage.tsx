@@ -1,5 +1,6 @@
 import { ProductGridCard } from "@/components/seo/ProductGridCard";
 import { SeoLandingStickyAnchor } from "@/components/seo/SeoLandingStickyAnchor";
+import { SeoLivePricesSnippet } from "@/components/seo/SeoLivePricesSnippet";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -369,6 +370,12 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             </div>
           </div>
         </section>
+
+        {/* BUY-74862 (Day 1): per-page "Check live prices yourself" snippet. Renders
+            server-side (SSR) with this page's own searchQuery + country so agents
+            and developers who land here can pull the same prices without parsing
+            the page. Visible to crawlers — do NOT hide behind a <details> toggle. */}
+        <SeoLivePricesSnippet config={config} />
 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
