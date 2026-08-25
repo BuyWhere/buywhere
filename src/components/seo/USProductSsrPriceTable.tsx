@@ -82,6 +82,10 @@ export default function USProductSsrPriceTable({
     })
     .filter((o): o is NonNullable<typeof o> => o !== null);
 
+  if (offersForSchema.length === 0) {
+    return null;
+  }
+
   const numericPrices = offersForSchema.map((o) => Number(o.price));
   const pageUrl = toSiteUrl(pagePath);
   const productSchema = {
