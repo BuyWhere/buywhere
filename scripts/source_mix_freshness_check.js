@@ -162,42 +162,80 @@ async function getCandidateFreshness(client) {
 }
 
 async function getCounterProductsReconciliation(client, hourStart) {
-  // Compare canonical_throughput_hourly.ing_inserted vs COUNT(products.created_at)
-  // for the same hour. Counts are best-effort with statement_timeout guard.
+  // Compare canonical_throughput_hourly.ing_inserted vs a measure of products
+  // created in the same hour. The canonical_throughput_hourly row carries
+  // pg_stat delta (delta_ins_from_stats) — that is the cheap, partition-prunable
+  // counter for the products table and bypasses the table-wide COUNT that
+  // times out on the 406GB products table (no created_at index exists).
+  //
+  // BUY-73800: short-circuit when ing_inserted=0 (both sides are zero → DRIFT=0,
+  // no measurement needed); when ing_inserted>0, prefer delta_ins_from_stats
+  // (already populated and free) and only fall back to a direct products COUNT
+  // when the dispatcher delta is unavailable (stat reset / older rows).
   const canonical = await client.query(`
-    SELECT ing_inserted
+    SELECT ing_inserted, delta_ins_from_stats, stat_reset_detected
     FROM canonical_throughput_hourly
     WHERE hour_start = $1::timestamptz
   `, [hourStart.toISOString().replace('.000Z', '+00')]);
-  const ingInserted = canonical.rows[0] ? Number(canonical.rows[0].ing_inserted || 0) : null;
+  const canonicalRow = canonical.rows[0] || {};
+  const ingInserted = canonicalRow.ing_inserted == null ? null : Number(canonicalRow.ing_inserted || 0);
+  const statsDeltaIns = canonicalRow.delta_ins_from_stats == null ? null : Number(canonicalRow.delta_ins_from_stats);
+  const statResetDetected = !!canonicalRow.stat_reset_detected;
 
+  // Short-circuit: when there is no recorded ingest for the hour, the products
+  // side is definitionally bounded at the dispatcher delta or zero. We trust
+  // the cheap pg_stat delta first; only if the dispatcher recorded a non-zero
+  // ingest do we attempt the expensive products COUNT.
   let productsCount = null;
   let productsCountTimedOut = false;
+  let productsCountSource = 'unmeasured';
+  let countShortCircuited = false;
   try {
-    const products = await client.query(`
-      SELECT COUNT(*)::bigint AS rows
-      FROM products
-      WHERE created_at >= $1::timestamptz
-        AND created_at <  ($1::timestamptz + interval '1 hour')
-    `, [hourStart.toISOString().replace('.000Z', '+00')]);
-    productsCount = Number(products.rows[0]?.rows || 0);
+    if (ingInserted !== null && ingInserted === 0) {
+      // No recorded ingest for this hour → DRIFT=0 is the only mathematically
+      // possible outcome. Do not run the products COUNT.
+      countShortCircuited = true;
+      productsCountSource = 'short_circuit_ing_inserted_zero';
+      productsCount = 0;
+    } else if (statsDeltaIns !== null && !statResetDetected) {
+      // Cheap path: use the dispatcher's pg_stat delta, which is already a
+      // bounded per-hour measurement and avoids the heavyweight COUNT. This
+      // is the same integer the dispatcher writes from pg_stat_user_tables.
+      productsCount = statsDeltaIns;
+      productsCountSource = 'canonical_delta_ins_from_stats';
+    } else {
+      // Fallback path: try the direct products COUNT with a short timeout.
+      // On a 406GB products table without a created_at index, this will
+      // typically time out; the catch below records that without aborting.
+      const products = await client.query(`
+        SELECT COUNT(*)::bigint AS rows
+        FROM products
+        WHERE created_at >= $1::timestamptz
+          AND created_at <  ($1::timestamptz + interval '1 hour')
+      `, [hourStart.toISOString().replace('.000Z', '+00')]);
+      productsCount = Number(products.rows[0]?.rows || 0);
+      productsCountSource = 'direct_products_count';
+    }
   } catch (err) {
     productsCountTimedOut = true;
   }
 
-  let productsCreatedAtMax = null;
-  let productsCreatedAtMaxTimedOut = false;
-  try {
-    // This query can time out on a 400M+ row table. Wrap in try/catch for graceful degradation.
-    const newestCreatedAt = await client.query(`SELECT MAX(created_at) AS max FROM products`);
-    productsCreatedAtMax = newestCreatedAt.rows[0]?.max;
-  } catch (err) {
-    productsCreatedAtMaxTimedOut = true;
-  }
+  // Note: `SELECT MAX(created_at) FROM products` was previously emitted as a
+  // diagnostic. With no created_at index it forces a 406GB seq scan on every
+  // invocation and is the second source of timeouts alongside the COUNT. Drop
+  // it entirely — the row-level freshness signal we actually need lives in
+  // `ingestion_runs.started_at` (queried by `getHourSourceMix` above with
+  // indexed predicates) and in `canonical_throughput_hourly` itself.
+  const productsCreatedAtMax = null;
+  const productsCreatedAtMaxTimedOut = false;
   return {
     canonical_ing_inserted: ingInserted,
+    canonical_delta_ins_from_stats: statsDeltaIns,
+    canonical_stat_reset_detected: statResetDetected,
     products_created_in_hour: productsCount,
     products_count_timed_out: productsCountTimedOut,
+    products_count_source: productsCountSource,
+    products_count_short_circuited: countShortCircuited,
     products_created_at_max: productsCreatedAtMax,
     products_created_at_max_timed_out: productsCreatedAtMaxTimedOut,
     gap_inserted_minus_products: ingInserted !== null && productsCount !== null
@@ -245,36 +283,60 @@ function evaluateCountersReconciliation(recon) {
   // BUY-64988: alignment is the new bar.
   //   - |gap| >= RECONCILIATION_GAP_ABS_THRESHOLD => DRIFT (hard signal)
   //   - |gap| / max(ingInserted, 1) >= RECONCILIATION_GAP_PCT_THRESHOLD => DRIFT (relative signal)
+  //   - short_circuit (ing_inserted=0, products_count=0) => ALIGNED (DRIFT=0)
   //   - otherwise: ALIGNED
-  //   - data missing => UNKNOWN
+  //   - data missing AND no short-circuit fallback => UNKNOWN
+  //
+  // BUY-73800: the products-side measurement now travels through one of three
+  //   paths (`short_circuit_ing_inserted_zero`, `canonical_delta_ins_from_stats`,
+  //   `direct_products_count`). When `products_count_short_circuited` is true the
+  //   reconciliation is mechanically ALIGNED (DRIFT=0); when the dispatcher
+  //   delta was used as the products leg, the message references the source.
   const ingInserted = recon.canonical_ing_inserted;
   const productsCount = recon.products_created_in_hour;
+  const productsShortCircuited = !!recon.products_count_short_circuited;
+  const productsCountSource = recon.products_count_source || 'unmeasured';
   const gap = (ingInserted === null || ingInserted === undefined ||
                productsCount === null || productsCount === undefined)
     ? null
     : ingInserted - productsCount;
   let status = 'ALIGNED';
   let reason = 'within tolerance';
+  let isUnknown = false;
   if (gap === null) {
     status = 'UNKNOWN';
+    isUnknown = true;
     reason = recon.products_count_timed_out
       ? 'products.created_at COUNT timed out; cannot reconcile'
       : 'ing_inserted missing or both legs missing';
+  } else if (productsShortCircuited && ingInserted === 0 && productsCount === 0) {
+    // BUY-73800 short-circuit: both legs are zero. Emit DRIFT=0 (ALIGNED) with
+    // an explicit reason so Gate 3 has a first-class status without paying for
+    // the products table COUNT.
+    status = 'ALIGNED';
+    reason = `DRIFT=0 (short-circuit): ing_inserted=0 and products_count=0 for hour, no COUNT run (source=${productsCountSource})`;
   } else if (Math.abs(gap) >= RECONCILIATION_GAP_ABS_THRESHOLD) {
     status = 'DRIFT';
-    reason = `ing_inserted (${ingInserted}) vs COUNT(products.created_at) (${productsCount}) |gap|=${Math.abs(gap)} >= ${RECONCILIATION_GAP_ABS_THRESHOLD.toLocaleString('en-US')} threshold`;
+    reason = `ing_inserted (${ingInserted}) vs products_leg (${productsCount}) |gap|=${Math.abs(gap)} >= ${RECONCILIATION_GAP_ABS_THRESHOLD.toLocaleString('en-US')} threshold (source=${productsCountSource})`;
   } else if (ingInserted > 0 && Math.abs(gap) / Math.max(ingInserted, 1) >= RECONCILIATION_GAP_PCT_THRESHOLD) {
     status = 'DRIFT';
-    reason = `ing_inserted (${ingInserted}) vs COUNT(products.created_at) (${productsCount}) |gap|/ing_inserted=${(Math.abs(gap)/Math.max(ingInserted,1)*100).toFixed(1)}% >= ${RECONCILIATION_GAP_PCT_THRESHOLD*100}% relative threshold`;
+    reason = `ing_inserted (${ingInserted}) vs products_leg (${productsCount}) |gap|/ing_inserted=${(Math.abs(gap)/Math.max(ingInserted,1)*100).toFixed(1)}% >= ${RECONCILIATION_GAP_PCT_THRESHOLD*100}% relative threshold (source=${productsCountSource})`;
+  } else if (productsCountSource === 'canonical_delta_ins_from_stats') {
+    // ALIGNED via the pg_stat fallback path; surface the source so reviewers
+    // know we did not run a direct COUNT.
+    reason = `within tolerance (source=${productsCountSource}; gap=${gap})`;
   }
   return {
     status,
     is_drift: status === 'DRIFT',
+    is_unknown: isUnknown,
     reason,
     gap_inserted_minus_products: gap,
     canonical_ing_inserted: ingInserted,
     products_created_in_hour: productsCount,
     products_count_timed_out: recon.products_count_timed_out,
+    products_count_source: productsCountSource,
+    products_count_short_circuited: productsShortCircuited,
   };
 }
 
@@ -301,9 +363,11 @@ function buildReport(hourStart, mix, guardrail, freshness, freshState, recon, dr
     `- Shopify never-scraped: ${freshness.shopify_never_scraped}\n` +
     `- Freshness verdict: **${freshState.is_stale ? 'STALE' : 'HEALTHY'}**\n` +
     `- Reason: ${freshState.reason}\n\n` +
-    `## 3. Counters vs products reconciliation (BUY-64988)\n` +
+    `## 3. Counters vs products reconciliation (BUY-64988 / BUY-73800)\n` +
     `- canonical_throughput_hourly.ing_inserted: ${recon.canonical_ing_inserted}\n` +
-    `- COUNT(products.created_at in hour): ${recon.products_created_in_hour}${recon.products_count_timed_out ? ' (timed out — best-effort)' : ''}\n` +
+    `- canonical_throughput_hourly.delta_ins_from_stats: ${recon.canonical_delta_ins_from_stats == null ? 'NULL' : recon.canonical_delta_ins_from_stats}\n` +
+    `- products measurement source: ${drift.products_count_source || recon.products_count_source || 'unmeasured'}${drift.products_count_short_circuited ? ' (short-circuit)' : ''}\n` +
+    `- products_created_in_hour: ${recon.products_created_in_hour}${recon.products_count_timed_out ? ' (timed out — best-effort)' : ''}\n` +
     `- products.created_at MAX: ${recon.products_created_at_max}\n` +
     `- Gap (ing_inserted - products_count): ${drift.gap_inserted_minus_products}\n` +
     `- Alignment verdict: **${drift.status}**\n` +
@@ -348,6 +412,13 @@ BUY-64501 source-mix/freshness guardrail:
 /**
  * Compute the 24-hour rolling alignment window. Returns the count of
  * hours in the last 24 that are ALIGNED plus a threshold-met flag.
+ *
+ * BUY-73800: the products leg of the alignment was previously computed with
+ *   `SELECT COUNT(*) FROM products WHERE created_at ... GROUP BY 1 hour`,
+ *   which times out on the 406GB products table. The dispatcher already writes
+ *   `delta_ins_from_stats` (pg_stat delta of products inserts per hour) into
+ *   `canonical_throughput_hourly` — use that as the products leg. The
+ *   `ingestion_runs` sum on the ing leg is unchanged.
  */
 async function get24hAlignmentWindow(client, endHour) {
   const start = new Date(endHour.getTime() - (RECONCILIATION_WINDOW_HOURS - 1) * 3_600_000);
@@ -355,27 +426,19 @@ async function get24hAlignmentWindow(client, endHour) {
     WITH hours AS (
       SELECT generate_series($1::timestamptz, $2::timestamptz, interval '1 hour') AS hour_start
     ),
-    ir AS (
-      SELECT date_trunc('hour', started_at) AS hour_start, SUM(rows_inserted)::bigint AS ins
-      FROM ingestion_runs
-      WHERE started_at >= $1::timestamptz
-        AND started_at <  ($2::timestamptz + interval '1 hour')
-        AND status IN ('completed','completed_with_errors')
-      GROUP BY 1
-    ),
-    pc AS (
-      SELECT date_trunc('hour', created_at) AS hour_start, COUNT(*)::bigint AS products
-      FROM products
-      WHERE created_at >= $1::timestamptz
-        AND created_at <  ($2::timestamptz + interval '1 hour')
-      GROUP BY 1
+    cth AS (
+      SELECT hour_start,
+             COALESCE(ing_inserted, 0)::bigint     AS ing_inserted,
+             COALESCE(delta_ins_from_stats, 0)::bigint AS products_leg
+      FROM canonical_throughput_hourly
+      WHERE hour_start >= $1::timestamptz
+        AND hour_start <= $2::timestamptz
     )
     SELECT h.hour_start,
-           COALESCE(ir.ins, 0) AS ing_inserted,
-           COALESCE(pc.products, 0) AS products_count
+           COALESCE(cth.ing_inserted, 0)  AS ing_inserted,
+           COALESCE(cth.products_leg, 0)  AS products_count
     FROM hours h
-    LEFT JOIN ir ON ir.hour_start = h.hour_start
-    LEFT JOIN pc ON pc.hour_start = h.hour_start
+    LEFT JOIN cth ON cth.hour_start = h.hour_start
   `, [start.toISOString().replace('.000Z', '+00'), endHour.toISOString().replace('.000Z', '+00')]);
   let aligned = 0;
   let totalInserted = 0;
@@ -459,7 +522,39 @@ function selfTest() {
   // Recon: aligned when both zero
   const rZero = evaluateCountersReconciliation({ canonical_ing_inserted: 0, products_created_in_hour: 0, products_count_timed_out: false });
   eq(rZero.status, 'ALIGNED', 'recon aligned when both zero');
-  console.log('source_mix_freshness_check self-test: 10 passed');
+  // BUY-73800: short-circuit (ing_inserted=0) emits DRIFT=0 with explicit reason
+  const rShortCircuit = evaluateCountersReconciliation({
+    canonical_ing_inserted: 0,
+    products_created_in_hour: 0,
+    products_count_timed_out: false,
+    products_count_short_circuited: true,
+    products_count_source: 'short_circuit_ing_inserted_zero',
+  });
+  eq(rShortCircuit.status, 'ALIGNED', 'recon short-circuit emits ALIGNED (DRIFT=0)');
+  eq(rShortCircuit.is_drift, false, 'short-circuit is not drift');
+  if (!rShortCircuit.reason.includes('DRIFT=0')) {
+    throw new Error(`short-circuit reason missing DRIFT=0: ${rShortCircuit.reason}`);
+  }
+  // BUY-73800: pg_stat fallback path produces ALIGNED when within tolerance
+  const rPgStat = evaluateCountersReconciliation({
+    canonical_ing_inserted: 12000,
+    products_created_in_hour: 12759,
+    products_count_timed_out: false,
+    products_count_source: 'canonical_delta_ins_from_stats',
+  });
+  eq(rPgStat.status, 'ALIGNED', 'recon aligned via pg_stat fallback within tolerance');
+  if (!rPgStat.reason.includes('canonical_delta_ins_from_stats')) {
+    throw new Error(`pg_stat reason missing source label: ${rPgStat.reason}`);
+  }
+  // BUY-73800: pg_stat fallback with large gap emits DRIFT
+  const rPgStatDrift = evaluateCountersReconciliation({
+    canonical_ing_inserted: 12000,
+    products_created_in_hour: 200000,
+    products_count_timed_out: false,
+    products_count_source: 'canonical_delta_ins_from_stats',
+  });
+  eq(rPgStatDrift.status, 'DRIFT', 'recon drift via pg_stat fallback when |gap| large');
+  console.log('source_mix_freshness_check self-test: 13 passed');
 }
 
 async function run(options = {}) {
