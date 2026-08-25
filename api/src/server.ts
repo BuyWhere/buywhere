@@ -19,6 +19,7 @@ import analyticsRouter from './routes/analytics';
 import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
 import sitemapProxyRouter from './routes/sitemapProxy';
+import apexDiscoveryProxyRouter from './routes/apexDiscoveryProxy';
 import landingRouter from './routes/landing';
 import clicksRouter from './routes/clicks';
 import oauthRouter from './routes/oauth';
@@ -298,6 +299,11 @@ export function createApp() {
   app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
 
   // Sitemaps
+  // BUY-74774: apexDiscoveryProxy is mounted BEFORE sitemapCompareRouter so
+  // its /sitemap-compare.xml handler takes precedence over the native
+  // DB-backed handler (which currently returns an empty urlset because the
+  // api host's comparison_pages table is not the apex canonical source).
+  app.use(apexDiscoveryProxyRouter);
   app.use('/sitemap-compare.xml', sitemapCompareRouter);
   // BUY-74662: proxy the 9 split-sitemap routes (products, blog, merchants,
   // stores, brands, categories, comparisons, index, pages) to apex
@@ -365,14 +371,6 @@ export function createApp() {
     );
   });
 
-  app.get('/llms.txt', (_req, res) => {
-    res.set('X-Robots-Tag', 'ai-index');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.type('text/plain').send(
-      `# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`
-    );
-  });
-
   app.get('/agents.txt', (_req, res) => {
     res.set('X-Robots-Tag', 'ai-index');
     res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
@@ -428,24 +426,12 @@ export function createApp() {
     );
   });
 
-  app.get('/developers/sitemap-index.xml', (req, res) => {
-    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
-    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
-    const base = `${proto}://${host}`;
-    const now = new Date().toISOString().slice(0, 10);
-    const xml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-      '  <sitemap>',
-      `    <loc>${base}/developers/sitemap.xml</loc>`,
-      `    <lastmod>${now}</lastmod>`,
-      '  </sitemap>',
-      '</sitemapindex>',
-    ].join('\n');
-    res.set('Content-Type', 'application/xml; charset=utf-8');
-    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
-    res.send(xml);
-  });
+  // BUY-74774: /developers/sitemap-index.xml is served by apexDiscoveryProxy
+  // (mounted earlier in the stack via app.use(apexDiscoveryProxyRouter)).
+  // The previous inline stub returned 1 entry pointing only at
+  // /developers/sitemap.xml, shrinking the developer AEO surface vs apex.
+  // Apex returns the canonical 9-entry sitemap-index. No handler needed
+  // here — Express falls through to the proxy router.
 
   app.get('/developers/sitemap.xml', (req, res) => {
     const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();

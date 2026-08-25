@@ -100,19 +100,15 @@ router.get('/ai-plugin.json', (_req: Request, res: Response) => {
   });
 });
 
-// GET /.well-known/mcp.json — MCP server discovery manifest
-router.get('/mcp.json', (_req: Request, res: Response) => {
-  res.json({
-    name: 'BuyWhere Product Catalog',
-    description: "Structured product catalog API for AI agents — 300M+ products, 900,000+ direct merchants worldwide, deliver_to availability labels, MCP + REST + SDKs.",
-    version: '0.1.0',
-    mcp_endpoint: 'https://api.buywhere.ai/mcp',
-    documentation: 'https://api.buywhere.ai/docs/guides/mcp',
-    capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price'],
-    coverage: 'Singapore',
-    data_freshness: 'real-time',
-  });
-});
+// GET /.well-known/mcp.json — MCP server discovery manifest.
+// BUY-74774: removed inline stub. The apexDiscoveryProxy mounted later in
+// the Express stack proxies this path to apex (buywhere.ai/.well-known/mcp.json)
+// which serves the full v2-first 13-tool MCP server card (8063B vs the old
+// 493B stub). Apex is the canonical source.
+//
+// This route is intentionally NOT defined here so Express falls through to
+// the proxy. If apex proxying is ever disabled, deploy will roll back via
+// deploy-api auto-rollback on smoke failure.
 
 // GET /.well-known/api-catalog — API contract discovery metadata for monitors
 router.get('/api-catalog', (_req: Request, res: Response) => {
