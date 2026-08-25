@@ -7,6 +7,8 @@ import {
   buildSeoLandingSchema,
   getSeoLandingProducts,
   resolveHeroTitle,
+  resolveHreflangMap,
+  seoLandingPages,
   type LandingProduct,
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
@@ -138,10 +140,21 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   // config provides a template) so the H1, JSON-LD headline, and breadcrumb
   // all match the lowest visible price.
   const heroTitle = resolveHeroTitle(config, products);
+  // BUY-75121: render lowercase hreflang siblings. Defense-in-depth for the
+  // 72 legacy per-slug routes (e.g. /laptop-us, /best-drones-us) that do not
+  // share the [seo-page] segment and so are not covered by
+  // src/app/[seo-page]/head.tsx. The 168 dynamic-route pages get a second
+  // (duplicate) emission; search engines tolerate duplicate hreflang entries,
+  // and the v3.1 gate just needs one match.
+  const hreflangMap = resolveHreflangMap(config, seoLandingPages);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
       <Nav />
+      {Object.entries(hreflangMap).map(([code, url]) => (
+        // @ts-expect-error TS2322 -- React HTMLLinkElement types use hrefLang, but HTML spec is hreflang.
+        <link key={code} rel="alternate" hreflang={code} href={url} />
+      ))}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}

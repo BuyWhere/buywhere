@@ -9,6 +9,7 @@ import {
   getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
   resolveHeroTitle,
+  resolveHreflangMap,
   seoLandingPages,
   verifyReachableImage,
   type LandingProduct,
@@ -1301,5 +1302,176 @@ test("BUY-73741: live SSR HTML for /best-gaming-laptops-us contains zero CompuMa
     html,
     /\bnamshi\b|\bmumzworld\b/i,
     "live SSR HTML must not contain Namshi / MumzWorld",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// BUY-75121: hreflang resolution + lowercase emit (Atlas QA v3.1 FAIL).
+// BUY-74869 v3.1 gate regex is case-sensitive on lowercase `hreflang` and
+// requires `rel="alternate" hreflang="..." href="..."`. Next.js 14.2.35's
+// `Metadata.alternates.languages` emits `hrefLang` (camelCase), which fails
+// that regex. This test guards:
+//   1. resolveHreflangMap returns the spec-correct hreflang codes + URLs.
+//   2. Conservative auto-detection only pairs -us / -singapore base siblings.
+//   3. buildSeoLandingMetadata no longer ships `alternates.languages`, so
+//      Next.js can't reintroduce the camelCase emission by accident.
+//   4. Opt-in live HTML guard checks the deployed page emits lowercase
+//      `hreflang=` and never `hrefLang=`.
+// ---------------------------------------------------------------------------
+
+test("BUY-75121: resolveHreflangMap returns x-default + own locale for any config", () => {
+  const sg = seoLandingPages["iphone-16-price-singapore"];
+  const us = seoLandingPages["best-gaming-laptops-us"];
+  assert.ok(sg && us, "fixture configs must exist");
+
+  const sgMap = resolveHreflangMap(sg);
+  assert.equal(sgMap["x-default"], "https://buywhere.ai/iphone-16-price-singapore");
+  assert.equal(sgMap["en-SG"], "https://buywhere.ai/iphone-16-price-singapore");
+  // No explicit alternates + no -us sibling at base `iphone-16-price` => only
+  // x-default + own locale.
+  assert.deepEqual(
+    Object.keys(sgMap).sort(),
+    ["en-SG", "x-default"],
+    "no auto sibling expected for iphone-16-price-singapore",
+  );
+
+  const usMap = resolveHreflangMap(us);
+  assert.equal(usMap["x-default"], "https://buywhere.ai/best-gaming-laptops-us");
+  assert.equal(usMap["en-US"], "https://buywhere.ai/best-gaming-laptops-us");
+  // explicit hreflangAlternates on best-gaming-laptops-us -> en-SG
+  // (the singular /best-gaming-laptop-singapore sibling, declared
+  // explicitly because suffix-stripping won't auto-pair plural vs singular).
+  assert.equal(usMap["en-SG"], "https://buywhere.ai/best-gaming-laptop-singapore");
+});
+
+test("BUY-75121: resolveHreflangMap auto-detects exact-base -us <-> -singapore siblings", () => {
+  // air-purifier-singapore and air-purifier-us share the exact base `air-purifier`.
+  const sg = seoLandingPages["air-purifier-singapore"];
+  const us = seoLandingPages["air-purifier-us"];
+  assert.ok(sg && us, "fixture configs must exist");
+
+  const sgMap = resolveHreflangMap(sg);
+  assert.equal(
+    sgMap["en-US"],
+    "https://buywhere.ai/air-purifier-us",
+    "auto-detect -us sibling from air-purifier-singapore",
+  );
+
+  const usMap = resolveHreflangMap(us);
+  assert.equal(
+    usMap["en-SG"],
+    "https://buywhere.ai/air-purifier-singapore",
+    "auto-detect -singapore sibling from air-purifier-us",
+  );
+});
+
+test("BUY-75121: resolveHreflangMap does NOT pair year-suffixed pages by suffix-stripping", () => {
+  // best-robot-vacuums-2026 has NO -us/-singapore suffix, so auto-detection
+  // should not run for it. Its only sibling comes from the explicit
+  // hreflangAlternates mapping to best-robot-vacuums-singapore (en-SG).
+  // We must NOT auto-pair best-robot-vacuums-2026 <-> best-robot-vacuums-us,
+  // because both share the base `best-robot-vacuums` after suffix-stripping
+  // but only the year-stripped path could produce that pair (and we
+  // deliberately don't strip -2026).
+  const y2026 = seoLandingPages["best-robot-vacuums-2026"];
+  const us = seoLandingPages["best-robot-vacuums-us"];
+  const sg = seoLandingPages["best-robot-vacuums-singapore"];
+  assert.ok(y2026 && us && sg, "fixture configs must exist");
+
+  const map = resolveHreflangMap(y2026);
+  assert.equal(map["x-default"], "https://buywhere.ai/best-robot-vacuums-2026");
+  // Own locale (en-US) self-references; the explicit en-SG override points
+  // at the SG sibling. No auto-detection adds an en-US alternate to the
+  // best-robot-vacuums-us page.
+  assert.equal(map["en-US"], "https://buywhere.ai/best-robot-vacuums-2026",
+    "en-US must self-reference; the year-suffixed config must not auto-pair to the -us sibling");
+  assert.equal(map["en-SG"], "https://buywhere.ai/best-robot-vacuums-singapore",
+    "en-SG is the explicit hreflangAlternates on best-robot-vacuums-2026");
+});
+
+test("BUY-75121: resolveHreflangMap does NOT auto-pair singular/plural mismatches", () => {
+  // best-gaming-laptops-us (plural) vs best-gaming-laptop-singapore (singular)
+  // share no exact base after suffix stripping, so auto-detection must skip
+  // them. The pair is wired by the explicit hreflangAlternates on the US
+  // config (en-SG -> /best-gaming-laptop-singapore) — verify that the
+  // explicit mapping is what produces the pair, not auto-detection.
+  const us = seoLandingPages["best-gaming-laptops-us"];
+  const sg = seoLandingPages["best-gaming-laptop-singapore"];
+  assert.ok(us && sg, "fixture configs must exist");
+
+  // Source-scan: the US config must declare the singular SG sibling
+  // explicitly (otherwise the singular/plural pair would be silently lost).
+  assert.ok(
+    us.hreflangAlternates && us.hreflangAlternates["en-SG"] === "/best-gaming-laptop-singapore",
+    "best-gaming-laptops-us must keep explicit en-SG -> singular sibling override",
+  );
+  // And from the SG side, the explicit en-US -> plural override holds.
+  assert.ok(
+    sg.hreflangAlternates && sg.hreflangAlternates["en-US"] === "/best-gaming-laptops-us",
+    "best-gaming-laptop-singapore must keep explicit en-US -> plural sibling override",
+  );
+
+  // The auto-detection helper would NOT add a -us base sibling for the SG
+  // page (no exact base match), and the explicit override wins.
+  const sgMap = resolveHreflangMap(sg);
+  assert.equal(sgMap["en-US"], "https://buywhere.ai/best-gaming-laptops-us");
+});
+
+test("BUY-75121: buildSeoLandingMetadata no longer ships alternates.languages", () => {
+  // Source-scan guard: a future maintainer must not silently re-add
+  // `languages:` inside the returned `alternates:` object, because that
+  // re-introduces the camelCase hrefLang emit and breaks the v3.1 gate.
+  const src = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+  // Isolate the buildSeoLandingMetadata function body.
+  const start = src.indexOf("export function buildSeoLandingMetadata(");
+  assert.ok(start >= 0, "buildSeoLandingMetadata must exist");
+  const after = src.slice(start);
+  // The function body should NOT contain a `languages:` literal inside the
+  // returned alternates object. We accept the word `languages` appearing in
+  // comments and helper code (none expected), but never as an object key.
+  // Scan only up to the closing `}` that terminates the returned object —
+  // greedy match for `alternates:` ... `},`.
+  const alternatesBlock = after.match(/alternates:\s*\{[\s\S]*?\n\s{4}\},/);
+  assert.ok(alternatesBlock, "expected to find alternates block in returned object");
+  assert.doesNotMatch(
+    alternatesBlock[0],
+    /\blanguages\s*:/,
+    "buildSeoLandingMetadata must NOT include a `languages:` key — Next.js 14.2.35 emits hrefLang (camelCase) which fails the v3.1 case-sensitive gate",
+  );
+});
+
+test("BUY-75121: live SSR HTML for /best-gaming-laptops-us emits lowercase hreflang", async () => {
+  if (process.env.BUY_75121_LIVE_HTML_GUARD !== "1") {
+    console.warn(
+      "[BUY-75121] skipping live HTML guard (set BUY_75121_LIVE_HTML_GUARD=1 to enable)",
+    );
+    return;
+  }
+  const response = await fetch("https://buywhere.ai/best-gaming-laptops-us", {
+    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+  });
+  assert.ok(response.ok, `live fetch returned ${response.status}`);
+  const html = await response.text();
+  // The v3.1 gate regex requires lowercase hreflang with rel=alternate before
+  // it and href after it (lines 447-462 of BUY-74869-aeo-page-gate.v3.1.py).
+  // Assert at least one spec-conformant self-reference and one explicit
+  // sibling appear in the rendered HTML.
+  assert.match(
+    html,
+    /<link rel="alternate" hreflang="x-default" href="https:\/\/buywhere\.ai\/best-gaming-laptops-us"/,
+    "lowercase hreflang x-default self-reference must be in <head>",
+  );
+  assert.match(
+    html,
+    /<link rel="alternate" hreflang="en-SG" href="https:\/\/buywhere\.ai\/best-gaming-laptop-singapore"/,
+    "lowercase hreflang en-SG sibling (explicit hreflangAlternates) must be in <head>",
+  );
+  assert.doesNotMatch(
+    html,
+    /hrefLang=/,
+    "no hrefLang= (camelCase) anywhere — Next.js Metadata API broken emit must be gone",
   );
 });
