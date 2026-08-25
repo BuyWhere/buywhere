@@ -264,31 +264,11 @@ function normalizePathname(pathname: string): string {
  * tells Google to drop the URL cleanly.
  */
 const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-airpods-singapore",
-  "where-to-buy-apple-watch-singapore",
-  "where-to-buy-bose-qc45-singapore",
-  "where-to-buy-dji-mini-4-pro-singapore",
-  "where-to-buy-dyson-singapore",
-  "where-to-buy-dyson-v15-singapore",
-  "where-to-buy-fitbit-singapore",
-  "where-to-buy-gopro-singapore",
-  "where-to-buy-ipad-singapore",
   "where-to-buy-iphone-16-singapore",
-  "where-to-buy-iphone-singapore",
-  "where-to-buy-kindle-singapore",
-  "where-to-buy-laptop-singapore",
-  "where-to-buy-logitech-mx-master-singapore",
   "where-to-buy-macbook-air-m3-singapore",
-  "where-to-buy-macbook-singapore",
-  "where-to-buy-meta-quest-3-singapore",
   "where-to-buy-nintendo-switch-singapore",
   "where-to-buy-ps5-singapore",
-  "where-to-buy-roborock-singapore",
-  "where-to-buy-samsung-galaxy-s-singapore",
-  "where-to-buy-samsung-tv-singapore",
   "where-to-buy-sony-wh-1000xm5-singapore",
-  "where-to-buy-steam-deck-singapore",
-  "where-to-buy-xbox-series-x-singapore",
 ]);
 
 function isDeadBlogSlug(pathname: string): boolean {
@@ -358,7 +338,11 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "__DEAD_BLOG_SLUG__");
+    // Deny-list, NOT allow-list. Default-deny against a build-time snapshot is what
+    // 410'd 33 live posts for two months (BUY-57626 postmortem, fixed eb14f63) and then
+    // again from 2026-08-19 when 554950c reverted it. Unknown slugs fall through to the
+    // App Router, which 404s if the article truly does not exist.
+    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : (isDocsHost ? normalizedPath : null);
   }
 
   // Real published docs (in ACTIVE_DOC_PATHS) serve directly — checked FIRST so they are not caught by the
@@ -385,7 +369,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
     const slug = normalizedPath.slice("/docs/blog/posts/".length);
-    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
+    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : `/blog/${slug}`;
   }
 
   const apiReferenceAlias = {
