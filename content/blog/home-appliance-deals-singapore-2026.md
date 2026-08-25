@@ -4,7 +4,6 @@ title: "Best Home Appliance Deals in Singapore 2026 — Dyson, Samsung, LG Price
 description: "Compare Dyson V15, Samsung Bespoke AI washer-dryer, and LG InstaView refrigerator prices across Courts, Harvey Norman, Best Denki, Gain City, Shopee, Lazada, and Amazon SG — real prices for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-13"
 tags: ["home-appliances", "singapore", "pricing", "comparison", "dyson", "samsung"]
 jsonLd: >
   {
