@@ -47,4 +47,9 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "mcp-server-ecosystem-2026",
   "the-mcp-server-discovery-gap",
   "true-zero-human-self-serve-mcp-2026",
+  "where-to-buy-iphone-16-singapore",
+  "where-to-buy-macbook-air-m3-singapore",
+  "where-to-buy-nintendo-switch-singapore",
+  "where-to-buy-ps5-singapore",
+  "where-to-buy-sony-wh-1000xm5-singapore",
 ];
