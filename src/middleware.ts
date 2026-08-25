@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACTIVE_BLOG_SLUGS as GENERATED_ACTIVE_BLOG_SLUGS } from "@/lib/active-blog-slugs";
+import { isInternalPageview } from "@/lib/pageview-internal";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -103,39 +104,29 @@ function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
   return { is_bot: false, agent_family: "human" };
 }
 
-// BUY-72699: Health-check paths that should always be flagged as internal
-const INTERNAL_HEALTH_PATHS = new Set([
-  "/health",
-  "/healthz",
-  "/ready",
-  "/readyz",
-  "/_health",
-  "/_ah/health",
-]);
-
-function isInternalRequest(distinctId: string, pathname: string, eventName: string): boolean {
-  // Rule 4: server-side pageview capture is internal.
-  if (eventName === "pageview_server") return true;
-  // Rule 1: distinct_id starts with srv_ (server/probe identity)
-  if (distinctId.startsWith("srv_")) return true;
-  // Rule 2: Health-check paths
-  if (INTERNAL_HEALTH_PATHS.has(pathname)) return true;
-  return false;
-}
 
 async function capturePageviewServer(
   distinctId: string,
   url: URL,
   ua: string,
-  ip: string | null
+  ip: string | null,
+  cookieHeader: string | null,
+  referrer: string | null
 ) {
   const { is_bot, agent_family } = classifyUa(ua);
   const eventName = "pageview_server";
   // BUY-72699 Defect B: Normalize trailing-slash pathname at capture
   const rawPathname = url.pathname;
   const pathname = normalizePathname(rawPathname);
-  // BUY-72699 Defect A: Emit is_internal boolean
-  const is_internal = isInternalRequest(distinctId, rawPathname, eventName);
+  // BUY-74987: srv_* is only the server-side distinct_id namespace. Classify
+  // internal traffic from path / bot UA / IP / cookie / referrer signals instead.
+  const is_internal = isInternalPageview({
+    pathname,
+    isBot: is_bot,
+    ip,
+    cookieHeader,
+    referrer,
+  });
   try {
     await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
@@ -510,8 +501,10 @@ export async function middleware(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
   const distinctId = ip ? hashIp(ip) : "srv_unknown";
+  const cookieHeader = request.headers.get("cookie");
+  const referrer = request.headers.get("referer") ?? request.headers.get("referrer");
 
-  capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip);
+  capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip, cookieHeader, referrer);
 
   // Dead blog slugs → 410 Gone (clean removal signal for Google, not a redirect)
   if (isDeadBlogSlug(pathname)) {
