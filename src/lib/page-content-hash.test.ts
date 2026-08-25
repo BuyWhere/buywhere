@@ -78,3 +78,27 @@ test("formatCheckedStamp mirrors ISO and UTC visible text", () => {
   assert.equal(formatted.iso, "2026-08-25T16:37:27.926Z");
   assert.equal(formatted.text, "August 25, 2026");
 });
+
+test("getOrUpdatePageLastmod falls back to caller-supplied date when persist fails", async () => {
+  // Point the store at a path we cannot write to so persistStore throws.
+  const readonlyPath = "/proc/version";
+  const prev = process.env.PAGE_CONTENT_HASH_STORE_PATH;
+  process.env.PAGE_CONTENT_HASH_STORE_PATH = readonlyPath;
+  __resetPageHashStoreForTests();
+  try {
+    const fallback = "2026-06-19T00:00:00.000Z";
+    const stamp = await getOrUpdatePageLastmod(
+      "https://buywhere.ai/blog/fallback-test",
+      serializeHashable({ body: "anything" }),
+      fallback,
+    );
+    assert.equal(stamp.lastmod, fallback);
+  } finally {
+    __resetPageHashStoreForTests();
+    if (prev === undefined) {
+      delete process.env.PAGE_CONTENT_HASH_STORE_PATH;
+    } else {
+      process.env.PAGE_CONTENT_HASH_STORE_PATH = prev;
+    }
+  }
+});
