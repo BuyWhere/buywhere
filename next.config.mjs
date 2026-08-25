@@ -121,8 +121,38 @@ const nextConfig = {
         permanent: true,
       },
       // BUY-71825: /compare/sg -> /compare (old region-specific compare hub)
+      // BUY-74770: the non-US market surfaces (/compare/my, /th, /vn, /id, /ph)
+      // never had indexable content — they fell through the [...slug] catch-all
+      // and rendered Next.js's notFound() shell as HTTP 200 with noindex. Send
+      // them to /compare as well so AEO/SEO crawlers see one consistent
+      // /compare canonical instead of an empty noindex 200 per market.
       {
         source: '/compare/sg',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/my',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/th',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/vn',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/id',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/ph',
         destination: '/compare',
         permanent: true,
       },
