@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.affiliate_links import get_affiliate_url, get_underlying_affiliate_url, is_valid_url
 from app.auth import get_current_api_key
 from app.database import get_db
-from app.models.product import ApiKey, Click, Product, PriceHistory, ProductView, ProductMatch, ProductReview, ProductQuestion, ProductAnswer
+from app.models.product import ApiKey, Click, Product, PriceHistory, ProductView, ProductMatch, ProductReview, ProductQuestion, ProductAnswer, Merchant
 from app.rate_limit import limiter, rate_limit_from_request
 
 AVAILABILITY_CACHE_TTL = 3600
@@ -220,7 +220,20 @@ async def list_products(
     results = await db.execute(base_query.limit(limit).offset(offset))
     products = results.scalars().all()
 
-    items = [_map_product(p, target_currency=currency, confidence_score=None) for p in products]
+    # BUY-74689: resolve merchant_name/merchant_slug via a single batched PK lookup
+    # so the response carries the real storefront name, not the platform slug.
+    merchant_map = await _resolve_merchants(db, [p.merchant_id for p in products])
+
+    items = [
+        _map_product(
+            p,
+            target_currency=currency,
+            confidence_score=None,
+            merchant_name=_merchant_name(merchant_map, p.merchant_id),
+            merchant_slug=_merchant_slug(merchant_map, p.merchant_id),
+        )
+        for p in products
+    ]
     effective_total = total if total is not None else offset + len(items)
     has_more = len(items) == limit if total is None else (offset + limit) < total
 
@@ -258,7 +271,7 @@ def _compute_price_trend(db: AsyncSession, product_id: int) -> Optional[str]:
     return "stable"
 
 
-def _map_product(p: Product, price_trend: Optional[str] = None, target_currency: Optional[str] = None, confidence_score: Optional[float] = None) -> ProductResponse:
+def _map_product(p: Product, price_trend: Optional[str] = None, target_currency: Optional[str] = None, confidence_score: Optional[float] = None, merchant_name: Optional[str] = None, merchant_slug: Optional[str] = None) -> ProductResponse:
     converted_price = None
     converted_currency = None
     if target_currency and target_currency != p.currency:
@@ -270,6 +283,8 @@ def _map_product(p: Product, price_trend: Optional[str] = None, target_currency:
         sku=p.sku,
         source=p.source,
         merchant_id=p.merchant_id,
+        merchant_name=merchant_name,
+        merchant_slug=merchant_slug,
         name=p.title,
         description=p.description,
         price=p.price,
@@ -301,6 +316,64 @@ def _map_product(p: Product, price_trend: Optional[str] = None, target_currency:
         confidence_score=confidence_score,
         json_ld=_build_json_ld(p, target_currency),
     )
+
+
+def _slugify_merchant(name: str) -> str:
+    """URL-safe kebab-case slug for a merchant name (used as MerchantBadge lookup key).
+
+    Strips non-alphanumeric, collapses runs of '-', lowercases. Strips leading/trailing dashes.
+    Returns empty string when the input has no alphanumeric characters (callers should treat
+    that as None).
+    """
+    import re as _re
+    slug = _re.sub(r"[^a-zA-Z0-9]+", "-", name).strip("-").lower()
+    return slug
+
+
+async def _resolve_merchants(db: AsyncSession, merchant_ids: List[str]) -> dict:
+    """Bulk-fetch (merchant_id -> (name, slug)) for a list of merchant IDs.
+
+    BUY-74689: joins merchants table for product responses so the card badge shows
+    the real storefront name (Alltronic, Popular, ...) instead of the platform slug
+    (shopify, shopee_sg). One PK-indexed query keyed on `merchants.id`. Missing
+    merchants (orphaned merchant_id on a product) yield no entry; callers must fall
+    back to None. Idempotent on duplicates / empty input.
+    """
+    if not merchant_ids:
+        return {}
+    # De-dupe while preserving order for stable error paths
+    seen: set = set()
+    unique_ids = []
+    for mid in merchant_ids:
+        if mid and mid not in seen:
+            seen.add(mid)
+            unique_ids.append(mid)
+    if not unique_ids:
+        return {}
+    rows = await db.execute(
+        select(Merchant.id, Merchant.name).where(Merchant.id.in_(unique_ids))
+    )
+    out: dict = {}
+    for mid, name in rows.fetchall():
+        if mid is None or name is None:
+            continue
+        slug = _slugify_merchant(name)
+        out[mid] = (name, slug or None)
+    return out
+
+
+def _merchant_name(merchant_map: dict, merchant_id: Optional[str]) -> Optional[str]:
+    if not merchant_id:
+        return None
+    entry = merchant_map.get(merchant_id)
+    return entry[0] if entry else None
+
+
+def _merchant_slug(merchant_map: dict, merchant_id: Optional[str]) -> Optional[str]:
+    if not merchant_id:
+        return None
+    entry = merchant_map.get(merchant_id)
+    return entry[1] if entry else None
 
 
 def _build_compare_match(p: Product, score: float) -> CompareMatch:
@@ -577,7 +650,19 @@ async def v1_product_search(
             price_ranges=price_ranges,
         )
 
-    items = [_map_product(p, target_currency=currency, confidence_score=None) for p in products]
+    # BUY-74689: resolve merchant_name/merchant_slug so the card badge shows the real
+    # storefront name (Alltronic, Popular, ...) rather than the platform slug.
+    merchant_map = await _resolve_merchants(db, [p.merchant_id for p in products])
+    items = [
+        _map_product(
+            p,
+            target_currency=currency,
+            confidence_score=None,
+            merchant_name=_merchant_name(merchant_map, p.merchant_id),
+            merchant_slug=_merchant_slug(merchant_map, p.merchant_id),
+        )
+        for p in products
+    ]
     effective_total = total if total is not None else offset + len(items)
     has_more = len(items) == limit if total is None else (offset + limit) < total
 
@@ -673,7 +758,15 @@ async def best_price(
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No products found for: {q!r}")
 
-    response = _map_product(product, target_currency=currency, confidence_score=None)
+    # BUY-74689: resolve merchant_name/merchant_slug for the card badge.
+    merchant_map = await _resolve_merchants(db, [product.merchant_id])
+    response = _map_product(
+        product,
+        target_currency=currency,
+        confidence_score=None,
+        merchant_name=_merchant_name(merchant_map, product.merchant_id),
+        merchant_slug=_merchant_slug(merchant_map, product.merchant_id),
+    )
     await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=300)
     return response
 
@@ -1541,7 +1634,13 @@ async def get_product_by_barcode(
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found for barcode")
 
-    response = _map_product(product)
+    # BUY-74689: resolve merchant_name/merchant_slug for the card badge.
+    merchant_map = await _resolve_merchants(db, [product.merchant_id])
+    response = _map_product(
+        product,
+        merchant_name=_merchant_name(merchant_map, product.merchant_id),
+        merchant_slug=_merchant_slug(merchant_map, product.merchant_id),
+    )
     await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=600)
 
     return response
@@ -1578,7 +1677,17 @@ async def get_random_products(
     )
     products = results.scalars().all()
 
-    items = [_map_product(p) for p in products]
+    # BUY-74689: resolve merchant_name/merchant_slug so the card badge shows the real
+    # storefront name, not the platform slug.
+    merchant_map = await _resolve_merchants(db, [p.merchant_id for p in products])
+    items = [
+        _map_product(
+            p,
+            merchant_name=_merchant_name(merchant_map, p.merchant_id),
+            merchant_slug=_merchant_slug(merchant_map, p.merchant_id),
+        )
+        for p in products
+    ]
 
     response = ProductListResponse(
         total=total,
@@ -1665,7 +1774,14 @@ async def get_product(
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-    response = _map_product(product, target_currency=currency)
+    # BUY-74689: resolve merchant_name/merchant_slug for the card badge.
+    merchant_map = await _resolve_merchants(db, [product.merchant_id])
+    response = _map_product(
+        product,
+        target_currency=currency,
+        merchant_name=_merchant_name(merchant_map, product.merchant_id),
+        merchant_slug=_merchant_slug(merchant_map, product.merchant_id),
+    )
     await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=600)
 
     return response
@@ -1727,9 +1843,21 @@ async def get_similar_products(
     result = await db.execute(query)
     candidates = result.scalars().all()
 
+    # BUY-74689: resolve merchant_name/merchant_slug so the card badge shows the real
+    # storefront name, not the platform slug.
+    merchant_map = await _resolve_merchants(db, [p.merchant_id for p in candidates])
+    items = [
+        _map_product(
+            product,
+            merchant_name=_merchant_name(merchant_map, product.merchant_id),
+            merchant_slug=_merchant_slug(merchant_map, product.merchant_id),
+        )
+        for product in candidates
+    ]
+
     response = SimilarProductsResponse(
         product_id=product_id,
-        items=[_map_product(product) for product in candidates],
+        items=items,
         total=len(candidates),
     )
 
@@ -1777,8 +1905,14 @@ async def batch_lookup_products(
             )
         )
         rows = result.scalars().all()
+        # BUY-74689: resolve merchant_name/merchant_slug for the card badge.
+        merchant_map = await _resolve_merchants(db, [row.merchant_id for row in rows])
         for row in rows:
-            product_response = _map_product(row)
+            product_response = _map_product(
+                row,
+                merchant_name=_merchant_name(merchant_map, row.merchant_id),
+                merchant_slug=_merchant_slug(merchant_map, row.merchant_id),
+            )
             products.append(product_response)
             await cache.cache_set(f"products:item:{row.id}", product_response.model_dump(mode="json"), ttl_seconds=600)
 
@@ -1832,8 +1966,14 @@ async def bulk_lookup_by_ids(
             )
         )
         rows = result.scalars().all()
+        # BUY-74689: resolve merchant_name/merchant_slug for the card badge.
+        merchant_map = await _resolve_merchants(db, [row.merchant_id for row in rows])
         for row in rows:
-            product_response = _map_product(row)
+            product_response = _map_product(
+                row,
+                merchant_name=_merchant_name(merchant_map, row.merchant_id),
+                merchant_slug=_merchant_slug(merchant_map, row.merchant_id),
+            )
             products.append(product_response)
             await cache.cache_set(f"products:item:{row.id}", product_response.model_dump(mode="json"), ttl_seconds=600)
 
