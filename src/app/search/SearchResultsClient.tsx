@@ -10,6 +10,7 @@ import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
+import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -893,6 +894,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     <a
       data-testid="search-product-card"
       href={product.href}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`View deal: ${product.name} from ${product.merchant}`}
