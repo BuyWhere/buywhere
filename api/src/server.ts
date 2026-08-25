@@ -18,6 +18,7 @@ import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
 import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
+import sitemapProxyRouter from './routes/sitemapProxy';
 import landingRouter from './routes/landing';
 import clicksRouter from './routes/clicks';
 import oauthRouter from './routes/oauth';
@@ -298,20 +299,43 @@ export function createApp() {
 
   // Sitemaps
   app.use('/sitemap-compare.xml', sitemapCompareRouter);
+  // BUY-74662: proxy the 9 split-sitemap routes (products, blog, merchants,
+  // stores, brands, categories, comparisons, index, pages) to apex
+  // (buywhere.ai). Apex is canonical; the api host structurally never
+  // registered these routes.
+  app.use(sitemapProxyRouter);
 
-  // Sitemap index — references all sitemaps
+  // Sitemap index — references all sitemaps (BUY-74662: now lists all 10
+  // split-sitemaps served on api host — 9 proxied + native compare).
   app.get('/sitemap.xml', (req, res) => {
     const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
     const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
     const base = `${proto}://${host}`;
     const now = new Date().toISOString().slice(0, 10);
+    const splits = [
+      'products',
+      'blog',
+      'merchants',
+      'stores',
+      'brands',
+      'categories',
+      'comparisons',
+      'index',
+      'pages',
+      'compare',
+    ];
+    const entries = splits
+      .map((name) => [
+        '  <sitemap>',
+        `    <loc>${base}/sitemap-${name}.xml</loc>`,
+        `    <lastmod>${now}</lastmod>`,
+        '  </sitemap>',
+      ].join('\n'))
+      .join('\n');
     const xml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-      '  <sitemap>',
-      `    <loc>${base}/sitemap-compare.xml</loc>`,
-      `    <lastmod>${now}</lastmod>`,
-      '  </sitemap>',
+      entries,
       '</sitemapindex>',
     ].join('\n');
     res.set('Content-Type', 'application/xml; charset=utf-8');
