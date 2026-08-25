@@ -249,18 +249,12 @@ function normalizePathname(pathname: string): string {
 }
 
 /**
- * Dead blog slugs — URLs that were once valid articles but the content has been
- * removed.  Google Search Console treats a 308→/blog redirect as "Page with
- * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
- * tells Google to drop the URL cleanly.
+ * Explicit blog deny-list only. Do not default-deny unknown blog slugs; the App
+ * Router should resolve real markdown posts and 404 only when no article exists.
+ * Blog removals require a named ticket and Richmond approval under the indexation
+ * directive, so the normal state is an empty deny-list.
  */
-const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-iphone-16-singapore",
-  "where-to-buy-macbook-air-m3-singapore",
-  "where-to-buy-nintendo-switch-singapore",
-  "where-to-buy-ps5-singapore",
-  "where-to-buy-sony-wh-1000xm5-singapore",
-]);
+const DEAD_BLOG_SLUGS = new Set<string>([]);
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
