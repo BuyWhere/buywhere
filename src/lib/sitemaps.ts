@@ -680,15 +680,11 @@ export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
   // matches <link rel="canonical"> on each page. Trailing-slash form was
   // reconciled to the canonical by Google and flagged as
   // "Page with redirect" / "Duplicate canonical" (BUY-39762, BUY-41940).
-  // No lastmod unless the indexing-queue override knows a real one (applied below).
-  // Every one of the 958 compare URLs used to carry `lastModified: now` — i.e. the
-  // request timestamp — so Google saw 958 pages "modified" on every fetch. Google
-  // documents that it stops trusting lastmod when it is consistently wrong, and on
-  // 2026-08-25 every category-pair URL sat at "Discovered – currently not indexed"
-  // with zero crawls. A missing lastmod is honest; a fake one is a trust penalty.
   const addEntry = (path: string, priority = 0.8) => {
     entries.set(path, {
       url: toSiteUrl(path),
+      lastModified: now,
+      changeFrequency: "daily",
       priority,
     });
   };
@@ -731,11 +727,15 @@ export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
 export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const entries = new Map<string, SitemapUrlEntry>();
 
+  // No lastmod unless the indexing-queue override knows a real one (applied below).
+  // Every one of the 958 compare URLs used to carry `lastModified: now` — i.e. the
+  // request timestamp — so Google saw 958 pages "modified" on every fetch. Google
+  // documents that it stops trusting lastmod when it is consistently wrong, and on
+  // 2026-08-25 every category-pair URL sat at "Discovered – currently not indexed"
+  // with zero crawls. A missing lastmod is honest; a fake one is a trust penalty.
   const addEntry = (path: string, priority = 0.8) => {
     entries.set(path, {
       url: toSiteUrl(path),
-      lastModified: now,
-      changeFrequency: "daily",
       priority,
     });
   };
