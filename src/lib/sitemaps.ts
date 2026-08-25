@@ -214,7 +214,7 @@ type ChangeFrequency =
 
 export interface SitemapUrlEntry {
   url: string;
-  lastModified: Date | string;
+  lastModified?: Date | string; // omit when unknown — a fake lastmod is worse than none
   changeFrequency?: ChangeFrequency;
   priority?: number;
 }
@@ -621,8 +621,8 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
     if (
       incomingPriority > existingPriority ||
       (incomingPriority === existingPriority &&
-        new Date(entry.lastModified).getTime() >
-          new Date(existing.lastModified).getTime())
+        (entry.lastModified ? new Date(entry.lastModified).getTime() : 0) >
+          (existing.lastModified ? new Date(existing.lastModified).getTime() : 0))
     ) {
       byUrl.set(entry.url, entry);
     }
