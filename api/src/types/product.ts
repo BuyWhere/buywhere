@@ -49,7 +49,9 @@ export interface CanonicalProduct {
 
 export type NearMissPredicateFail = 'price' | 'currency' | 'availability' | 'image_url' | 'merchant_url';
 
-/** BUY-71542 / P2.6 + BUY-72044 / P2.6A: why an empty 200-OK response has no data. */
+/** BUY-71542 / P2.6 + BUY-72044 / P2.6A: why an empty 200-OK response has no data.
+ *  BUY-74597: timeout / partial_timeout distinguish infra-timeouts from true empty.
+ */
 export type EmptinessReason =
   | 'no_data'            // catalog has zero indexed products for the requested region/category
   | 'no_match'           // catalog has products but none matched the query/filters
@@ -57,10 +59,15 @@ export type EmptinessReason =
   | 'quota'              // rate-limit or quota exceeded
   | 'region_unsupported' // requested region/market is not yet indexed
   | 'category_unsupported' // requested category has no indexed products
-  | 'deliver_to_missing'; // BUY-72044 / P2.6A: caller omitted deliver_to/country_code and the global filter
+  | 'deliver_to_missing' // BUY-72044 / P2.6A: caller omitted deliver_to/country_code and the global filter
                           // produced empty because none of the relevant rows are deliverable to a default region.
+  | 'timeout'            // BUY-74597: request could not finish inside the user-facing timeout budget
+  | 'partial_timeout'    // BUY-74597: request partially completed but exceeded budget; partial results returned
+  | 'auth_failure';      // BUY-74597: auth/upstream credential failure prevented lookup
 
-/** BUY-71542 / P2.6 + BUY-72044 / P2.6A: diagnostic block surfaced in meta for empty responses. */
+/** BUY-71542 / P2.6 + BUY-72044 / P2.6A: diagnostic block surfaced in meta for empty responses.
+ *  BUY-74597: adds timed_out_stage so agents can see which stage failed.
+ */
 export interface EmptinessDiagnostic {
   engine_status: 'ok' | 'degraded' | 'error' | 'fallback';
   indexed_for_region: boolean;
@@ -72,9 +79,21 @@ export interface EmptinessDiagnostic {
    * of a buyer-market filter without re-parsing the request.
    */
   deliver_to_present: boolean;
+  /** BUY-74597: when emptiness_reason is timeout/partial_timeout, the stage that timed out
+   *  (e.g. catalog_search, offer_aggregation, merchant_join). No internal DSNs here. */
+  timed_out_stage?: string | null;
 }
 
 export type SearchConfidence = 'high' | 'low';
+
+/** BUY-74597: telemetry classification so timeout/degraded can be counted separately from true-empty. */
+export type DegradedKind =
+  | 'timeout'
+  | 'partial_timeout'
+  | 'auth_failure'
+  | 'upstream_exception'
+  | 'circuit_open'
+  | 'unknown';
 
 export interface SearchMeta {
   total: number;
@@ -94,6 +113,10 @@ export interface SearchMeta {
   confidence?: SearchConfidence;
   /** BUY-71542 / P2.6 + BUY-72044 / P2.6A: diagnostic signals surfaced for empty responses. */
   diagnostic?: EmptinessDiagnostic;
+  /** BUY-74597: explicit response status for agent integrators. Mirrors legacy `meta.degraded`. */
+  status?: 'ok' | 'degraded' | 'partial_timeout';
+  /** BUY-74597: classification for telemetry counters (timeout/auth_failure/upstream_exception/circuit_open). */
+  degraded_kind?: DegradedKind;
 }
 
 export interface SearchResponse {

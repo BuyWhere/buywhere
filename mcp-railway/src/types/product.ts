@@ -41,6 +41,37 @@ export interface CanonicalProduct {
   affiliate_redirect_url?: string | null;
 }
 
+/** BUY-74597: why an empty/degraded response has no usable data. */
+export type EmptinessReason =
+  | 'no_data'
+  | 'no_match'
+  | 'api_error'
+  | 'quota'
+  | 'region_unsupported'
+  | 'category_unsupported'
+  | 'deliver_to_missing'
+  | 'timeout'
+  | 'partial_timeout'
+  | 'auth_failure';
+
+export type SearchConfidence = 'high' | 'low';
+
+export interface EmptinessDiagnostic {
+  engine_status: 'ok' | 'degraded' | 'error' | 'fallback';
+  indexed_for_region: boolean;
+  category_recognized: boolean;
+  rate_limit_remaining: number | null;
+  deliver_to_present: boolean;
+  timed_out_stage?: string | null;
+}
+
+export type DegradedKind =
+  | 'timeout'
+  | 'auth_failure'
+  | 'upstream_exception'
+  | 'circuit_open'
+  | 'unknown';
+
 export interface SearchResponse {
   results: CanonicalProduct[];
   total: number;
@@ -49,4 +80,12 @@ export interface SearchResponse {
   cached: boolean;
   // BUY-67275: see api tree — hasMore was previously fed into `cached`.
   has_more?: boolean;
+  // BUY-74597: degraded envelope fields.
+  degraded?: boolean;
+  status?: 'ok' | 'degraded' | 'partial_timeout';
+  degraded_reason?: string;
+  emptiness_reason?: EmptinessReason;
+  confidence?: SearchConfidence;
+  diagnostic?: EmptinessDiagnostic;
+  degraded_kind?: DegradedKind;
 }
