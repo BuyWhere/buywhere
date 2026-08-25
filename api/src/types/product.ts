@@ -138,6 +138,8 @@ export interface SearchMeta {
   status?: 'ok' | 'degraded' | 'partial_timeout';
   /** BUY-74597: classification for telemetry counters (timeout/auth_failure/upstream_exception/circuit_open). */
   degraded_kind?: DegradedKind;
+  /** BUY-75024: agent-readable stage/reason for degraded fallbacks (e.g. catalog_search). */
+  degraded_reason?: string;
 }
 
 export interface SearchResponse {

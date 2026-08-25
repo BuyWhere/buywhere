@@ -767,26 +767,18 @@ router.get(
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
-        const degradedBody = {
-          data: [],
-          meta: {
-            total: 0,
-            limit: 20,
-            offset: 0,
-            response_time_ms: Date.now() - requestStart,
-            cached: false,
-            degraded: true,
-            emptiness_reason: 'api_error',
-            confidence: 'low',
-            diagnostic: {
-              engine_status: 'error',
-              indexed_for_region: true,
-              category_recognized: true,
-              rate_limit_remaining: null,
-              deliver_to_present: Boolean(req.query.deliver_to || req.query.country_code || req.query.country),
-            },
-          },
-        };
+        const degradedBody = buildSearchResponse(
+          [],
+          0,
+          limit,
+          offset,
+          Date.now() - requestStart,
+          false,
+          true,
+          false,
+          countryCode || null,
+          buildV1SearchEmptiness(false, 'timeout', 'catalog_search'),
+        );
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -845,7 +837,11 @@ router.get(
     // and labels availability; never hard-filters (country_code remains the hard filter).
     // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
     const includeUnshippable = req.query.include_unshippable !== 'false';
-    const buildV1SearchEmptiness = (apiError = false) => deriveEmptiness({
+    const buildV1SearchEmptiness = (
+      apiError = false,
+      degradedKind?: 'timeout' | 'partial_timeout' | 'auth_failure' | 'upstream_exception' | 'circuit_open',
+      timedOutStage?: string,
+    ) => deriveEmptiness({
       regionHasAnyData: true,
       categoryHasAnyData: true,
       apiError,
@@ -858,6 +854,8 @@ router.get(
       deliverToPresent: Boolean(deliverTo || countryCode),
       unfilteredHasAnyData: null,
       queryAmbiguous: null,
+      degradedKind,
+      timedOutStage,
     });
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
@@ -1667,17 +1665,18 @@ router.get(
         }
         client.release();
         if (!res.headersSent) {
-          res.status(200).json({
-            data: [],
-            meta: {
-              total: 0,
-              limit: 20,
-              offset: 0,
-              response_time_ms: 0,
-              cached: false,
-              degraded: true,
-            },
-          });
+          res.status(200).json(buildSearchResponse(
+            [],
+            0,
+            limit,
+            offset,
+            Date.now() - requestStart,
+            false,
+            true,
+            false,
+            countryCode || null,
+            buildV1SearchEmptiness(false, 'timeout', 'catalog_search'),
+          ));
         }
         return;
       }
