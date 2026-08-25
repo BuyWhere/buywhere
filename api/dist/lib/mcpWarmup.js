@@ -162,6 +162,9 @@ async function warmupMcpCaches() {
          ORDER BY product_count DESC
          LIMIT 100`, [country]);
             const data = {
+                // BUY-71112: expose both `categories` (canonical) and `data` (legacy)
+                // so callers expecting either key keep working. Mirrors mcp-railway fix.
+                categories: result.rows,
                 data: result.rows,
                 meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
             };
@@ -200,6 +203,9 @@ async function refreshCategorySummaries() {
          ORDER BY product_count DESC
          LIMIT 100`, [country]);
             const data = {
+                // BUY-71112: expose both `categories` (canonical) and `data` (legacy)
+                // so callers expecting either key keep working. Mirrors mcp-railway fix.
+                categories: result.rows,
                 data: result.rows,
                 meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
             };

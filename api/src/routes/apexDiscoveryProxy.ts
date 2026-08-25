@@ -22,6 +22,16 @@ import { Router, Request, Response } from 'express';
  * Latency: each request is one apex round-trip on the same Railway project
  * (intra-region, < 50ms P50). No upstream load implications — these are
  * crawler/discovery fetches, not customer-facing.
+ *
+ * Deployment note: this router is mounted via `app.use(apexDiscoveryProxyRouter)`
+ * in server.ts. Express matches in registration order, so:
+ *   - `/sitemap-compare.xml` proxy wins over the native sitemapCompareRouter
+ *     (the native handler is still mounted AFTER the proxy for any future
+ *     DB-backed recovery path; it's just unreachable today).
+ *   - `/.well-known/mcp.json` falls through the wellknown router (which no
+ *     longer defines this route) and reaches this proxy.
+ *   - `/llms.txt` and `/developers/sitemap-index.xml` had no pre-existing
+ *     conflict (the inline stubs were removed).
  */
 const APEX_ORIGIN = 'https://buywhere.ai';
 const PROXY_TIMEOUT_MS = 5000;

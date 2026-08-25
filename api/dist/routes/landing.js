@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const response_1 = require("../lib/response");
+const merchantLookup_1 = require("../lib/merchantLookup");
 const router = (0, express_1.Router)();
 function baseUrl(req) {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
@@ -572,7 +573,7 @@ router.get('/demo/search', async (req, res) => {
     const dataQuery = `
       SELECT id, sku AS source_id, source AS domain, url,
              title, price, currency, image_url, metadata, updated_at,
-             region, country_code
+             region, country_code, merchant_id
       FROM products
       ${whereClause}
       ORDER BY updated_at DESC
@@ -585,7 +586,9 @@ router.get('/demo/search', async (req, res) => {
             config_1.db.query(dataQuery, params),
         ]);
         const total = parseInt(countResult.rows[0].count, 10);
-        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+        // BUY-74689: batched merchant lookup for the demo landing page search.
+        const landingMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, dataResult.rows.map((row) => row.merchant_id ?? null));
+        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, landingMerchantMap));
         const responseTimeMs = Date.now() - start;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, 0, responseTimeMs, false);
         res.json({ ...responseBody, demo: true });
