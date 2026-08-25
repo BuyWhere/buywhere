@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useCompare, CompareProduct } from '@/lib/compare-context';
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge';
 import { MerchantBadge, getMerchantConfig } from '@/components/ui/MerchantBadge';
+import { PlatformChip } from '@/components/ui/PlatformChip';
 import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
@@ -18,6 +19,9 @@ interface ProductCardProps {
     original_price?: number;
     discount_pct?: number;
     merchant: string;
+    merchant_slug?: string | null;
+    source?: string | null;
+    scraped_via?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
     url: string;
     is_exclusive?: boolean;
     image_url?: string;
@@ -216,7 +220,14 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         >
           {deal.name}
         </h3>
-        <MerchantBadge merchant={deal.merchant} className="mb-2" />
+        <div className="mb-2 flex flex-col items-start gap-0.5">
+          <MerchantBadge
+            merchant={deal.merchant}
+            merchantSlug={deal.merchant_slug}
+            scrapedVia={deal.scraped_via}
+          />
+          <PlatformChip source={deal.source} />
+        </div>
         {(deal.rating || deal.stock_status || deal.shipping_info) && (
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {deal.rating && (
