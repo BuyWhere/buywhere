@@ -10,6 +10,26 @@ interface PageProps {
   params: { slug: string };
 }
 
+type USProductDetailApiItem = Omit<USProductOfferApiItem, "price"> & {
+  id?: string | number;
+  title?: string | null;
+  name?: string | null;
+  image_url?: string | null;
+  category?: string | null;
+  brand?: string | null;
+  price?: number | string | { amount?: number | string | null; currency?: string | null } | null;
+};
+
+function productDetailItemToOffer(item: USProductDetailApiItem): USProductOfferApiItem {
+  const priceObject = typeof item.price === "object" && item.price !== null ? item.price : null;
+  const rawPrice = priceObject ? priceObject.amount : item.price;
+  const price = typeof rawPrice === "number" || typeof rawPrice === "string" ? rawPrice : null;
+  return {
+    ...item,
+    price,
+  };
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
   if (!resolvedProduct) return { title: "Product Not Found", robots: { index: false, follow: false } };
@@ -112,6 +132,32 @@ async function fetchUSProductMatchesRaw(productId: string): Promise<USProductOff
   return [];
 }
 
+async function fetchUSProductPrimaryRaw(productId: string): Promise<USProductDetailApiItem | null> {
+  const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
+
+  try {
+    const res = await fetch(`${baseUrl}/v1/products/${numericId}`, {
+      headers: apiKey ? { Accept: "application/json", Authorization: `Bearer ${apiKey}` } : { Accept: "application/json" },
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.ok) {
+      const payload = await res.json() as { data?: USProductDetailApiItem[] } | USProductDetailApiItem;
+      if (Array.isArray((payload as { data?: USProductDetailApiItem[] }).data)) {
+        return (payload as { data: USProductDetailApiItem[] }).data[0] ?? null;
+      }
+      return (payload as USProductDetailApiItem).id ? (payload as USProductDetailApiItem) : null;
+    }
+  } catch {
+    // API unavailable — fall through to null
+  }
+
+  return null;
+}
+
 function resolvedProductName(productId: string): string {
   return `Product ${productId}`;
 }
@@ -158,15 +204,31 @@ export default async function USProductSlugPage({ params }: PageProps) {
     permanentRedirect(slugToSearchRedirect(params.slug));
   }
 
-  // BUY-74926: server-side, parallel — the matches call that powers both the SSR
-  // price table (visible to crawlers without JS) and the client island's
-  // initialData. Fetching twice would double upstream load, so issue both reads
-  // in parallel and reuse the raw payload for the SSR table.
-  const [fetchedProduct, rawMatches] = await Promise.all([
+  // BUY-74926: server-side, parallel — prefer the multi-retailer matches API,
+  // but fall back to the primary product endpoint because live sitemap products
+  // can have a real current_price row even when /matches returns 404.
+  const [fetchedProduct, rawMatches, primaryProduct] = await Promise.all([
     fetchUSProductSSR(resolvedProduct.id),
     fetchUSProductMatchesRaw(resolvedProduct.id),
+    fetchUSProductPrimaryRaw(resolvedProduct.id),
   ]);
-  const initialData = fetchedProduct ?? buildResolvedProductFallback(resolvedProduct);
+  const primaryOffer = primaryProduct ? productDetailItemToOffer(primaryProduct) : null;
+  const primaryPrice = primaryOffer ? normalizeUSMerchantPrice(primaryOffer) : null;
+  const initialData = fetchedProduct ?? (primaryPrice
+    ? {
+        id: resolvedProduct.id,
+        name: primaryProduct?.name || primaryProduct?.title || resolvedProduct.name,
+        image: primaryProduct?.image_url || "/og-image.png",
+        description: `Compare current catalog offers for ${primaryProduct?.name || primaryProduct?.title || resolvedProduct.name}.`,
+        specs: {},
+        prices: [primaryPrice],
+        overallRating: 0,
+        reviewCount: 0,
+        brand: primaryProduct?.brand || "",
+        sku: `SKU-${resolvedProduct.id}`,
+      }
+    : buildResolvedProductFallback(resolvedProduct));
+  const ssrMatches = rawMatches.length > 0 ? rawMatches : primaryOffer ? [primaryOffer] : [];
 
   const pagePath = `/products/us/${resolvedProduct.slug}`;
 
@@ -177,9 +239,9 @@ export default async function USProductSlugPage({ params }: PageProps) {
         productName={resolvedProduct.name}
         pagePath={pagePath}
         description={`Compare current retailer pricing for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`}
-        matches={rawMatches}
+        matches={ssrMatches}
         sku={`SKU-${resolvedProduct.id}`}
-        category="Products"
+        category={primaryProduct?.category || "Products"}
       />
       <USProductDetail productId={resolvedProduct.id} initialData={initialData} />
     </>
