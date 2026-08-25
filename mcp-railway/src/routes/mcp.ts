@@ -56,6 +56,119 @@ async function acquireMcpClient() {
   }
 }
 
+// BUY-74597: fail soft before MCP clients hit their visible timeout. Mirror of
+// api/src/routes/mcp.ts — keeps degraded_kind semantics identical.
+type McpDegradedTool = 'search_products' | 'get_deals' | 'find_best_price';
+type McpDegradedStage = 'catalog_search' | 'offer_aggregation' | 'merchant_join';
+type McpDegradedKind = 'timeout' | 'auth_failure' | 'upstream_exception' | 'circuit_open';
+
+const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 3);
+const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 30_000);
+const mcpDegradedCircuitState = new Map<string, { failures: number; openedUntil: number }>();
+
+function mcpCircuitKey(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
+  return `${tool}:${stage}:${(country || 'GLOBAL').toUpperCase()}`;
+}
+
+function isMcpCircuitOpen(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
+  const state = mcpDegradedCircuitState.get(mcpCircuitKey(tool, stage, country));
+  return !!state && state.openedUntil > Date.now();
+}
+
+function recordMcpCircuitSuccess(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
+  mcpDegradedCircuitState.delete(mcpCircuitKey(tool, stage, country));
+}
+
+function recordMcpCircuitFailure(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
+  const key = mcpCircuitKey(tool, stage, country);
+  const prev = mcpDegradedCircuitState.get(key) || { failures: 0, openedUntil: 0 };
+  const failures = prev.failures + 1;
+  mcpDegradedCircuitState.set(key, {
+    failures,
+    openedUntil: failures >= MCP_DEGRADED_CIRCUIT_THRESHOLD ? Date.now() + MCP_DEGRADED_CIRCUIT_COOLDOWN_MS : prev.openedUntil,
+  });
+}
+
+function classifyMcpDegradedKind(err: unknown): McpDegradedKind {
+  const e = err as { code?: string; message?: string } | null;
+  const message = String(e?.message || '');
+  if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || /timeout/i.test(message)) return 'timeout';
+  if (e?.code === '28P01' || e?.code === '28000' || e?.code === '42501' || /auth|password|permission/i.test(message)) return 'auth_failure';
+  return 'upstream_exception';
+}
+
+function buildMcpDegradedSearchResponse(opts: {
+  tool: McpDegradedTool;
+  stage: McpDegradedStage;
+  kind: McpDegradedKind | 'partial_timeout';
+  limit: number;
+  offset: number;
+  responseTimeMs: number;
+  country?: string | null;
+  deliverToPresent: boolean;
+}) {
+  const regionSupported = !opts.country || (SUPPORTED_REGIONS as readonly string[]).includes(opts.country.toUpperCase());
+  const emptinessReason = opts.kind === 'partial_timeout' ? 'partial_timeout' : (opts.kind === 'timeout' ? 'timeout' : opts.kind === 'auth_failure' ? 'auth_failure' : 'api_error');
+  return {
+    results: [],
+    total: 0,
+    page: { limit: opts.limit, offset: opts.offset },
+    response_time_ms: opts.responseTimeMs,
+    cached: false,
+    degraded: true,
+    status: 'degraded',
+    degraded_kind: opts.kind === 'partial_timeout' ? 'timeout' : opts.kind,
+    degraded_reason: opts.stage,
+    emptiness_reason: emptinessReason,
+    confidence: 'low',
+    diagnostic: {
+      engine_status: opts.kind === 'auth_failure' ? 'error' : 'degraded',
+      indexed_for_region: regionSupported,
+      category_recognized: false,
+      rate_limit_remaining: null,
+      deliver_to_present: opts.deliverToPresent,
+      timed_out_stage: opts.stage,
+    },
+  };
+}
+
+function buildMcpDegradedBestPriceResponse(opts: {
+  productName: string;
+  country?: string | null;
+  responseTimeMs: number;
+  kind: McpDegradedKind | 'partial_timeout';
+  stage: McpDegradedStage;
+  deliverToPresent: boolean;
+}) {
+  const country = opts.country || 'SG';
+  const emptinessReason = opts.kind === 'partial_timeout' ? 'partial_timeout' : (opts.kind === 'timeout' ? 'timeout' : opts.kind === 'auth_failure' ? 'auth_failure' : 'api_error');
+  return {
+    best_price: null,
+    alternatives: [],
+    meta: {
+      total: 0,
+      product_name: opts.productName,
+      country_code: country,
+      currency: COUNTRY_CURRENCY[country] || 'SGD',
+      response_time_ms: opts.responseTimeMs,
+      degraded: true,
+      status: 'degraded',
+      degraded_kind: opts.kind === 'partial_timeout' ? 'timeout' : opts.kind,
+      degraded_reason: opts.stage,
+      emptiness_reason: emptinessReason,
+      confidence: 'low',
+      diagnostic: {
+        engine_status: opts.kind === 'auth_failure' ? 'error' : 'degraded',
+        indexed_for_region: (SUPPORTED_REGIONS as readonly string[]).includes(country.toUpperCase()),
+        category_recognized: false,
+        rate_limit_remaining: null,
+        deliver_to_present: opts.deliverToPresent,
+        timed_out_stage: opts.stage,
+      },
+    },
+  };
+}
+
 // BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
 // connection enters PQTRANS_INERROR state (transactionStatus === 3). Returning such
@@ -82,7 +195,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: 'Search the BuyWhere product catalog by keyword. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields. BUY-74597 degraded contract: when the catalog query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"` / `degraded=true`, `emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `confidence="low"`, and `diagnostic.timed_out_stage` naming the failed stage (catalog_search / offer_aggregation / merchant_join). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `degraded === true` (or `status === "degraded"`) instead of treating empty `results` as no_match.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,7 +245,7 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"` / `degraded=true`, `emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `confidence="low"`, and `diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -162,7 +275,7 @@ const TOOLS = [
   },
   {
     name: 'find_best_price',
-    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants.',
+    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. BUY-74597 degraded contract: when the candidates query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.degraded=true`, `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage="catalog_search"`, with `best_price=null` and `alternatives=[]`. It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
     inputSchema: {
       type: 'object',
       required: ['product_name'],
@@ -345,6 +458,7 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
+  void (args.deliver_to as string);
   const q = (args.q as string) || '';
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
@@ -365,6 +479,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
+  const deliverToPresent = Boolean(
+    (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+    (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+    (typeof args.country === 'string' && args.country.trim() !== '')
+  );
 
   const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
@@ -585,15 +704,23 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+    recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
-    // Invariant (BUY-59936 family): timeout = 200 degraded fail-open, never -32603.
-    if ((err as { code?: string })?.code === '57014') {
-      const degraded = buildSearchResponse([], 0, limit, offset, Date.now() - t0, false) as unknown as Record<string, unknown>;
-      degraded.degraded = true;
-      degraded.degraded_reason = 'db_statement_timeout';
-      return degraded;
-    }
-    throw err;
+    // BUY-74597: classify and return the canonical degraded envelope. Never throw
+    // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
+    const degradedKind = classifyMcpDegradedKind(err);
+    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    return buildMcpDegradedSearchResponse({
+      tool: 'search_products',
+      stage: 'catalog_search',
+      kind: degradedKind,
+      limit,
+      offset,
+      responseTimeMs: Date.now() - t0,
+      country: country || null,
+      deliverToPresent,
+    });
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
@@ -687,6 +814,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
+  const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
   const minDiscount = Number(args.min_discount) || 10;
   // BUY-59768: infer currency from country_code (or region) when not explicitly set.
   const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
@@ -698,6 +826,19 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
+
+  if (isMcpCircuitOpen('get_deals', 'offer_aggregation', country || null)) {
+    return buildMcpDegradedSearchResponse({
+      tool: 'get_deals',
+      stage: 'offer_aggregation',
+      kind: 'circuit_open',
+      limit,
+      offset,
+      responseTimeMs: Date.now() - t0,
+      country: country || null,
+      deliverToPresent,
+    });
+  }
 
   const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
   try {
@@ -748,13 +889,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // BUY-64112: strict discount-first query only. The prior recent-window sample
   // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
   // real discounted products. Query the indexed discount predicate directly.
-  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
-    console.error('[mcp] get_deals db.connect failed:', err);
-    throw { code: -32603, message: 'Database unavailable' };
-  });
+  let dealsClient: any = null;
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
+    dealsClient = await acquireMcpClient();
+    await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave. 30s = 3x headroom, still fast-fail vs tail.
+    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
     await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave. 30s = 3x headroom, still fast-fail vs tail.
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
     // BUY-69340 + BUY-69646 merged (2026-08-15): walk the deals index IN ORDER
@@ -790,9 +931,24 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+    recordMcpCircuitSuccess('get_deals', 'offer_aggregation', country || null);
+  } catch (err: any) {
+    const degradedKind = classifyMcpDegradedKind(err);
+    recordMcpCircuitFailure('get_deals', 'offer_aggregation', country || null);
+    console.warn(`[get_deals] BUY-74597: offer_aggregation degraded (${degradedKind}) — returning MCP degraded envelope`);
+    return buildMcpDegradedSearchResponse({
+      tool: 'get_deals',
+      stage: 'offer_aggregation',
+      kind: degradedKind,
+      limit,
+      offset,
+      responseTimeMs: Date.now() - t0,
+      country: country || null,
+      deliverToPresent,
+    });
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
-    releaseClientSafely(dealsClient);
+    if (dealsClient) releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
@@ -954,7 +1110,12 @@ async function handleListCategories(args: Record<string, unknown>) {
         cached: false,
       };
       meta.unavailable = false;
-      const data = { data: rows, meta };
+      // BUY-71112: expose both `categories` (canonical) and `data` (legacy)
+      // so callers expecting either key keep working. Bug was: returning only
+      // `data` matched the legacy envelope but broke consumers reading
+      // `result.categories`. Pinned the live MCP probe evidence: SG/TH/VN
+      // returned `{data:[...100 items...], meta}` with no `categories` key.
+      const data = { categories: rows, data: rows, meta };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
     } finally {
@@ -973,6 +1134,12 @@ async function handleListCategories(args: Record<string, unknown>) {
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
+  void (args.deliver_to as string);
+  const deliverToPresent = Boolean(
+    (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+    (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+    (typeof args.country === 'string' && args.country.trim() !== '')
+  );
   const productName = ((args.product_name as string) || (args.q as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
@@ -983,6 +1150,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
+
+  if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
+    return buildMcpDegradedBestPriceResponse({
+      productName,
+      country,
+      responseTimeMs: Date.now() - t0,
+      kind: 'circuit_open',
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
+  }
 
   // BUY-26343: price > 0 prevents returning corrupt zero-price records
   const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -1069,6 +1247,19 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
           : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern])
       );
     }
+    recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
+  } catch (err: any) {
+    const degradedKind = classifyMcpDegradedKind(err);
+    recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
+    console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    return buildMcpDegradedBestPriceResponse({
+      productName,
+      country,
+      responseTimeMs: Date.now() - t0,
+      kind: degradedKind,
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
