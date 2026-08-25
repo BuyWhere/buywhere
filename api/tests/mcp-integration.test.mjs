@@ -626,6 +626,11 @@ describe('MCP JSON-RPC — error handling', () => {
     assert.ok(body.error.data.envelope.error.code);
   });
 
+  // BUY-74597: an upstream DB error must NOT produce an unqualified JSON-RPC
+  // error envelope. The new degraded contract says the tool returns a 200-OK
+  // MCP envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"`,
+  // `meta.confidence="low"`, `meta.degraded_kind="upstream_exception"`, and a
+  // diagnostic naming the failed stage. Agents branch on `meta.degraded === true`.
   it('handles DB error gracefully', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {
@@ -646,9 +651,20 @@ describe('MCP JSON-RPC — error handling', () => {
       }),
     });
     const body = await res.json();
-    assert.ok(body.error);
-    assert.equal(body.error.code, -32603);
-    assert.ok(body.error.message.includes('Internal error'));
+    // Spec §4: no tool may return an unqualified empty result when the cause
+    // is upstream exception / timeout / auth / circuit breaker. The MCP layer
+    // must translate the DB failure into the canonical degraded envelope.
+    assert.equal(body.error, undefined, 'JSON-RPC error envelope must NOT be returned on upstream DB failure');
+    assert.ok(body.result, 'JSON-RPC result envelope must be present');
+    const content = JSON.parse(body.result.content[0].text);
+    assert.equal(content.meta.degraded, true, 'meta.degraded must be true on upstream DB failure');
+    assert.equal(content.meta.status, 'degraded', 'meta.status must be "degraded"');
+    assert.equal(content.meta.confidence, 'low', 'meta.confidence must be "low"');
+    assert.equal(content.meta.degraded_kind, 'upstream_exception', 'meta.degraded_kind must classify the upstream DB failure');
+    assert.equal(content.meta.emptiness_reason, 'api_error');
+    assert.equal(content.meta.diagnostic.engine_status, 'degraded');
+    assert.equal(content.meta.diagnostic.timed_out_stage, 'catalog_search');
+    assert.equal(content.data.length, 0, 'degraded envelope MUST NOT carry data');
   });
 
   it('preserves request id in error responses', async () => {
