@@ -73,7 +73,7 @@ const TARGETS = [
   },
   {
     id: "compare-content",
-    url: "/compare/iphone-15-pro-vs-iphone-14-pro",
+    url: "/compare/buywhere-vs-amazon",
     expectPriceStrings: false,
     expectMerchants: false,
     expectPricesChecked: true,
