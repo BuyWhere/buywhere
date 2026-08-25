@@ -1744,13 +1744,13 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
 export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   "air-purifier-singapore": {
     slug: "air-purifier-singapore",
-    title: "Best Air Purifier Singapore 2026 | Compare Prices, Filters & Deals",
+    title: "Air Purifier Prices in Singapore — From S$249, Compared Daily",
     description:
-      "Find the best air purifier in Singapore by price, room size, filter cost, and live retailer deals across Dyson, Philips, Xiaomi, Sharp, Sterra, Coway, and Levoit.",
-    heroEyebrow: "Singapore Air Purifier Price Guide",
-    heroTitle: "Best Air Purifier Singapore: Prices, Filters & Deals",
+      "Compare air purifier prices in Singapore from S$249. Live deals across Dyson, Philips, Xiaomi, Sharp, Sterra, Coway and Levoit — plus annual filter cost so a cheap unit does not become the expensive one.",
+    heroEyebrow: "Singapore Air Purifier Price Guide · Updated Daily",
+    heroTitle: "Air Purifier Prices in Singapore: From S$249, Compared Daily",
     heroBody:
-      "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether Shopee, Lazada, or local retailers are running bundle promotions. This page combines those shopper questions with live BuyWhere search results so you can find the best, cheapest, or most practical air purifier faster.",
+      "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether Shopee, Lazada, or local retailers are running bundle promotions. Prices below refresh from BuyWhere's live search index — start from S$249 for a Xiaomi Smart Air Purifier 4, scale up to S$699 for a Dyson Purifier Cool — and we surface the annual filter cost alongside each pick so the cheapest listing does not quietly become the most expensive one.",
     canonicalPath: "/air-purifier-singapore",
     country: "SG",
     currency: "SGD",
