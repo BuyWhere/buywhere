@@ -1,10 +1,12 @@
 import { ProductGridCard } from "@/components/seo/ProductGridCard";
+import { SeoAnswerBlock } from "@/components/seo/SeoAnswerBlock";
 import { SeoLandingStickyAnchor } from "@/components/seo/SeoLandingStickyAnchor";
 import { SeoLivePricesSnippet } from "@/components/seo/SeoLivePricesSnippet";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import {
+  buildAnswerBlock,
   buildSeoLandingSchema,
   getSeoLandingProducts,
   resolveHeroTitle,
@@ -195,6 +197,13 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
   const schema = buildSeoLandingSchema(config, products, checked.iso);
 
+  // BUY-74928 [OPENAI-CHANNEL]: 40-60-word plain-text answer block above the
+  // fold. Built from the same live products the price table renders, and the
+  // "Prices checked <date>" mirrors the JSON-LD dateModified exactly
+  // (directive §5). Returns null when the live catalog has fewer than 2 priced
+  // offers — we never invent a "next retailer" or a delta.
+  const answerBlock = buildAnswerBlock(config, products, checked);
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
       <Nav />
@@ -204,6 +213,16 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
       />
 
       <main id="main-content" className="flex-1">
+        {/* BUY-74928: answer block FIRST in DOM order (4seen OAI-SearchBot
+            checklist item 1) — before nav-heavy markup, the price table, the
+            verdict sentence, and FAQs. Plain text, server-side rendered,
+            visible to crawlers that don't run JS. */}
+        {answerBlock && (
+          <SeoAnswerBlock
+            block={answerBlock}
+            intent={`${config.searchQuery} in ${config.country}`}
+          />
+        )}
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
