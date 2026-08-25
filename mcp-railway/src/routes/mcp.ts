@@ -1110,7 +1110,12 @@ async function handleListCategories(args: Record<string, unknown>) {
         cached: false,
       };
       meta.unavailable = false;
-      const data = { data: rows, meta };
+      // BUY-71112: expose both `categories` (canonical) and `data` (legacy)
+      // so callers expecting either key keep working. Bug was: returning only
+      // `data` matched the legacy envelope but broke consumers reading
+      // `result.categories`. Pinned the live MCP probe evidence: SG/TH/VN
+      // returned `{data:[...100 items...], meta}` with no `categories` key.
+      const data = { categories: rows, data: rows, meta };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
     } finally {
