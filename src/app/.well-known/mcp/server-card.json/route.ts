@@ -10,6 +10,28 @@ const V2_VERSION = "v2.0.0-2026-09-15";
 const V1_DEPRECATION_DATE = new Date("2026-10-01T00:00:00Z");
 const V1_SUNSET_DATE = new Date("2026-12-31T23:59:59Z");
 
+// P2.7 v2-first deprecation prefix (Reed, BUY-75192).
+// Always emitted on v1 tool descriptions starting at 2026-10-01Z.
+// Each v1 tool gets its matching v2 sibling name inserted.
+const V1_DEPRECATION_PREFIX_BY_TOOL: Record<string, string> = {
+  search_products:
+    "[DEPRECATED 2026-10-01 — use search_products_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  get_product:
+    "[DEPRECATED 2026-10-01 — use get_product_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  compare_products:
+    "[DEPRECATED 2026-10-01 — use compare_products_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  get_deals:
+    "[DEPRECATED 2026-10-01 — use get_deals_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  find_best_price:
+    "[DEPRECATED 2026-10-01 — use find_best_price_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  list_categories:
+    "[DEPRECATED 2026-10-01 — list_categories has no v2 equivalent (categories are delivered via search_products_v2). v1 supported until 2026-12-31.] ",
+  find_similar:
+    "[DEPRECATED 2026-10-01 — find_similar has no v2 equivalent. v1 supported until 2026-12-31.] ",
+  ingest_products:
+    "[DEPRECATED 2026-10-01 — ingest_products has no v2 equivalent. v1 supported until 2026-12-31.] ",
+};
+
 const v2Tools = [
   {
     name: "search_products_v2",
@@ -218,10 +240,14 @@ function buildServerCard() {
   const v1Sunset = now >= V1_SUNSET_DATE;
 
   const v1ToolsWithDeprecation = v1Tools.map((tool) => {
-    if (!v1Deprecated) return tool;
+    // P2.7 v2-first (BUY-75192): always emit the exact deprecation prefix per
+    // /paperclip/instances/default/workspaces/25f3fbb9-d5f6-46cb-9b9d-6b35db7d38be/specs/P2.7-adoption-pressure-plan.md § Move 1.
+    // The prefix is now a static contract (not date-driven) so Atlas can verify
+    // before 2026-10-01Z without a time-shifted fixture.
+    const prefix = V1_DEPRECATION_PREFIX_BY_TOOL[tool.name];
     return {
       ...tool,
-      description: `[DEPRECATED — use v2] ${tool.description}`,
+      description: prefix ? `${prefix}${tool.description}` : tool.description,
     };
   });
 
@@ -263,6 +289,42 @@ function buildServerCard() {
       v1_deprecation: "2026-10-01T00:00:00Z",
       v1_gone: "2026-12-31T23:59:59Z",
       v1_status: v1Sunset ? "gone" : v1Deprecated ? "deprecated" : "active",
+    },
+    // P2.7 v2-first server-card (Reed, BUY-75192). Additive top-level fields;
+    // no existing fields removed. Strict-schema MCP clients that reject unknown
+    // top-level keys are tracked by Atlas (Cart, 225-cell harness).
+    recommended_version: "v2",
+    default_api_version: "v2",
+    versions: {
+      v2: {
+        status: "stable",
+        ships_in: "P2.7 (Reed, BUY-71816)",
+        released_at: "2026-08-21",
+        tools: [
+          "search_products_v2",
+          "get_product_v2",
+          "compare_products_v2",
+          "get_deals_v2",
+          "find_best_price_v2",
+        ],
+        contract:
+          "deliver_to REQUIRED (ISO 3166 alpha-2). meta.emptiness_reason on empty. meta.deliver_to echoed in responses. country_code→deliver_to default inference available.",
+        differences_from_v1: [
+          "deliver_to is REQUIRED (was a property on v1)",
+          "meta.emptiness_reason on empty results (BUY-71539)",
+          "find_best_price_v2 returns shopping_job_id",
+          "get_product_v2 returns resolved outbound_url",
+          "compare_products_v2 per-row availability",
+        ],
+      },
+      v1: {
+        status: "legacy",
+        released_at: "2026-04-15",
+        sunset_at: "2026-12-31",
+        deprecates_at: "2026-10-01",
+        deprecation_message:
+          "[DEPRECATED 2026-10-01 — use v2 with deliver_to. v1 supported until 2026-12-31.] ",
+      },
     },
     tools,
   };
