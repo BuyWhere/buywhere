@@ -515,7 +515,7 @@ const LIST_SORT_TTL_SECONDS = 60;
 // a bad estimate frozen into Redis for the TTL window. Bump the key so live
 // requests can never serve the poisoned entries.
 const LIST_CACHE_PREFIX = 'listv2';
-const LIST_PRODUCTS_TABLE = 'products_partitioned';
+const LIST_PRODUCTS_TABLE = 'products';
 
 router.get(
   '/',
