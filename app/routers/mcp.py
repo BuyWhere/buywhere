@@ -26,6 +26,43 @@ _request_auth: contextvars.ContextVar[str] = contextvars.ContextVar("mcp_auth", 
 
 _api_server: Server | None = None
 
+# Region/country alias map used across all MCP tools. Probes and callers pass
+# any of {country_code, country, region} with either an ISO-2 alpha-2 code or a
+# lowercase market alias (sg, us, my, th, vn, ph, gb/uk, in, au, sea). Without
+# this mapping the upstream /v1/* endpoints receive unrecognized args and fall
+# back to a global 28M-row scan instead of a 7.8M-row partition-pruned scan.
+_REGION_TO_COUNTRY: dict[str, str] = {
+    "sg": "SG",
+    "us": "US",
+    "my": "MY",
+    "th": "TH",
+    "vn": "VN",
+    "ph": "PH",
+    "gb": "GB",
+    "uk": "GB",
+    "in": "IN",
+    "au": "AU",
+    "sea": "SG",
+}
+
+
+def _normalize_country_arg(args: dict[str, Any]) -> str:
+    """Return an uppercased country code from country_code/country/region args, or ''.
+
+    Accepts the field name aliases callers actually use (country_code, country,
+    region) and normalizes lowercase region keys via _REGION_TO_COUNTRY. An
+    empty result means "no scope requested" — callers must decide whether to
+    default (e.g. list_categories defaults to SG; search does not).
+    """
+    raw = args.get("country_code") or args.get("country") or args.get("region") or ""
+    key = str(raw).strip().lower()
+    if not key:
+        return ""
+    if key in _REGION_TO_COUNTRY:
+        return _REGION_TO_COUNTRY[key]
+    # Already an ISO-2 (or other) upper-case code — preserve original casing.
+    return str(raw).strip().upper()
+
 
 def get_mcp_server() -> Server:
     global _api_server
@@ -58,6 +95,14 @@ def get_mcp_server() -> Server:
                                 "country_code": {
                                     "type": "string",
                                     "description": "Country filter: SG, US, MY, TH, VN, PH. Strongly recommended — without it the search spans all 28M products.",
+                                },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code (sg→SG, us→US, my→MY, th→TH, vn→VN, ph→PH, gb/uk→GB, in→IN, au→AU).",
                                 },
                                 "limit": {
                                     "type": "integer",
@@ -110,6 +155,14 @@ def get_mcp_server() -> Server:
                                     "type": "string",
                                     "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses.",
                                 },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code (sg→SG, us→US, my→MY, th→TH, vn→VN, ph→PH, gb/uk→GB, in→IN, au→AU).",
+                                },
                             },
                             "required": ["product_name"],
                         },
@@ -127,6 +180,18 @@ def get_mcp_server() -> Server:
                                 "category": {
                                     "type": "string",
                                     "description": "Optional category filter (e.g. 'electronics').",
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO country code (SG, US, MY, TH, VN, GB, IN, AU).",
+                                },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code (sg→SG, us→US, my→MY, th→TH, vn→VN, ph→PH, gb/uk→GB, in→IN, au→AU).",
                                 },
                                 "min_discount_pct": {
                                     "type": "number",
@@ -208,9 +273,12 @@ async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
     for key in ("category", "min_price", "max_price", "source"):
         if args.get(key) is not None:
             params[key] = args[key]
-    # country_code scopes the GIN scan to a single market (7.8M rows for SG vs 28M total)
-    if args.get("country_code"):
-        params["country_code"] = str(args["country_code"]).upper()
+    # country_code scopes the GIN scan to a single market (7.8M rows for SG vs 28M total).
+    # BUY-70791: also accept `country` and `region` aliases (sg/us/my/...) so probes that
+    # pass region:"sg" hit the SG partition instead of the global 28M-row catalog.
+    country_code = _normalize_country_arg(args)
+    if country_code:
+        params["country_code"] = country_code
 
     try:
         data = await _api_get("/v1/search", params)
@@ -263,8 +331,12 @@ async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     params = {"q": product_name}
     if args.get("category"):
         params["category"] = args["category"]
-    if args.get("country_code"):
-        params["country_code"] = str(args["country_code"]).upper()
+    # BUY-70791: normalize country/country_code/region (with sg/us/my/... aliases)
+    # so /v1/products/best-price hits the country partition instead of the 28M-row
+    # global scan that produces 19-32s timeouts under DB IO saturation.
+    country_code = _normalize_country_arg(args)
+    if country_code:
+        params["country_code"] = country_code
 
     try:
         p = await _api_get("/v1/products/best-price", params)
@@ -300,14 +372,10 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
     params = {"min_discount_pct": min_discount_pct, "limit": limit}
     if args.get("category"):
         params["category"] = args["category"]
-    if args.get("country_code"):
-        params["country_code"] = str(args["country_code"]).upper()
-    elif args.get("country"):
-        params["country_code"] = str(args["country"]).upper()
-    elif args.get("region"):
-        region = str(args["region"]).lower()
-        if region in {"sg", "us", "my", "th", "vn", "ph"}:
-            params["country_code"] = region.upper()
+    # BUY-70791: use the shared alias helper so behavior matches search_products/find_best_price.
+    country_code = _normalize_country_arg(args)
+    if country_code:
+        params["country_code"] = country_code
 
     try:
         data = await _api_get("/v1/deals", params)
