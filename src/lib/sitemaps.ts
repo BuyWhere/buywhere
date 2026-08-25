@@ -747,9 +747,12 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
     addEntry(`/compare/${category.slug}`, 0.8);
   }
 
-  for (const pair of await getCompareCategoryPairs()) {
-    addEntry(`/compare/${compareCategoryPairSlug(pair)}`, 0.7);
-  }
+  // SEO-GATE BUY-74904 (indexation directive 2026-08-25 §1C/§9.2): the 946 category-pair
+  // URLs (/compare/<cat>-vs-<cat>) are a doorway-page pattern — 220 words of one template,
+  // no products, no prices, linked from nowhere. Google's verdict on every one inspected was
+  // "Discovered – currently not indexed" with zero crawls, and they diluted crawl budget for
+  // the pages that matter. They are removed from the sitemap and set noindex (routes stay
+  // live; no 410). Re-add a pair only when it is individually rebuilt to the §6 spec.
 
   return applyLastmodOverride(Array.from(entries.values()), readLatestLastmodOverride());
 }
