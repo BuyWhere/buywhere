@@ -29,6 +29,18 @@ describe('BUY-73753: /v1/products list contract', () => {
     assert.doesNotMatch(listRoute, /const orderBy = `ORDER BY products\.id DESC`/);
   });
 
+  it('queries the partitioned products table for country browse pages', () => {
+    const listRouteStart = productsSource.indexOf('// GET /v1/products');
+    const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
+    const listRoute = productsSource.slice(listRouteStart, searchRouteStart);
+
+    assert.match(listRoute, /const LIST_PRODUCTS_TABLE = 'products_partitioned'/);
+    assert.match(listRoute, /FROM \$\{LIST_PRODUCTS_TABLE\} AS products/);
+    assert.match(listRoute, /EXPLAIN SELECT 1 FROM \$\{LIST_PRODUCTS_TABLE\} AS products/);
+    assert.doesNotMatch(listRoute, /FROM products\n/);
+    assert.doesNotMatch(listRoute, /EXPLAIN SELECT 1 FROM products /);
+  });
+
   it('projects category_path through the canonical product response', () => {
     const responseSource = readFileSync(join(__dirname, '../src/lib/response.ts'), 'utf8');
     assert.match(responseSource, /category_path/);

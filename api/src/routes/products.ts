@@ -515,6 +515,7 @@ const LIST_SORT_TTL_SECONDS = 60;
 // a bad estimate frozen into Redis for the TTL window. Bump the key so live
 // requests can never serve the poisoned entries.
 const LIST_CACHE_PREFIX = 'listv2';
+const LIST_PRODUCTS_TABLE = 'products_partitioned';
 
 router.get(
   '/',
@@ -657,7 +658,7 @@ router.get(
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
       productReadDb.query(
-        `EXPLAIN SELECT 1 FROM products ${whereClause}`,
+        `EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`,
         params
       ).then((r) => {
         const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
@@ -671,7 +672,7 @@ router.get(
       }),
       productReadDb.query(
         `SELECT ${SELECT_COLUMNS}
-         FROM products
+         FROM ${LIST_PRODUCTS_TABLE} AS products
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
