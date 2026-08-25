@@ -97,7 +97,13 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v10'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
+// BUY-74732: bumped v10 -> v11. v10's cached entries were written by code that omitted
+// `sp.merchant_id` from the tier-search SELECT list, so buildProduct resolved merchant_name
+// to null on every row. The select-list fix is the wire change; this version bump evicts
+// the stale 1h cache so the next query rebuilds with merchant_id populated. (search-tier TTL
+// stays 1h; this is the smallest cache-invalidation that restores live acceptance without a
+// manual purge. Per BUY-72377 / footgun-guard pair, no bulk Redis FLUSH.)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v11';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -229,8 +235,14 @@ async function tryTierSearch(
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
+  // BUY-74732: sp.merchant_id is REQUIRED here — buildProduct resolves
+  // merchant_name / merchant_slug from a batched `merchants` PK lookup keyed on
+  // this column. BUY-74689 wired the lookup but omitted the column from the
+  // tier select list, so tier rows reached buildProduct with merchant_id
+  // undefined and emitted merchant_name: null.
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    sp.merchant_id,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
