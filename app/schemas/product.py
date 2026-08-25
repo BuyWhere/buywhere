@@ -74,6 +74,8 @@ class ProductResponse(BaseModel):
     converted_currency: Optional[str] = Field(None, description="Currency of converted_price")
     buy_url: str = Field(..., description="Direct purchase URL")
     affiliate_url: Optional[str] = Field(None, description="Tracked affiliate URL (use this to send traffic)")
+    merchant_name: Optional[str] = Field(None, description="Human-readable merchant/store name (e.g. 'Alltronic', 'Popular'). JOINed from merchants table; null for fallback rows.")
+    merchant_slug: Optional[str] = Field(None, description="URL-safe kebab-cased merchant identifier for MerchantBadge lookups")
     image_url: Optional[str] = None
     barcode: Optional[str] = Field(None, description="UPC/EAN barcode for the product")
     brand: Optional[str] = None
@@ -135,6 +137,8 @@ class V1ProductSearchItem(BaseModel):
     country_code: str = Field("SG", description="ISO 3166-1 alpha-2 country code")
     buy_url: str
     affiliate_url: Optional[str] = None
+    merchant_name: Optional[str] = Field(None, description="Human-readable merchant/store name (JOINed from merchants table)")
+    merchant_slug: Optional[str] = Field(None, description="URL-safe kebab-cased merchant identifier")
     image_url: Optional[str] = None
     brand: Optional[str] = None
     category: Optional[str] = None
