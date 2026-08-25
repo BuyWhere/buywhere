@@ -96,7 +96,17 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v10'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
+// BUY-74732: v10 -> v11. v10 cache entries were written by code that omitted
+// sp.merchant_id from the tier SELECT list, so buildProduct resolved merchant_name to
+// null on every tier row. The select-list fix restores the wire; this bump evicts the
+// stale 1h cache so the next query rebuilds with merchant_id populated.
+// BUY-74747: v11 -> v12. v11 cache entries were written before the merchants
+// schema migration (merchants.slug, merchants.scraped_via, products.scraped_via)
+// was applied on prod, so lookupMerchantMap threw "column does not exist" and
+// silently returned an empty map. Every cached v11 payload has merchant_name=null
+// / merchant_slug=null. This bump evicts those entries alongside the orphan
+// merchant rows Oracle (BUY-74750) is backfilling.
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v12'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -230,6 +240,7 @@ async function tryTierSearch(
 
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    sp.merchant_id,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
