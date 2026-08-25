@@ -1348,6 +1348,7 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      await client.query(`SET LOCAL enable_seqscan = off`); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
       await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
 
       // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
