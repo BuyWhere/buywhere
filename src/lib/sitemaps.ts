@@ -4,6 +4,7 @@ import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
+import { getStoredPageLastmod } from "@/lib/page-content-hash";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -596,8 +597,7 @@ const DOC_SLUGS = [
   "guides/price-comparison",
 ];
 
-export function getStaticSitemapEntries(): SitemapUrlEntry[] {
-  const now = new Date();
+export async function getStaticSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const blogPosts = safeGetBlogPosts();
 
   // BUY-57452: dedupe by canonical <loc>. When two sources emit the same URL
@@ -628,10 +628,29 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
     }
   };
 
+  // BUY-74905 (directive §5): for the URL kinds this function owns — static
+  // routes, docs, blog posts, seoLandingPages — pull the persisted content
+  // hash from the store when one exists. The hash store is the SINGLE SOURCE
+  // OF TRUTH for lastmod now: the visible "Updated <date>" / "Last updated
+  // <date>" / "Prices checked <date>" text on each page renders the same ISO.
+  // Without a store entry, omit lastmod (directive: a missing lastmod is
+  // honest; a fake one is a penalty).
+  const applyStoreLastmod = async (
+    url: string,
+    fallback: Date | string | undefined,
+  ): Promise<Date | string | undefined> => {
+    const stored = await getStoredPageLastmod(url);
+    if (stored) return stored.lastmod;
+    return fallback;
+  };
+
+  // Static routes like `/` and `/about` previously carried `lastModified: now`,
+  // which violated directive §5. They are not subject to the directive (no
+  // body content to hash), so we now omit lastmod entirely. Sitemaps permit
+  // <url> blocks without <lastmod> — Google treats the omission as "unknown".
   for (const { path, priority, changeFrequency } of STATIC_SITEMAP_ROUTES) {
     upsert({
       url: toSiteUrl(path),
-      lastModified: now,
       changeFrequency,
       priority,
     });
@@ -639,24 +658,29 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   for (const slug of DOC_SLUGS) {
     upsert({
       url: toSiteUrl(`/docs/${slug}`),
-      lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.7,
     });
   }
   for (const post of blogPosts) {
+    const url = toSiteUrl(`/blog/${post.slug}`);
+    // Prefer hash-store entry over frontmatter publishedAt/lastUpdatedAt.
+    const frontmatterLast = post.lastUpdatedAt ?? post.publishedAt;
+    const finalLast = await applyStoreLastmod(url, new Date(frontmatterLast));
     upsert({
-      url: toSiteUrl(`/blog/${post.slug}`),
-      lastModified: new Date(post.publishedAt),
+      url,
+      lastModified: finalLast,
       changeFrequency: "monthly" as const,
       priority: 0.8,
     });
   }
   // BUY-14269: add all SEO landing pages to sitemap
   for (const slug of Object.keys(seoLandingPages)) {
+    const url = toSiteUrl(`/${slug}/`);
+    const finalLast = await applyStoreLastmod(url, undefined);
     upsert({
-      url: toSiteUrl(`/${slug}/`),
-      lastModified: now,
+      url,
+      lastModified: finalLast,
       changeFrequency: "weekly" as const,
       priority: 0.8,
     });
@@ -754,7 +778,21 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   // the pages that matter. They are removed from the sitemap and set noindex (routes stay
   // live; no 410). Re-add a pair only when it is individually rebuilt to the §6 spec.
 
-  return applyLastmodOverride(Array.from(entries.values()), readLatestLastmodOverride());
+  // BUY-74905 (directive §5): before the queue-driven override, apply the
+  // content-hash store. A rebuilt-to-spec §6 compare page writes its body
+  // hash at render time; the sitemap then emits the same ISO the page's
+  // visible "Prices checked <date>" shows. Store entry wins over no-lastmod;
+  // the queue override (re-crawl hints for indexing-queue URLs) still wins
+  // last, matching its existing semantics.
+  const withHash = await Promise.all(
+    Array.from(entries.values()).map(async (entry) => {
+      const stored = await getStoredPageLastmod(entry.url);
+      if (stored) return { ...entry, lastModified: stored.lastmod };
+      return entry;
+    }),
+  );
+
+  return applyLastmodOverride(withHash, readLatestLastmodOverride());
 }
 
 export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {

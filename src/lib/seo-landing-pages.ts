@@ -1534,7 +1534,7 @@ export function buildSeoLandingMetadata(
   };
 }
 
-export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
+export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[], dateModifiedIso?: string) {
   const canonical = toSiteUrl(config.canonicalPath);
   // BUY-66320: resolve the same hero title the page renders so the JSON-LD
   // article headline, breadcrumb, and CollectionPage name stay in sync with
@@ -1630,7 +1630,12 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     image: `${BASE_URL}/og-image.png`,
     inLanguage: config.locale.replace("_", "-"),
     datePublished: config.datePublished || "2026-06-29",
-    dateModified: config.dateModified || "2026-07-25",
+    // BUY-74905 (directive §5): JSON-LD dateModified must mirror the visible
+    // "Updated <date>" stamp and the sitemap <lastmod>. The hash-driven ISO
+    // is threaded through from the caller; falling back to the config's
+    // dateModified preserves the historic intent for legacy pages, and the
+    // 2026-07-25 placeholder is gone — that was a fake freshness signal.
+    dateModified: dateModifiedIso || config.dateModified || config.datePublished || "2026-06-29",
     mainEntityOfPage: canonical,
     about: {
       "@type": "Thing",
