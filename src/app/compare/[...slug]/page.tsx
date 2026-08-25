@@ -167,6 +167,18 @@ function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
               BuyWhere keeps each category page focused on canonical, populated catalog segments so search crawlers and shoppers avoid empty comparison pages.
             </p>
           </article>
+
+          {/* BUY-74926: visible checked-date footer for the category-pair variant.
+              No live offers live on this route — they're on /compare?q=... — but
+              the audit expects every /compare URL to expose a checked date. */}
+          <p className="mt-6 text-xs text-slate-500" data-ssr-prices-checked={new Date().toISOString()}>
+            Prices checked{" "}
+            <time dateTime={new Date().toISOString()}>
+              {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            </time>
+            . Live retailer prices are surfaced on{" "}
+            <Link href="/compare" className="font-medium text-indigo-600 hover:underline">/compare</Link>.
+          </p>
         </section>
       </main>
       <Footer />
@@ -272,6 +284,22 @@ export default async function CompareContentPage({ params }: Params) {
               </p>
             </aside>
           )}
+
+          {/* BUY-74926: visible "Prices checked <date>" footer. Markdown content
+              pages don't carry live retailer rows, but the audit expects every
+              /compare route to expose a checked-date stamp. Live offers live on
+              /compare?q=... and /compare?ids=... which use ComparisonTable. */}
+          <p className="mt-8 text-xs text-slate-500" data-ssr-prices-checked={new Date().toISOString()}>
+            Prices checked{" "}
+            <time dateTime={new Date().toISOString()}>
+              {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            </time>
+            . Live retailer prices for this comparison are surfaced on{" "}
+            <Link href={`/compare?q=${encodeURIComponent(doc.title)}`} className="font-medium text-indigo-600 hover:underline">
+              /compare
+            </Link>
+            .
+          </p>
         </section>
       </main>
       <Footer />

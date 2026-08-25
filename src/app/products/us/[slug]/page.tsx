@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { permanentRedirect } from "next/navigation";
 import USProductDetail from "@/components/USProductDetail";
+import USProductSsrPriceTable from "@/components/seo/USProductSsrPriceTable";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveUSProductRoute, slugToSearchRedirect } from "@/lib/us-product-route";
 import { normalizeUSMerchantPrice, type USProduct, type USProductOfferApiItem } from "@/lib/us-products";
@@ -85,6 +86,32 @@ async function fetchUSProductSSR(productId: string): Promise<USProduct | undefin
   return undefined;
 }
 
+// BUY-74926: also return the raw /matches API items so the SSR price-table island can
+// build its own JSON-LD that mirrors the visible table exactly. The client component
+// gets the normalised `USProduct` and the route uses the raw items for the server table.
+async function fetchUSProductMatchesRaw(productId: string): Promise<USProductOfferApiItem[]> {
+  const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
+
+  try {
+    const matchesRes = await fetch(`${baseUrl}/v1/products/${numericId}/matches`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (matchesRes.ok) {
+      const matchesJson = await matchesRes.json() as { matches?: USProductOfferApiItem[] };
+      return Array.isArray(matchesJson.matches) ? matchesJson.matches : [];
+    }
+  } catch {
+    // API unavailable — fall through to []
+  }
+
+  return [];
+}
+
 function resolvedProductName(productId: string): string {
   return `Product ${productId}`;
 }
@@ -131,7 +158,29 @@ export default async function USProductSlugPage({ params }: PageProps) {
     permanentRedirect(slugToSearchRedirect(params.slug));
   }
 
-  const initialData = await fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct);
+  // BUY-74926: server-side, parallel — the matches call that powers both the SSR
+  // price table (visible to crawlers without JS) and the client island's
+  // initialData. Fetching twice would double upstream load, so issue both reads
+  // in parallel and reuse the raw payload for the SSR table.
+  const [initialData, rawMatches] = await Promise.all([
+    fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct),
+    fetchUSProductMatchesRaw(resolvedProduct.id),
+  ]);
 
-  return <USProductDetail productId={resolvedProduct.id} initialData={initialData} />;
+  const pagePath = `/products/us/${resolvedProduct.slug}`;
+
+  return (
+    <>
+      <USProductSsrPriceTable
+        productId={resolvedProduct.id}
+        productName={resolvedProduct.name}
+        pagePath={pagePath}
+        description={`Compare current retailer pricing for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`}
+        matches={rawMatches}
+        sku={`SKU-${resolvedProduct.id}`}
+        category="Products"
+      />
+      <USProductDetail productId={resolvedProduct.id} initialData={initialData} />
+    </>
+  );
 }
