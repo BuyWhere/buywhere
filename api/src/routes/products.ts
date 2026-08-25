@@ -103,7 +103,14 @@ const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
 // the stale 1h cache so the next query rebuilds with merchant_id populated. (search-tier TTL
 // stays 1h; this is the smallest cache-invalidation that restores live acceptance without a
 // manual purge. Per BUY-72377 / footgun-guard pair, no bulk Redis FLUSH.)
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v11';
+// BUY-74747: bumped v11 -> v12. v11's cached entries were written before the merchants
+// schema migration (merchants.slug, merchants.scraped_via, products.scraped_via) was
+// applied on prod, so lookupMerchantMap threw "column does not exist" and silently
+// returned an empty map. Every v11-cached payload has merchant_name=null/merchant_slug=null.
+// Bumping the version evicts those entries alongside the orphan SG merchant rows Rex
+// inserted in BUY-74747 (alltroniccomputer.com.sg, techhouse.sg). BUY-74750 (Oracle)
+// covers prettier canonical display-name cleanup.
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v12';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
