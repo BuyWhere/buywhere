@@ -12,12 +12,12 @@ requiredProductTerms (>=3), excludeAccessories (true for tech), refreshedLabel (
 datePublished (YYYY-MM-DD), dateModified (YYYY-MM-DD), productSectionTitle, comparisonSectionTitle,
 comparisonColumns (>=3), comparisonRows (>=3, each {label, values[]}), highlightSectionTitle, highlights (>=3 {title, body}),
 adviceSectionTitle, advicePoints (>=4), faqSectionTitle, faqs (>=3 {question, answer}), fallbackProducts ([] is allowed),
-hreflangAlternates (sibling paths where they exist), owner (your agent name), reviewer ("Hue"|"Fetch"), queueRow (int).
+hreflangAlternates (sibling paths where they exist), inboundLinks (>=2 EXISTING live buywhere.ai paths that will link to this page — a hub/category page, a sibling intent page, the matching blog post; the page may not enter a sitemap until those links exist), owner (your agent name), reviewer ("Hue"|"Fetch"), queueRow (int).
 Optional: heroTitleTemplate ("... from {floorPrice}"), searchCategory, requiredGpuTokens, heroFeaturedBrands,
 categoryIntro {heading, body}, compactCatalogCards, showRelatedCategory.
 
 ## Content rules (the gate checks what it can; the reviewer checks the rest)
-- Title and heroTitle contain the CURRENT year. refreshedLabel/dateModified = the day you verified the page (<=14 days at all times).
+- Title and heroTitle contain the CURRENT year. **Freshness is honest (indexation directive §5):** refreshedLabel is 'Prices checked <Month D, YYYY>' = the day the live price table was actually re-pulled, or 'Updated <Month D, YYYY>' = the day the editorial text actually changed. dateModified moves ONLY when rendered content changes. NEVER bump a date, rotate wording or reorder products to look fresh — Google penalises the whole sitemap for it.
 - Prose (heroBody + categoryIntro.body + highlights + advicePoints + faq answers) >= 400 words, written like an expert who
   has used the products: who it is for, what changed this year, what to avoid, how to choose. No filler, no "in today's fast-paced world".
 - NEVER state a specific price in prose (prices come from live cards and change); "from {floorPrice}" via heroTitleTemplate is the only allowed price token.
@@ -26,6 +26,7 @@ categoryIntro {heading, body}, compactCatalogCards, showRelatedCategory.
   Internal links only (/compare, /search?q=..., sibling intent pages).
 - searchQuery/backupQueries/requiredProductTerms/minPrice must make the live catalog return >= 6 priced, on-intent products
   for the country. Run the gate; if < 6 after 3 attempts at tuning, set queue status `blocked:catalog` with the queries you tried and move on.
+- Uniqueness: the gate rejects >40% prose overlap with any other page spec. Sibling pages (same intent, other country) need their OWN facts: local retailers, warranty/import, local price bands, local sale calendars — not a find-and-replace of the country name.
 - FAQs answer what a shopper would actually ask an answer engine (price band, "is it worth it", "which one for X", warranty/import in SG).
 - The API/MCP block is rendered by the site from searchQuery + country (BUY-74862) — you do not write it, but your searchQuery must be
   a query a developer could paste into /v1/products/search and get the same products.
@@ -43,7 +44,9 @@ categoryIntro {heading, body}, compactCatalogCards, showRelatedCategory.
 6. Reviewer (Hue even rows / Fetch odd rows) comments PASS or FAIL with specifics; fix FAILs the same day.
 7. Reach merges intent-pages -> main twice daily (batched deploy) and sets the row `live`. You do not deploy.
    (Reach: first time run `npm ci` in your clone, ~2 min; then `npx next build` before every merge — failed site builds email Richmond.)
-8. Refresh duty: any row with `live` older than 14 days that you own -> re-verify, update refreshedLabel/dateModified, gate, commit, `review`.
+8. Refresh duty: every 14 days re-verify your live pages. If facts changed (new model, price band moved, retailer gone) update the text AND the date; if nothing changed, change nothing — a stable page with a truthful date is correct. Prices on the page refresh themselves from the live catalog.
+9. Volume: the programme ships <=50 new pages/day in total; Reach watches the GSC indexed count after each batch and pauses the queue if a batch has not indexed in 14 days.
+10. Anything touching robots.txt, canonical/noindex logic, src/middleware.ts, src/lib/sitemaps.ts or sitemap routes needs a ticket titled `SEO-GATE: …` and Richmond's approval (indexation directive §2.9) — writers never touch these; Pixel's DB-route work goes through SEO-GATE.
 
 ## Definition of done for a page (overrides the generic "pushed to main" DoD for this program)
 gate PASS (spec mode) + reviewer PASS comment + file on branch intent-pages + queue row `review`. Reach's merge makes it `live`.
