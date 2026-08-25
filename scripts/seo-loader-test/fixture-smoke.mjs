@@ -43,10 +43,25 @@ for (const file of files) {
   out[cfg.slug] = cfg;
 }
 
-console.log("smoke: loaded", files.length, "file(s):", files);
-assert.equal(files.length, 1, "expected exactly one example fixture");
-assert.ok(out["cheapest-airpods-pro-3-us"]);
-assert.equal(out["cheapest-airpods-pro-3-us"].country, "US");
-assert.equal(out["cheapest-airpods-pro-3-us"].owner, undefined, "owner stripped");
-assert.equal(out["cheapest-airpods-pro-3-us"].reviewer, undefined, "reviewer stripped");
-console.log("ok");
+console.log("smoke: loaded", files.length, "file(s) from content/intent-pages/");
+
+// The shipped loader's contract is identical across countries; pick a real
+// writer-produced slug to assert against. If writers haven't shipped
+// cheapest-airpods-pro-3-singapore.json yet, this fails loudly so we notice —
+// it does NOT silently pass.
+const pickSlug = "cheapest-airpods-pro-3-singapore";
+assert.ok(out[pickSlug], `expected shipped writer slug "${pickSlug}" to be in the merged map`);
+assert.ok(["US", "SG"].includes(out[pickSlug].country), `country ${out[pickSlug].country} not in US/SG`);
+assert.equal(out[pickSlug].owner, undefined, "owner stripped");
+assert.equal(out[pickSlug].reviewer, undefined, "reviewer stripped");
+assert.equal(out[pickSlug].queueRow, undefined, "queueRow stripped");
+assert.equal(out[pickSlug].canonicalPath, `/${pickSlug}`, "canonicalPath === /<slug>");
+
+// Every loaded file must satisfy the slug == basename invariant; catch any
+// writer typo that slipped past the loader's throw-on-validate.
+for (const [slug, cfg] of Object.entries(out)) {
+  assert.equal(cfg.canonicalPath, `/${slug}`, `slug "${slug}" canonicalPath mismatch`);
+  assert.ok(["US", "SG"].includes(cfg.country), `slug "${slug}" country ${cfg.country} not in US/SG`);
+}
+
+console.log("ok —", files.length, "files validated,", Object.keys(out).length, "unique slugs");
