@@ -10,6 +10,7 @@ import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
+import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 
 interface ProductCardProps {
   deal: {
@@ -140,6 +141,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
   return (
     <a
       href={deal.url}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
       rel="noopener noreferrer"
       title={deal.name}
