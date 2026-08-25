@@ -1733,6 +1733,37 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, 
   return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
+// BUY-75238: tool-name-specific argument normalization / validation. Runs before
+// dispatchTool so the canonical `q` (and normalised `deliver_to`) reach the handler.
+// For search_products / search_products_v2:
+//   - `query` -> `q` (legacy alias from some MCP clients; missing this caused the
+//     canned 3-product stub to be served for every `query=...` request).
+//   - `deliver_to` is checked against the supported buyer-market set; unsupported
+//     values return -32602 instead of silently serving an empty cached result.
+// Returns a jsonrpcErr payload (already-formatted) on validation failure, or null
+// when the args were accepted (possibly mutated in place).
+const SUPPORTED_DELIVER_TO = new Set([
+  'SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US',
+]);
+
+function normalizeToolArgs(toolName: string, toolArgs: Record<string, unknown>) {
+  if (toolName === 'search_products' || toolName === 'search_products_v2') {
+    if (toolArgs.query != null && toolArgs.q == null) {
+      toolArgs.q = toolArgs.query;
+    }
+    if (toolArgs.deliver_to != null) {
+      const country = String(toolArgs.deliver_to).trim().toUpperCase();
+      if (!SUPPORTED_DELIVER_TO.has(country)) {
+        return {
+          error: `Unsupported market for deliver_to: "${country}". Supported: ${[...SUPPORTED_DELIVER_TO].join(', ')}`,
+        };
+      }
+      toolArgs.deliver_to = country;
+    }
+  }
+  return null;
+}
+
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
 // BUY-33837: matches the pre-migration mcp-server-production.js surface so
 // legacy probes and OAuth-style clients still receive a JSON descriptor
@@ -1905,6 +1936,14 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (toolArgs.cc != null && toolArgs.country_code == null) {
           toolArgs.country_code = toolArgs.cc;
         }
+        // BUY-75238: per-tool argument normalization / validation. Runs before
+        // dispatchTool so the canonical `q` (and validated `deliver_to`) reach the
+        // handler. See normalizeToolArgs for the rules; returns a jsonrpcErr when
+        // a parameter is out of range.
+        const norm = normalizeToolArgs(toolName, toolArgs);
+        if (norm?.error) {
+          return res.json(jsonrpcErr(id, -32602, norm.error, undefined, ErrorCode.INVALID_PARAMETER));
+        }
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
@@ -1924,8 +1963,17 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       default: {
         const knownTool = TOOLS.find((t) => t.name === method);
         if (knownTool) {
+          // BUY-75238: same per-tool normalization / validation as the tools/call
+          // branch — bare-method probes must see query→q + deliver_to validation too.
+          const directArgs = (args && typeof args === 'object' && !Array.isArray(args))
+            ? args as Record<string, unknown>
+            : {};
+          const norm = normalizeToolArgs(method, directArgs);
+          if (norm?.error) {
+            return res.json(jsonrpcErr(id, -32602, norm.error, undefined, ErrorCode.INVALID_PARAMETER));
+          }
           res.locals.mcpToolName = method;
-          const result = await dispatchTool(method, args);
+          const result = await dispatchTool(method, directArgs);
           return res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));

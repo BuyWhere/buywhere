@@ -774,4 +774,115 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     const data = JSON.parse(body.result.content[0].text);
     assert.equal(data.meta.limit, 100);
   });
+
+  // BUY-75238: query→q normalization (canned-stub regression).
+  // Without normalization, `query=...` was being passed through with an empty
+  // `q`, the FTS WHERE became a no-op, and every query served a cached 3-product
+  // stub with total=364777600. Normalization must occur before dispatch.
+  it('search_products normalizes query alias to q', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 52, method: 'tools/call',
+        params: { name: 'search_products', arguments: { query: 'laptop', limit: 3 } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'expected JSON-RPC result, got error: ' + JSON.stringify(body.error));
+    // The handler should have seen `q='laptop'` and returned real product rows,
+    // not the canned stub. The mock defaultQueryHandler returns Gaming Laptop +
+    // Wireless Mouse for q='laptop' via the FTS branch.
+    const ftsCalls = queryMock.mock.calls.filter(c =>
+      typeof c.arguments[0] === 'string' &&
+      c.arguments[0].includes('plainto_tsquery') &&
+      Array.isArray(c.arguments[1]) &&
+      c.arguments[1][0] === 'laptop'
+    );
+    assert.ok(ftsCalls.length >= 1, 'expected handler to dispatch FTS with q="laptop"');
+  });
+
+  // BUY-75238: search_products_v2 same normalization applies.
+  it('search_products_v2 normalizes query alias to q', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 53, method: 'tools/call',
+        params: {
+          name: 'search_products_v2',
+          arguments: { query: 'laptop', deliver_to: 'SG', limit: 3 },
+        },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'expected JSON-RPC result, got error: ' + JSON.stringify(body.error));
+    const ftsCalls = queryMock.mock.calls.filter(c =>
+      typeof c.arguments[0] === 'string' &&
+      c.arguments[0].includes('plainto_tsquery') &&
+      Array.isArray(c.arguments[1]) &&
+      c.arguments[1][0] === 'laptop'
+    );
+    assert.ok(ftsCalls.length >= 1, 'expected v2 handler to dispatch FTS with q="laptop"');
+  });
+
+  // BUY-75238: deliver_to validation. Unsupported markets must surface -32602
+  // instead of silently serving a cached empty result.
+  it('search_products rejects unsupported deliver_to with -32602', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 54, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', deliver_to: 'GB', limit: 3 } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200); // JSON-RPC error envelope, not HTTP error
+    assert.ok(body.error, 'expected JSON-RPC error envelope');
+    assert.equal(body.error.code, -32602);
+    assert.match(body.error.message, /Unsupported market.*GB/);
+  });
+
+  // BUY-75238: search_products accepts the supported deliver_to markets.
+  it('search_products accepts supported deliver_to markets', async () => {
+    for (const country of ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US']) {
+      const res = await fetch(`http://localhost:${port}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 60, method: 'tools/call',
+          params: { name: 'search_products', arguments: { q: 'laptop', deliver_to: country, limit: 3 } },
+        }),
+      });
+      const body = await res.json();
+      assert.ok(body.result, `deliver_to=${country} should be accepted: got ${JSON.stringify(body.error)}`);
+    }
+  });
+
+  // BUY-75238: bare-method branch (BUY-72102 fallback) must apply the same
+  // normalization. Some MCP probes call {"method":"search_products"} directly
+  // without wrapping in tools/call.
+  it('bare-method search_products normalizes query alias to q', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 55, method: 'search_products',
+        params: { query: 'laptop', limit: 3 },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'expected JSON-RPC result, got error: ' + JSON.stringify(body.error));
+    const ftsCalls = queryMock.mock.calls.filter(c =>
+      typeof c.arguments[0] === 'string' &&
+      c.arguments[0].includes('plainto_tsquery') &&
+      Array.isArray(c.arguments[1]) &&
+      c.arguments[1][0] === 'laptop'
+    );
+    assert.ok(ftsCalls.length >= 1, 'expected bare-method dispatch with q="laptop"');
+  });
 });

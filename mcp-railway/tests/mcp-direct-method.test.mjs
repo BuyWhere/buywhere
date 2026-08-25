@@ -16,7 +16,9 @@ const source = readFileSync(srcPath, 'utf8');
 
 describe('MCP direct tool-name dispatch (BUY-68192)', () => {
   it('routes known tool names from the default switch branch', () => {
-    const hasDefaultBranch = /default\s*:\s*\{[\s\S]*?const knownTool = TOOLS\.find\(\(t\) => t\.name === method\);[\s\S]*?await dispatchTool\(method, args\);/m.test(source);
+    // Accept any local args binding — BUY-75238 rewrote the bare-method branch
+    // to use `directArgs` after extracting/validating via normalizeToolArgs.
+    const hasDefaultBranch = /default\s*:\s*\{[\s\S]*?const knownTool = TOOLS\.find\(\(t\) => t\.name === method\);[\s\S]*?await dispatchTool\(method,\s*(args|directArgs)\);/m.test(source);
     assert.ok(hasDefaultBranch, 'mcp.ts default branch should dispatch known tool names');
   });
 
