@@ -1,4 +1,5 @@
 import { ProductGridCard } from "@/components/seo/ProductGridCard";
+import { SeoLandingStickyAnchor } from "@/components/seo/SeoLandingStickyAnchor";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -148,7 +149,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       <main id="main-content" className="flex-1">
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
@@ -202,12 +203,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
+        <SeoLandingStickyAnchor />
+
         <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
               <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
                 Open full search
