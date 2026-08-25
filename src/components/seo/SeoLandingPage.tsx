@@ -11,7 +11,9 @@ import {
   type LandingProduct,
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
+import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
+import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -134,11 +136,63 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
   const comparison = buildComparisonRows(config, products);
-  const schema = buildSeoLandingSchema(config, products);
   // BUY-66320: render the hero headline from the live catalog floor (when the
   // config provides a template) so the H1, JSON-LD headline, and breadcrumb
   // all match the lowest visible price.
   const heroTitle = resolveHeroTitle(config, products);
+
+  // BUY-74905 (directive §5): compute a hash of the rendered page body
+  // (config fields + live product snapshot + editorial sections) and pin the
+  // visible "Updated <date>" stamp and JSON-LD `dateModified` to whatever
+  // ISO that hash maps to in the content-hash store. Date moves only when
+  // content changes. (Editorial `refreshedLabel` overrides are honored below
+  // when present — that override still flows through this hash so its
+  // identity-by-content invariant holds.)
+  const hashInputBody = serializeHashable({
+    kind: "seo-landing-page",
+    slug: config.slug,
+    canonicalPath: config.canonicalPath,
+    title: config.title,
+    description: config.description,
+    heroTitle,
+    heroBody: config.heroBody,
+    heroEyebrow: config.heroEyebrow,
+    productSectionTitle: config.productSectionTitle,
+    comparisonSectionTitle: config.comparisonSectionTitle,
+    highlightSectionTitle: config.highlightSectionTitle,
+    adviceSectionTitle: config.adviceSectionTitle,
+    faqSectionTitle: config.faqSectionTitle,
+    comparisonColumns: config.comparisonColumns,
+    comparisonRows: config.comparisonRows,
+    highlights: config.highlights,
+    advicePoints: config.advicePoints,
+    faqs: config.faqs,
+    fallbackProducts: config.fallbackProducts,
+    refreshedLabel: config.refreshedLabel ?? null,
+    // Live catalog floor: sorted by id so order doesn't change the hash.
+    productSnapshot: products
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        currency: p.currency,
+        merchant: p.merchant,
+        updatedAt: p.updatedAt,
+        brand: p.brand,
+        category: p.category,
+      })),
+  });
+  const stamp = await getOrUpdatePageLastmod(
+    toSiteUrl(config.canonicalPath),
+    hashInputBody,
+    new Date(config.dateModified ?? config.datePublished ?? "2026-06-29").toISOString(),
+  );
+  const checked = formatCheckedStamp(stamp);
+  // BUY-74905: thread the hash-stable ISO through the JSON-LD builder so the
+  // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
+  const schema = buildSeoLandingSchema(config, products, checked.iso);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -161,10 +215,24 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
               </p>
-              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
+              <ul
+                className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100"
+                aria-label="Page metadata"
+                data-ssr-prices-checked={checked.iso}
+              >
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-200">✓</span>
-                  <span>{buildRefreshedLabel(config, products)}</span>
+                  {/* BUY-74905 (directive §5): the visible "Updated <date>" pill
+                      mirrors the JSON-LD `dateModified` and the sitemap
+                      <lastmod>; all three derive from the same content hash
+                      so they move together (or not at all). When an editorial
+                      `refreshedLabel` is set we honor it as text but still
+                      record its content hash so the identity-by-content
+                      invariant holds. */}
+                  <span>
+                    Updated{" "}
+                    <time dateTime={checked.iso}>{checked.text}</time>
+                  </span>
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-200">✓</span>

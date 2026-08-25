@@ -10,6 +10,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { compareCategoryPairSlug, findCompareCategoryPair, type CompareCategoryPair } from "@/lib/sitemaps";
+import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 const contentDir = path.join(process.cwd(), "content", "compare");
 
@@ -36,7 +37,7 @@ function getAll() {
             const m = content.match(/^#\s+(.+)/m);
             if (m) title = m[1].trim();
           }
-          return { slug: fm.slug || slug, title, description: fm.description || "", category: fm.category || "", tags: fm.tags || [], schemaType: fm.schema_type || "" };
+          return { slug: fm.slug || slug, title, description: fm.description || "", category: fm.category || "", tags: fm.tags || [], schemaType: fm.schema_type || "", updated: fm.updated || fm.published || "2026-05-07" };
         } catch { return null; }
       })
       .filter(Boolean);
@@ -99,11 +100,31 @@ function buildFaqSchema(body: string) {
 }
 
 
-function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
+async function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
   const slug = compareCategoryPairSlug(pair);
   const title = `${pair.left.name} vs ${pair.right.name} Price Comparison`;
   const description = `Compare ${pair.left.name.toLowerCase()} and ${pair.right.name.toLowerCase()} across BuyWhere's populated shopping catalog. Use this landing page to jump into each category's live price comparison surface.`;
   const canonical = toSiteUrl(`/compare/${slug}`);
+  // BUY-74905 (directive §5): hash the pair's stable metadata so the visible
+  // checked-date and the sitemap <lastmod> move only when the pair changes
+  // (e.g. one category's product count shifts). productCount is dynamic so we
+  // include it in the hash — that is the only piece of this page that can
+  // change day-to-day without an editorial commit.
+  const stamp = await getOrUpdatePageLastmod(
+    canonical,
+    serializeHashable({
+      kind: "compare-category-pair",
+      slug,
+      leftSlug: pair.left.slug,
+      rightSlug: pair.right.slug,
+      leftName: pair.left.name,
+      rightName: pair.right.name,
+      leftProductCount: pair.left.productCount,
+      rightProductCount: pair.right.productCount,
+    }),
+    "2026-08-25T00:00:00.000Z",
+  );
+  const checkedStamp = formatCheckedStamp(stamp);
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -168,14 +189,14 @@ function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
             </p>
           </article>
 
-          {/* BUY-74926: visible checked-date footer for the category-pair variant.
+          {/* BUY-74926 + BUY-74905: visible checked-date footer for the category-pair variant.
               No live offers live on this route — they're on /compare?q=... — but
-              the audit expects every /compare URL to expose a checked date. */}
-          <p className="mt-6 text-xs text-slate-500" data-ssr-prices-checked={new Date().toISOString()}>
+              the audit expects every /compare URL to expose a checked date. The
+              ISO stamp comes from the content-hash store so the visible text and
+              the sitemap <lastmod> move together (directive §5). */}
+          <p className="mt-6 text-xs text-slate-500" data-ssr-prices-checked={checkedStamp.iso}>
             Prices checked{" "}
-            <time dateTime={new Date().toISOString()}>
-              {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </time>
+            <time dateTime={checkedStamp.iso}>{checkedStamp.text}</time>
             . Live retailer prices are surfaced on{" "}
             <Link href="/compare" className="font-medium text-indigo-600 hover:underline">/compare</Link>.
           </p>
@@ -191,6 +212,9 @@ export default async function CompareContentPage({ params }: Params) {
   if (!doc) {
     const pair = params.slug.length === 1 ? await findCompareCategoryPair(params.slug[0]) : null;
     if (!pair) notFound();
+    // CompareCategoryPairPage is async (BUY-74905 — content-hash stamp needs
+    // a server-side await). React RSC awaits async child components when
+    // serializing, so returning the JSX element is sufficient.
     return <CompareCategoryPairPage pair={pair} />;
   }
 
@@ -207,6 +231,24 @@ export default async function CompareContentPage({ params }: Params) {
   const siblings = doc.category
     ? allDocs.filter((d) => d.category === doc.category && d.slug !== doc.slug).slice(0, 6)
     : [];
+
+  // BUY-74905 (directive §5): hash the markdown body + title + description
+  // + category so the visible checked-date and the sitemap <lastmod> move
+  // together — only when an editorial commit actually changes the doc.
+  const docCanonical = toSiteUrl(`/compare/${doc.slug}`);
+  const docStamp = await getOrUpdatePageLastmod(
+    docCanonical,
+    serializeHashable({
+      kind: "compare-markdown-doc",
+      slug: doc.slug,
+      title: doc.title,
+      description: doc.description,
+      category: doc.category,
+      body,
+    }),
+    new Date(doc.updated).toISOString(),
+  );
+  const docCheckedStamp = formatCheckedStamp(docStamp);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -285,15 +327,15 @@ export default async function CompareContentPage({ params }: Params) {
             </aside>
           )}
 
-          {/* BUY-74926: visible "Prices checked <date>" footer. Markdown content
-              pages don't carry live retailer rows, but the audit expects every
-              /compare route to expose a checked-date stamp. Live offers live on
-              /compare?q=... and /compare?ids=... which use ComparisonTable. */}
-          <p className="mt-8 text-xs text-slate-500" data-ssr-prices-checked={new Date().toISOString()}>
+          {/* BUY-74926 + BUY-74905: visible "Prices checked <date>" footer. Markdown
+              content pages don't carry live retailer rows, but the audit expects
+              every /compare route to expose a checked-date stamp. Live offers live
+              on /compare?q=... and /compare?ids=... which use ComparisonTable.
+              The ISO stamp is content-hash-driven so it matches the sitemap
+              <lastmod> exactly (directive §5). */}
+          <p className="mt-8 text-xs text-slate-500" data-ssr-prices-checked={docCheckedStamp.iso}>
             Prices checked{" "}
-            <time dateTime={new Date().toISOString()}>
-              {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </time>
+            <time dateTime={docCheckedStamp.iso}>{docCheckedStamp.text}</time>
             . Live retailer prices for this comparison are surfaced on{" "}
             <Link href={`/compare?q=${encodeURIComponent(doc.title)}`} className="font-medium text-indigo-600 hover:underline">
               /compare
