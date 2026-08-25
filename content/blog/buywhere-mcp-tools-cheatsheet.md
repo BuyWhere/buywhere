@@ -97,7 +97,15 @@ jsonLd: >
             "name": "How should an AI agent handle a -32603 timeout from BuyWhere MCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "A JSON-RPC -32603 from the BuyWhere MCP server is an internal-error response, not a soft 'no results' answer. Recommended handling: (1) retry once after 500 ms with the same payload; (2) on the second -32603, fall back to the equivalent REST call on https://api.buywhere.ai/v1/ using the same arguments translated to REST query parameters; (3) return the REST result to the user with a one-line note that the MCP layer was timing out. Do NOT report -32603 to the user as 'no products found' — that is a server-side error and the answer is unknown until REST is tried."
+              "text": "A JSON-RPC -32603 from the BuyWhere MCP server is an internal-error response, not a soft 'no results' answer. The MCP dispatcher also returns a structured degraded envelope when a tool partially degrades: meta.status='degraded' with meta.emptiness_reason in {'timeout','partial_timeout','auth_failure'} and meta.confidence='low'. Treat both signals the same way: (1) retry once after 500 ms with the same payload; (2) on the second -32603 or a degraded envelope, fall back to the equivalent REST call on https://api.buywhere.ai/v1/ using the same arguments translated to REST query parameters; (3) return the REST result to the user with a one-line note that the MCP layer was timing out. Do NOT report -32603 or a degraded envelope to the user as 'no products found' — the answer is unknown until REST is tried."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does BuyWhere accept country, country_code, region, and deliver_to interchangeably?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, with caveats. As of the BUY-70791 normalization release, search_products, find_best_price, and get_deals accept country_code, its deprecated alias country, and a lowercase region alias (sg, us, my, th, vn, ph, gb, uk, in, au, sea) interchangeably — the server normalizes them to the canonical country_code. For any buyer-facing call you should still pass deliver_to, which is the ISO 3166-1 alpha-2 country of the END USER and is what drives shipping-rank and undeliverable filtering. country_code, country, and region describe where the merchant/listing is located; deliver_to describes where the shopper lives. Use both when relevant; deliver_to is the one that matters for buyer ranking."
             }
           },
           {
@@ -184,10 +192,13 @@ Both tools take a query string and return products. The difference is intent:
 |---|---|---|
 | keyword | `q` | `q` *or* `product_name` |
 | end-user country | `deliver_to` | `deliver_to` |
+| merchant location country | `country_code` / `country` / `region` (all normalize) | `country_code` / `country` / `region` (all normalize) |
 | category filter | `domain` (merchant platform) | `category` |
 | region | `region` (`sea`, `us`, `eu`, `au`) | `region` (`us` or `sea`) |
 
 A common mistake is calling `find_best_price` with `query` — that parameter does not exist; the parameter is `product_name` (or its alias `q`). The server returns `-32602 INVALID_PARAMETER: product_name (or q) is required` if neither is provided.
+
+Another common mistake is passing `country_code='sg'` (lowercase) or `region='sea'` and getting global results. As of the BUY-70791 normalization release the server now normalizes all three aliases to the canonical country_code, but you should still prefer uppercase ISO codes (`SG`, `US`, `MY`) for clarity.
 
 ## Copy-pasteable examples
 
@@ -255,6 +266,7 @@ For a full REST reference, see `https://buywhere.ai/llms-full.txt` which is rege
 | Error | Code | What it means | Recommended action |
 |---|---|---|---|
 | Internal error | `-32603` | Server-side timeout / dispatcher error | Retry once with 500 ms back-off; on the second `-32603`, fall back to REST. Do NOT report to user as "no results". |
+| Degraded envelope | `meta.status='degraded'` | Tool succeeded but a stage (FBP, get_deals, search_products) hit a timeout, partial timeout, or auth failure | Treat as soft failure: surface `meta.emptiness_reason` and `meta.confidence='low'` to the user, fall back to REST. |
 | Invalid params | `-32602` | Missing or wrong-typed argument | Inspect the schema (call `tools/list`) and fix the call. |
 | Unauthorized | HTTP 401 | Bad or missing `x-api-key` | Check the API key header. Some surfaces (anon dispatcher) intentionally 401 to nudge callers to use the authenticated path. |
 | Rate-limited | HTTP 429 | Free-tier quota exceeded | Honor `X-RateLimit-Reset` and retry. |
