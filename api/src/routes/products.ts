@@ -243,6 +243,7 @@ async function tryTierSearch(
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     sp.merchant_id,
+    sp.scraped_via,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 

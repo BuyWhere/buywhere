@@ -129,6 +129,17 @@ export function buildProduct(
       const entry = mid && merchantMap ? merchantMap[mid] : undefined;
       return entry?.slug || null;
     })(),
+    // BUY-74732: resolve scraped_via with explicit precedence — the row's own
+    // column (catalog may stamp per-product), then the merchant's row
+    // (legacy where only the merchant-level flag is set), then null. The FE
+    // `<MerchantBadge>` renders ✓ only when the value is `'first_party'`.
+    scraped_via: (() => {
+      const rowSv = (row.scraped_via as string | null | undefined);
+      if (typeof rowSv === 'string' && rowSv.trim()) return rowSv.trim();
+      const mid = (row.merchant_id as string) || '';
+      const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+      return entry?.scraped_via ?? null;
+    })(),
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),

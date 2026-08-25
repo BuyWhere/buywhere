@@ -2,11 +2,15 @@ import type { Pool, PoolClient } from 'pg';
 
 export interface MerchantMapEntry {
   name: string;
+  /** BUY-74732: prefer the persisted `merchants.slug` column over the JS-derived slugify. */
   slug: string;
+  /** BUY-74732: merchant-level `scraped_via` fallback for rows whose `products.scraped_via` is null. */
+  scraped_via: 'first_party' | 'affiliate' | 'aggregator' | string | null;
 }
 
 /**
  * BUY-74689 — single batched PK lookup against `merchants.id`.
+ * BUY-74732 — also reads persisted `slug` + `scraped_via` columns.
  *
  * `buildProduct` needs the human-readable storefront name (and a URL-safe kebab-case
  * slug for <MerchantBadge> lookup) so the response carries the real label (BestDenki,
@@ -34,9 +38,13 @@ export async function lookupMerchantMap(
   }
   if (unique.length === 0) return {};
 
+  // BUY-74732: SELECT now reads `slug` + `scraped_via` from the merchants row. Both
+  // columns are nullable on legacy schemas — the migration adds them as
+  // ADD COLUMN IF NOT EXISTS so the query degrades gracefully. JS-side `slugify`
+  // stays as the fallback for the rare row where `slug IS NULL`.
   const rows = await pool
-    .query<{ id: string; name: string }>(
-      'SELECT id, name FROM merchants WHERE id = ANY($1::text[])',
+    .query<{ id: string; name: string; slug: string | null; scraped_via: string | null }>(
+      'SELECT id, name, slug, scraped_via FROM merchants WHERE id = ANY($1::text[])',
       [unique],
     )
     .then((r) => r.rows)
@@ -46,14 +54,22 @@ export async function lookupMerchantMap(
       // fall back to an empty map so `merchantName` is null everywhere instead of
       // surfacing a 500.
       console.warn('[merchantLookup] failed, falling back to empty map:', (err as Error)?.message || err);
-      return [] as Array<{ id: string; name: string }>;
+      return [] as Array<{ id: string; name: string; slug: string | null; scraped_via: string | null }>;
     });
 
   const out: Record<string, MerchantMapEntry> = {};
   for (const row of rows) {
     if (!row || typeof row.id !== 'string' || typeof row.name !== 'string') continue;
-    const slug = slugifyMerchantName(row.name);
-    out[row.id] = { name: row.name, slug };
+    const slug = (typeof row.slug === 'string' && row.slug.trim())
+      ? row.slug.trim()
+      : slugifyMerchantName(row.name);
+    out[row.id] = {
+      name: row.name,
+      slug,
+      scraped_via: (typeof row.scraped_via === 'string' && row.scraped_via.trim())
+        ? row.scraped_via.trim()
+        : null,
+    };
   }
   return out;
 }

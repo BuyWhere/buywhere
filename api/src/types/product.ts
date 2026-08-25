@@ -47,6 +47,15 @@ export interface CanonicalProduct {
   // fallback that BUY-74683 handled on the FE side.
   merchant_name?: string | null;
   merchant_slug?: string | null;
+  // BUY-74732: how the catalog row was sourced. Drives the FE `<MerchantBadge>`
+  // verified-mark: only `first_party` (data published by the merchant directly,
+  // e.g. an official Shopify storefront) renders ✓. Resolved by:
+  //   1) the `products.scraped_via` column when present, OR
+  //   2) the `merchants.scraped_via` fallback (legacy rows that only stamped
+  //      the merchant-level flag), OR
+  //   3) null when neither is known (the FE falls back to its legacy
+  //      config.verified path so US retailers keep showing ✓).
+  scraped_via?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
   // BUY-52474: tracking URLs the FE should use for outbound clicks so that
   // `clicks` (via /api/click) and `affiliate_clicks` (via /r/) tables grow
   // from real /v1 traffic. Optional because they're only present when the
