@@ -36,7 +36,6 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "cheapest-iphone-singapore-2026",
   "cheapest-macbook-air-m3-12-countries-compared",
   "cite-buywhere-catalog-stats-faq",
-  "cite-buywhere-live-stats",
   "compare-headphones-singapore-2026",
   "compare-product-prices-singapore-2026",
   "fathers-day-deals-2026",
