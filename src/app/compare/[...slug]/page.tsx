@@ -74,7 +74,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description,
     alternates: { canonical: toSiteUrl(`/compare/${slug}`) },
     openGraph: { title, description, type: "website", url: toSiteUrl(`/compare/${slug}`), siteName: "BuyWhere", images: [{ url: "/og-image.png", width: 1200, height: 630, alt: title }] },
-    robots: { index: true, follow: true },
+    // SEO-GATE BUY-74904: category-pair pages are templated doorway pages (indexation directive §1C);
+    // keep the route live (no 410) but do not ask Google to index them. Real /compare docs above stay index,follow.
+    robots: { index: false, follow: true },
   };
 }
 
