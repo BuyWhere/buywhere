@@ -1463,23 +1463,71 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   return applyFinalCountryGate(fallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
+// BUY-75121: builds the {hreflang-code: absolute-URL} map for a config. Always
+// includes x-default (canonical) and the page's own locale. Then layers any
+// explicit `hreflangAlternates` (curated wins), then auto-detects conservative
+// country siblings by stripping a single trailing -us or -singapore suffix and
+// looking up other configs that share the exact base.
+//
+// Conservative on purpose (Atlas QA v3.1 gate, BUY-74869):
+//   - No year stripping. `best-robot-vacuums-2026` is an editorial intent, not
+//     a country variant; stripping -2026 would falsely pair it with
+//     `best-robot-vacuums-us`.
+//   - No -malaysia / -australia / -uk until `country`/`locale` types support
+//     those values (currently "US" | "SG" / "en_US" | "en_SG").
+//   - Singular/plural pairs like `best-gaming-laptops-us` ↔
+//     `best-gaming-laptop-singapore` are not auto-paired; the explicit
+//     `hreflangAlternates` on the SG config (line ~1973) is the only source.
+//
+// The returned map is rendered as <link rel="alternate" hreflang=...> tags by:
+//   - src/app/[seo-page]/head.tsx  (Next.js App Router head.tsx file convention)
+//   - src/components/seo/SeoLandingPage.tsx  (defense-in-depth for legacy
+//     per-slug routes like /laptop-us that do not live under [seo-page])
+export function resolveHreflangMap(
+  config: SeoLandingPageConfig,
+  allPages: Record<string, SeoLandingPageConfig> = seoLandingPages,
+): Record<string, string> {
+  const canonical = toSiteUrl(config.canonicalPath);
+  const ownLocale = config.locale.replace("_", "-");
+  const map: Record<string, string> = {
+    "x-default": canonical,
+    [ownLocale]: canonical,
+  };
+
+  if (config.hreflangAlternates) {
+    for (const [code, path] of Object.entries(config.hreflangAlternates)) {
+      map[code] = toSiteUrl(path);
+    }
+  }
+
+  const COUNTRY_SUFFIXES = ["-singapore", "-us"] as const;
+  const ownSuffix = COUNTRY_SUFFIXES.find((s) => config.slug.endsWith(s));
+  if (!ownSuffix) return map;
+  const base = config.slug.slice(0, config.slug.length - ownSuffix.length);
+  if (!base) return map;
+
+  for (const candidate of Object.values(allPages)) {
+    if (candidate.slug === config.slug) continue;
+    if (candidate.country === config.country) continue;
+    const candSuffix = COUNTRY_SUFFIXES.find((s) => candidate.slug.endsWith(s));
+    if (!candSuffix) continue;
+    const candBase = candidate.slug.slice(
+      0,
+      candidate.slug.length - candSuffix.length,
+    );
+    if (candBase !== base) continue;
+    const code = candidate.locale.replace("_", "-");
+    if (!map[code]) map[code] = toSiteUrl(candidate.canonicalPath);
+  }
+
+  return map;
+}
+
 export function buildSeoLandingMetadata(
   config: SeoLandingPageConfig,
   products?: LandingProduct[],
 ): Metadata {
   const canonical = toSiteUrl(config.canonicalPath);
-
-  // Build hreflang language alternates: each provided locale -> its canonical path URL.
-  // x-default always points at this page unless explicitly overridden.
-  const languages: Record<string, string> = {
-    "x-default": canonical,
-    [config.locale.replace("_", "-")]: canonical,
-  };
-  if (config.hreflangAlternates) {
-    for (const [code, path] of Object.entries(config.hreflangAlternates)) {
-      languages[code] = toSiteUrl(path);
-    }
-  }
 
   const ogLocaleAlternate =
     config.country === "US" ? "en_SG" : "en_US";
@@ -1496,8 +1544,13 @@ export function buildSeoLandingMetadata(
     title: seoTitle,
     description: config.description,
     alternates: {
+      // BUY-75121: `languages` was removed. Next.js 14.2.35 emits the
+      // attribute as hrefLang (camelCase) via the Metadata API, which fails
+      // the case-sensitive BUY-74869 v3.1 hreflang regex and any strict SEO
+      // crawler. The replacement tags are rendered with lowercase hreflang
+      // via resolveHreflangMap() + src/app/[seo-page]/head.tsx (and inside
+      // SeoLandingPage.tsx as defense-in-depth).
       canonical,
-      languages,
     },
     other: {
       "geo.region": config.country === "US" ? "US" : "SG",
