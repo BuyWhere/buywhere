@@ -17,6 +17,7 @@ import { PRICE_BANDS } from '../lib/pricing';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 import { embedQuery } from '../jobs/embedProducts';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -408,7 +409,16 @@ async function tryTierSearch(
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    // BUY-74689: batched merchant lookup so the card badge shows the real storefront
+    // name (BestDenki, Shopee, …) instead of the platform slug. The merchant table is
+    // ~944K rows and the column is PK, so a single ANY() lookup is sub-ms; we run it
+    // against the replica (`readDb()`) per BUY-65095 so the search-tier replica stays
+    // free for the FTS path. Lookup failure is non-fatal — see merchantLookup.ts.
+    const merchantMap = await lookupMerchantMap(
+      readDb(),
+      pageRows.map((r) => (r as Record<string, unknown>).merchant_id as string | null),
+    );
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact, merchantMap));
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
@@ -682,8 +692,14 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
+    // BUY-74689: batched merchant lookup so list responses also carry merchant_name /
+    // merchant_slug. Single ANY() query against `merchants` (replica).
+    const merchantMap = await lookupMerchantMap(
+      productReadDb,
+      dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
+    );
     const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
+      buildProduct(row as Record<string, unknown>, currency, false, merchantMap)
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
@@ -1184,8 +1200,14 @@ router.get(
       if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
 
       const responseTimeMs = Date.now() - requestStart;
+      // BUY-74689: batched merchant lookup so the SEO landing fallback path also
+      // surfaces the real storefront name.
+      const merchantMap = await lookupMerchantMap(
+        readDb(),
+        dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
+      );
       const fallbackProducts = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, compact)
+        buildProduct(row as Record<string, unknown>, currency, compact, merchantMap)
       );
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore,
@@ -1668,8 +1690,15 @@ router.get(
 
     const responseTimeMs = Date.now() - requestStart;
 
+    // BUY-74689: batched merchant lookup for /v1/products/search so card badges
+    // surface the real storefront name.
+    const merchantMap = await lookupMerchantMap(
+      readDb(),
+      dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
+    );
+
     const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact)
+      buildProduct(row as Record<string, unknown>, currency, compact, merchantMap)
     );
 
     // Apply field selection if `fields` param is specified
@@ -1684,6 +1713,7 @@ router.get(
         'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
         'affiliate_url', 'click_url', 'affiliate_redirect_url',
         'has_affiliate_tracking', 'is_affiliate', 'affiliate_disclosure',
+        'merchant_name', 'merchant_slug', 'merchant_id',
       ]);
       const requested = fields.filter(f => VALID_FIELDS.has(f));
       if (requested.length > 0) {
@@ -1920,8 +1950,14 @@ router.get(
 
       const sampleDeals = dealResult.rows;
       total = sampleDeals.length;
+      // BUY-74689: batched merchant lookup for /v1/products/deals so card badges
+      // surface the real storefront name (BestDenki, Amazon Sg, …).
+      const dealsMerchantMap = await lookupMerchantMap(
+        dealsClient,
+        sampleDeals.map((row) => (row.merchant_id as string | null) ?? null),
+      );
       deals = sampleDeals.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false)
+        buildProduct(row as Record<string, unknown>, currency, false, dealsMerchantMap)
       );
     } catch (err: unknown) {
       // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -1990,8 +2026,15 @@ router.get(
     const { text, values } = buildCompareProductsQuery(ids);
     const result = await db.query(text, values);
 
+    // BUY-74689: batched merchant lookup so /v1/products/compare surfaces real
+    // storefront names alongside the platform slug.
+    const compareMerchantMap = await lookupMerchantMap(
+      db,
+      result.rows.map((row) => (row.merchant_id as string | null) ?? null),
+    );
+
     const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false)
+      buildProduct(row as Record<string, unknown>, 'SGD', false, compareMerchantMap)
     );
 
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
@@ -2372,7 +2415,7 @@ router.get(
       `SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
-              region, country_code
+              region, country_code, merchant_id
        FROM products
        WHERE is_active = true
          AND country_code = $1
@@ -2383,7 +2426,12 @@ router.get(
       [countryCode, currency, limit, offset]
     );
 
-    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
+    // BUY-74689: batched merchant lookup for /v1/products/featured.
+    const featuredMerchantMap = await lookupMerchantMap(
+      readDb(),
+      result.rows.map((row) => (row.merchant_id as string | null) ?? null),
+    );
+    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact, featuredMerchantMap));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2435,7 +2483,13 @@ router.get(
     }
 
     const row = result.rows[0];
-    const product = buildProduct(row as Record<string, unknown>, 'SGD', false);
+    // BUY-74689: batched merchant lookup for /v1/products/:id so the single-product
+    // page also surfaces the real storefront name.
+    const singleMerchantMap = await lookupMerchantMap(
+      db,
+      [(row as Record<string, unknown>).merchant_id as string | null],
+    );
+    const product = buildProduct(row as Record<string, unknown>, 'SGD', false, singleMerchantMap);
 
     if (req.apiKeyRecord) {
       const elapsedMs = Date.now() - start;
@@ -2801,7 +2855,14 @@ export async function warmSearchCache(): Promise<void> {
       if (hasMore) result.rows.pop();
       const total = result.rows.length + (hasMore ? 1 : 0);
 
-      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
+      // BUY-74689: batched merchant lookup so warmed cache entries also carry
+      // merchant_name / merchant_slug (they are stored in Redis for 1h so the
+      // first uncached request after deploy otherwise sees null labels).
+      const warmMerchantMap = await lookupMerchantMap(
+        db,
+        result.rows.map((row) => (row.merchant_id as string | null) ?? null),
+      );
+      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false, warmMerchantMap));
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);

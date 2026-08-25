@@ -8,6 +8,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals } from '../lib/response';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
@@ -958,8 +959,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     );
   }
 
+  const merchantMapForMcpSearch = await lookupMerchantMap(
+    db,
+    (rows as Record<string, unknown>[]).map((row) => (row.merchant_id as string | null) ?? null),
+  );
   const products = (rows as Record<string, unknown>[]).map(r =>
-    buildProduct(r, currency, compact)
+    buildProduct(r, currency, compact, merchantMapForMcpSearch)
   );
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when

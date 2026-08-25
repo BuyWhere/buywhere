@@ -14,6 +14,10 @@ export interface CanonicalProduct {
   title: string;
   price: ProductPrice;
   merchant: string;
+  // BUY-74689: opaque `merchants.id` reference. Distinct from `merchant` (the
+  // platform slug, e.g. `bestdenki`, `shopee_sg`) — `merchant_id` joins 1:1 to
+  // `merchants.id` and is the lookup key for `merchant_name` / `merchant_slug`.
+  merchant_id?: string | null;
   url: string;
   image_url: string | null;
   region: string | null;
@@ -35,6 +39,14 @@ export interface CanonicalProduct {
   price_as_of?: string;
   // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
   affiliate_url?: string | null;
+  // BUY-74689: human-readable storefront name resolved from the `merchants` table.
+  // `merchant` / `merchant_id` keep the platform slug for filtering; `merchant_name`
+  // (and the URL-safe kebab-case `merchant_slug`) carry the real storefront label so
+  // card badges stop falling through to "Shopify" / "Shopee SG". Null when the row is
+  // not present in `merchants` (orphaned merchant_id) — this is the documented
+  // fallback that BUY-74683 handled on the FE side.
+  merchant_name?: string | null;
+  merchant_slug?: string | null;
   // BUY-52474: tracking URLs the FE should use for outbound clicks so that
   // `clicks` (via /api/click) and `affiliate_clicks` (via /r/) tables grow
   // from real /v1 traffic. Optional because they're only present when the

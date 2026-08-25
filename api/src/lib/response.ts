@@ -3,6 +3,7 @@ import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
 import { getCachedFxRates } from './fxRatesLoader';
+import type { MerchantMapEntry } from './merchantLookup';
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
@@ -60,6 +61,11 @@ export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
   compact: boolean,
+  // BUY-74689: optional batched lookup from `merchants.id` → {name, slug}. Callers that
+  // resolve the map (every product-emitting handler) pass it in; legacy call sites
+  // pass nothing and get `merchantName: null` (same as an orphaned merchant_id). The
+  // platform slug (`merchant` / `source`) is preserved unchanged.
+  merchantMap?: Record<string, MerchantMapEntry>,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -109,6 +115,20 @@ export function buildProduct(
     country_code: (row.country_code as string) || null,
     category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
     updated_at: (row.updated_at as string) || null,
+    // BUY-74689: merchant_id from the row, real storefront name from the batched
+    // merchants lookup. `merchant` / `merchant_id` (platform slug) preserved for
+    // filtering and analytics — emit the resolved name only when the row exists.
+    merchant_id: (row.merchant_id as string) || null,
+    merchant_name: (() => {
+      const mid = (row.merchant_id as string) || '';
+      const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+      return entry?.name ?? null;
+    })(),
+    merchant_slug: (() => {
+      const mid = (row.merchant_id as string) || '';
+      const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+      return entry?.slug || null;
+    })(),
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),
