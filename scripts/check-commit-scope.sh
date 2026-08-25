@@ -47,7 +47,7 @@ done
 # Resolve diff target based on mode.
 case "$MODE" in
   staged)
-    if [ -z "$(git diff --cached --name-only)" ] && [ -z "$(git diff --cached --name-status)"; then
+    if [ -z "$(git diff --cached --name-only)" ] && [ -z "$(git diff --cached --name-status)" ]; then
       # nothing staged, treat as uncommitted
       RANGE="HEAD"
     fi
