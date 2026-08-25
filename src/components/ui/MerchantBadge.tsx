@@ -14,9 +14,12 @@ export interface MerchantConfig {
 
 // BUY-74691: MERCHANT_CONFIG keyed by merchant_slug (kebab-case). Lookup
 // priority in the badge: merchant_slug → merchant_name → raw input.
-// All entries below are seeded with the SG merchant list shape; visual
-// styling uses neutral slate so unknown merchants (until Oracle posts
-// BUY-74681's authoritative list) render without errors.
+//
+// SG entries are sourced from Oracle's BUY-74681 work-product
+// (data/reports/buy74681-top-sg-merchants-merchant-badge.md, 2026-08-25).
+// `verified` mirrors scraped_via from the catalog (first_party = ✓).
+// 17 of 20 have logo_url=null in the source JSON (no logo asset on disk);
+// the badge still renders the merchant_name so the data flows end-to-end.
 const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
   // US retailers (legacy)
   'Amazon': { icon: '📦', bgColor: 'bg-orange-50', textColor: 'text-orange-700', verified: true },
@@ -31,23 +34,28 @@ const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
   'Adidas': { icon: '👟', bgColor: 'bg-gray-900', textColor: 'text-white', verified: true },
   'Wellbots': { icon: '🛒', bgColor: 'bg-blue-50', textColor: 'text-blue-700', verified: true },
 
-  // SG retailers (BUY-74691 + BUY-74681). Seed entries that match the
-  // merchant_slug of known SG storefronts. Once Oracle posts the canonical
-  // 20-merchant JSON, these will be filled in with logo_url + scraped_via.
-  // For now, the badge still renders the merchant_name from the API; the
-  // entry here only governs icon + verified flag.
-  'alltronic': { icon: '🛒', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'tech-house': { icon: '💻', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'popular': { icon: '📚', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'courts': { icon: '🛋️', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'harvey-norman': { icon: '🏬', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'gain-city': { icon: '🔌', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'challenger': { icon: '🖥️', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'best-denki': { icon: '📺', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'apple-authorised-reseller': { icon: '🍎', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: true },
-  'lazada-sg': { icon: '🛍️', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: false },
-  'shopee-sg': { icon: '🛒', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: false },
-  'amazon-sg': { icon: '📦', bgColor: 'bg-slate-100', textColor: 'text-slate-700', verified: false },
+  // SG retailers (BUY-74681, top 20 by products_count).
+  // Verified-mirror logic: scraped_via == 'first_party' → verified=true (✓).
+  'fairprice-xpress':    { icon: '🛒', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', verified: false },
+  'fairprice-online':    { icon: '🛒', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', verified: false },
+  'ntuc-unity':          { icon: '🟢', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', verified: false },
+  'fairprice-finest':    { icon: '🛒', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', verified: false },
+  'iherb-sg':            { icon: '🌿', bgColor: 'bg-lime-50',    textColor: 'text-lime-700',    verified: false },
+  'challenger-sg':       { icon: '🖥️', bgColor: 'bg-slate-100',   textColor: 'text-slate-700',   verified: false },
+  'fairprice-com-sg':    { icon: '🛒', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', verified: false },
+  'robinsons-com-sg':    { icon: '🏬', bgColor: 'bg-slate-100',   textColor: 'text-slate-700',   verified: false },
+  'harvey-norman-sg':    { icon: '🏬', bgColor: 'bg-slate-100',   textColor: 'text-slate-700',   verified: false },
+  'decathlon-sg':        { icon: '⚽', bgColor: 'bg-blue-50',     textColor: 'text-blue-700',    verified: false },
+  'decathlon':           { icon: '⚽', bgColor: 'bg-blue-50',     textColor: 'text-blue-700',    verified: false },
+  'tangs-sg':            { icon: '🛍️', bgColor: 'bg-amber-50',    textColor: 'text-amber-700',   verified: true  },
+  'fashionnova-com':     { icon: '👗', bgColor: 'bg-pink-50',     textColor: 'text-pink-700',    verified: true  },
+  'kith-com':            { icon: '👟', bgColor: 'bg-slate-900',   textColor: 'text-white',       verified: true  },
+  'babymallonline-com':  { icon: '🍼', bgColor: 'bg-sky-50',      textColor: 'text-sky-700',     verified: true  },
+  'themodernshop-com':   { icon: '🛍️', bgColor: 'bg-stone-50',    textColor: 'text-stone-700',   verified: true  },
+  'bluemercury-com':     { icon: '💄', bgColor: 'bg-indigo-50',   textColor: 'text-indigo-700',  verified: true  },
+  'petloverscentre':     { icon: '🐾', bgColor: 'bg-orange-50',   textColor: 'text-orange-700',  verified: false },
+  'swansonvitamins':     { icon: '💊', bgColor: 'bg-emerald-50',  textColor: 'text-emerald-700', verified: false },
+  'gymshark-com':        { icon: '💪', bgColor: 'bg-slate-900',   textColor: 'text-white',       verified: true  },
 };
 
 export function getMerchantConfig(merchant: string): MerchantConfig {
