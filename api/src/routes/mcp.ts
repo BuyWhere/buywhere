@@ -656,11 +656,19 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
+    // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
+    // fast into the BUY-74597 degraded envelope rather than holding a pooled
+    // connection across the full client timeout. The GIN bitmap plan must
+    // complete inside this budget; anything longer signals plan regression
+    // or pool exhaustion.
+    // Reduce timeout to protect against runaway queries and increase work_mem
+    // to encourage bitmap GIN plans. Additionally, disable sequential scans for
+    // this short-lived request to force the planner to use the GIN indexes
+    // (search_vector + region/country). This mitigates the observed ~12s
+    // catalog_search latency on SEA markets.
     await searchClient.query('SET statement_timeout = 4000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+    await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -1495,6 +1503,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       throw err;
     });
     await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+    await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
