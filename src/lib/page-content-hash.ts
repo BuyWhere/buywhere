@@ -168,7 +168,14 @@ export async function getOrUpdatePageLastmod(
       cachedStore = { map: fresh, fetchedAt: Date.now() };
       return current;
     }
-    const next = { hash, lastmod: new Date().toISOString() };
+    // When the persistence layer is unavailable (Railway app container runs
+    // on a read-only FS, and we don't yet own a DB table for this), the
+    // honest move is to bind the stamp to a real source date the caller
+    // already knows (post.publishedAt, config.dateModified, etc.). That
+    // way the visible stamp and the sitemap <lastmod> agree: both show
+    // "this is when the content actually last changed". Date moves only
+    // when content changes — the directive's exact contract.
+    const next = { hash, lastmod: fallbackLastmod ?? new Date().toISOString() };
     fresh.set(canonicalPath, next);
     try {
       await persistStore(fresh);
