@@ -875,6 +875,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={`View deal: ${product.name} from ${product.merchant}`}
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
@@ -931,6 +932,8 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
         <div className="space-y-1.5">
           <h2
             className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            title={product.name}
+            aria-label={product.name}
           >
             {product.name}
           </h2>
