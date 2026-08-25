@@ -50,6 +50,7 @@
   ],
   "fallbackProducts": [],
   "hreflangAlternates": { "en-SG": "/airpods-pro-3-vs-airpods-pro-2-singapore" },
+  "inboundLinks": ["/", "/search?q=airpods+pro"],
   "categoryIntro": { "heading": "Why the Pro 3 vs Pro 2 question is different this year", "body": "For most of the Pro 2's life, the answer to 'should I upgrade' was a polite no — Apple kept the Pro 2 on sale and kept it current with software updates. The Pro 3 changed the math in two places: the active noise cancellation jump is large enough to hear on the first flight, and the heart-rate sensor gives runners a reason to switch. The case is also meaningfully more useful (USB-C, U2 find-my, lanyard). Everything else — audio quality, transparency mode, call quality — is incrementally better, not transformative." },
   "owner": "Venture",
   "reviewer": "Hue",
