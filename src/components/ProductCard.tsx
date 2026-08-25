@@ -138,6 +138,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
       href={deal.url}
       target="_blank"
       rel="noopener noreferrer"
+      title={deal.name}
+      aria-label={`View deal: ${deal.name} from ${deal.merchant}`}
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"
     >
       <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1/1'}}>
@@ -207,7 +209,11 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
       </div>
       <div className="p-4">
-        <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors">
+        <h3
+          title={deal.name}
+          aria-label={deal.name}
+          className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors"
+        >
           {deal.name}
         </h3>
         <MerchantBadge merchant={deal.merchant} className="mb-2" />
