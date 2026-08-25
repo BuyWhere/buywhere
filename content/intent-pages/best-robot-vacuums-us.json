@@ -1,0 +1,56 @@
+{
+  "slug": "best-robot-vacuums-us",
+  "title": "Best Robot Vacuums in the US (2026) — iRobot, Roborock and Shark Compared",
+  "description": "The best robot vacuums in the United States in 2026: iRobot Roomba, Roborock, Shark and more compared by cleaning performance, smart features and live prices from Amazon, Best Buy and Walmart.",
+  "heroEyebrow": "US Robot Vacuum guide",
+  "heroTitle": "Best Robot Vacuums in the US — 2026 picks by performance and price",
+  "heroTitleTemplate": "Best Robot Vacuums in the US — from {floorPrice} today",
+  "heroBody": "Robot vacuums in the US have become mainstream in 2026, with models offering advanced mapping, self‑emptying bins and AI‑driven cleaning schedules. Prices vary widely between Amazon, Best Buy, Walmart and direct brand stores, especially during holiday sales. This page pulls live US listings from BuyWhere's catalog every few minutes so you can see the current floor price, feature set and warranty for each top model.",
+  "canonicalPath": "/best-robot-vacuums-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "robot vacuum",
+  "backupQueries": ["best robot vacuum 2026", "iRobot Roomba", "Roborock S7", "Shark IQ robot vacuum"],
+  "minPrice": 150,
+  "requiredProductTerms": ["robot vacuum", "roomba", "roborock"],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated August 25, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-08-25",
+  "productSectionTitle": "Live robot vacuum prices in the US",
+  "comparisonSectionTitle": "Robot vacuums compared — performance, price and features",
+  "comparisonColumns": ["Model", "Typical price vs list", "Mapping tech", "Self‑emptying", "Best for"],
+  "comparisonRows": [
+    { "label": "iRobot Roomba i7+", "values": ["$399", "Advanced mapping", "Yes", "Ideal for pets"] },
+    { "label": "Roborock S7", "values": ["$349", "LiDAR navigation", "No", "Hard floors"] },
+    { "label": "Shark IQ Robot", "values": ["$299", "Camera‑based mapping", "Yes", "Budget multi‑room"] },
+    { "label": "Eufy RoboVac 11S", "values": ["$199", "Basic navigation", "No", "Small apartments"] }
+  ],
+  "highlightSectionTitle": "Key improvements in 2026 robot vacuums",
+  "highlights": [
+    { "title": "AI‑driven room learning", "body": "Most 2026 models use on‑device AI to learn room layouts after a few cleanings, improving efficiency and battery life." },
+    { "title": "Self‑emptying bins", "body": "Higher‑end units now include a dock that automatically empties the dustbin into a disposable bag, reducing maintenance." },
+    { "title": "Multi‑floor mapping", "body": "New LiDAR sensors let vacuums map and clean multiple stories without manual re‑training." }
+  ],
+  "adviceSectionTitle": "How to get the best deal on a robot vacuum",
+  "advicePoints": [
+    "Watch for Amazon Prime Day and Black Friday sales – prices often drop 15‑30%.",
+    "Check if the retailer offers free shipping and a hassle‑free return window.",
+    "Consider buying a bundle that includes extra batteries or a spare filter.",
+    "Read recent user reviews for reliability and firmware update frequency."
+  ],
+  "faqSectionTitle": "Robot vacuums in the US — common questions",
+  "faqs": [
+    { "question": "Do robot vacuums work on carpet?", "answer": "Yes, most models adjust suction automatically for carpet, but higher‑end units provide stronger suction for deep‑pile carpet." },
+    { "question": "Can I control a robot vacuum with Alexa?", "answer": "All major 2026 models have Alexa and Google Assistant integrations; you can start, stop or schedule cleaning by voice." },
+    { "question": "How often do I need to replace the filter?", "answer": "Typically every 3‑6 months depending on usage; self‑emptying models still require periodic filter changes." },
+    { "question": "Are robot vacuums worth it for pet hair?", "answer": "Models with strong suction and rubber‑bristle brushes, like the iRobot Roomba i7+, handle pet hair well, especially when paired with a self‑emptying dock." }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": { "en-GB": "/best-robot-vacuums-uk" },
+  "inboundLinks": ["/robot-vacuums-us", "/blog/cleaning-gadgets-us"],
+  "owner": "Buzz",
+  "reviewer": "Hue",
+  "queueRow": 42
+}
