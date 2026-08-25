@@ -10,13 +10,15 @@ import { Router, Request, Response } from 'express';
  * Next.js apex (heavier change), proxy each path to apex. Apex is canonical
  * and intact.
  *
- * List of splits proxied (basenames match the issue's 9 named sitemaps):
+ * List of splits proxied (basenames match the apex split-sitemap files per
+ * Reach clarification 2026-08-25T05:30Z):
  *   -products, -blog, -merchants, -stores, -brands, -categories,
- *   -comparisons, -index, -pages
+ *   -docs, -pages, -comparisons, -index
  *
- * Note: -faq is listed in the issue but apex does not serve it (Next.js 404
- * page). We DO NOT proxy -faq — that would leak a 200 with a Next.js HTML
- * 404 body into our XML surface, which is worse than the existing 404.
+ * Note: -faq is listed in the parent issue but apex does not serve it
+ * (Next.js 404 page). We DO NOT proxy -faq — that would leak a 200 with a
+ * Next.js HTML 404 body into our XML surface, which is worse than the
+ * existing 404. -compare is wired natively on the api host (not proxied).
  */
 const SPLIT_NAMES = [
   'products',
@@ -25,9 +27,10 @@ const SPLIT_NAMES = [
   'stores',
   'brands',
   'categories',
+  'docs',
+  'pages',
   'comparisons',
   'index',
-  'pages',
 ];
 
 const APEX_ORIGIN = 'https://buywhere.ai';
