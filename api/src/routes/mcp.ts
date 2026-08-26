@@ -2080,8 +2080,8 @@ function normalizeMarketArg(args: Record<string, unknown>): void {
   }
 }
 async function dispatchTool(name: string, args: Record<string, unknown>) {
-  switch (name) {
   normalizeMarketArg(args);
+  switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
     case 'compare_products': return handleCompareProducts(args);
