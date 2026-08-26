@@ -42,9 +42,10 @@ const V2_BUYER_TOOLS = new Set([
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
-// BUY-75411: per-(q,cc) MCP FTS snapshot TTL. 300s (5 min) bounds staleness
-// between ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
-const MCP_FTS_CACHE_TTL_SECONDS = parseInt(process.env.MCP_FTS_CACHE_TTL_SECONDS || '300', 10);
+// BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
+// ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
+// Override via MCP_FTS_CACHE_TTL_SECONDS env.
+const MCP_FTS_CACHE_TTL_SECONDS = parseInt(process.env.MCP_FTS_CACHE_TTL_SECONDS || '60', 10);
 
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
