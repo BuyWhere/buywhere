@@ -182,7 +182,16 @@ router.get('/stats', async (_req: Request, res: Response) => {
     //    exact counts, yet COUNT(*) times out under current IO load; serving an
     //    honest approximate response keeps the health endpoint and citations
     //    alive while the replica/exact path remains attempted.
-    const exact = await tryExactCount(60000);
+    //
+    // BUY-74513: 60000ms exceeded the 30s gateway read timeout on the replica,
+    // making the request hang at the edge for a full minute before the fallback
+    // fired — and silently serving a stale approximate total to /v1/products
+    // callers for >5 heartbeats. Cap at 25000ms (25s with a 5s safety margin
+    // below the 30s gateway) so the exact path either succeeds quickly or
+    // fails fast enough for the route to surface the degraded envelope
+    // (meta.approximate=true) rather than a 30s+ gateway timeout followed by
+    // an opaque stale total.
+    const exact = await tryExactCount(25000);
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => {});
       triggerBackgroundRefresh().catch(() => {});
@@ -233,7 +242,7 @@ router.post('/stats/refresh', async (_req: Request, res: Response) => {
     await redis.del(CACHE_KEY).catch(() => {});
     await redis.del(REFRESH_LOCK_KEY).catch(() => {});
 
-    const exact = await tryExactCount(60000);
+    const exact = await tryExactCount(25000);
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
       res.json({
