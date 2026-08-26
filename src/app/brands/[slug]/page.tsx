@@ -6,7 +6,11 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const revalidate = 900;
+// Emergency fix 2026-08-26: the root layout now reads request headers(), which makes an
+// ISR (revalidate) route throw "Page changed from static to dynamic at runtime" -> HTTP 500
+// on every brand/store URL (18 sitemap URLs dead). Render dynamically until the layout
+// stops calling headers() in the static path; then restore `revalidate = 900`.
+export const dynamic = "force-dynamic";
 
 interface BrandProduct {
   slug: string;
