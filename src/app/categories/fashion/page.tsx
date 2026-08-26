@@ -282,7 +282,7 @@ export default function FashionCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Discover fashion online in Singapore and build your perfect wardrobe with BuyWhere.
           </p>
-          <Link href="/search?q=fashion&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=fashion&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Shop Fashion Now →
           </Link>
         </section>

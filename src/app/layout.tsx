@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import dynamic from "next/dynamic";
-import { headers } from "next/headers";
 import "./globals.css";
 import DeveloperSessionBootstrap from "@/components/DeveloperSessionBootstrap";
 import SentryErrorBoundary from "@/components/SentryErrorBoundary";
@@ -90,40 +89,12 @@ export default function RootLayout({
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
   // BUY-75315: derive the agent-marketing block's example query from the current
   // request pathname so each page renders a keyless GET example relevant to itself.
-  // headers() is read-only here (server component, request-scoped).
-  let agentSearchQuery = "wireless headphones";
-  let agentCountry = "US";
-  try {
-    const requestHeaders = headers();
-    const pathname = requestHeaders.get("x-invoke-path") || requestHeaders.get("x-pathname") || "";
-    const countryHeader = requestHeaders.get("x-buywhere-country") || "";
-    if (pathname) {
-      // Path slug like "best-iphones-singapore" -> query "best iphones", country SG
-      const stripped = pathname.replace(/^\/+|\/+$/g, "");
-      if (stripped) {
-        const parts = stripped.split("/");
-        const slug = parts[parts.length - 1] || "";
-        const knownCountries = ["us", "sg", "my", "au", "uk", "gb", "ca", "de", "fr", "jp", "kr", "in", "nz", "br", "mx", "ae", "za", "ph", "th", "id", "vn"];
-        let detectedCountry = "";
-        for (const c of knownCountries) {
-          if (slug.endsWith(`-${c}`)) {
-            detectedCountry = c.toUpperCase();
-            break;
-          }
-        }
-        const slugWithoutCountry = detectedCountry
-          ? slug.slice(0, -(detectedCountry.length + 1))
-          : slug;
-        agentSearchQuery = slugWithoutCountry.replace(/-/g, " ") || agentSearchQuery;
-        if (detectedCountry) agentCountry = detectedCountry;
-      }
-    }
-    if (countryHeader) {
-      agentCountry = countryHeader.toUpperCase();
-    }
-  } catch {
-    // headers() throws in some static contexts — keep defaults.
-  }
+  // SEO-GATE 4seen-0826 item 1: reading request headers in the root layout marked EVERY ISR route dynamic
+  // ("Page changed from static to dynamic at runtime" -> HTTP 500 on all brand/store pages, 03:08-11:30Z).
+  // The layout renders a generic agent block; intent pages render their own page-specific block from
+  // their config inside SeoLandingPage (no request headers needed).
+  const agentSearchQuery = "wireless headphones";
+  const agentCountry = "US";
   return (
     <html lang="en" className={inter.variable}>
       <head>
