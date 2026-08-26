@@ -1,5 +1,6 @@
 import { toSiteUrl } from "@/lib/site-url";
 import { normalizeUSMerchantPrice, type USMerchantPrice, type USProductOfferApiItem } from "@/lib/us-products";
+import { buildAffiliateRedirectFromProductId, buildAffiliateRedirectHref } from "@/lib/affiliate-redirect";
 
 const IN_STOCK = "https://schema.org/InStock";
 const OUT_OF_STOCK = "https://schema.org/OutOfStock";
@@ -157,10 +158,25 @@ export default function USProductSsrPriceTable({
               const displayPrice = Number.isFinite(numericPrice)
                 ? formatPriceNumber(numericPrice, "USD")
                 : "Price unavailable";
+              // BUY-75417: prefer the row-level /r/… URL when the API gives us
+              // one (mature catalog rows) and fall back to a /r/direct/{id}
+              // built from the product id (newer / degraded rows that only
+              // carry raw merchant URLs in `row.url`).
+              const merchantHref =
+                buildAffiliateRedirectHref(row.url) ??
+                buildAffiliateRedirectFromProductId(productId, "us_table");
               return (
                 <tr key={row.merchant}>
                   <th scope="row" className="px-4 py-3 font-medium text-gray-900">
-                    {row.merchant}
+                    <a
+                      href={merchantHref}
+                      target="_blank"
+                      rel="nofollow sponsored noopener noreferrer"
+                      data-affiliate-redirect="us-product-table"
+                      className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                    >
+                      {row.merchant}
+                    </a>
                   </th>
                   <td className="px-4 py-3 text-gray-900" data-merchant={row.merchant}>
                     <span data-price={`${numericPrice}`}>{displayPrice}</span>

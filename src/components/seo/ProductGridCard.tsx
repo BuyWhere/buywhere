@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
+import { buildAffiliateRedirectHref } from "@/lib/affiliate-redirect";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
 
 function formatPrice(price: number | null, currency: string) {
@@ -17,8 +18,18 @@ function formatPrice(price: number | null, currency: string) {
 }
 
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
-  const isMerchantOffer =
-    product.href.startsWith("http://") || product.href.startsWith("https://");
+  // BUY-75417: AI crawlers (OAI-SearchBot, GPTBot, ClaudeBot) don't execute JS,
+  // so a `<span role="button">` fired by `window.open` was invisible to them.
+  // Surface the merchant CTA as a real `<a href="/r/...">` server-rendered —
+  // JS still works (window.open) but the link ships in HTML. The site rewrites
+  // `/r/*` to api.buywhere.ai/r/* (next.config.mjs).
+  //
+  // When the upstream offer carries no `/r/...` URL (e.g. an editorial
+  // fallback product), fall back to "View details" pointing at the product
+  // detail page; never leak a raw merchant URL as a non-/r/ fallback (that
+  // defeats the redirect and would hurt affiliate attribution).
+  const merchantHref = buildAffiliateRedirectHref(product.href);
+  const isMerchantOffer = merchantHref !== null;
 
   // Prefer the internal product detail page when available, so SEO catalog
   // cards land on /products/{region}/{slug}/{id}. Keep the direct merchant
@@ -26,6 +37,9 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   const detailUrl = product.productUrl || product.href || `/search?q=${encodeURIComponent(product.name)}`;
 
   function handleMerchantClick(e: React.MouseEvent) {
+    // Progressive enhancement: open the merchant destination in a new tab,
+    // but the static <a href> remains the no-JS path (and the crawler-visible
+    // path). preventDefault + window.open replicates the prior behavior.
     e.preventDefault();
     e.stopPropagation();
     window.open(product.href, "_blank", "noopener,noreferrer");
@@ -112,15 +126,17 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
             </p>
           </div>
           {isMerchantOffer ? (
-            <span
-              role="button"
-              tabIndex={0}
+            <a
+              href={merchantHref!}
               onClick={handleMerchantClick}
               onKeyDown={handleMerchantKeyDown}
+              target="_blank"
+              rel="nofollow sponsored noopener noreferrer"
+              data-affiliate-redirect="intent-product-card"
               className={`inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
             >
               Buy at {product.merchant}
-            </span>
+            </a>
           ) : (
             <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
               View details
