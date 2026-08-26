@@ -5,6 +5,7 @@ import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import { USCategoryProductGrid } from "@/components/USCategoryProductGrid";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -347,6 +348,7 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
       <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
         <TrustBadges productCountLabel={productCountLabel} />
+        <USCategoryProductGrid category={category} categoryName={categoryName} />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />

@@ -2,6 +2,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
+import { USCategoryProductGrid } from "@/components/USCategoryProductGrid";
 
 export default function USLandingPage() {
   const schema = buildWebPageSchema({
@@ -52,6 +53,8 @@ export default function USLandingPage() {
           </p>
         </div>
       </section>
+
+      <USCategoryProductGrid category="electronics" categoryName="Electronics" />
 
       <section className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
