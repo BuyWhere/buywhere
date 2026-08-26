@@ -161,7 +161,11 @@ router.get('/stats', async (_req: Request, res: Response) => {
     const cached = await redis.get(CACHE_KEY).catch(() => null);
     if (cached) {
       const stats: CatalogStatsResult = JSON.parse(cached);
-      if (!stats.approximate) {
+      // 2026-08-26 (Richmond): approximate cached stats are acceptable by default. BUY-74088's
+      // "force exact recount" made every call run count(*) over 365M rows on the search replica
+      // (it never finished inside 25 s, so callers got the estimate anyway after a 25 s full scan).
+      // Exact counts are opt-in via ?exact=1 (or POST /stats/refresh).
+      if (!stats.approximate || _req.query.exact !== '1') {
         triggerBackgroundRefresh().catch(() => {});
         res.json({
           data: {
@@ -195,7 +199,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
     // fails fast enough for the route to surface the degraded envelope
     // (meta.approximate=true) rather than a 30s+ gateway timeout followed by
     // an opaque stale total.
-    const exact = await tryExactCount(25000);
+    const exact = _req.query.exact === '1' ? await tryExactCount(25000) : null;
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => {});
       triggerBackgroundRefresh().catch(() => {});

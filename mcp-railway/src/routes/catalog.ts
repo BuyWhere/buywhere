@@ -121,7 +121,10 @@ async function triggerBackgroundRefresh(): Promise<void> {
   try {
     const lock = await redis.set(REFRESH_LOCK_KEY, '1', 'EX', REFRESH_LOCK_TTL, 'NX');
     if (lock !== 'OK') return;
-    const exact = await tryExactCount(45000);
+    // 2026-08-26 (Richmond): the periodic exact count(*) over 365M rows ran every 10 min on every
+    // mcp instance against the search replica (45 s full scans). Estimates by default;
+    // set CATALOG_STATS_EXACT=1 to restore the background exact count.
+    const exact = process.env.CATALOG_STATS_EXACT === '1' ? await tryExactCount(45000) : null;
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
       console.log('[catalog/stats] background exact refresh ok: %d products', exact.total_products);
