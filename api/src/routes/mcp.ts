@@ -296,6 +296,7 @@ const TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
         deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
@@ -346,6 +347,7 @@ const TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -360,6 +362,7 @@ const TOOLS = [
         region: { type: 'string', enum: ['us', 'sg', 'my', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
       },
     },
   },
@@ -375,6 +378,7 @@ const TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
       },
     },
@@ -1029,6 +1033,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     emptiness = deriveEmptiness(signals);
   }
 
+  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 response.
+  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
+  const _hasProducts = products.length > 0;
+  const _engineStatus: SearchResponseOptions['engineStatus'] = 'ok';
+  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
+
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false,
     undefined, undefined, country || null,
@@ -1074,7 +1084,14 @@ async function handleGetProduct(args: Record<string, unknown>) {
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
-  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
+  // BUY-72701 / P2.6A: get_product always returns a single product (no emptiness possible).
+  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false, undefined, undefined, {
+    deliverToPresent: false,
+    engineStatus: 'ok',
+    indexedForRegion: true,
+    categoryRecognized: true,
+    rateLimitRemaining: 999,
+  });
 }
 
 async function handleCompareProducts(args: Record<string, unknown>) {
@@ -1107,7 +1124,14 @@ async function handleCompareProducts(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Products not found' };
   }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
-  return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
+  // BUY-72701 / P2.6A: compare_products always returns requested IDs (no emptiness path).
+  return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false, undefined, undefined, {
+    deliverToPresent: false,
+    engineStatus: 'ok',
+    indexedForRegion: true,
+    categoryRecognized: true,
+    rateLimitRemaining: 999,
+  });
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
@@ -1261,7 +1285,21 @@ async function handleGetDeals(args: Record<string, unknown>) {
     if (dealsClient) releaseClientSafely(dealsClient);
   }
 
-  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 get_deals.
+  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
+  const _hasProducts = products.length > 0;
+  const _ftsTimedOut = false; // get_deals catches PG 57014 internally
+  const _engineStatus: SearchResponseOptions['engineStatus'] = _ftsTimedOut ? 'degraded' : 'ok';
+  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
+
+  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false, undefined, undefined, {
+    deliverToPresent: _deliverToPresent,
+    emptinessReason: _emptinessReason,
+    engineStatus: _engineStatus,
+    indexedForRegion: _hasProducts,
+    categoryRecognized: true,
+    rateLimitRemaining: 999,
+  });
   // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
   // and the regional fallback returned zero rows for the requested region/country,
   // so callers can distinguish "no live deals" from "server bug".
@@ -1672,6 +1710,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     };
   });
 
+  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 find_best_price.
+  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
+  const _hasProducts = data.length > 0;
+  const _engineStatus: SearchResponseOptions['engineStatus'] = ftsTimedOut ? 'degraded' : 'ok';
+  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
+
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
@@ -2056,7 +2100,27 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   };
 }
 
+// BUY-73666: `market` is a common agent alias for `country_code`. When agents pass
+// market=MY it was silently ignored because no handler read args.market, causing
+// every non-SG query to fall through to the SG default. Normalize once at
+// dispatch time so all downstream handlers see country_code set correctly.
+// (Ported from mcp-railway where this fix landed 2026-08-24.)
+const MARKET_TO_COUNTRY: Record<string, string> = {
+  sg: "SG", us: "US", my: "MY", th: "TH", vn: "VN",
+  gb: "GB", uk: "GB", in: "IN", au: "AU", ph: "PH", id: "ID",
+};
+
+function normalizeMarketArg(args: Record<string, unknown>): void {
+  const market = (args.market as string || "").trim();
+  if (!market) return;
+  const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+  if (!args.country_code && !args.country) {
+    args.country_code = mapped;
+  }
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>) {
+  normalizeMarketArg(args);
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
