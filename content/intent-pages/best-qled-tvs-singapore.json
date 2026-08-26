@@ -5,7 +5,7 @@
   "heroEyebrow": "Singapore QLED TV guide",
   "heroTitle": "Best QLED TVs in Singapore — 2026 live price comparison",
   "heroTitleTemplate": "Best QLED TVs in Singapore — from {floorPrice} today",
-  "heroBody": "QLED technology offers bright colours, high dynamic range, and superb brightness that holds up in Singapore's tropical climate. The local market features a mix of flagship models from Samsung and Sony as well as more affordable options from LG and other brands. This page pulls live listings from BuyWhere's catalog every few minutes, showing you current floor prices, retailer offers, warranty coverage, and any bundled accessories. By comparing these details you can quickly spot the best value TV for your living room, whether you prioritise gaming performance, movie‑night picture quality, or budget‑friendly options. Shopping for a TV in Singapore often means balancing screen size against room dimensions, and QLED panels excel at maintaining colour accuracy even in bright, sunlit rooms which is common in many HDB flats and condominiums. The latest 2026 models from Samsung and Sony also bring improved processing engines that upscale older content to near-4K quality, making them excellent for streaming services like Netflix and Disney+ which are popular in the region. When looking at the live prices below, pay attention to the retailer type: official mall stores often include extended warranty or installation bundles that third-party sellers might skip.",
+  "heroBody": "QLED TVs are a strong fit for Singapore homes because they stay bright in sunlit HDB living rooms, condominium lounges and mixed-use family spaces where reflections can make cheaper LED panels look washed out. The useful upgrade is not just the quantum-dot label: good 2026 QLED sets combine high brightness, wide colour volume, local dimming and modern gaming inputs, while weaker listings use the term loosely on basic panels. This guide keeps the focus on current Singapore listings that look like real televisions, not stands, mounts or remote controls. Use the live product cards for price movement, then compare seller type, warranty language and delivery details before you choose. For most buyers, the sweet spot is a 55-inch or 65-inch set with local warranty, enough HDMI ports for a console and soundbar, and a smart platform your household will actually use. If your room is dark and you watch films at night, OLED may still be better for black levels; if your room is bright, your children pause games for hours, or you watch sports with static scoreboards, QLED is usually the safer everyday pick.",
   "canonicalPath": "/best-qled-tvs-singapore",
   "country": "SG",
   "currency": "SGD",
@@ -22,23 +22,23 @@
   "comparisonSectionTitle": "QLED TV comparison – price, features, warranty",
   "comparisonColumns": ["Brand / Model", "Typical price vs list", "Screen size", "Warranty"],
   "comparisonRows": [
-    { "label": "Samsung QLED 55", "values": ["From $1,200", "55\"", "2-year Samsung"] },
-    { "label": "Sony QLED 65", "values": ["From $1,800", "65\"", "2-year Sony"] },
-    { "label": "LG QLED 55", "values": ["From $1,100", "55\"", "2-year LG"] }
+    { "label": "Authorised brand stores", "values": ["Usually closest to list during normal weeks", "55-inch to 85-inch common", "Local manufacturer warranty and installation support"] },
+    { "label": "Marketplace mall sellers", "values": ["Often best during double-digit and payday sales", "Popular 55-inch and 65-inch options", "Check that the listing says local set"] },
+    { "label": "Parallel-import TV sellers", "values": ["Can show the lowest sticker price", "Model names may differ by region", "Seller warranty only; confirm service terms"] }
   ],
   "highlightSectionTitle": "Why QLED matters in 2026",
   "highlights": [
-    { "title": "Brightness & HDR", "body": "QLED panels maintain high brightness even in sunny rooms, making HDR content pop on Singapore’s tropical climate. Unlike OLED, there is no risk of burn-in from static news tickers or gaming HUDs." },
-    { "title": "Colour volume", "body": "Quantum Dot filters give richer, more accurate colours compared to traditional LED panels, ideal for streaming 4K HDR services. The 2026 models feature improved blue LEDs for even better colour purity." },
-    { "title": "Gaming features", "body": "Low input lag and HDMI 2.1 support on newer models ensure smooth gameplay on next‑gen consoles. Variable Refresh Rate (VRR) and Auto Low Latency Mode (ALLM) are now standard on mid-range Samsung and Sony sets." }
+    { "title": "Bright-room performance", "body": "Singapore living rooms often get hard afternoon light, especially when the TV faces balcony doors or wide windows. A good QLED set keeps sports, news and daytime streaming watchable without forcing you to close curtains every time. Prioritise panels with strong anti-reflection handling and local dimming if your sofa is not directly in front of the screen." },
+    { "title": "Colour without babying the panel", "body": "Quantum-dot colour is useful for animation, games and HDR travel shows because saturated scenes look lively without the image turning neon. QLED also avoids the burn-in anxiety that some OLED owners feel with paused menus, news tickers and game HUDs, which matters in shared family rooms where the TV is not always treated carefully." },
+    { "title": "Gaming and sports checks", "body": "For PlayStation, Xbox or fast football broadcasts, look beyond the brand name. HDMI 2.1, variable refresh rate, auto low-latency mode and motion handling matter more than a dramatic showroom demo loop. If a listing hides the exact model code, skip it until you can confirm the ports and refresh-rate support from the manufacturer page." }
   ],
   "adviceSectionTitle": "How to get the best deal",
   "advicePoints": [
-    "Watch for major sales periods (9.9, 11.11, 12.12) where retailers slash prices by up to 20%.",
-    "Check for bundled accessories like wall‑mounts or streaming sticks that add value.",
-    "Prefer authorised Singapore retailers for warranty coverage; parallel imports may be cheaper but lack local service.",
-    "Consider screen size vs room size – a 55\" TV often offers similar picture quality to a 65\" for a lower price.",
-    "Use price‑tracking tools; the floor price can dip unexpectedly during flash sales.",
+    "Time the purchase around 9.9, 10.10, 11.11, 12.12, payday campaigns and brand anniversary sales, then verify that voucher savings still apply at checkout.",
+    "Treat wall-mount bundles carefully: installation, bracket type and cable concealment are not always included, so compare the full delivered setup rather than the headline bundle.",
+    "Prefer authorised Singapore retailers for expensive TVs because dead pixels, panel faults and delivery damage are easier to resolve with local manufacturer support.",
+    "Choose screen size from viewing distance first; in many flats a higher-quality 55-inch set beats a larger budget panel with weak motion handling and poor upscaling.",
+    "Use the live cards to watch market floors, but do not chase suspiciously cheap listings with vague model numbers, no warranty language or product photos showing only accessories.",
     "Always confirm the 'local set' status if buying from a marketplace seller to ensure your warranty is honoured by the brand in Singapore."
   ],
   "faqSectionTitle": "Frequently asked questions",
@@ -51,6 +51,6 @@
   "hreflangAlternates": [],
   "inboundLinks": ["/best-air-purifiers-singapore", "/best-bread-makers-us"],
   "owner": "Buzz",
-  "reviewer": "Hue",
+  "reviewer": "Fetch",
   "queueRow": 37
 }
