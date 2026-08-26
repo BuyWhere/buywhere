@@ -56,6 +56,11 @@ const NOISE_WORDS = new Set([
     'price', 'prices', 'cost', 'costs',
     'deal', 'deals', 'discount', 'sale',
 ]);
+const SEO_BOILERPLATE_PATTERNS = [
+    /\b(?:best|top)\s+(.+?)\s+(?:in|for)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+    /\b(.+?)\s+(?:in|for)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+    /\b(.+?)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+];
 function preprocessSearchQuery(q, existingMinPrice, existingMaxPrice) {
     if (!q || !q.trim())
         return { cleanedQuery: q };
@@ -116,6 +121,18 @@ function preprocessSearchQuery(q, existingMinPrice, existingMaxPrice) {
 }
 function cleanQueryText(text) {
     let cleaned = text;
+    // Intent-page titles can reach the API as SEO phrases like
+    // "best wireless earbuds in Singapore 2026". Keep the product intent and
+    // drop page/ranking/locality boilerplate before building broad FTS OR lists.
+    for (const pattern of SEO_BOILERPLATE_PATTERNS) {
+        const match = cleaned.match(pattern);
+        if (match?.[1]) {
+            cleaned = match[1];
+            break;
+        }
+    }
+    cleaned = cleaned.replace(/\b(?:near\s+me|online|reviews?|review|guide|guides|comparison|compare)\b/gi, ' ');
+    cleaned = cleaned.replace(/\b(?:20\d{2})\b/g, ' ');
     // Remove price literals: "$50", "50 dollars", "50 sgd"
     cleaned = cleaned.replace(/\$\s*(\d+[.,]?\d*)\b/g, '');
     cleaned = cleaned.replace(/\b(\d+[.,]?\d*)\s*(dollars|sgd|usd|gbp|eur)\b/gi, '');
