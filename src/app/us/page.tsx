@@ -2,6 +2,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
+import { CategoryProductGrid } from "@/components/seo/CategoryProductGrid";
 
 export default function USLandingPage() {
   const schema = buildWebPageSchema({
@@ -90,6 +91,18 @@ export default function USLandingPage() {
         </div>
       </section>
 
+      {/* BUY-75418: SSR product grid for the US landing page so AI
+          crawlers see live product data without executing JS. We surface
+          the "popular electronics" query as the canonical US mix
+          (Amazon, Walmart, Target, Best Buy). */}
+      <CategoryProductGrid
+        category="electronics"
+        countryCode="US"
+        heading="Popular US Electronics — Live Prices"
+        subheading="Refreshed from Amazon, Walmart, Target, and Best Buy. No sign-in required."
+        sectionId="us-ssr-grid"
+      />
+
       <section className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
@@ -99,16 +112,10 @@ export default function USLandingPage() {
             Join thousands of smart shoppers who compare prices on BuyWhere before making a purchase.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link
-              href="/compare/us"
-              className="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-            >
+            <Link href="/search" className="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
               Start comparing
             </Link>
-            <Link
-              href="/api-keys"
-              className="inline-flex items-center justify-center px-6 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors"
-            >
+            <Link href="/api-keys" className="inline-flex items-center justify-center px-6 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors">
               Get API access
             </Link>
           </div>

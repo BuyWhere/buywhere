@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import { CategoryProductGrid } from '@/components/seo/CategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Beauty & Health Singapore | Compare Best Skincare, Makeup & Wellness Prices',
@@ -223,6 +224,15 @@ export default function BeautyHealthCategoryPage() {
             </div>
           </div>
         </section>
+
+        {/* BUY-75418: SSR product grid — server-rendered for AI crawlers. */}
+        <CategoryProductGrid
+          category="beauty-health"
+          countryCode="SG"
+          heading="Live Beauty & Health Prices in Singapore"
+          subheading="Refreshed continuously from Sephora, Watsons, Guardian, Robinsons, and online-first beauty shops."
+          sectionId="categories-beauty-health-grid"
+        />
 
         {/* Best Deals Section */}
         <section className="mb-16 bg-gray-50">

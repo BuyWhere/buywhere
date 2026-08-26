@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import { CategoryProductGrid } from '@/components/seo/CategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Electronics Singapore | Compare Best Prices on Gadgets & Tech',
@@ -212,6 +213,17 @@ export default function ElectronicsCategoryPage() {
             </div>
           </div>
         </section>
+
+        {/* BUY-75418: SSR product grid — renders 12 priced products in the
+            initial HTML for AI crawlers. Server-side fetch (no fabricated
+            catalog data). */}
+        <CategoryProductGrid
+          category="electronics"
+          countryCode="SG"
+          heading="Live Electronics Prices in Singapore"
+          subheading="Refreshed continuously from Courts, Harvey Norman, Best Denki, Challenger, and online-first stores."
+          sectionId="categories-electronics-grid"
+        />
 
         {/* Best Deals Section */}
         <section className="mb-16 bg-gray-50">

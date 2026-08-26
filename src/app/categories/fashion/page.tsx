@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import { CategoryProductGrid } from '@/components/seo/CategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories',
@@ -223,6 +224,15 @@ export default function FashionCategoryPage() {
             </div>
           </div>
         </section>
+
+        {/* BUY-75418: SSR product grid — server-rendered for AI crawlers. */}
+        <CategoryProductGrid
+          category="fashion"
+          countryCode="SG"
+          heading="Live Fashion Prices in Singapore"
+          subheading="Refreshed continuously from Zalora, Love Bonito, Charles & Keith, Cotton On, H&M, and Uniqlo."
+          sectionId="categories-fashion-grid"
+        />
 
         {/* Singapore Fashion Retailers */}
         <section className="mb-16 bg-gray-50">

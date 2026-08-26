@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
+import { CategoryProductGrid } from '@/components/seo/CategoryProductGrid';
 
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
@@ -155,6 +156,18 @@ export default async function CategorySlugPage({ params }: PageProps) {
         </div>
 
         {/* Cross-category links */}
+        {/* BUY-75418: SSR product grid — server-rendered for AI crawlers.
+            Accepts any slug from PRODUCT_TAXONOMY (electronics, fashion,
+            home-living, beauty, sports-outdoors, health-wellness, toys-games,
+            automotive, food-beverages, grocery). */}
+        <CategoryProductGrid
+          category={slug}
+          countryCode="SG"
+          heading={`Live ${name} Prices in Singapore`}
+          subheading={`Refreshed continuously across the Singapore ${name.toLowerCase()} market.`}
+          sectionId={`categories-${slug}-grid`}
+        />
+
         <section className="mb-16">
           <h2 className="text-3xl font-bold text-gray-900 mb-6">
             Browse All Categories

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import { CategoryProductGrid } from '@/components/seo/CategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Home & Living Singapore | Compare Best Prices on Furniture & Household Items',
@@ -205,6 +206,15 @@ export default function HomeLivingCategoryPage() {
             </div>
           </div>
         </section>
+
+        {/* BUY-75418: SSR product grid — server-rendered for AI crawlers. */}
+        <CategoryProductGrid
+          category="home-living"
+          countryCode="SG"
+          heading="Live Home & Living Prices in Singapore"
+          subheading="Refreshed continuously from IKEA, Courts, Harvey Norman, Best Denki, and more."
+          sectionId="categories-home-living-grid"
+        />
 
         {/* Best Deals Section */}
         <section className="mb-16 bg-gray-50 rounded-xl p-8">

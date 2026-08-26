@@ -5,6 +5,7 @@ import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import { CategoryProductGrid } from "@/components/seo/CategoryProductGrid";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -355,6 +356,17 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
         <CategoryHero category={category} />
         <TrustBadges productCountLabel={productCountLabel} />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
+        {/* BUY-75418: SSR product grid for AI crawlers (OAI-SearchBot,
+            ClaudeBot, PerplexityBot). >=12 priced products render before
+            any JavaScript executes. Falls back gracefully if the API is
+            unreachable — no fabricated catalog data (governance rule #10). */}
+        <CategoryProductGrid
+          category={category}
+          countryCode="US"
+          heading={`Top ${categoryName} Picks — Live US Prices`}
+          subheading={`12 products across Amazon, Walmart, Target, and Best Buy, ranked by current price.`}
+          sectionId="ssr-product-grid"
+        />
         <WhyCompareSection category={category} />
         <USDealsSection />
         <CTASection category={category} />
