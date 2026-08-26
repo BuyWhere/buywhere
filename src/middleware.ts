@@ -807,7 +807,18 @@ export async function middleware(request: NextRequest) {
         }));
       }
     } catch {
-      // Network error - let page render (will show its own error state)
+      // BUY-75133: probe failure OR timeout = no brand data for this slug. The
+      // upstream /v1/brand/{slug} hangs ~30s and returns 500 (never a real brand
+      // page) for the placeholder slugs that were de-sitemapped in 8d1804055,
+      // so the 3s AbortSignal fires here before the 404/500 arrives. Falling
+      // through lets the page render a 200 "Temporarily Unavailable" soft-404
+      // shell — the anti-pattern this issue fixes. Hard-404 instead. These slugs
+      // are permanently non-existent in the catalog, so a hard 404 is honest.
+      return tagAgent(new NextResponse(null, {
+        status: 404,
+        statusText: "Brand Not Found",
+        headers: { "X-Robots-Tag": "noindex, nofollow" },
+      }));
     }
   }
 
