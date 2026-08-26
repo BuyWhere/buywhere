@@ -212,7 +212,7 @@ export default function HomeLivingCategoryPage() {
           <p className="text-lg text-gray-600 mb-8">
             Singapore offers a wide range of home and living options, from IKEA&apos;s affordable Swedish designs to premium brands like Courts and Singtel. BuyWhere helps you compare prices across all major retailers so you can find the best deals on furniture, appliances, and home goods.
           </p>
-          <Link href="/search?q=home+living&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=home+living&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Home & Living Deals →
           </Link>
         </section>

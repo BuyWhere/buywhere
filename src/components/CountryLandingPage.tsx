@@ -35,7 +35,7 @@ export default function CountryLandingPage({ config }: CountryLandingPageProps) 
               BuyWhere
             </Link>
             <div className="flex items-center gap-4 text-sm font-medium text-gray-600">
-              <Link href={`/search?q=&country=${countryParam}`} className="transition-colors hover:text-indigo-600">
+              <Link href={`/search?q=&country=${countryParam}`} rel="nofollow" className="transition-colors hover:text-indigo-600">
                 Browse {config.countryCode}
               </Link>
               <Link href="/categories" className="transition-colors hover:text-indigo-600">
@@ -62,7 +62,7 @@ export default function CountryLandingPage({ config }: CountryLandingPageProps) 
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <Link
-                  href={`/search?q=&country=${countryParam}`}
+                  href={`/search?q=&country=${countryParam}`} rel="nofollow"
                   className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-700"
                 >
                   Search {config.countryName}
@@ -109,7 +109,7 @@ export default function CountryLandingPage({ config }: CountryLandingPageProps) 
                 {config.searchExamples.map((query) => (
                   <Link
                     key={query}
-                    href={`/search?q=${encodeURIComponent(query)}&country=${countryParam}`}
+                    href={`/search?q=${encodeURIComponent(query)}&country=${countryParam}`} rel="nofollow"
                     className="rounded-xl border border-gray-100 bg-white p-5 text-center font-semibold text-gray-900 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 hover:shadow-md"
                   >
                     {query}

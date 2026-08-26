@@ -114,7 +114,7 @@ export default async function CategoryCountryPage({ params }: PageProps) {
         </div>
 
         <section className="mt-10 grid gap-4 sm:grid-cols-3">
-          <a className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-indigo-300" href={`/search?q=${encodeURIComponent(categoryName)}`}>
+          <a className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-indigo-300" href={`/search?q=${encodeURIComponent(categoryName)}`} rel="nofollow">
             <h2 className="font-semibold">Search products</h2>
             <p className="mt-2 text-sm text-slate-600">Find matching catalog items across BuyWhere.</p>
           </a>

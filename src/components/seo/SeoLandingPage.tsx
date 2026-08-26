@@ -13,6 +13,7 @@ import {
 } from "@/lib/seo-landing-pages";
 import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
+import AgentMarketingBlock from "@/components/AgentMarketingBlock";
 import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 function formatPrice(price: number | null, currency: string) {
@@ -465,6 +466,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       {config.showRelatedCategory && <RelatedCategoryBlock slug={config.slug} />}
 
+      <AgentMarketingBlock searchQuery={config.searchQuery} country={config.country} />
       <Footer />
     </div>
   );
