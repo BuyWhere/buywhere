@@ -794,14 +794,18 @@ export async function middleware(request: NextRequest) {
           signal: AbortSignal.timeout(3000),
         }
       );
-      if (apiRes.status === 404) {
-        return new NextResponse(null, {
+      if (!apiRes.ok) {
+        // Any non-2xx from the upstream brand API (including 500 on non-existent
+        // slugs) means no brand data exists for this slug. Return a hard 404
+        // rather than letting the page render a 200 soft-404 shell.
+        // The upstream /v1/brand/:slug currently returns 500 (not 404) for
+        // unknown slugs due to a backend bug — catch all non-OK responses here.
+        return tagAgent(new NextResponse(null, {
           status: 404,
           statusText: "Brand Not Found",
           headers: { "X-Robots-Tag": "noindex, nofollow" },
-        });
+        }));
       }
-      // Transient errors (429/401/403/5xx) fall through — let the page render.
     } catch {
       // Network error - let page render (will show its own error state)
     }
