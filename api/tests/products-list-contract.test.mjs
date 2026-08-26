@@ -44,4 +44,32 @@ describe('BUY-73753: /v1/products list contract', () => {
     assert.match(responseSource, /category_path/);
     assert.match(responseSource, /Array\.isArray\(row\.category_path\)/);
   });
+
+  // BUY-74513: when the EXPLAIN count sub-query falls back to pg_class
+  // (the SAME global number for every country call), the response must
+  // mark pagination.total=null and surface meta.degraded=true +
+  // meta.approximate=true so consumers don't treat the bogus 89M US-lie
+  // as a real catalog size. Wake: required contract on /v1/products.
+  it('surfaces meta.degraded=true + meta.approximate=true when count falls back to pg_class (BUY-74513)', () => {
+    const listRouteStart = productsSource.indexOf('// GET /v1/products');
+    const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
+    const listRoute = productsSource.slice(listRouteStart, searchRouteStart);
+
+    assert.match(listRoute, /let countDegraded = false/);
+    assert.match(listRoute, /countDegraded = true/);
+    assert.match(listRoute, /degraded:\s*true/);
+    assert.match(listRoute, /approximate:\s*true/);
+    assert.match(listRoute, /count_source:\s*'pg_class_fallback'/);
+    assert.match(listRoute, /reason:\s*'EXPLAIN_count_failed'/);
+    assert.match(listRoute, /const total = countDegraded \? null : rawTotal/);
+  });
+
+  // BUY-74513: cap /v1/catalog/stats tryExactCount under the 30s gateway
+  // timeout so the route fails fast and the degraded envelope can fire
+  // instead of hanging at the edge for 60s+.
+  it('caps /v1/catalog/stats tryExactCount under 30s gateway timeout (BUY-74513)', () => {
+    const catalogSource = readFileSync(join(__dirname, '../src/routes/catalog.ts'), 'utf8');
+    assert.doesNotMatch(catalogSource, /tryExactCount\(60000\)/);
+    assert.match(catalogSource, /tryExactCount\(25000\)/);
+  });
 });

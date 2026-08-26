@@ -688,6 +688,16 @@ router.get(
       // them via products_pkey reverse scan within 30s. On the partitioned
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
+      //
+      // BUY-74513: track whether the EXPLAIN sub-query itself failed and the
+      // pg_class fallback fired — when that happens the surfaced total is
+      // the GLOBAL pg_class.reltuples (the SAME 89M for every country call),
+      // which is the exact bug the wake comment calls out ("stale 90M-lie
+      // for the US market"). Set countDegraded=true so the response body
+      // marks pagination.total=null, total_pages=null and adds
+      // meta.degraded=true + meta.approximate=true. Callers (BUY-74088)
+      // propagate the flag instead of treating the bogus total as gospel.
+      let countDegraded = false;
       productReadDb.query(
         `EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`,
         params
@@ -697,7 +707,8 @@ router.get(
         if (match) return { rows: [{ count: parseInt(match[1], 10) }] };
         throw new Error('planner_estimate_missing');
       }).catch(async (err) => {
-        console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
+        console.warn('[products.list] EXPLAIN estimate failed, falling back to pg_class (BUY-74513 degraded):', err?.message || err);
+        countDegraded = true;
         const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
         return fb;
       }),
@@ -711,8 +722,14 @@ router.get(
       ),
     ]);
 
-    const total = parseInt(countResult.rows[0].count, 10);
-    const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
+    const rawTotal = parseInt(countResult.rows[0].count, 10);
+    // BUY-74513: when the count sub-query fell back to pg_class.reltuples, the
+    // surfaced number is the GLOBAL table total (same value for every country)
+    // and is unsafe to expose as pagination.total. Return null instead so
+    // clients render "unknown total" rather than the bogus 89M US-lie. The
+    // accompanying meta.degraded/approximate flags tell them why.
+    const total = countDegraded ? null : rawTotal;
+    const total_pages = countDegraded || rawTotal === 0 ? (countDegraded ? null : 0) : Math.ceil(rawTotal / limit);
     // BUY-74689: batched merchant lookup so list responses also carry merchant_name /
     // merchant_slug. Single ANY() query against `merchants` (replica).
     const merchantMap = await lookupMerchantMap(
@@ -732,6 +749,12 @@ router.get(
       req,
     });
 
+    // BUY-74513: when the count sub-query was degraded (pg_class fallback),
+    // propagate the flag on the response so consumers can distinguish a real
+    // EXPLAIN estimate from a "we lost the count — go look somewhere else"
+    // envelope. Non-degraded responses get meta={} to keep the response
+    // shape stable (clients should always read .meta — missing keys is not
+    // a signal).
     const body = {
       data,
       pagination: {
@@ -741,6 +764,18 @@ router.get(
         total_pages,
         response_time_ms: Date.now() - requestStart,
       },
+      meta: countDegraded
+        ? {
+            degraded: true,
+            approximate: true,
+            count_source: 'pg_class_fallback',
+            reason: 'EXPLAIN_count_failed',
+          }
+        : {
+            degraded: false,
+            approximate: true,
+            count_source: 'planner_estimate',
+          },
     };
 
     redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => {});
