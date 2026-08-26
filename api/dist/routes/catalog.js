@@ -140,7 +140,11 @@ router.get('/stats', async (_req, res) => {
         const cached = await config_1.redis.get(CACHE_KEY).catch(() => null);
         if (cached) {
             const stats = JSON.parse(cached);
-            if (!stats.approximate) {
+            // 2026-08-26 (Richmond): approximate cached stats are acceptable by default. BUY-74088's
+            // "force exact recount" made every call run count(*) over 365M rows on the search replica
+            // (it never finished inside 25 s, so callers got the estimate anyway after a 25 s full scan).
+            // Exact counts are opt-in via ?exact=1 (or POST /stats/refresh).
+            if (!stats.approximate || _req.query.exact !== '1') {
                 triggerBackgroundRefresh().catch(() => { });
                 res.json({
                     data: {
@@ -164,7 +168,16 @@ router.get('/stats', async (_req, res) => {
         //    exact counts, yet COUNT(*) times out under current IO load; serving an
         //    honest approximate response keeps the health endpoint and citations
         //    alive while the replica/exact path remains attempted.
-        const exact = await tryExactCount(25000);
+        //
+        // BUY-74513: 60000ms exceeded the 30s gateway read timeout on the replica,
+        // making the request hang at the edge for a full minute before the fallback
+        // fired — and silently serving a stale approximate total to /v1/products
+        // callers for >5 heartbeats. Cap at 25000ms (25s with a 5s safety margin
+        // below the 30s gateway) so the exact path either succeeds quickly or
+        // fails fast enough for the route to surface the degraded envelope
+        // (meta.approximate=true) rather than a 30s+ gateway timeout followed by
+        // an opaque stale total.
+        const exact = _req.query.exact === '1' ? await tryExactCount(25000) : null;
         if (exact) {
             await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => { });
             triggerBackgroundRefresh().catch(() => { });

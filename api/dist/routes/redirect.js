@@ -1,12 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const botClass_1 = require("../lib/botClass");
 const involveAsia_1 = require("../lib/involveAsia");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
 const brokenDestinationFallbacks_1 = require("../lib/brokenDestinationFallbacks");
 const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
+// truth layer (2026-08-26): record WHO clicked. Before this, every click row had empty UA/IP/referrer,
+// so crawlers following /r links were indistinguishable from shoppers.
+async function whoClicked(req, apiKey) {
+    const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+    const cls = (0, botClass_1.classifyUserAgent)(ua);
+    const ipHash = (0, botClass_1.hashIp)((0, botClass_1.clientIp)(req));
+    const q = req.query;
+    const pick = (v) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
+    const referrer = (pick(q.referrer) || pick(q.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
+    const sourcePage = pick(q.pathname).slice(0, 300) || null;
+    const keyHash = apiKey ? (0, crypto_1.createHash)('sha256').update(apiKey).digest('hex') : null;
+    let keyId = null;
+    if (keyHash) {
+        try {
+            const r = await config_1.db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]);
+            keyId = r.rows[0]?.id ?? null;
+        }
+        catch { /* best effort */ }
+    }
+    return { ua, family: cls.family, ipHash, referrer, sourcePage, keyHash, keyId };
+}
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
@@ -189,11 +211,14 @@ const redirectHandler = async (req, res) => {
         if (authHeader.startsWith('Bearer '))
             apiKey = authHeader.slice(7).trim();
         const source = firstQueryValue(req.query.source) || 'api_response';
+        const who = await whoClicked(req, apiKey);
         (async () => {
             try {
                 await withTimeout(config_1.db.query(`INSERT INTO affiliate_clicks
-               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true)`, [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]), REDIRECT_TIMEOUT_MS, 'affiliate_clicks insert (dead)');
+               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
+                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`, [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+                    who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]), REDIRECT_TIMEOUT_MS, 'affiliate_clicks insert (dead)');
             }
             catch (err) {
                 console.warn('[redirect] dead-click logging failed:', err.message);
@@ -251,11 +276,14 @@ const redirectHandler = async (req, res) => {
     const referrer = firstQueryValue(req.query.referrer) || firstQueryValue(req.query.$referrer);
     const sessionId = firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id);
     // Log click to DB best-effort (do not block the redirect on a slow write)
+    const who = await whoClicked(req, apiKey);
     (async () => {
         try {
             await withTimeout(config_1.db.query(`INSERT INTO affiliate_clicks
-             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`, [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]), REDIRECT_TIMEOUT_MS, 'affiliate_clicks insert');
+             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+                who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]), REDIRECT_TIMEOUT_MS, 'affiliate_clicks insert');
         }
         catch (err) {
             console.warn('[redirect] click logging failed:', err.message);

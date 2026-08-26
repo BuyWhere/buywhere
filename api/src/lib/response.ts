@@ -160,6 +160,12 @@ export function buildProduct(
     ...(hasAffiliateTracking && {
       affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
     }),
+    // BUY-74262: expose the raw `source` column alongside the `merchant` alias.
+    // The `source` column holds the retailer/feed origin (e.g. "amazon_us",
+    // "shopify"). `merchant` is the same value but mapped from the `domain` alias
+    // for backward compatibility. Agents filtering by `?source=...` need the
+    // explicit `source` key in the response to verify the filter took effect.
+    source: (row.source as string) || null,
   };
 
   if (compact) {

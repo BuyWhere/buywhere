@@ -32,6 +32,16 @@ function detectAgentFramework(userAgent, xAgentFramework) {
     if (autogenMatch) {
         return { framework: 'autogen', version: autogenMatch[1] || '', sdkLanguage: 'python' };
     }
+    // Agent clients / harnesses (truth layer 2026-08-26): name the harness before falling to language buckets
+    const harness = [
+        [/claude-code|claude code/i, 'claude-code'], [/claude-desktop|claude\.ai|claude-web/i, 'claude'], [/cursor/i, 'cursor'],
+        [/openclaw|gaia/i, 'openclaw'], [/hermes/i, 'hermes'], [/chatgpt|openai/i, 'chatgpt'], [/perplexity/i, 'perplexity'],
+        [/gemini|google-genai/i, 'gemini'], [/mcp-remote|modelcontextprotocol|mcp\//i, 'mcp-client'], [/n8n/i, 'n8n'], [/dify/i, 'dify'],
+        [/vercel-ai|ai-sdk/i, 'vercel-ai'], [/llamaindex/i, 'llamaindex'],
+    ];
+    for (const [re, name] of harness)
+        if (re.test(ua))
+            return { framework: name, version: '', sdkLanguage: /python/i.test(ua) ? 'python' : (/node|axios|undici/i.test(ua) ? 'javascript' : 'unknown') };
     // Python SDK
     if (/python/i.test(ua)) {
         return { framework: 'custom', version: '', sdkLanguage: 'python' };

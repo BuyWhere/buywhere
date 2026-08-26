@@ -671,6 +671,17 @@ router.get(
       idx++;
     }
 
+    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
+    // to filter by retailer/source. The retailer name lives in the `source` column
+    // (aliased as `domain` in the response via buildProduct). Without this filter,
+    // ?source=amazon is silently ignored — same results as ?source=shopify.
+    const source = (req.query.source as string | undefined) || (req.query.domain as string | undefined);
+    if (source) {
+      conditions.push(`source = $${idx}`);
+      params.push(source);
+      idx++;
+    }
+
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
@@ -678,7 +689,8 @@ router.get(
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                 products.url_last_checked_at, products.url_status,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
-                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count,
+                products.source, products.scraped_via`;
 
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
 
@@ -1194,7 +1206,8 @@ router.get(
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                products.url_last_checked_at, products.url_status,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.region, products.country_code, ${specColumnsJoined},
+               products.source, products.scraped_via`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -2908,7 +2921,8 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined},
+                 products.source, products.scraped_via`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
       // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
