@@ -200,6 +200,12 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: accept the `query` alias for `q`. Without it, callers
+        // passing `query` get 0 rows + the pg_class.reltuples "total"
+        // (~364,777,600). Affects mcp.buywhere.ai surface — same root cause as
+        // api.buywhere.ai. Re-applies the BUY-68587 / BUY-70288 alias that
+        // intervening refactors removed.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -352,6 +358,8 @@ const V2_TOOLS = [
       required: ['deliver_to'],
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: `query` alias for q — see v1 schema above for rationale.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -459,7 +467,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
-  const q = (args.q as string) || '';
+  // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
+  // cycle 23, agents) passing `query` instead of canonical `q` silently fall
+  // into the no-q browse branch: 0 rows plus a pg_class.reltuples "total"
+  // (~364,777,600) that looks like fabricated cache data. Same regression was
+  // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
+  // refactors; this re-applies and documents the contract on both handlers.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -628,7 +642,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code,
+                      url_last_checked_at, url_status
                FROM products WHERE id IN (${ph}) AND is_active = true`,
               pageIds
             );
@@ -643,7 +658,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code,
+                      url_last_checked_at, url_status
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -660,7 +676,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code,
+                    url_last_checked_at, url_status
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -685,6 +702,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
@@ -767,7 +785,8 @@ async function handleGetProduct(args: Record<string, unknown>) {
     result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
-              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+              avg_rating AS rating, review_count, metadata, updated_at, region, country_code,
+              url_last_checked_at, url_status
        FROM products WHERE id = $1`,
       [id.trim()]
     );
@@ -801,7 +820,8 @@ async function handleCompareProducts(args: Record<string, unknown>) {
     result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
-              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+              avg_rating AS rating, review_count, metadata, updated_at, region, country_code,
+              url_last_checked_at, url_status
        FROM products WHERE id IN (${placeholders})`,
       validIds
     );
@@ -921,6 +941,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
+              p.url_last_checked_at, p.url_status,
               p.discount_pct
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
@@ -1215,7 +1236,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT $${params.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
+              p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,

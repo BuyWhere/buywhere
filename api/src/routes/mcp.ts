@@ -8,6 +8,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals } from '../lib/response';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
@@ -275,6 +276,13 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: accept the natural `query` alias so callers (Atlas cycle 23,
+        // agents) using it don't silently fall into the no-q browse branch — that
+        // path returns 0 rows plus a pg_class.reltuples "total" (~364,777,600)
+        // that looks like fabricated cache data. Live repro (2026-08-26):
+        // api.buywhere.ai/mcp search_products(query="running shoes",
+        // country_code="TH") → data:[], total:364777600, cached:false.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -425,6 +433,8 @@ const V2_TOOLS = [
       required: ['deliver_to'],
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: `query` alias for q — see v1 schema above for rationale.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -529,7 +539,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
-  const q = (args.q as string) || '';
+  // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
+  // cycle 23, agents) passing `query` instead of canonical `q` silently fall
+  // into the no-q browse branch: 0 rows plus a pg_class.reltuples "total"
+  // (~364,777,600) that looks like fabricated cache data. Same regression was
+  // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
+  // refactors; this re-applies and documents the contract on both handlers.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -655,11 +671,19 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
+    // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
+    // fast into the BUY-74597 degraded envelope rather than holding a pooled
+    // connection across the full client timeout. The GIN bitmap plan must
+    // complete inside this budget; anything longer signals plan regression
+    // or pool exhaustion.
+    // Reduce timeout to protect against runaway queries and increase work_mem
+    // to encourage bitmap GIN plans. Additionally, disable sequential scans for
+    // this short-lived request to force the planner to use the GIN indexes
+    // (search_vector + region/country). This mitigates the observed ~12s
+    // catalog_search latency on SEA markets.
     await searchClient.query('SET statement_timeout = 4000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+    await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -796,7 +820,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             }
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products WHERE ${detailConditions.join(' AND ')}`,
               detailParams
             );
@@ -811,7 +836,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -828,7 +854,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code,
+                    url_last_checked_at, url_status
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -853,6 +880,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
@@ -958,8 +986,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     );
   }
 
+  const merchantMapForMcpSearch = await lookupMerchantMap(
+    db,
+    (rows as Record<string, unknown>[]).map((row) => (row.merchant_id as string | null) ?? null),
+  );
   const products = (rows as Record<string, unknown>[]).map(r =>
-    buildProduct(r, currency, compact)
+    buildProduct(r, currency, compact, merchantMapForMcpSearch)
   );
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
@@ -1187,6 +1219,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
+              p.url_last_checked_at, p.url_status,
               p.discount_pct
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
@@ -1490,6 +1523,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       throw err;
     });
     await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+    await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -1517,7 +1551,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
+              p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,

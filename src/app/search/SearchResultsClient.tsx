@@ -7,8 +7,10 @@ import { ExternalLink, Search, X } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { MerchantBadge } from '@/components/ui/MerchantBadge';
+import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
+import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -93,6 +95,9 @@ export type SearchCardProduct = {
   price: number | null;
   currency: string;
   merchant: string;
+  merchantSlug?: string | null;
+  source?: string | null;
+  scrapedVia?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
   imageUrl: string | null;
   href: string;
   brand: string | null;
@@ -637,6 +642,17 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
   const category = item.category || specCategory;
   const finitePrice = Number.isFinite(numericPrice) ? numericPrice : null;
 
+  // BUY-74691: capture merchant_slug + scraped_via from the API row.
+  // merchant_slug is the kebab-case key used by MERCHANT_CONFIG; scraped_via
+  // gates the verified-mark logic on MerchantBadge.
+  const merchantSlug = (item as Record<string, unknown>).merchant_slug as string | null | undefined
+    ?? (typeof item.merchant_name === 'string'
+      ? item.merchant_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      : null);
+  const scrapedVia = (item as Record<string, unknown>).scraped_via as
+    | 'first_party' | 'affiliate' | 'aggregator' | string | null | undefined
+    ?? null;
+
   return {
     id: String(item.id),
     name,
@@ -665,6 +681,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
       item.merchant ||
       item.source
     ),
+    // BUY-74691: forward merchant_slug + scraped_via so MerchantBadge can
+    // resolve richer config and PlatformChip can render the platform line.
+    merchantSlug,
+    scrapedVia,
+    source: item.source ?? null,
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     // BUY-67977: derive brand from the title when the API does not provide
@@ -873,8 +894,10 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     <a
       data-testid="search-product-card"
       href={product.href}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={`View deal: ${product.name} from ${product.merchant}`}
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
@@ -923,14 +946,25 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             and verified checkmark are already conveyed by MerchantBadge on the
             left, and the whole card wraps the deal URL, so a second visual CTA
             at the top competed with the primary "View Deal" button below.
-            Keep MerchantBadge informational and View Deal the single CTA. */}
-        <div className="flex min-h-7 items-center">
-          <MerchantBadge merchant={product.merchant} className="min-w-0" />
+            Keep MerchantBadge informational and View Deal the single CTA.
+            BUY-74691: add PlatformChip beneath the badge so the platform
+            provenance (Shopify / Shopee SG / Amazon SG) is visible but
+            visually subordinate — the merchant_name remains the primary signal. */}
+        <div className="flex min-h-7 flex-col items-start gap-0.5">
+          <MerchantBadge
+            merchant={product.merchant}
+            merchantSlug={product.merchantSlug}
+            scrapedVia={product.scrapedVia}
+            className="min-w-0"
+          />
+          <PlatformChip source={product.source} />
         </div>
 
         <div className="space-y-1.5">
           <h2
             className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            title={product.name}
+            aria-label={product.name}
           >
             {product.name}
           </h2>

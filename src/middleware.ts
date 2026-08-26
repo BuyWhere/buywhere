@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACTIVE_BLOG_SLUGS as GENERATED_ACTIVE_BLOG_SLUGS } from "@/lib/active-blog-slugs";
+import { isInternalPageview } from "@/lib/pageview-internal";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -103,39 +104,29 @@ function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
   return { is_bot: false, agent_family: "human" };
 }
 
-// BUY-72699: Health-check paths that should always be flagged as internal
-const INTERNAL_HEALTH_PATHS = new Set([
-  "/health",
-  "/healthz",
-  "/ready",
-  "/readyz",
-  "/_health",
-  "/_ah/health",
-]);
-
-function isInternalRequest(distinctId: string, pathname: string, eventName: string): boolean {
-  // Rule 4: server-side pageview capture is internal.
-  if (eventName === "pageview_server") return true;
-  // Rule 1: distinct_id starts with srv_ (server/probe identity)
-  if (distinctId.startsWith("srv_")) return true;
-  // Rule 2: Health-check paths
-  if (INTERNAL_HEALTH_PATHS.has(pathname)) return true;
-  return false;
-}
 
 async function capturePageviewServer(
   distinctId: string,
   url: URL,
   ua: string,
-  ip: string | null
+  ip: string | null,
+  cookieHeader: string | null,
+  referrer: string | null
 ) {
   const { is_bot, agent_family } = classifyUa(ua);
   const eventName = "pageview_server";
   // BUY-72699 Defect B: Normalize trailing-slash pathname at capture
   const rawPathname = url.pathname;
   const pathname = normalizePathname(rawPathname);
-  // BUY-72699 Defect A: Emit is_internal boolean
-  const is_internal = isInternalRequest(distinctId, rawPathname, eventName);
+  // BUY-74987: srv_* is only the server-side distinct_id namespace. Classify
+  // internal traffic from path / bot UA / IP / cookie / referrer signals instead.
+  const is_internal = isInternalPageview({
+    pathname,
+    isBot: is_bot,
+    ip,
+    cookieHeader,
+    referrer,
+  });
   try {
     await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
@@ -264,31 +255,11 @@ function normalizePathname(pathname: string): string {
  * tells Google to drop the URL cleanly.
  */
 const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-airpods-singapore",
-  "where-to-buy-apple-watch-singapore",
-  "where-to-buy-bose-qc45-singapore",
-  "where-to-buy-dji-mini-4-pro-singapore",
-  "where-to-buy-dyson-singapore",
-  "where-to-buy-dyson-v15-singapore",
-  "where-to-buy-fitbit-singapore",
-  "where-to-buy-gopro-singapore",
-  "where-to-buy-ipad-singapore",
   "where-to-buy-iphone-16-singapore",
-  "where-to-buy-iphone-singapore",
-  "where-to-buy-kindle-singapore",
-  "where-to-buy-laptop-singapore",
-  "where-to-buy-logitech-mx-master-singapore",
   "where-to-buy-macbook-air-m3-singapore",
-  "where-to-buy-macbook-singapore",
-  "where-to-buy-meta-quest-3-singapore",
   "where-to-buy-nintendo-switch-singapore",
   "where-to-buy-ps5-singapore",
-  "where-to-buy-roborock-singapore",
-  "where-to-buy-samsung-galaxy-s-singapore",
-  "where-to-buy-samsung-tv-singapore",
   "where-to-buy-sony-wh-1000xm5-singapore",
-  "where-to-buy-steam-deck-singapore",
-  "where-to-buy-xbox-series-x-singapore",
 ]);
 
 function isDeadBlogSlug(pathname: string): boolean {
@@ -358,7 +329,11 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "__DEAD_BLOG_SLUG__");
+    // Deny-list, NOT allow-list. Default-deny against a build-time snapshot is what
+    // 410'd 33 live posts for two months (BUY-57626 postmortem, fixed eb14f63) and then
+    // again from 2026-08-19 when 554950c reverted it. Unknown slugs fall through to the
+    // App Router, which 404s if the article truly does not exist.
+    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : (isDocsHost ? normalizedPath : null);
   }
 
   // Real published docs (in ACTIVE_DOC_PATHS) serve directly — checked FIRST so they are not caught by the
@@ -385,7 +360,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
     const slug = normalizedPath.slice("/docs/blog/posts/".length);
-    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
+    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : `/blog/${slug}`;
   }
 
   const apiReferenceAlias = {
@@ -526,8 +501,10 @@ export async function middleware(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
   const distinctId = ip ? hashIp(ip) : "srv_unknown";
+  const cookieHeader = request.headers.get("cookie");
+  const referrer = request.headers.get("referer") ?? request.headers.get("referrer");
 
-  capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip);
+  capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip, cookieHeader, referrer);
 
   // Dead blog slugs → 410 Gone (clean removal signal for Google, not a redirect)
   if (isDeadBlogSlug(pathname)) {

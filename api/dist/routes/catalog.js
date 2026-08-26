@@ -161,7 +161,7 @@ router.get('/stats', async (_req, res) => {
         //    exact counts, yet COUNT(*) times out under current IO load; serving an
         //    honest approximate response keeps the health endpoint and citations
         //    alive while the replica/exact path remains attempted.
-        const exact = await tryExactCount(60000);
+        const exact = await tryExactCount(25000);
         if (exact) {
             await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => { });
             triggerBackgroundRefresh().catch(() => { });
@@ -210,7 +210,7 @@ router.post('/stats/refresh', async (_req, res) => {
     try {
         await config_1.redis.del(CACHE_KEY).catch(() => { });
         await config_1.redis.del(REFRESH_LOCK_KEY).catch(() => { });
-        const exact = await tryExactCount(60000);
+        const exact = await tryExactCount(25000);
         if (exact) {
             await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
             res.json({

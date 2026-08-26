@@ -121,8 +121,38 @@ const nextConfig = {
         permanent: true,
       },
       // BUY-71825: /compare/sg -> /compare (old region-specific compare hub)
+      // BUY-74770: the non-US market surfaces (/compare/my, /th, /vn, /id, /ph)
+      // never had indexable content — they fell through the [...slug] catch-all
+      // and rendered Next.js's notFound() shell as HTTP 200 with noindex. Send
+      // them to /compare as well so AEO/SEO crawlers see one consistent
+      // /compare canonical instead of an empty noindex 200 per market.
       {
         source: '/compare/sg',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/my',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/th',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/vn',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/id',
+        destination: '/compare',
+        permanent: true,
+      },
+      {
+        source: '/compare/ph',
         destination: '/compare',
         permanent: true,
       },
@@ -303,6 +333,19 @@ const nextConfig = {
       {
         source: '/developers/pricing',
         destination: '/pricing',
+        permanent: true,
+      },
+      // BUY-75315: /pricing and /challenge route into /developers — header nav no
+      // longer links to either, but legacy external links and crawlers must be
+      // 301'd (not 410'd — indexation directive forbids 410 for retired URLs).
+      {
+        source: '/pricing',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/challenge',
+        destination: '/developers',
         permanent: true,
       },
       {

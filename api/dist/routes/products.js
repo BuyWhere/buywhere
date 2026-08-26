@@ -19,6 +19,7 @@ const pricing_1 = require("../lib/pricing");
 const instrumentation_1 = require("../lib/instrumentation");
 const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const embedProducts_1 = require("../jobs/embedProducts");
+const merchantLookup_1 = require("../lib/merchantLookup");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
@@ -92,7 +93,20 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v10'; // SEV-1 2026-08-23: country_code now a hard filter — bust cached cross-region-leak entries
+// BUY-74732: bumped v10 -> v11. v10's cached entries were written by code that omitted
+// `sp.merchant_id` from the tier-search SELECT list, so buildProduct resolved merchant_name
+// to null on every row. The select-list fix is the wire change; this version bump evicts
+// the stale 1h cache so the next query rebuilds with merchant_id populated. (search-tier TTL
+// stays 1h; this is the smallest cache-invalidation that restores live acceptance without a
+// manual purge. Per BUY-72377 / footgun-guard pair, no bulk Redis FLUSH.)
+// BUY-74747: bumped v11 -> v12. v11's cached entries were written before the merchants
+// schema migration (merchants.slug, merchants.scraped_via, products.scraped_via) was
+// applied on prod, so lookupMerchantMap threw "column does not exist" and silently
+// returned an empty map. Every v11-cached payload has merchant_name=null/merchant_slug=null.
+// Bumping the version evicts those entries alongside the orphan SG merchant rows Rex
+// inserted in BUY-74747 (alltroniccomputer.com.sg, techhouse.sg). BUY-74750 (Oracle)
+// covers prettier canonical display-name cleanup.
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'country-hard-filter-v12';
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -253,8 +267,15 @@ async function tryTierSearch(req, res, p) {
     params.push(p.offset);
     i++;
     const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+    // BUY-74732: sp.merchant_id is REQUIRED here — buildProduct resolves
+    // merchant_name / merchant_slug from a batched `merchants` PK lookup keyed on
+    // this column. BUY-74689 wired the lookup but omitted the column from the
+    // tier select list, so tier rows reached buildProduct with merchant_id
+    // undefined and emitted merchant_name: null.
     const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    sp.merchant_id,
+    sp.scraped_via,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
     // BUY-63738: add laptop accessory demotion and boost to tier search results.
@@ -438,7 +459,13 @@ async function tryTierSearch(req, res, p) {
             return true;
         const hasMore = rows.length > p.limit;
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
+        // BUY-74689: batched merchant lookup so the card badge shows the real storefront
+        // name (BestDenki, Shopee, …) instead of the platform slug. The merchant table is
+        // ~944K rows and the column is PK, so a single ANY() lookup is sub-ms; we run it
+        // against the replica (`readDb()`) per BUY-65095 so the search-tier replica stays
+        // free for the FTS path. Lookup failure is non-fatal — see merchantLookup.ts.
+        const merchantMap = await (0, merchantLookup_1.lookupMerchantMap)((0, readReplica_1.readDb)(), pageRows.map((r) => r.merchant_id));
+        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact, merchantMap));
         const total = p.offset + rows.length;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
         responseBody.source = 'search_products_tier';
@@ -553,6 +580,7 @@ const LIST_SORT_TTL_SECONDS = 60;
 // a bad estimate frozen into Redis for the TTL window. Bump the key so live
 // requests can never serve the poisoned entries.
 const LIST_CACHE_PREFIX = 'listv2';
+const LIST_PRODUCTS_TABLE = 'products';
 router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.list'), asyncHandler(async (req, res) => {
     // Backward compatibility: early public docs and clients used
     // `/v1/products?q=...` or `/v1/products?query=...` for search. Treat
@@ -657,6 +685,14 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
     const productReadDb = (0, readReplica_1.readDb)();
+    // BUY-74513: track whether the EXPLAIN count sub-query fell back to
+    // pg_class.reltuples (the GLOBAL 89M table total, same value for every
+    // country call) so the response body can mark pagination.total=null and
+    // surface meta.degraded=true + meta.approximate=true instead of the
+    // bogus 90M US-lie. Must be declared OUTSIDE the Promise.all array literal
+    // (an array literal only holds expressions — a `let` inside it is a
+    // parse error: TS1005 `,` expected).
+    let countDegraded = false;
     const [countResult, dataResult] = await Promise.all([
         // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
         // country + active + priced + optional category), not the global pg_class
@@ -680,26 +716,47 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // them via products_pkey reverse scan within 30s. On the partitioned
         // table, the same predicate prunes to the PH partition (one of 30+
         // partitions) and returns in <500ms.
-        productReadDb.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, params).then((r) => {
+        //
+        // BUY-74513: track whether the EXPLAIN sub-query itself failed and the
+        // pg_class fallback fired — when that happens the surfaced total is
+        // the GLOBAL pg_class.reltuples (the SAME 89M for every country call),
+        // which is the exact bug the wake comment calls out ("stale 90M-lie
+        // for the US market"). Set countDegraded=true so the response body
+        // marks pagination.total=null, total_pages=null and adds
+        // meta.degraded=true + meta.approximate=true. Callers (BUY-74088)
+        // propagate the flag instead of treating the bogus total as gospel.
+        // BUY-74513 (rev): countDegraded is now declared OUTSIDE this array
+        // (lines above) — `let` inside an array literal is a TS parse error.
+        productReadDb.query(`EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
             if (match)
                 return { rows: [{ count: parseInt(match[1], 10) }] };
             throw new Error('planner_estimate_missing');
         }).catch(async (err) => {
-            console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
+            console.warn('[products.list] EXPLAIN estimate failed, falling back to pg_class (BUY-74513 degraded):', err?.message || err);
+            countDegraded = true;
             const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
             return fb;
         }),
         productReadDb.query(`SELECT ${SELECT_COLUMNS}
-         FROM products
+         FROM ${LIST_PRODUCTS_TABLE} AS products
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]),
     ]);
-    const total = parseInt(countResult.rows[0].count, 10);
-    const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+    const rawTotal = parseInt(countResult.rows[0].count, 10);
+    // BUY-74513: when the count sub-query fell back to pg_class.reltuples, the
+    // surfaced number is the GLOBAL table total (same value for every country)
+    // and is unsafe to expose as pagination.total. Return null instead so
+    // clients render "unknown total" rather than the bogus 89M US-lie. The
+    // accompanying meta.degraded/approximate flags tell them why.
+    const total = countDegraded ? null : rawTotal;
+    const total_pages = countDegraded || rawTotal === 0 ? (countDegraded ? null : 0) : Math.ceil(rawTotal / limit);
+    // BUY-74689: batched merchant lookup so list responses also carry merchant_name /
+    // merchant_slug. Single ANY() query against `merchants` (replica).
+    const merchantMap = await (0, merchantLookup_1.lookupMerchantMap)(productReadDb, dataResult.rows.map((row) => row.merchant_id ?? null));
+    const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, merchantMap));
     // BUY-52474: log a product_view per rendered result card so `product_views`
     // grows from real /v1 list traffic. Fire-and-forget; idempotency is
     // enforced in the helper.
@@ -708,6 +765,12 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         source: 'products.list',
         req,
     });
+    // BUY-74513: when the count sub-query was degraded (pg_class fallback),
+    // propagate the flag on the response so consumers can distinguish a real
+    // EXPLAIN estimate from a "we lost the count — go look somewhere else"
+    // envelope. Non-degraded responses get meta={ degraded:false, approximate:true }
+    // so the response shape is stable — clients should always read .meta;
+    // missing keys is not a signal.
     const body = {
         data,
         pagination: {
@@ -717,6 +780,18 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
             total_pages,
             response_time_ms: Date.now() - requestStart,
         },
+        meta: countDegraded
+            ? {
+                degraded: true,
+                approximate: true,
+                count_source: 'pg_class_fallback',
+                reason: 'EXPLAIN_count_failed',
+            }
+            : {
+                degraded: false,
+                approximate: true,
+                count_source: 'planner_estimate',
+            },
     };
     config_1.redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => { });
     if (res.headersSent)
@@ -1173,7 +1248,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
-        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+        // BUY-74689: batched merchant lookup so the SEO landing fallback path also
+        // surfaces the real storefront name.
+        const merchantMap = await (0, merchantLookup_1.lookupMerchantMap)((0, readReplica_1.readDb)(), dataResult.rows.map((row) => row.merchant_id ?? null));
+        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, merchantMap));
         const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore, countryCode || null, fallbackProducts.length === 0 ? buildV1SearchEmptiness(false) : null);
         annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q, deliverToInferred);
         config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1445,7 +1523,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             : null;
         // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
         if (activeVectorDb) {
-            const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+            // Reuse the semantic-cache embedding if it was already computed above
+            // (avoids a duplicate Gemini API call when both the semantic cache
+            // lookup and the vector query path are active for the same request).
+            const queryVector = res.locals.semVec ?? await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
                 try {
                     // BUY-63271: mark a savepoint before any local (client) queries so a statement
@@ -1628,7 +1709,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         dataResult.rows = dataResult.rows.slice(0, limit);
     }
     const responseTimeMs = Date.now() - requestStart;
-    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    // BUY-74689: batched merchant lookup for /v1/products/search so card badges
+    // surface the real storefront name.
+    const merchantMap = await (0, merchantLookup_1.lookupMerchantMap)((0, readReplica_1.readDb)(), dataResult.rows.map((row) => row.merchant_id ?? null));
+    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, merchantMap));
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;
     if (fields && fields.length > 0) {
@@ -1641,6 +1725,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
             'affiliate_url', 'click_url', 'affiliate_redirect_url',
             'has_affiliate_tracking', 'is_affiliate', 'affiliate_disclosure',
+            'merchant_name', 'merchant_slug', 'merchant_id',
         ]);
         const requested = fields.filter(f => VALID_FIELDS.has(f));
         if (requested.length > 0) {
@@ -1847,7 +1932,10 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`, dealParams);
         const sampleDeals = dealResult.rows;
         total = sampleDeals.length;
-        deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false));
+        // BUY-74689: batched merchant lookup for /v1/products/deals so card badges
+        // surface the real storefront name (BestDenki, Amazon Sg, …).
+        const dealsMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(dealsClient, sampleDeals.map((row) => row.merchant_id ?? null));
+        deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false, dealsMerchantMap));
     }
     catch (err) {
         // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -1904,7 +1992,10 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     }
     const { text, values } = (0, compare_query_1.buildCompareProductsQuery)(ids);
     const result = await config_1.db.query(text, values);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false));
+    // BUY-74689: batched merchant lookup so /v1/products/compare surfaces real
+    // storefront names alongside the platform slug.
+    const compareMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, result.rows.map((row) => row.merchant_id ?? null));
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false, compareMerchantMap));
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - start, false);
@@ -2208,7 +2299,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const result = await (0, readReplica_1.readDb)().query(`SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
-              region, country_code
+              region, country_code, merchant_id
        FROM products
        WHERE is_active = true
          AND country_code = $1
@@ -2216,7 +2307,9 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
          AND price IS NOT NULL
        ORDER BY id DESC
        LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    // BUY-74689: batched merchant lookup for /v1/products/featured.
+    const featuredMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)((0, readReplica_1.readDb)(), result.rows.map((row) => row.merchant_id ?? null));
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, featuredMerchantMap));
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2254,7 +2347,10 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
         return;
     }
     const row = result.rows[0];
-    const product = (0, response_1.buildProduct)(row, 'SGD', false);
+    // BUY-74689: batched merchant lookup for /v1/products/:id so the single-product
+    // page also surfaces the real storefront name.
+    const singleMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, [row.merchant_id]);
+    const product = (0, response_1.buildProduct)(row, 'SGD', false, singleMerchantMap);
     if (req.apiKeyRecord) {
         const elapsedMs = Date.now() - start;
         // BUY-31298: feed behavioral context through res.locals; trackApiUsage via
@@ -2594,7 +2690,11 @@ async function warmSearchCache() {
             if (hasMore)
                 result.rows.pop();
             const total = result.rows.length + (hasMore ? 1 : 0);
-            const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+            // BUY-74689: batched merchant lookup so warmed cache entries also carry
+            // merchant_name / merchant_slug (they are stored in Redis for 1h so the
+            // first uncached request after deploy otherwise sees null labels).
+            const warmMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, result.rows.map((row) => row.merchant_id ?? null));
+            const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, warmMerchantMap));
             const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, offset, 0, false, undefined, hasMore);
             await config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
             warmed++;

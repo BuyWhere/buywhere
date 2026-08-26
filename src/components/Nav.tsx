@@ -79,15 +79,13 @@ export default function Nav() {
           <span>BuyWhere</span>
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop nav — Compare · Search · Deals · Blog · Developers (BUY-75315) */}
         <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
-          <DevDropdown />
-          <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
-          <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
-          <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
-          <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
-          <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
+          <Link href="/compare" className="hover:text-indigo-600 transition-colors">Compare</Link>
+          <Link href="/search" className="hover:text-indigo-600 transition-colors">Search</Link>
+          <Link href="/deals" className="hover:text-indigo-600 transition-colors">Deals</Link>
           <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
+          <DevDropdown />
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
             <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
             <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
@@ -154,11 +152,9 @@ export default function Nav() {
               ))}
             </div>
           )}
-          <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
-          <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
-          <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
-          <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
-          <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
+          <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Compare</Link>
+          <Link href="/search" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Search</Link>
+          <Link href="/deals" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Deals</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
             <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>

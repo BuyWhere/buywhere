@@ -790,4 +790,29 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     const data = JSON.parse(body.result.content[0].text);
     assert.equal(data.meta.limit, 100);
   });
+
+  // BUY-75287: `query` alias for `q` must return real results, not the
+  // reltuples-derived "total" (~364,777,600) with 0 rows. Atlas cycle 23
+  // called search_products with `query` and the API silently fell into the
+  // no-q browse branch, looking like fabricated cache data.
+  it('search_products accepts `query` alias for `q` (BUY-75287)', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 33, method: 'tools/call',
+        params: { name: 'search_products', arguments: { query: 'running shoes', country_code: 'TH', limit: 5 } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, `expected result envelope, got: ${JSON.stringify(body).slice(0, 400)}`);
+    const data = JSON.parse(body.result.content[0].text);
+    // Mock fixture returns 2 products with count '2'. The alias must run the
+    // FTS path, NOT the no-q browse branch.
+    assert.ok(Array.isArray(data.data), `expected data array, got: ${JSON.stringify(data).slice(0, 400)}`);
+    assert.equal(data.data.length, 2, `expected 2 results from FTS, got ${data.data.length} — likely fell into no-q browse branch`);
+    assert.notEqual(data.meta.total, 364777600, 'relruples-derived "fabricated" total must not leak');
+    assert.ok(data.meta.total <= 1001, `total must be capped (LIMIT 1001), got ${data.meta.total}`);
+  });
 });

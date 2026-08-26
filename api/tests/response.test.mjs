@@ -275,6 +275,25 @@ describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
     assert.equal(nonEmpty.meta.emptiness_reason, undefined);
     assert.equal(nonEmpty.meta.diagnostic, undefined);
   });
+
+  it('includes full degraded metadata for timeout envelopes', () => {
+    const derived = deriveEmptiness({
+      ...baseSignals,
+      degradedKind: 'timeout',
+      timedOutStage: 'catalog_search',
+    });
+    const degraded = buildSearchResponse([], 0, 20, 0, 5, false, true, false, 'US', derived);
+
+    assert.equal(degraded.meta.degraded, true);
+    assert.equal(degraded.meta.status, 'degraded');
+    assert.equal(degraded.meta.emptiness_reason, 'timeout');
+    assert.equal(degraded.meta.degraded_kind, 'timeout');
+    assert.equal(degraded.meta.degraded_reason, 'catalog_search');
+    assert.equal(degraded.meta.confidence, 'low');
+    assert.equal(degraded.meta.diagnostic.engine_status, 'degraded');
+    assert.equal(degraded.meta.diagnostic.timed_out_stage, 'catalog_search');
+    assert.equal(degraded.meta.diagnostic.deliver_to_present, true);
+  });
 });
 
 describe('COUNTRY_CURRENCY', () => {

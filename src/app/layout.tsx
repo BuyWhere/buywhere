@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import dynamic from "next/dynamic";
+import { headers } from "next/headers";
 import "./globals.css";
 import DeveloperSessionBootstrap from "@/components/DeveloperSessionBootstrap";
 import SentryErrorBoundary from "@/components/SentryErrorBoundary";
@@ -10,6 +11,7 @@ import UpgradeIntentPromptHost from "@/components/UpgradeIntentPromptHost";
 import WebVitals from "@/components/WebVitals";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import SkipLinks from "@/components/SkipLinks";
+import AgentMarketingBlock from "@/components/AgentMarketingBlock";
 import { PosthogProvider } from "@/components/PosthogProvider";
 import { CompareProvider } from "@/lib/compare-context";
 import { DeveloperAuthProvider } from "@/lib/developer-auth";
@@ -35,29 +37,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
-  title: "BuyWhere — Find the best prices across every store",
+  title: "BuyWhere — Compare products and prices across every retailer",
   description:
-    "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+    "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
-    title: "BuyWhere — Find the best prices across every store",
+    title: "BuyWhere — Compare products and prices across every retailer",
     description:
-      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "BuyWhere — compare prices across every store",
+        alt: "BuyWhere — compare products and prices across every retailer",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BuyWhere — Find the best prices across every store",
+    title: "BuyWhere — Compare products and prices across every retailer",
     description:
-      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: ["/og-image.png"],
     creator: "@buywhere",
   },
@@ -86,6 +88,42 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
+  // BUY-75315: derive the agent-marketing block's example query from the current
+  // request pathname so each page renders a keyless GET example relevant to itself.
+  // headers() is read-only here (server component, request-scoped).
+  let agentSearchQuery = "wireless headphones";
+  let agentCountry = "US";
+  try {
+    const requestHeaders = headers();
+    const pathname = requestHeaders.get("x-invoke-path") || requestHeaders.get("x-pathname") || "";
+    const countryHeader = requestHeaders.get("x-buywhere-country") || "";
+    if (pathname) {
+      // Path slug like "best-iphones-singapore" -> query "best iphones", country SG
+      const stripped = pathname.replace(/^\/+|\/+$/g, "");
+      if (stripped) {
+        const parts = stripped.split("/");
+        const slug = parts[parts.length - 1] || "";
+        const knownCountries = ["us", "sg", "my", "au", "uk", "gb", "ca", "de", "fr", "jp", "kr", "in", "nz", "br", "mx", "ae", "za", "ph", "th", "id", "vn"];
+        let detectedCountry = "";
+        for (const c of knownCountries) {
+          if (slug.endsWith(`-${c}`)) {
+            detectedCountry = c.toUpperCase();
+            break;
+          }
+        }
+        const slugWithoutCountry = detectedCountry
+          ? slug.slice(0, -(detectedCountry.length + 1))
+          : slug;
+        agentSearchQuery = slugWithoutCountry.replace(/-/g, " ") || agentSearchQuery;
+        if (detectedCountry) agentCountry = detectedCountry;
+      }
+    }
+    if (countryHeader) {
+      agentCountry = countryHeader.toUpperCase();
+    }
+  } catch {
+    // headers() throws in some static contexts — keep defaults.
+  }
   return (
     <html lang="en" className={inter.variable}>
       <head>
@@ -151,6 +189,8 @@ export default function RootLayout({
                   <WishlistProvider>
                     <RecentlyViewedProvider>
                       {children}
+                      {/* BUY-75315: agent-marketing block, server-rendered on every page */}
+                      <AgentMarketingBlock searchQuery={agentSearchQuery} country={agentCountry} />
                       <CompareFloatingBar />
                       <UpgradeIntentPromptHost />
                     </RecentlyViewedProvider>
