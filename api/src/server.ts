@@ -37,6 +37,7 @@ import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
 import adminProbesRouter from './routes/admin/probes';
+import adminMetricsTruthRouter from './routes/admin/metricsTruth';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
@@ -497,6 +498,10 @@ export function createApp() {
 
   // BUY-67318: outbound-link probe status debug endpoint.
   app.use(adminProbesRouter);
+
+  // BUY-75314: canonical business metrics (clicks, API, catalog, indexation,
+  // traffic, growth, dead links) per /home/paperclip/ops-canon/METRICS-DEFINITIONS.md.
+  app.use(adminMetricsTruthRouter);
 
   // 404 fallback
   app.use((_req, res) => {
