@@ -17,6 +17,7 @@ import { db, redis } from '../../config';
 import { outboundProbeEnabled } from '../../lib/outboundLinkHealth';
 import { adminAuth } from './auth';
 import { readCacheHitLatencyPercentiles } from '../../monitoring/cacheStats';
+import { MCP_FTS_CACHE_TTL_SECONDS } from '../mcp';
 
 const router = Router();
 
@@ -149,7 +150,7 @@ router.get('/v1/admin/probes/mcp_cache_hit_latency', probeAuth, async (req: Requ
   const windowSeconds = Number.isFinite(windowParam) && windowParam > 0 && windowParam <= 7 * 24 * 3600
     ? Math.floor(windowParam)
     : 3600;
-  const ttlSeconds = Number(process.env.MCP_FTS_CACHE_TTL_SECONDS || 300);
+  const ttlSeconds = MCP_FTS_CACHE_TTL_SECONDS;
   try {
     const latency = await readCacheHitLatencyPercentiles(redis, windowSeconds);
     const sample_count = latency.sample_count ?? 0;

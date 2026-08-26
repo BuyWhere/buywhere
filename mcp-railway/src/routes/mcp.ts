@@ -2220,7 +2220,7 @@ router.get('/health/cache_hit_latency', async (req: Request, res: Response) => {
   const windowSeconds = Number.isFinite(windowParam) && windowParam > 0 && windowParam <= 7 * 24 * 3600
     ? Math.floor(windowParam)
     : 3600;
-  const ttlSeconds = Number(process.env.MCP_FTS_CACHE_TTL_SECONDS || 300);
+  const ttlSeconds = MCP_FTS_CACHE_TTL_SECONDS;
   try {
     const latency = await readCacheHitLatencyPercentiles(redis, windowSeconds);
     const p95 = latency.p95_ms ?? null;
