@@ -2,9 +2,21 @@ import { db } from '../config';
 import { recordMonitoredEndpointProbeSamples, refreshRecentP95Windows } from '../monitoring/p95';
 
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
-const HEALTH_INTERVAL_MS = 30_000;
-const CATALOG_STATS_INTERVAL_MS = 60_000;
-const MCP_LIST_CATEGORIES_INTERVAL_MS = 60_000;
+// 2026-08-26 (Richmond): these probes run on EVERY api/mcp replica and were hard-coded at
+// 30-60 s. catalog/stats alone forced a count(*) over 365M rows back-to-back on the search
+// replica; together with the search samples they were the single largest load on it
+// (pg_stat_statements: 672K rank queries, p95 12-29 s, zero-result timeouts for customers).
+// Intervals are now env-tunable with conservative defaults; P95_PROBES_ENABLED=0 disables.
+const envMs = (key: string, fallback: number): number => {
+  const v = Number(process.env[key]);
+  return Number.isFinite(v) && v >= 10_000 ? v : fallback;
+};
+const HEALTH_INTERVAL_MS = envMs('P95_HEALTH_INTERVAL_MS', 300_000);
+const CATALOG_STATS_INTERVAL_MS = envMs('P95_CATALOG_STATS_INTERVAL_MS', 3_600_000);
+const MCP_LIST_CATEGORIES_INTERVAL_MS = envMs('P95_MCP_LIST_CATEGORIES_INTERVAL_MS', 900_000);
+const ENDPOINT_SAMPLES_INTERVAL_MS = envMs('P95_ENDPOINT_SAMPLES_INTERVAL_MS', 900_000);
+const WINDOW_REFRESH_INTERVAL_MS = envMs('P95_WINDOW_REFRESH_INTERVAL_MS', 300_000);
+const PROBES_ENABLED = process.env.P95_PROBES_ENABLED !== '0';
 
 const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
   || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
@@ -103,6 +115,10 @@ export function startP95ProbeScheduler(): void {
   if (schedulerStarted) {
     return;
   }
+  if (!PROBES_ENABLED) {
+    console.log('[p95-probe] disabled via P95_PROBES_ENABLED=0');
+    return;
+  }
   schedulerStarted = true;
 
   console.log(`[p95-probe] starting external probe scheduler against ${API_BASE_URL}`);
@@ -130,8 +146,8 @@ export function startP95ProbeScheduler(): void {
     setInterval(() => { void probeHealth().catch(swallow('probeHealth')); }, HEALTH_INTERVAL_MS),
     setInterval(() => { void probeCatalogStats().catch(swallow('probeCatalogStats')); }, CATALOG_STATS_INTERVAL_MS),
     setInterval(() => { void probeMcpListCategories().catch(swallow('probeMcpListCategories')); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
-    setInterval(() => { void recordMonitoredEndpointProbeSamples().catch(swallow('recordMonitoredEndpointProbeSamples')); }, 60_000),
-    setInterval(() => { void refreshRecentP95Windows().catch(swallow('refreshRecentP95Windows')); }, 60_000),
+    setInterval(() => { void recordMonitoredEndpointProbeSamples().catch(swallow('recordMonitoredEndpointProbeSamples')); }, ENDPOINT_SAMPLES_INTERVAL_MS),
+    setInterval(() => { void refreshRecentP95Windows().catch(swallow('refreshRecentP95Windows')); }, WINDOW_REFRESH_INTERVAL_MS),
   ];
 
   for (const timer of schedulerTimers) {
