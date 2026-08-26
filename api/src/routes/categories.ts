@@ -3,8 +3,12 @@ import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { queryLogMiddleware } from '../middleware/queryLog';
+import { agentIndexMiddleware } from '../middleware/agentHeaders';
 
 const router = Router();
+
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentIndexMiddleware);
 const CACHE_TTL = 300; // 5 min — categories change slowly
 
 function slugifyCategory(value: string): string {

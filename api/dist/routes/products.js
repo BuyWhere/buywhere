@@ -7,6 +7,7 @@ const config_1 = require("../config");
 const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
+const agentHeaders_1 = require("../middleware/agentHeaders");
 const posthog_1 = require("../analytics/posthog");
 const cacheStats_1 = require("../monitoring/cacheStats");
 const queryLog_1 = require("../middleware/queryLog");
@@ -562,6 +563,10 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q, inferred = fa
     }
 }
 const router = (0, express_1.Router)();
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK responses for catalog queries.
+// Mounted before any route handler so every catalog response carries the
+// canonical query URL (q + country_code) for agent-client re-use.
+router.use(agentHeaders_1.agentIndexMiddleware);
 // GET /v1/products
 // List products with pagination + filter + sort (API v1 contract).
 // Query params: page (default 1), limit (default 20, max 100),
@@ -811,26 +816,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!res.headersSent) {
             // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
             // agent's toolchain; a 504 gets the tool dropped from rotation.
-            const degradedBody = {
-                data: [],
-                meta: {
-                    total: 0,
-                    limit: 20,
-                    offset: 0,
-                    response_time_ms: Date.now() - requestStart,
-                    cached: false,
-                    degraded: true,
-                    emptiness_reason: 'api_error',
-                    confidence: 'low',
-                    diagnostic: {
-                        engine_status: 'error',
-                        indexed_for_region: true,
-                        category_recognized: true,
-                        rate_limit_remaining: null,
-                        deliver_to_present: Boolean(req.query.deliver_to || req.query.country_code || req.query.country),
-                    },
-                },
-            };
+            const degradedBody = (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildV1SearchEmptiness(false, 'timeout', 'catalog_search'));
             res.status(200).json(degradedBody);
             // BUY-65260: cache the degraded payload for a short window so a repeat of
             // an always-slow query returns from Redis instead of re-running the 10s
@@ -888,7 +874,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // and labels availability; never hard-filters (country_code remains the hard filter).
     // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
     const includeUnshippable = req.query.include_unshippable !== 'false';
-    const buildV1SearchEmptiness = (apiError = false) => (0, response_1.deriveEmptiness)({
+    const buildV1SearchEmptiness = (apiError = false, degradedKind, timedOutStage) => (0, response_1.deriveEmptiness)({
         regionHasAnyData: true,
         categoryHasAnyData: true,
         apiError,
@@ -901,6 +887,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         deliverToPresent: Boolean(deliverTo || countryCode),
         unfilteredHasAnyData: null,
         queryAmbiguous: null,
+        degradedKind,
+        timedOutStage,
     });
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -1369,6 +1357,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+        await client.query(`SET LOCAL enable_seqscan = off`); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
         await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
         // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
         // queries are already bounded by the freshness guardrail, so their OR cost is
@@ -1668,17 +1657,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             }
             client.release();
             if (!res.headersSent) {
-                res.status(200).json({
-                    data: [],
-                    meta: {
-                        total: 0,
-                        limit: 20,
-                        offset: 0,
-                        response_time_ms: 0,
-                        cached: false,
-                        degraded: true,
-                    },
-                });
+                res.status(200).json((0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildV1SearchEmptiness(false, 'timeout', 'catalog_search')));
             }
             return;
         }

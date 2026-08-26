@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
+import { agentIndexMiddleware } from '../middleware/agentHeaders';
 
 // BUY-52288: DB has 5 actual stages (active, backfilled_orphan, discovered,
 // ingested, interested); the old 4-element list rejected 'ingested' — the value
@@ -48,6 +49,9 @@ async function withDbRetry<T>(operation: () => Promise<T>, label: string, maxRet
 }
 
 const router = Router();
+
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentIndexMiddleware);
 
 interface MerchantUpsertPayload {
   id: string;

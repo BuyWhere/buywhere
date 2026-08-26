@@ -16,8 +16,11 @@ const deviceClassifier_1 = require("../lib/deviceClassifier");
 const instrumentation_1 = require("../lib/instrumentation");
 const healthSnapshot_1 = require("../monitoring/healthSnapshot");
 const shoppingJobFunnel_1 = require("../monitoring/shoppingJobFunnel");
+const v2KpiWriter_1 = require("../monitoring/v2KpiWriter");
 // BUY-73521: start funnel writer on module load (idempotent).
 (0, shoppingJobFunnel_1.startShoppingJobFunnel)();
+// BUY-75415: start v2 KPI sink writer on module load (idempotent).
+// Auto-started inside the module — explicit call here would be redundant.
 // BUY-73521: v2 buyer-context tools that participate in the purchase funnel.
 // All have REQUIRED deliver_to per the v2 wire contract (BUY-72533).
 const V2_BUYER_TOOLS = new Set([
@@ -217,6 +220,13 @@ const TOOLS = [
             type: 'object',
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
+                // BUY-75287: accept the natural `query` alias so callers (Atlas cycle 23,
+                // agents) using it don't silently fall into the no-q browse branch — that
+                // path returns 0 rows plus a pg_class.reltuples "total" (~364,777,600)
+                // that looks like fabricated cache data. Live repro (2026-08-26):
+                // api.buywhere.ai/mcp search_products(query="running shoes",
+                // country_code="TH") → data:[], total:364777600, cached:false.
+                query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -366,6 +376,8 @@ const V2_TOOLS = [
             required: ['deliver_to'],
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
+                // BUY-75287: `query` alias for q — see v1 schema above for rationale.
+                query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -464,7 +476,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args) {
     const t0 = Date.now();
     void args.deliver_to;
-    const q = args.q || '';
+    // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
+    // cycle 23, agents) passing `query` instead of canonical `q` silently fall
+    // into the no-q browse branch: 0 rows plus a pg_class.reltuples "total"
+    // (~364,777,600) that looks like fabricated cache data. Same regression was
+    // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
+    // refactors; this re-applies and documents the contract on both handlers.
+    const q = (args.q || args.query || '').trim();
     const mode = args.mode || 'hybrid';
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -581,11 +599,19 @@ async function handleSearchProducts(args) {
         throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
-        // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-        // complete within 12s via GIN index; anything longer signals plan regression or
-        // pool exhaustion. Failing fast prevents cascading connection starvation.
+        // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
+        // fast into the BUY-74597 degraded envelope rather than holding a pooled
+        // connection across the full client timeout. The GIN bitmap plan must
+        // complete inside this budget; anything longer signals plan regression
+        // or pool exhaustion.
+        // Reduce timeout to protect against runaway queries and increase work_mem
+        // to encourage bitmap GIN plans. Additionally, disable sequential scans for
+        // this short-lived request to force the planner to use the GIN indexes
+        // (search_vector + region/country). This mitigates the observed ~12s
+        // catalog_search latency on SEA markets.
         await searchClient.query('SET statement_timeout = 4000');
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+        await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
         const COUNT_CAP = 1001;
         if (q) {
             const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
@@ -1329,6 +1355,7 @@ async function handleFindBestPrice(args) {
             throw err;
         });
         await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+        await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
         const requestedCountry = country;
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
         const conditions = ['is_active = true', 'price > 0'];
@@ -2422,6 +2449,19 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 if (funnelJobId && result && typeof result === 'object') {
                     result.shopping_job_id = funnelJobId;
                 }
+                // BUY-75415: forward-direction INSERT into monitoring.deliver_to_calls
+                // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
+                // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
+                try {
+                    (0, v2KpiWriter_1.recordV2KpiSink)({
+                        toolName,
+                        args: toolArgs,
+                        apiKey: rawApiKey,
+                        result,
+                        statusCode: 200,
+                    });
+                }
+                catch { /* swallowed inside recordV2KpiSink */ }
                 return res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
                 }));
@@ -2438,6 +2478,19 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         (0, healthSnapshot_1.recordToolCall)({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
                     }
                     catch { }
+                    // BUY-75415: same forward-direction write as tools/call (v2 tools may
+                    // also be invoked via direct method name; the gate metric must reflect
+                    // both surfaces).
+                    try {
+                        (0, v2KpiWriter_1.recordV2KpiSink)({
+                            toolName: method,
+                            args,
+                            apiKey: req.apiKeyRecord?.key ?? null,
+                            result,
+                            statusCode: 200,
+                        });
+                    }
+                    catch { /* swallowed inside recordV2KpiSink */ }
                     return res.json(jsonrpcOk(id, {
                         content: [{ type: 'text', text: JSON.stringify(result) }],
                     }));

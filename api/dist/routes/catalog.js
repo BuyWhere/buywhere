@@ -3,12 +3,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const readReplica_1 = require("../lib/readReplica");
+const agentHeaders_1 = require("../middleware/agentHeaders");
 // BUY-45692: heavy catalog aggregates read from the replica when one is
 // configured (REPLICA_DATABASE_URL) and caught up; otherwise readDb() returns
 // the primary `db`. Interactive /v1/products/search stays on the primary.
 // `db` is still used for the cheap pg_class estimates so they're available even
 // before a replica is provisioned, but the expensive scans route through readDb.
 const router = (0, express_1.Router)();
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentHeaders_1.agentIndexMiddleware);
 // ─── Cache constants ───────────────────────────────────────────────────────
 const CACHE_KEY = 'catalog:stats:exact';
 const CACHE_TTL = 900; // 15 min — reduces pressure on exact counts

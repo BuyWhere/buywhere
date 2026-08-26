@@ -18,6 +18,11 @@ function buildAwinUrl(advertiserId, destination, clickRef) {
     const encoded = encodeURIComponent(destination);
     return `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${awinPublisherId}&clickref=${clickRef}&p=${encoded}`;
 }
+function firstQueryValue(value) {
+    if (Array.isArray(value))
+        value = value[0];
+    return typeof value === 'string' && value.length > 0 ? value.slice(0, 2048) : null;
+}
 const DEFAULT_ALLOWED_DOMAINS = [
     // Singapore retailers
     'lazada.sg',
@@ -183,7 +188,7 @@ const redirectHandler = async (req, res) => {
         let apiKey = null;
         if (authHeader.startsWith('Bearer '))
             apiKey = authHeader.slice(7).trim();
-        const source = req.query.source || 'api_response';
+        const source = firstQueryValue(req.query.source) || 'api_response';
         (async () => {
             try {
                 await withTimeout(config_1.db.query(`INSERT INTO affiliate_clicks
@@ -240,7 +245,11 @@ const redirectHandler = async (req, res) => {
     let apiKey = null;
     if (authHeader.startsWith('Bearer '))
         apiKey = authHeader.slice(7).trim();
-    const source = req.query.source || 'api_response';
+    const source = firstQueryValue(req.query.source) || 'api_response';
+    const pathname = firstQueryValue(req.query.pathname);
+    const currentUrl = firstQueryValue(req.query.current_url) || firstQueryValue(req.query.$current_url);
+    const referrer = firstQueryValue(req.query.referrer) || firstQueryValue(req.query.$referrer);
+    const sessionId = firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id);
     // Log click to DB best-effort (do not block the redirect on a slow write)
     (async () => {
         try {
@@ -260,6 +269,10 @@ const redirectHandler = async (req, res) => {
         merchantId,
         affiliateLinkId,
         source,
+        pathname,
+        currentUrl,
+        referrer,
+        sessionId,
     });
     // Rewrite to Awin tracking URL when publisher + advertiser IDs are configured
     let finalUrl = destinationUrl;

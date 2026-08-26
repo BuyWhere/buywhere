@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
+const agentHeaders_1 = require("../middleware/agentHeaders");
 // BUY-52288: DB has 5 actual stages (active, backfilled_orphan, discovered,
 // ingested, interested); the old 4-element list rejected 'ingested' — the value
 // the sitemap uses to populate /sitemap-products.xml. 'data_received' and
@@ -48,6 +49,8 @@ async function withDbRetry(operation, label, maxRetries = 4) {
     throw lastError;
 }
 const router = (0, express_1.Router)();
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentHeaders_1.agentIndexMiddleware);
 // POST /v1/merchants/upsert — create or update a merchant
 router.post('/upsert', apiKey_1.requireApiKey, async (req, res) => {
     const body = req.body;

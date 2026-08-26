@@ -55,6 +55,10 @@ function trackAffiliateClick(event) {
             merchant_id: event.merchantId,
             affiliate_link_id: event.affiliateLinkId,
             source: event.source,
+            ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
+            ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
+            ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
+            ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
         },
     });
 }

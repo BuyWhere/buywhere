@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { redis, catalogDb } from '../config';
 import { readDb, replicaStatus } from '../lib/readReplica';
+import { agentIndexMiddleware } from '../middleware/agentHeaders';
 
 // BUY-45692: heavy catalog aggregates read from the replica when one is
 // configured (REPLICA_DATABASE_URL) and caught up; otherwise readDb() returns
@@ -9,6 +10,9 @@ import { readDb, replicaStatus } from '../lib/readReplica';
 // before a replica is provisioned, but the expensive scans route through readDb.
 
 const router = Router();
+
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentIndexMiddleware);
 
 // ─── Cache constants ───────────────────────────────────────────────────────
 const CACHE_KEY = 'catalog:stats:exact';

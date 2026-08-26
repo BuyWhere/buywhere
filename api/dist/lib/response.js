@@ -212,6 +212,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
                 confidence: emptiness.confidence,
                 diagnostic: emptiness.diagnostic,
                 degraded_kind: emptiness.degraded_kind,
+                ...(emptiness.degraded_kind && { degraded_reason: emptiness.diagnostic.timed_out_stage ?? 'catalog_search' }),
             }),
         },
     };
