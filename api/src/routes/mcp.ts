@@ -5,7 +5,7 @@ import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { recordQueryCacheLookup } from '../monitoring/cacheStats';
+import { recordQueryCacheLookup, recordCacheHitLatency } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals } from '../lib/response';
 import { lookupMerchantMap } from '../lib/merchantLookup';
@@ -53,6 +53,9 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 300s (5 min) bounds staleness
+// between ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
+const MCP_FTS_CACHE_TTL_SECONDS = parseInt(process.env.MCP_FTS_CACHE_TTL_SECONDS || '300', 10);
 
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
@@ -611,6 +614,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed.results) {
+        // BUY-75411: record cache-hit wall-clock latency so the admin probe
+        // can report p95 over the sliding window.
+        await recordCacheHitLatency(redis, Date.now() - t0);
         return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
       }
     }
@@ -1028,7 +1034,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
 
   try {
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', MCP_FTS_CACHE_TTL_SECONDS);
   } catch (_) { /* cache write failure is non-fatal */ }
 
   // F24 (2026-08-22): nudge agents that skipped deliver_to — added after the
@@ -1933,6 +1939,11 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       if (keys.length > 0) await redis.del(...keys);
       const searchKeys = await redis.keys('search:*');
       if (searchKeys.length > 0) await redis.del(...searchKeys);
+      // BUY-75291: MCP /search_products uses fts:v7:* keys; prior ingestion
+      // paths only busted products:* + search:*, so per-(q,cc) snapshots
+      // survived reindexes indefinitely. Clear the FTS namespace on success.
+      const ftsKeys = await redis.keys('fts:v7:*');
+      if (ftsKeys.length > 0) await redis.del(...ftsKeys);
       await redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
     } catch (e) {
       console.warn('[mcp:ingest] Cache invalidation failed:', (e as Error).message);

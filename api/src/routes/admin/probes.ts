@@ -13,9 +13,10 @@
 //   3. Add url_last_checked_at / url_status counts over the 7-day window so
 //      A1 dead-redirect rate is directly computable.
 import { Router, Request, Response } from 'express';
-import { db } from '../../config';
+import { db, redis } from '../../config';
 import { outboundProbeEnabled } from '../../lib/outboundLinkHealth';
 import { adminAuth } from './auth';
+import { readCacheHitLatencyPercentiles } from '../../monitoring/cacheStats';
 
 const router = Router();
 
@@ -138,6 +139,39 @@ router.get('/v1/admin/probes/status', probeAuth, async (_req: Request, res: Resp
     });
   } catch (err) {
     res.status(500).json({ error: 'probe_status_failed', message: (err as Error).message });
+  }
+});
+
+// BUY-75411: MCP search_products cache-hit latency p95 probe.
+// Auth via probeAuth so monitoring tier (MONITORING_API_KEY) can scrape it.
+router.get('/v1/admin/probes/mcp_cache_hit_latency', probeAuth, async (req: Request, res: Response) => {
+  const windowParam = Number(req.query.window ?? 3600);
+  const windowSeconds = Number.isFinite(windowParam) && windowParam > 0 && windowParam <= 7 * 24 * 3600
+    ? Math.floor(windowParam)
+    : 3600;
+  const ttlSeconds = Number(process.env.MCP_FTS_CACHE_TTL_SECONDS || 300);
+  try {
+    const latency = await readCacheHitLatencyPercentiles(redis, windowSeconds);
+    const sample_count = latency.sample_count ?? 0;
+    const p95 = latency.p95_ms ?? null;
+    const passes = p95 !== null && p95 <= 200;
+    res.json({
+      window_seconds: latency.window_seconds ?? windowSeconds,
+      sample_count,
+      p50_ms: latency.p50_ms ?? null,
+      p95_ms: p95,
+      p99_ms: latency.p99_ms ?? null,
+      max_ms: latency.max_ms ?? null,
+      buckets_considered: latency.buckets_considered ?? 0,
+      cache_ttl_seconds: ttlSeconds,
+      available: latency.available === true,
+      reason: latency.reason ?? null,
+      threshold_ms: 200,
+      passes_p95_under_200ms: passes,
+      probe_note: 'wall-clock latency from recordQueryCacheLookup hit branch to response_time_ms stamp; sortable in Redis sorted set qembed:fts:cache_hit:60:<bucket>',
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'mcp_cache_hit_latency_failed', message: (err as Error).message });
   }
 });
 
