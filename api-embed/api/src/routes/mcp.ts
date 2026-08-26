@@ -94,6 +94,7 @@ const TOOLS = [
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        deliver_to: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Alias for country_code. Buyer delivery country. Preferred by Wave and v2 callers.' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -533,7 +534,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
   const region = (args.region as string) || '';
-  const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const country = ((args.country_code as string) || (args.country as string) || (args.deliver_to as string) || '').toUpperCase();
   // BUY-60068: when only `region` is supplied (no `country_code`), derive country
   // from region so the currency filter and country-specific fallback both fire.
   // Mirrors the existing derivation in handleFindBestPrice below.
