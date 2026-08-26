@@ -1033,12 +1033,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     emptiness = deriveEmptiness(signals);
   }
 
-  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 response.
-  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
-  const _hasProducts = products.length > 0;
-  const _engineStatus: SearchResponseOptions['engineStatus'] = 'ok';
-  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
-
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false,
     undefined, undefined, country || null,
@@ -1084,14 +1078,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
-  // BUY-72701 / P2.6A: get_product always returns a single product (no emptiness possible).
-  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false, undefined, undefined, {
-    deliverToPresent: false,
-    engineStatus: 'ok',
-    indexedForRegion: true,
-    categoryRecognized: true,
-    rateLimitRemaining: 999,
-  });
+  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
 }
 
 async function handleCompareProducts(args: Record<string, unknown>) {
@@ -1124,14 +1111,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Products not found' };
   }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
-  // BUY-72701 / P2.6A: compare_products always returns requested IDs (no emptiness path).
-  return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false, undefined, undefined, {
-    deliverToPresent: false,
-    engineStatus: 'ok',
-    indexedForRegion: true,
-    categoryRecognized: true,
-    rateLimitRemaining: 999,
-  });
+  return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
@@ -1285,21 +1265,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     if (dealsClient) releaseClientSafely(dealsClient);
   }
 
-  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 get_deals.
-  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
-  const _hasProducts = products.length > 0;
-  const _ftsTimedOut = false; // get_deals catches PG 57014 internally
-  const _engineStatus: SearchResponseOptions['engineStatus'] = _ftsTimedOut ? 'degraded' : 'ok';
-  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
-
-  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false, undefined, undefined, {
-    deliverToPresent: _deliverToPresent,
-    emptinessReason: _emptinessReason,
-    engineStatus: _engineStatus,
-    indexedForRegion: _hasProducts,
-    categoryRecognized: true,
-    rateLimitRemaining: 999,
-  });
+  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
   // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
   // and the regional fallback returned zero rows for the requested region/country,
   // so callers can distinguish "no live deals" from "server bug".
@@ -1710,12 +1676,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     };
   });
 
-  // BUY-72701 / P2.6A: compute diagnostic + emptiness meta for v1 find_best_price.
-  const _deliverToPresent = !!(args.deliver_to || args.country_code || args.country);
-  const _hasProducts = data.length > 0;
-  const _engineStatus: SearchResponseOptions['engineStatus'] = ftsTimedOut ? 'degraded' : 'ok';
-  const _emptinessReason = !_hasProducts && !_deliverToPresent ? 'deliver_to_missing' as const : undefined;
-
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
@@ -2100,6 +2060,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   };
 }
 
+
 // BUY-73666: `market` is a common agent alias for `country_code`. When agents pass
 // market=MY it was silently ignored because no handler read args.market, causing
 // every non-SG query to fall through to the SG default. Normalize once at
@@ -2118,10 +2079,9 @@ function normalizeMarketArg(args: Record<string, unknown>): void {
     args.country_code = mapped;
   }
 }
-
 async function dispatchTool(name: string, args: Record<string, unknown>) {
-  normalizeMarketArg(args);
   switch (name) {
+  normalizeMarketArg(args);
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
     case 'compare_products': return handleCompareProducts(args);
