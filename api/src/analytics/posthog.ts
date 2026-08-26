@@ -49,6 +49,12 @@ export function trackApiQuery(event: ApiQueryEvent): void {
 }
 
 export interface AffiliateClickEvent {
+  // BUY-71129 (re-applied, was clobbered by 554950c7): apiKeyId (api_keys.id
+  // uuid) takes distinct_id priority so the conversion joins the api_query /
+  // mcp_tool_call funnel; apiKey (sha256 hash) is the fallback; only truly
+  // anonymous clicks (no auth, no upstream agent context) collapse to
+  // 'anonymous'.
+  apiKeyId?: string | null;
   apiKey: string | null;
   productId: string;
   merchantId: string;
@@ -64,13 +70,14 @@ export function trackAffiliateClick(event: AffiliateClickEvent): void {
   const ph = getClient();
   if (!ph) return;
   ph.capture({
-    distinctId: event.apiKey || 'anonymous',
+    distinctId: event.apiKeyId || event.apiKey || 'anonymous',
     event: 'affiliate_click',
     properties: {
       product_id: event.productId,
       merchant_id: event.merchantId,
       affiliate_link_id: event.affiliateLinkId,
       source: event.source,
+      ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
       ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
       ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
       ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),

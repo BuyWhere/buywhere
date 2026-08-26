@@ -90,6 +90,16 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   const authHeader = req.headers['authorization'] || '';
   let apiKey: string | null = null;
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
+
+  // BUY-71129 (re-applied, was clobbered by 554950c7): thread-through
+  // attribution. Browser clicks carry ?k=<keyHash>&aid=<agentId> from the
+  // upstream API call; Bearer auth stays canonical when present.
+  const keyHashQuery = (req.query.k as string | undefined) || null;
+  const agentIdQuery = (req.query.aid as string | undefined) || null;
+  let resolvedAgentId: string | null = agentIdQuery;
+  let resolvedKeyHash: string | null = apiKey ? hashKey(apiKey) : null;
+  if (!resolvedKeyHash && keyHashQuery) resolvedKeyHash = keyHashQuery;
+
   const source = req.query.source as string || 'api_response';
 
   // Log click to DB (before redirect)
@@ -103,7 +113,8 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   // PostHog event (fire-and-forget)
   // Hash API key before sending to third-party analytics
   trackAffiliateClick({
-    apiKey: apiKey ? hashKey(apiKey) : null,
+    apiKeyId: resolvedAgentId,
+    apiKey: resolvedKeyHash,
     productId,
     merchantId,
     affiliateLinkId,

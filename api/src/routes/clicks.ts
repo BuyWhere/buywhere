@@ -12,6 +12,7 @@ import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, catalogDb } from '../config';
+import { trackAffiliateClick } from '../analytics/posthog';
 
 const router = Router();
 
@@ -136,6 +137,16 @@ router.get('/click', async (req: Request, res: Response) => {
   const auth = req.headers['authorization'] || '';
   const apiKey = auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
 
+  // BUY-71129 (re-applied): thread-through attribution. The upstream API call
+  // embeds ?k=<keyHash>&aid=<agentId> on /api/click URLs so a browser click
+  // (no Bearer header) can still be tied back to an agent.
+  const keyHashQuery = (req.query.k as string | undefined) || null;
+  const agentIdQuery = (req.query.aid as string | undefined) || null;
+  const resolvedAgentId = agentIdQuery;
+  const resolvedKeyHash = apiKey
+    ? createHash('sha256').update(apiKey).digest('hex')
+    : keyHashQuery;
+
   const referrer = req.headers['referer'] || req.headers['referrer'] || null;
 
   const clientIp = req.ip || req.socket?.remoteAddress || '';
@@ -195,6 +206,20 @@ router.get('/click', async (req: Request, res: Response) => {
            AND consecutive_outbound_days >= 3`,
       [apiKeyId]
     ).catch(() => {});
+  }
+
+  // BUY-71129 (re-applied): emit affiliate_click for the /api/click path too.
+  // Same distinct_id priority (apiKeyId → apiKey → anonymous) as redirect.ts so
+  // the funnel join works for both code paths.
+  if (productId) {
+    trackAffiliateClick({
+      apiKeyId: resolvedAgentId,
+      apiKey: resolvedKeyHash,
+      productId,
+      merchantId: merchantId || 'unknown',
+      affiliateLinkId: 'unknown',
+      source: 'product_card',
+    });
   }
 
   res.redirect(302, url);

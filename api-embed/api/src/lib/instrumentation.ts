@@ -115,13 +115,18 @@ export function recordProductViewsBulk(opts: {
 const API_BASE = process.env.PUBLIC_API_BASE || 'https://api.buywhere.ai';
 
 /**
- * /api/click?url=<merchant_url>&product_id=<id>&merchant=<slug>
+ * /api/click?url=<merchant_url>&product_id=<id>&merchant=<slug>&k=<keyHash>&aid=<agentId>
  * The /api/click handler validates the destination and INSERTs into `clicks`.
+ * BUY-71129 (re-applied, was clobbered by 554950c7): k + aid thread caller
+ * attribution through to a browser click (which has no Bearer header). See
+ * api/src/lib/instrumentation.ts for full rationale.
  */
 export function buildClickUrl(opts: {
   productId: string;
   destinationUrl: string;
   merchantId?: string | null;
+  keyHash?: string | null;
+  agentId?: string | null;
 }): string {
   const params = new URLSearchParams({
     url: opts.destinationUrl,
@@ -129,23 +134,33 @@ export function buildClickUrl(opts: {
     source: 'product_card',
   });
   if (opts.merchantId) params.set('merchant', opts.merchantId);
+  if (opts.keyHash) params.set('k', opts.keyHash);
+  if (opts.agentId) params.set('aid', opts.agentId);
   return `${API_BASE}/api/click?${params.toString()}`;
 }
 
 /**
- * /r/:slug/:productId?source=<src>
+ * /r/:slug/:productId?source=<src>&k=<keyHash>&aid=<agentId>
  * The /r handler looks up affiliate_links and INSERTs into `affiliate_clicks`
  * before 302-redirecting to the merchant (or the Awin-wrapped destination).
  * Fallback slug `direct` lets the FE route any merchant through the same path
  * even when no affiliate_link row exists — redirect.ts already handles that
  * fallback (it queries products.url and logs the click).
+ * BUY-71129: see buildClickUrl above.
  */
 export function buildAffiliateRedirectUrl(opts: {
   productId: string;
   source?: string;
   slug?: string;
+  keyHash?: string | null;
+  agentId?: string | null;
 }): string {
   const slug = opts.slug || 'direct';
-  const qs = opts.source ? `?source=${encodeURIComponent(opts.source)}` : '';
-  return `${API_BASE}/r/${encodeURIComponent(slug)}/${encodeURIComponent(opts.productId)}${qs}`;
+  const params = new URLSearchParams();
+  if (opts.source) params.set('source', opts.source);
+  if (opts.keyHash) params.set('k', opts.keyHash);
+  if (opts.agentId) params.set('aid', opts.agentId);
+  const qs = params.toString();
+  const base = `${API_BASE}/r/${encodeURIComponent(slug)}/${encodeURIComponent(opts.productId)}`;
+  return qs ? `${base}?${qs}` : base;
 }
