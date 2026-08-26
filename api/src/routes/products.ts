@@ -5,6 +5,7 @@ import { db, redis, vectorDb } from '../config';
 import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
+import { agentIndexMiddleware } from '../middleware/agentHeaders';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -526,6 +527,11 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
 }
 
 const router = Router();
+
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK responses for catalog queries.
+// Mounted before any route handler so every catalog response carries the
+// canonical query URL (q + country_code) for agent-client re-use.
+router.use(agentIndexMiddleware);
 
 // GET /v1/products
 // List products with pagination + filter + sort (API v1 contract).

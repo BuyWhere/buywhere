@@ -94,6 +94,17 @@ function createApp() {
     app.use((0, cors_1.default)({
         origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
         credentials: true,
+        // BUY-75413 (P2.3): expose the X-Agent-* headers to browser-side agent
+        // clients. Without this, browsers withhold the headers from JS even
+        // though they appear on the wire. Names must match the values set in
+        // api/src/middleware/agentHeaders.ts.
+        exposedHeaders: [
+            'X-Agent-Protocol',
+            'X-Agent-Card',
+            'X-LLMs-Txt',
+            'X-Agent-Index',
+            'X-Agent-Auth',
+        ],
     }));
     app.use((_req, res, next) => {
         res.set('X-Content-Type-Options', 'nosniff');
