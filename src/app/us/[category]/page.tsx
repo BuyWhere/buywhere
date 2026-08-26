@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { USSearchAutocomplete } from "@/components/USSearchAutocomplete";
+import { USCategorySearch } from "@/components/USCategorySearch";
 import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -97,14 +97,7 @@ function CategoryHero({ category }: { category: string }) {
           </p>
           <div className="max-w-xl mx-auto">
             <div className="relative">
-              <USSearchAutocomplete
-                value=""
-                onChange={() => {}}
-                onSubmit={(query) => {
-                  window.location.href = `/search?q=${encodeURIComponent(query)}&region=us&category=${category}`;
-                }}
-                placeholder={`Search ${categoryName.toLowerCase()} products...`}
-              />
+              <USCategorySearch category={category} categoryName={categoryName} />
             </div>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
