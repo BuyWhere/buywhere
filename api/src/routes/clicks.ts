@@ -165,13 +165,26 @@ router.get('/click', async (req: Request, res: Response) => {
     apiKeyId = keyRow.rows[0]?.id || null;
   }
 
-  // Align INSERT to actual clicks table schema:
-  // id, product_id, merchant_id, user_id, api_key, referrer, destination_url, ip_hash, source, clicked_at
+  // Align INSERT to actual clicks table schema (verified via
+  // information_schema 2026-08-26, BUY-75628): id, tracking_id, product_id,
+  // platform, destination_url, api_key_id, clicked_at, user_agent, referrer,
+  // … The previous INSERT named columns (api_key, ip_hash, source) that do
+  // NOT exist in prod — every insert failed since 2026-08-22. Resolve the
+  // api_key_id from ?aid= / ?k= (BUY-71129) or the Bearer lookup (BUY-72774).
+  const clicksApiKeyId = resolvedAgentId
+    ?? apiKeyId
+    ?? (resolvedKeyHash
+      ? (await db.query<{ id: string }>(
+          'SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1',
+          [resolvedKeyHash]
+        ).then(r => r.rows[0]?.id ?? null).catch(() => null))
+      : null);
   try {
     await db.query(
-      `INSERT INTO clicks (id, product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [uuidv4(), productId, merchantId, apiKey, referrer, url, ipHash, 'api']
+      `INSERT INTO clicks (id, product_id, platform, destination_url, api_key_id, user_agent, referrer)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [uuidv4(), productId, merchantId, url, clicksApiKeyId,
+       (req.headers['user-agent'] as string) || null, (referrer as string) || null]
     );
   } catch (err) {
     // Log but don't block the redirect
