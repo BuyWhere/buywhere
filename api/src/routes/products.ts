@@ -877,15 +877,16 @@ router.get(
     // BUY-67275 (#29, 2026-08-14): a real sort must survive the whole pipeline.
     // Whitelist mirrors VALID_SORT below (defined later in this scope).
     const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
-    // country_code is the canonical param; `country` is kept as a backward-compat alias.
-    // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
-    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
+    // deliver_to is the buyer market and takes precedence over country_code/country.
+    // country_code is the canonical legacy param; `country` is kept as a backward-compat alias.
+    // No silent default: callers must pass a market when they want a hard filter.
+    const explicitDeliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
+    const explicitCountry = explicitDeliverTo || ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     // BUY-73952: deliver_to default inference — agent queries that supply country_code but omit
     // deliver_to should still get shipping-ranked results. Infer deliver_to from country_code
     // when it's missing, and stamp meta.deliver_to_inferred=true so callers know the rank was
     // implicit. Keeps include_unshippable=true (default) so cross-region discovery still works.
-    const explicitDeliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const deliverToInferred = !explicitDeliverTo && !!countryCode;
     const deliverTo = explicitDeliverTo || (deliverToInferred ? countryCode : undefined);
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
@@ -904,9 +905,9 @@ router.get(
     // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
     // correct. Keyword archive path honors buildSortOrder end-to-end.
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
-    // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
-    // and labels availability; never hard-filters (country_code remains the hard filter).
-    // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
+    // deliver_to contract (BUY-75564): the END USER's country. Explicit deliver_to is
+    // promoted to the same hard market filter as country_code/country so REST calls do
+    // not scan all markets; country_code/country still infer deliver_to for ranking.
     const includeUnshippable = req.query.include_unshippable !== 'false';
     const buildV1SearchEmptiness = (
       apiError = false,
