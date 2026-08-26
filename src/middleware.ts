@@ -293,14 +293,15 @@ function normalizePathname(pathname: string): string {
  * removed.  Google Search Console treats a 308→/blog redirect as "Page with
  * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
  * tells Google to drop the URL cleanly.
+ *
+ * BUY-74947 (SEO-GATE): the five where-to-buy-* SG posts below were
+ * regenerated under BUY-74907 and re-entered the blog canonical surface. They
+ * are removed from this deny-list so middleware stops returning 410 for them;
+ * the App Router resolves each via generateStaticParams() and they appear in
+ * sitemap-blog.xml. Removing dead-slug entries requires a named SEO-GATE
+ * ticket per the indexation directive.
  */
-const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-iphone-16-singapore",
-  "where-to-buy-macbook-air-m3-singapore",
-  "where-to-buy-nintendo-switch-singapore",
-  "where-to-buy-ps5-singapore",
-  "where-to-buy-sony-wh-1000xm5-singapore",
-]);
+const DEAD_BLOG_SLUGS = new Set<string>([]);
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
