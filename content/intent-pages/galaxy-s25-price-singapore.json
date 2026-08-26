@@ -10,11 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Samsung Galaxy S25 256GB",
+  "searchQuery": "Samsung Galaxy S25 5G",
   "backupQueries": [
-    "Galaxy S25 Singapore",
-    "Samsung S25 phone",
-    "Samsung Galaxy S25"
+    "Galaxy S25 5G",
+    "Samsung S25 5G",
+    "Samsung Galaxy S25 AI"
   ],
   "minPrice": 700,
   "requiredProductTerms": [
