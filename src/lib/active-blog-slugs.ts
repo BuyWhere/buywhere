@@ -57,7 +57,6 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "singapore-product-data-api-what-to-look-for",
   "the-mcp-server-discovery-gap",
   "true-zero-human-self-serve-mcp-2026",
-<<<<<<< HEAD
   "where-to-buy-airpods-singapore",
   "where-to-buy-apple-watch-singapore",
   "where-to-buy-bose-qc45-singapore",
