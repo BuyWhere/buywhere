@@ -180,10 +180,12 @@ router.get('/click', async (req: Request, res: Response) => {
         ).then(r => r.rows[0]?.id ?? null).catch(() => null))
       : null);
   try {
+    // id is BIGINT auto-increment; tracking_id carries the UUID.
+    // product_id is BIGINT — cast from the query string.
     await db.query(
-      `INSERT INTO clicks (id, product_id, platform, destination_url, api_key_id, user_agent, referrer)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [uuidv4(), productId, merchantId, url, clicksApiKeyId,
+      `INSERT INTO clicks (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer)
+       VALUES ($1, $2::bigint, $3, $4, $5, $6, $7)`,
+      [uuidv4(), productId || '0', merchantId || null, url, clicksApiKeyId,
        (req.headers['user-agent'] as string) || null, (referrer as string) || null]
     );
   } catch (err) {
