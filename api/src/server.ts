@@ -6,6 +6,7 @@ import authRouter from './routes/auth';
 import billingRouter from './routes/billing';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
+import brandsRouter from './routes/brands';
 import redirectRouter from './routes/redirect';
 import wellknownRouter, { sendOpenApiSpec } from './routes/wellknown';
 import docsRouter from './routes/docs';
@@ -246,6 +247,7 @@ export function createApp() {
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
+  app.use('/v1/brand', brandsRouter);
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
   // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.
