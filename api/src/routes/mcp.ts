@@ -820,7 +820,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             }
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products WHERE ${detailConditions.join(' AND ')}`,
               detailParams
             );
@@ -835,7 +836,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -852,7 +854,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code,
+                    url_last_checked_at, url_status
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -877,6 +880,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
@@ -1215,6 +1219,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
+              p.url_last_checked_at, p.url_status,
               p.discount_pct
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
@@ -1546,7 +1551,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
+              p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
