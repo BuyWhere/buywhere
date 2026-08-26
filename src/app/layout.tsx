@@ -79,7 +79,10 @@ export const metadata: Metadata = {
 };
 
 // Avoid long-lived stale HTML referencing removed hashed static assets after deploy.
-export const revalidate = 300;
+// 2026-08-26 (Richmond): ISR regeneration every 5 min turned every crawler visit into a cold catalog search on the
+// replica (p95 12–29 s, zero-result timeouts). Hourly is fresh enough for prices on intent/blog/category pages;
+// deals/brands/stores keep their own 900 s. Do not lower this again without a replica RAM upgrade.
+export const revalidate = 3600;
 
 export default function RootLayout({
   children,
