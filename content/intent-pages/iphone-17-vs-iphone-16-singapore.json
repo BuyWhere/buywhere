@@ -11,7 +11,7 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "iPhone 17 vs iPhone 16",
+  "searchQuery": "Apple iPhone",
   "backupQueries": ["Apple iPhone 17", "Apple iPhone 16", "iPhone 17 Pro Singapore"],
   "minPrice": 600,
   "requiredProductTerms": ["iphone", "apple", "smartphone"],
