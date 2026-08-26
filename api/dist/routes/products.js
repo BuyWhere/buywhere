@@ -685,6 +685,14 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
     const productReadDb = (0, readReplica_1.readDb)();
+    // BUY-74513: track whether the EXPLAIN count sub-query fell back to
+    // pg_class.reltuples (the GLOBAL 89M table total, same value for every
+    // country call) so the response body can mark pagination.total=null and
+    // surface meta.degraded=true + meta.approximate=true instead of the
+    // bogus 90M US-lie. Must be declared OUTSIDE the Promise.all array literal
+    // (an array literal only holds expressions — a `let` inside it is a
+    // parse error: TS1005 `,` expected).
+    let countDegraded = false;
     const [countResult, dataResult] = await Promise.all([
         // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
         // country + active + priced + optional category), not the global pg_class
@@ -717,7 +725,8 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // marks pagination.total=null, total_pages=null and adds
         // meta.degraded=true + meta.approximate=true. Callers (BUY-74088)
         // propagate the flag instead of treating the bogus total as gospel.
-        let countDegraded = false;
+        // BUY-74513 (rev): countDegraded is now declared OUTSIDE this array
+        // (lines above) — `let` inside an array literal is a TS parse error.
         productReadDb.query(`EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);

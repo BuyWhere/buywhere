@@ -665,6 +665,14 @@ router.get(
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
 
     const productReadDb = readDb();
+    // BUY-74513: track whether the EXPLAIN count sub-query fell back to
+    // pg_class.reltuples (the GLOBAL 89M table total, same value for every
+    // country call) so the response body can mark pagination.total=null and
+    // surface meta.degraded=true + meta.approximate=true instead of the
+    // bogus 90M US-lie. Must be declared OUTSIDE the Promise.all array literal
+    // (an array literal only holds expressions — a `let` inside it is a
+    // parse error: TS1005 `,` expected).
+    let countDegraded = false;
     const [countResult, dataResult] = await Promise.all([
       // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
       // country + active + priced + optional category), not the global pg_class
@@ -689,15 +697,11 @@ router.get(
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
       //
-      // BUY-74513: track whether the EXPLAIN sub-query itself failed and the
-      // pg_class fallback fired — when that happens the surfaced total is
-      // the GLOBAL pg_class.reltuples (the SAME 89M for every country call),
-      // which is the exact bug the wake comment calls out ("stale 90M-lie
-      // for the US market"). Set countDegraded=true so the response body
-      // marks pagination.total=null, total_pages=null and adds
-      // meta.degraded=true + meta.approximate=true. Callers (BUY-74088)
-      // propagate the flag instead of treating the bogus total as gospel.
-      let countDegraded = false;
+      // BUY-74513: see countDegraded declared above. The .catch() below sets
+      // it true when EXPLAIN failed AND we fell back to pg_class.reltuples —
+      // the GLOBAL number is unsafe to expose as pagination.total, so the
+      // response body surfaces meta={ degraded:true, approximate:true,
+      // count_source:'pg_class_fallback', reason:'EXPLAIN_count_failed' }.
       productReadDb.query(
         `EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`,
         params
