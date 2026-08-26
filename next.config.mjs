@@ -335,6 +335,19 @@ const nextConfig = {
         destination: '/pricing',
         permanent: true,
       },
+      // BUY-75315: /pricing and /challenge route into /developers — header nav no
+      // longer links to either, but legacy external links and crawlers must be
+      // 301'd (not 410'd — indexation directive forbids 410 for retired URLs).
+      {
+        source: '/pricing',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/challenge',
+        destination: '/developers',
+        permanent: true,
+      },
       {
         source: '/sdk',
         destination: '/developers',
