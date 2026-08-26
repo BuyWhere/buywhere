@@ -379,6 +379,32 @@ router.get('/openapi.json', (_req: Request, res: Response) => {
 // GET /.well-known/mcp/server-card.json — Smithery skip-scan card
 // Allows Smithery.ai to catalogue the server without a live endpoint scan.
 // Ref: https://smithery.ai/docs/build/publish#troubleshooting
+//
+// P2.7 v2-first (Reed, BUY-75192, plan § Move 1): prepend the exact
+// `[DEPRECATED 2026-10-01 — use <v2-tool> with deliver_to. v1 supported until 2026-12-31.] `
+// prefix to every v1 tool description, and add `recommended_version: "v2"`,
+// `default_api_version: "v2"`, plus the `versions.v2` / `versions.v1` block
+// (v2.status=stable, v1.status=legacy, v1.deprecates_at=2026-10-01, v1.sunset_at=2026-12-31).
+// v2 tool descriptions are unchanged. No tools removed.
+const V1_DEPRECATION_PREFIX_BY_TOOL: Record<string, string> = {
+  search_products:
+    "[DEPRECATED 2026-10-01 — use search_products_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  get_product:
+    "[DEPRECATED 2026-10-01 — use get_product_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  compare_products:
+    "[DEPRECATED 2026-10-01 — use compare_products_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  get_deals:
+    "[DEPRECATED 2026-10-01 — use get_deals_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  find_best_price:
+    "[DEPRECATED 2026-10-01 — use find_best_price_v2 with deliver_to. v1 supported until 2026-12-31.] ",
+  list_categories:
+    "[DEPRECATED 2026-10-01 — list_categories has no v2 equivalent (categories are delivered via search_products_v2). v1 supported until 2026-12-31.] ",
+  find_similar:
+    "[DEPRECATED 2026-10-01 — find_similar has no v2 equivalent. v1 supported until 2026-12-31.] ",
+  ingest_products:
+    "[DEPRECATED 2026-10-01 — ingest_products has no v2 equivalent. v1 supported until 2026-12-31.] ",
+};
+
 router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
   res.json({
     serverInfo: {
@@ -395,15 +421,48 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
         transport: ['streamable-http', 'sse'],
       },
     ],
+    recommended_version: 'v2',
+    default_api_version: 'v2',
+    versions: {
+      v2: {
+        status: 'stable',
+        ships_in: 'P2.7 (Reed, BUY-71816)',
+        released_at: '2026-08-21',
+        tools: [
+          'search_products_v2',
+          'get_product_v2',
+          'compare_products_v2',
+          'get_deals_v2',
+          'find_best_price_v2',
+        ],
+        contract:
+          'deliver_to REQUIRED (ISO 3166 alpha-2). meta.emptiness_reason on empty. meta.deliver_to echoed in responses. country_code→deliver_to default inference available.',
+        differences_from_v1: [
+          'deliver_to is REQUIRED (was a property on v1)',
+          'meta.emptiness_reason on empty results (BUY-71539)',
+          'find_best_price_v2 returns shopping_job_id',
+          'get_product_v2 returns resolved outbound_url',
+          'compare_products_v2 per-row availability',
+        ],
+      },
+      v1: {
+        status: 'legacy',
+        released_at: '2026-04-15',
+        sunset_at: '2026-12-31',
+        deprecates_at: '2026-10-01',
+        deprecation_message:
+          '[DEPRECATED 2026-10-01 — use v2 with deliver_to. v1 supported until 2026-12-31.] ',
+      },
+    },
     tools: [
-      { name: 'search_products', description: 'Full-text product search with price, category, merchant, region, and rating filters across 300M+ products from 20+ e-commerce platforms. Supports multiple currencies and compact JSON mode for AI agents.', inputSchema: { type: 'object', properties: { q: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, currency: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean' } } } },
-      { name: 'get_product', description: 'Get a specific product by ID including full details, current price, brand, category, ratings, merchant info, and specifications.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, currency: { type: 'string' } }, required: ['id'] } },
-      { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
-      { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
-      { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
-      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
-      { name: 'find_similar', description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.', inputSchema: { type: 'object', required: ['product_id'], properties: { product_id: { type: 'string', description: 'UUID of the source product' }, limit: { type: 'integer', default: 10, description: 'Number of similar products to return (1-10)' } } } },
-      { name: 'ingest_products', description: 'Ingest (upsert) a batch of products into the BuyWhere catalog. Accepts up to 1000 products per call with source, SKU, title, price, URL, and optional metadata. Requires an API key with ingest permissions.', inputSchema: { type: 'object', required: ['source', 'products'], properties: { source: { type: 'string', description: 'Data source identifier (e.g. "shopee_sg", "amazon_sg", "lazada_sg")' }, products: { type: 'array', description: 'Array of product objects to ingest (max 1000)', items: { type: 'object', required: ['sku', 'merchant_id', 'title', 'price', 'url'], properties: { sku: { type: 'string' }, merchant_id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, price: { type: 'number' }, currency: { type: 'string', default: 'SGD' }, url: { type: 'string' }, image_url: { type: 'string' }, category: { type: 'string' }, brand: { type: 'string' }, is_active: { type: 'boolean', default: true }, is_available: { type: 'boolean' }, country_code: { type: 'string' }, region: { type: 'string' }, metadata: { type: 'object' } } } } } } },
+      { name: 'search_products', description: V1_DEPRECATION_PREFIX_BY_TOOL.search_products + 'Full-text product search with price, category, merchant, region, and rating filters across 300M+ products from 20+ e-commerce platforms. Supports multiple currencies and compact JSON mode for AI agents.', inputSchema: { type: 'object', properties: { q: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, currency: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean' } } } },
+      { name: 'get_product', description: V1_DEPRECATION_PREFIX_BY_TOOL.get_product + 'Get a specific product by ID including full details, current price, brand, category, ratings, merchant info, and specifications.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, currency: { type: 'string' } }, required: ['id'] } },
+      { name: 'compare_products', description: V1_DEPRECATION_PREFIX_BY_TOOL.compare_products + 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
+      { name: 'get_deals', description: V1_DEPRECATION_PREFIX_BY_TOOL.get_deals + 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
+      { name: 'list_categories', description: V1_DEPRECATION_PREFIX_BY_TOOL.list_categories + 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
+      { name: 'find_best_price', description: V1_DEPRECATION_PREFIX_BY_TOOL.find_best_price + 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
+      { name: 'find_similar', description: V1_DEPRECATION_PREFIX_BY_TOOL.find_similar + 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.', inputSchema: { type: 'object', required: ['product_id'], properties: { product_id: { type: 'string', description: 'UUID of the source product' }, limit: { type: 'integer', default: 10, description: 'Number of similar products to return (1-10)' } } } },
+      { name: 'ingest_products', description: V1_DEPRECATION_PREFIX_BY_TOOL.ingest_products + 'Ingest (upsert) a batch of products into the BuyWhere catalog. Accepts up to 1000 products per call with source, SKU, title, price, URL, and optional metadata. Requires an API key with ingest permissions.', inputSchema: { type: 'object', required: ['source', 'products'], properties: { source: { type: 'string', description: 'Data source identifier (e.g. "shopee_sg", "amazon_sg", "lazada_sg")' }, products: { type: 'array', description: 'Array of product objects to ingest (max 1000)', items: { type: 'object', required: ['sku', 'merchant_id', 'title', 'price', 'url'], properties: { sku: { type: 'string' }, merchant_id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, price: { type: 'number' }, currency: { type: 'string', default: 'SGD' }, url: { type: 'string' }, image_url: { type: 'string' }, category: { type: 'string' }, brand: { type: 'string' }, is_active: { type: 'boolean', default: true }, is_available: { type: 'boolean' }, country_code: { type: 'string' }, region: { type: 'string' }, metadata: { type: 'object' } } } } } } },
       { name: 'search_products_v2', description: 'REQUIRED deliver_to. v2 search with shipping-aware ranking. Always pass deliver_to=<ISO country code> for the buyer\'s market. Returns schema.org/Product with structured_specs, comparison_attributes, normalized_price_usd.', inputSchema: { type: 'object', required: ['deliver_to'], properties: { q: { type: 'string' }, domain: { type: 'string' }, region: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code, e.g. "SG", "US")' }, country: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean', default: false }, category: { type: 'string' }, mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'hybrid' } } } },
       { name: 'get_product_v2', description: 'REQUIRED deliver_to. v2 single-product lookup. Returns resolved outbound_url (BuyWhere click-tracked redirect) for the buyer market.', inputSchema: { type: 'object', required: ['id', 'deliver_to'], properties: { id: { type: 'string' }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' } } } },
       { name: 'compare_products_v2', description: 'REQUIRED deliver_to. v2 side-by-side comparison with shipping-aware per-row availability.', inputSchema: { type: 'object', required: ['ids', 'deliver_to'], properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 10 }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' } } } },
