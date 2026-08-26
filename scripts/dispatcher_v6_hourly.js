@@ -545,7 +545,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.2 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.2 uses n_live_tup_delta as the no-scan stale-counter guard.`);
+  console.log(`Usage: CANONICAL_DATABASE_URL=... node scripts/dispatcher_v6_hourly.js [--hour ISO] [--json] [--with-live-count]\n\nRuns the BUY-29861 v6.4 hourly throughput dispatcher for the just-completed UTC hour.\nBy default it skips count(*) live_count because v6.4 uses n_live_tup_delta as the no-scan stale-counter guard.`);
 }
 
 function assertEqual(actual, expected, message) {
