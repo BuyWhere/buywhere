@@ -199,7 +199,21 @@ export function isMerchantAllowedForCountry(
 ): boolean {
   const slug = resolveMerchantSlug(item);
   if (!slug) return false;
-  return MERCHANT_ALLOWLISTS[country]?.has(slug) ?? false;
+  const allowlist = MERCHANT_ALLOWLISTS[country];
+  if (!allowlist) return false;
+  // Exact match first (fast path).
+  if (allowlist.has(slug)) return true;
+  // BUY-75412: prefix match — catalog merchant slugs carry provider suffixes
+  // appended after the base merchant ID (e.g. "apple_sg_buy_xml" vs
+  // "apple_sg" in the allowlist). Match if any allowlisted slug is a prefix
+  // of the actual slug, followed by "_" or end-of-string, so "apple_sg"
+  // matches "apple_sg_buy_xml" but does NOT match "apples_sg".
+  for (const allowed of allowlist) {
+    if (slug.startsWith(allowed) && (slug.length === allowed.length || slug[allowed.length] === "_")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
