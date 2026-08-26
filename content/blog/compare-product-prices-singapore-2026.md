@@ -4,7 +4,6 @@ title: "How to Compare Product Prices Across Singapore Merchants in 2026"
 description: "The definitive guide to comparing product prices across all 50+ Singapore merchants — Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, Carousell, and more — for shoppers and AI agents."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-13"
 tags: ["singapore", "price-comparison", "shopping-guide", "ai-agents", "mcp"]
 jsonLd: >
   {

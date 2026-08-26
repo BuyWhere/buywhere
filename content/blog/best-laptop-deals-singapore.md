@@ -4,7 +4,6 @@ title: "7 Best Laptop Deals in Singapore (Jun 2026) — From S$799"
 description: "Best laptop deals in Singapore for Jun 2026, from S$799. Compare prices across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon SG."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-18"
 tags: ["laptops", "singapore", "pricing", "comparison", "electronics"]
 jsonLd: >
   {
