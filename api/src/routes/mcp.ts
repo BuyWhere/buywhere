@@ -30,9 +30,13 @@ import {
   extractProductIds,
   hasOutboundUrl,
 } from '../monitoring/shoppingJobFunnel';
+import { recordV2KpiSink } from '../monitoring/v2KpiWriter';
 
 // BUY-73521: start funnel writer on module load (idempotent).
 startShoppingJobFunnel();
+
+// BUY-75415: start v2 KPI sink writer on module load (idempotent).
+// Auto-started inside the module — explicit call here would be redundant.
 
 // BUY-73521: v2 buyer-context tools that participate in the purchase funnel.
 // All have REQUIRED deliver_to per the v2 wire contract (BUY-72533).
@@ -2681,6 +2685,18 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (funnelJobId && result && typeof result === 'object') {
           (result as Record<string, unknown>).shopping_job_id = funnelJobId;
         }
+        // BUY-75415: forward-direction INSERT into monitoring.deliver_to_calls
+        // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
+        // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
+        try {
+          recordV2KpiSink({
+            toolName,
+            args: toolArgs,
+            apiKey: rawApiKey,
+            result,
+            statusCode: 200,
+          });
+        } catch { /* swallowed inside recordV2KpiSink */ }
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
@@ -2697,6 +2713,18 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           try {
             recordToolCall({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
           } catch {}
+          // BUY-75415: same forward-direction write as tools/call (v2 tools may
+          // also be invoked via direct method name; the gate metric must reflect
+          // both surfaces).
+          try {
+            recordV2KpiSink({
+              toolName: method,
+              args,
+              apiKey: (req as unknown as { apiKeyRecord?: { key?: string } }).apiKeyRecord?.key ?? null,
+              result,
+              statusCode: 200,
+            });
+          } catch { /* swallowed inside recordV2KpiSink */ }
           return res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));
