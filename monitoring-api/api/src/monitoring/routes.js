@@ -300,10 +300,16 @@ function registerRoutes(app, pool) {
    * and P2.7 (deliver_to_pass_rate_24h) — Reed (CPO) starts a 14-day rolling
    * clock once these two columns populate every day.
    *
-   * Currently both rates derive from monitoring.v_ceo_kpis. The view supports
-   * any window size (the underlying CTEs scan the whole table for now); the
-   * `window` query param is validated and surfaced for forward compatibility
-   * with planned per-window view variants.
+   * BUY-75445: appends the P2.7 gate-counter — per-window count of v2 calls
+   * tagged bucket='external-agent' on monitoring.deliver_to_calls, plus the
+   * subset where gate_passed=t (deliver_to present or inferred). Reed's daily
+   * monitor (BUY-75346) reads `kpis.mcp_v2_external_agent_calls_24h` to verify
+   * the 14-day external-agent > 0/day streak.
+   *
+   * Currently both pre-existing rates derive from monitoring.v_ceo_kpis. The
+   * view supports any window size (the underlying CTEs scan the whole table
+   * for now); the `window` query param is validated and surfaced for forward
+   * compatibility with planned per-window view variants.
    */
   const ALLOWED_WINDOWS = ['24h', '7d', '30d'];
   app.get(`${apiBase}/ceo_kpis`, async (req, res) => {
@@ -321,7 +327,13 @@ function registerRoutes(app, pool) {
                 p1_3_nm_status,
                 computed_at,
                 silently_empty_rate_24h,
-                deliver_to_pass_rate_24h
+                deliver_to_pass_rate_24h,
+                mcp_v2_external_agent_calls_24h,
+                mcp_v2_external_agent_calls_7d,
+                mcp_v2_external_agent_calls_30d,
+                mcp_v2_external_agent_calls_with_deliver_to_24h,
+                mcp_v2_external_agent_calls_with_deliver_to_7d,
+                mcp_v2_external_agent_calls_with_deliver_to_30d
            FROM monitoring.v_ceo_kpis`
       );
       const row = result.rows[0] || null;
