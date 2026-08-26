@@ -115,7 +115,7 @@ export default async function BrandsBrandPage({ params }: PageProps) {
   let brand: BrandData;
   try {
     brand = await getBrandData(slug);
-  } catch (err: unknown) {
+  } catch {
     // Transient backend failure (5xx, timeout, network) → error page.
     // NEVER 404 on transient errors: a 404 tells Google to drop the URL.
     // Returns JSX (not a raw Response) to avoid RSC serialization 500.

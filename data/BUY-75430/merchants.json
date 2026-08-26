@@ -1,0 +1,8 @@
+{
+  "merchants": [
+    {"domain":"stickbowsupplies.com","source":"shopify_stickbowsupplies","merchant_id":"shopify_stickbowsupplies","country":"US","currency":"USD","source_attribution":"BUY-75430_r405_batch187"},
+    {"domain":"littleranchfamily.com","source":"shopify_littleranchfamily","merchant_id":"shopify_littleranchfamily","country":"US","currency":"USD","source_attribution":"BUY-75430_r405_batch187"},
+    {"domain":"kneadedkitchens.com","source":"shopify_kneadedkitchens","merchant_id":"shopify_kneadedkitchens","country":"US","currency":"USD","source_attribution":"BUY-75430_r405_batch187"},
+    {"domain":"archsupplies.com","source":"shopify_archsupplies","merchant_id":"shopify_archsupplies","country":"US","currency":"USD","source_attribution":"BUY-75430_r405_batch187"}
+  ]
+}
