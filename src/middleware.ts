@@ -769,6 +769,44 @@ export async function middleware(request: NextRequest) {
   // to the page handler (no middleware redirect/rewrite needed).
   // This is already handled by the static file bypass above.
 
+  // BUY-75133: /brands/{slug} soft-404 hard-404 gate. The page handler at
+  // src/app/brands/[slug]/page.tsx calls notFound() when /api/v1/brand/{slug}
+  // returns 404, but Next.js App Router streams the not-found shell as HTTP 200
+  // (the same soft-404 anti-pattern that BUY-71642 fixed for /p/{id}). The 10
+  // slugs advertised in sitemap-brands.xml (apple, samsung, sony, nike, dyson,
+  // nintendo, dell, lenovo, canon, xiaomi) all soft-404 today because the
+  // upstream catalog has no brand rows for them — surfacing them in the
+  // sitemap burns crawl budget and ChatGPT-User / ClaudeBot fetches return
+  // empty bodies. Mirror the /p/{id} pattern: probe the upstream API, and on
+  // an actual 404 (NOT transient 429/5xx) return a hard 404 before the page
+  // streams. Transient failures fall through and let the page render.
+  const brandsSlugMatch = /^\/brands\/([^/]+)\/?$/.exec(pathname);
+  if (brandsSlugMatch) {
+    const slug = brandsSlugMatch[1];
+    try {
+      const apiRes = await fetch(
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/brand/${encodeURIComponent(slug)}`,
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}`,
+          },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (apiRes.status === 404) {
+        return new NextResponse(null, {
+          status: 404,
+          statusText: "Brand Not Found",
+          headers: { "X-Robots-Tag": "noindex, nofollow" },
+        });
+      }
+      // Transient errors (429/401/403/5xx) fall through — let the page render.
+    } catch {
+      // Network error - let page render (will show its own error state)
+    }
+  }
+
   // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
   // These expose SEO-friendly URLs that render via the /search page internally.
   const INTENT_LOCATION_MAP: Record<string, string> = {
