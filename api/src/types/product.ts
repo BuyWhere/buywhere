@@ -14,6 +14,8 @@ export interface CanonicalProduct {
   title: string;
   price: ProductPrice;
   merchant: string;
+  // BUY-74262: expose source field for per-source grouping/filtering (DQ signal loop)
+  source?: string | null;
   url: string;
   image_url: string | null;
   region: string | null;

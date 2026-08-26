@@ -661,7 +661,9 @@ router.get(
     });
     const requestStart = Date.now();
     const rawQuery = ((req.query.q || req.query.query) as string) || '';
-    const domain = req.query.domain as string | undefined;
+    // BUY-74262: Accept both 'source' and 'domain' as query params for filtering by source/platform.
+    // The API expects 'domain' but users pass 'source' per the issue description.
+    const domain = (req.query.source as string | undefined) || (req.query.domain as string | undefined);
     const region = req.query.region as string | undefined;
     const category = req.query.category as string | undefined;
     const categoryId = req.query.category_id as string | undefined;

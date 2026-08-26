@@ -91,6 +91,8 @@ export function buildProduct(
     title: row.title as string,
     price: { amount: sanitizedAmount, currency },
     merchant,
+    // BUY-74262: expose source field for per-source grouping/filtering
+    source: (row.domain as string) || null,
     url: destinationUrl,
     image_url: normalizeImageUrl(row.image_url),
     region: (row.region as string) || null,
