@@ -200,6 +200,12 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: accept the `query` alias for `q`. Without it, callers
+        // passing `query` get 0 rows + the pg_class.reltuples "total"
+        // (~364,777,600). Affects mcp.buywhere.ai surface — same root cause as
+        // api.buywhere.ai. Re-applies the BUY-68587 / BUY-70288 alias that
+        // intervening refactors removed.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -352,6 +358,8 @@ const V2_TOOLS = [
       required: ['deliver_to'],
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        // BUY-75287: `query` alias for q — see v1 schema above for rationale.
+        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -459,7 +467,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
-  const q = (args.q as string) || '';
+  // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
+  // cycle 23, agents) passing `query` instead of canonical `q` silently fall
+  // into the no-q browse branch: 0 rows plus a pg_class.reltuples "total"
+  // (~364,777,600) that looks like fabricated cache data. Same regression was
+  // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
+  // refactors; this re-applies and documents the contract on both handlers.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
