@@ -39,16 +39,28 @@ async function getBrandData(slug: string): Promise<BrandData> {
   };
 }
 
-function buildTransientErrorResponse(slug: string): Response {
-  const message = `Brand "${slug}" deals are temporarily unavailable. The catalog backend returned an error. Please try again in a few minutes.`;
-  return new Response(message, {
-    status: 503,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Retry-After': '120',
-      'Cache-Control': 'public, max-age=0, must-revalidate',
-    },
-  });
+/**
+ * BUY-75495 regression fix: Server Components cannot return raw Response
+ * objects (class instances break RSC serialization). Return JSX instead.
+ */
+function TransientErrorUI({ slug }: { slug: string }) {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center p-8">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">
+          Temporarily Unavailable
+        </h1>
+        <p className="text-gray-600 mb-6">
+          Brand &ldquo;{slug}&rdquo; deals are temporarily unavailable because
+          the catalog backend returned an error. Please try again in a few
+          minutes.
+        </p>
+        <Link href={`/brands/${slug}`} className="text-blue-600 hover:underline">
+          Back to {slug} brand page
+        </Link>
+      </div>
+    </main>
+  );
 }
 
 export default async function BrandsBrandDealsPage({ params }: PageProps) {
@@ -57,12 +69,9 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
   try {
     brand = await getBrandData(slug);
   } catch (err: unknown) {
-    // Transient backend failure (5xx, timeout, network) → 503 with Retry-After.
+    // Transient backend failure (5xx, timeout, network) → error page.
     // NEVER 404 on transient errors: a 404 tells Google to drop the URL.
-    if (err && typeof err === 'object' && 'status' in err) {
-      return buildTransientErrorResponse(slug);
-    }
-    return buildTransientErrorResponse(slug);
+    return <TransientErrorUI slug={slug} />;
   }
 
   if (!brand) {
