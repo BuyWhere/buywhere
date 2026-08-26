@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
+import CategorySsrProductGrid from '@/components/seo/CategorySsrProductGrid';
 
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
@@ -136,6 +137,16 @@ export default async function CategorySlugPage({ params }: PageProps) {
           </p>
           <HeroSearch />
         </div>
+
+        {/* SSR product grid for crawlers */}
+        <CategorySsrProductGrid
+          title={`${name} products with live prices`}
+          description={`Server-rendered ${name.toLowerCase()} results from the BuyWhere catalog, with current prices, retailer names, and sponsored merchant links visible to AI crawlers.`}
+          query={name}
+          category={slug}
+          country="SG"
+          pagePath={`/categories/${slug}`}
+        />
 
         {/* We're building section */}
         <div className="mb-16 bg-indigo-50 border border-indigo-100 rounded-xl p-8 text-center">

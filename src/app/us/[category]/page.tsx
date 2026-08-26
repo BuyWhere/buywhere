@@ -5,6 +5,7 @@ import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import CategorySsrProductGrid from "@/components/seo/CategorySsrProductGrid";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -354,6 +355,14 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
       <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
         <TrustBadges productCountLabel={productCountLabel} />
+        <CategorySsrProductGrid
+          title={`Live ${categoryName} products and prices`}
+          description={`Server-rendered ${categoryName.toLowerCase()} results from the BuyWhere catalog, with current prices, retailer names, and sponsored merchant links.`}
+          query={categoryName}
+          category={category}
+          country="US"
+          pagePath={`/us/${category}`}
+        />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />
