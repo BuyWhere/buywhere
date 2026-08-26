@@ -297,7 +297,7 @@ export default function HomePage() {
               <span className="whitespace-nowrap">SG &amp; US</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Compare products and prices across every retailer.
+              Compare products and prices across 150,000+ stores.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
               Compare prices and availability across 950,000+ stores — Singapore and the United States,

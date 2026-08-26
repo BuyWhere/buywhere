@@ -127,7 +127,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Verified Merchant Data</h3>
               </div>
               <p className="text-gray-600">
-                All retailers are vetted for authenticity and customer service quality
+                The retailer is shown on every listing, so you can check authenticity and service before you buy
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">

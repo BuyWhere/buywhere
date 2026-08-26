@@ -138,7 +138,7 @@ export default function BeautyHealthCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Authenticity Verification</h3>
               </div>
               <p className="text-gray-600">
-                All retailers are verified authorized sellers to ensure product authenticity
+                The retailer is shown on every listing — check for authorized sellers before you buy
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
