@@ -2,6 +2,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
+import CategorySsrProductGrid from "@/components/seo/CategorySsrProductGrid";
 
 export default function USLandingPage() {
   const schema = buildWebPageSchema({
@@ -52,6 +53,15 @@ export default function USLandingPage() {
           </p>
         </div>
       </section>
+
+      <CategorySsrProductGrid
+        title="Popular US products with live retailer prices"
+        description="Server-rendered product results from the BuyWhere catalog, including current prices, retailers, and sponsored merchant links visible to crawlers."
+        query="electronics home fashion beauty deals"
+        category="popular"
+        country="US"
+        pagePath="/us"
+      />
 
       <section className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
