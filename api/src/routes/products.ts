@@ -20,6 +20,16 @@ import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealt
 import { embedQuery } from '../jobs/embedProducts';
 import { lookupMerchantMap } from '../lib/merchantLookup';
 
+// BUY-71129 (re-applied, was clobbered by 554950c7): pull caller identity
+// (api_key_id + key_hash) off req.apiKeyRecord for thread-through attribution.
+// Returns null when no key is bound (anonymous request) so the URL builders
+// simply omit ?k= + ?aid= and the conversion stays anonymous, as before.
+function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
+  const rec = (req as Request & { apiKeyRecord?: { id?: string; key?: string } }).apiKeyRecord;
+  if (!rec || !rec.id || !rec.key) return null;
+  return { apiKeyId: rec.id, keyHash: hashKey(rec.key) };
+}
+
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 import { semanticLookup as semLookup, semanticRegister as semRegister, semanticEnabled as semEnabled } from '../lib/semanticCache';
@@ -451,7 +461,7 @@ async function tryTierSearch(
       readDb(),
       pageRows.map((r) => (r as Record<string, unknown>).merchant_id as string | null),
     );
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact, merchantMap));
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact, merchantMap, callerContextForUrl(req)));
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
@@ -772,7 +782,7 @@ router.get(
       dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
     );
     const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false, merchantMap)
+      buildProduct(row as Record<string, unknown>, currency, false, merchantMap, callerContextForUrl(req))
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
@@ -1299,7 +1309,7 @@ router.get(
         dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
       );
       const fallbackProducts = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, compact, merchantMap)
+        buildProduct(row as Record<string, unknown>, currency, compact, merchantMap, callerContextForUrl(req))
       );
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore,
@@ -1792,7 +1802,7 @@ router.get(
     );
 
     const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact, merchantMap)
+      buildProduct(row as Record<string, unknown>, currency, compact, merchantMap, callerContextForUrl(req))
     );
 
     // Apply field selection if `fields` param is specified
@@ -2052,7 +2062,7 @@ router.get(
         sampleDeals.map((row) => (row.merchant_id as string | null) ?? null),
       );
       deals = sampleDeals.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false, dealsMerchantMap)
+        buildProduct(row as Record<string, unknown>, currency, false, dealsMerchantMap, callerContextForUrl(req))
       );
     } catch (err: unknown) {
       // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -2129,7 +2139,7 @@ router.get(
     );
 
     const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false, compareMerchantMap)
+      buildProduct(row as Record<string, unknown>, 'SGD', false, compareMerchantMap, callerContextForUrl(req))
     );
 
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
@@ -2528,7 +2538,7 @@ router.get(
       readDb(),
       result.rows.map((row) => (row.merchant_id as string | null) ?? null),
     );
-    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact, featuredMerchantMap));
+    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact, featuredMerchantMap, callerContextForUrl(req)));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2586,7 +2596,7 @@ router.get(
       db,
       [(row as Record<string, unknown>).merchant_id as string | null],
     );
-    const product = buildProduct(row as Record<string, unknown>, 'SGD', false, singleMerchantMap);
+    const product = buildProduct(row as Record<string, unknown>, 'SGD', false, singleMerchantMap, callerContextForUrl(req));
 
     if (req.apiKeyRecord) {
       const elapsedMs = Date.now() - start;

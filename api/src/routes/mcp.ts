@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import type { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
@@ -548,7 +548,7 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
 // Tool handlers
-async function handleSearchProducts(args: Record<string, unknown>) {
+async function handleSearchProducts(args: Record<string, unknown>, caller?: { apiKeyId?: string | null; keyHash?: string | null } | null) {
   const t0 = Date.now();
   void (args.deliver_to as string);
   // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
@@ -1006,7 +1006,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     (rows as Record<string, unknown>[]).map((row) => (row.merchant_id as string | null) ?? null),
   );
   const products = (rows as Record<string, unknown>[]).map(r =>
-    buildProduct(r, currency, compact, merchantMapForMcpSearch)
+    buildProduct(r, currency, compact, merchantMapForMcpSearch, caller)
   );
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
@@ -1056,7 +1056,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   return result;
 }
 
-async function handleGetProduct(args: Record<string, unknown>) {
+async function handleGetProduct(args: Record<string, unknown>, caller?: { apiKeyId?: string | null; keyHash?: string | null } | null) {
   const t0 = Date.now();
   const { id } = args;
 
@@ -1077,11 +1077,11 @@ async function handleGetProduct(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Product not found' };
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
-  const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
+  const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false, undefined, caller);
   return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
 }
 
-async function handleCompareProducts(args: Record<string, unknown>) {
+async function handleCompareProducts(args: Record<string, unknown>, caller?: { apiKeyId?: string | null; keyHash?: string | null } | null) {
   const t0 = Date.now();
   const ids = args.ids as string[];
   if (!ids || !Array.isArray(ids) || ids.length < 2) {
@@ -1110,11 +1110,11 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   } catch {
     throw { code: -32001, message: 'Products not found' };
   }
-  const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
+  const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false, undefined, caller));
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
-async function handleGetDeals(args: Record<string, unknown>) {
+async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId?: string | null; keyHash?: string | null } | null) {
   const t0 = Date.now();
   const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
   const minDiscount = Number(args.min_discount) || 10;
@@ -1243,7 +1243,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
+      buildProduct(r, currency, false, undefined, caller)
     );
     recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
   } catch (e: any) {
@@ -2079,13 +2079,22 @@ function normalizeMarketArg(args: Record<string, unknown>): void {
     args.country_code = mapped;
   }
 }
-async function dispatchTool(name: string, args: Record<string, unknown>) {
+
+// BUY-71129 (re-applied, was clobbered by 554950c7): caller identity
+// thread-through for click attribution. Mirrors routes/products.ts.
+function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
+  const rec = (req as Request & { apiKeyRecord?: { id?: string; key?: string } }).apiKeyRecord;
+  if (!rec || !rec.id || !rec.key) return null;
+  return { apiKeyId: rec.id, keyHash: createHash('sha256').update(rec.key).digest('hex') };
+}
+
+async function dispatchTool(name: string, args: Record<string, unknown>, caller?: ReturnType<typeof callerContextForUrl>) {
   normalizeMarketArg(args);
   switch (name) {
-    case 'search_products':  return handleSearchProducts(args);
-    case 'get_product':      return handleGetProduct(args);
-    case 'compare_products': return handleCompareProducts(args);
-    case 'get_deals':        return handleGetDeals(args);
+    case 'search_products':  return handleSearchProducts(args, caller);
+    case 'get_product':      return handleGetProduct(args, caller);
+    case 'compare_products': return handleCompareProducts(args, caller);
+    case 'get_deals':        return handleGetDeals(args, caller);
     case 'list_categories':  return handleListCategories(args);
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
@@ -2696,7 +2705,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
             apiKey: rawApiKey,
           });
         }
-        const result = await dispatchTool(toolName, toolArgs);
+        const result = await dispatchTool(toolName, toolArgs, callerContextForUrl(req));
         try {
           recordToolCall({ tool: toolName, region: extractRegion(toolArgs), latency_ms: Date.now() - _startMs, error: false });
         } catch {}

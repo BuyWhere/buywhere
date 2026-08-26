@@ -17,9 +17,16 @@ async function whoClicked(req: Request, apiKey: string | null) {
   const pick = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
   const referrer = (pick(q.referrer) || pick(q.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
   const sourcePage = pick(q.pathname).slice(0, 300) || null;
-  const keyHash = apiKey ? createHash('sha256').update(apiKey).digest('hex') : null;
-  let keyId: string | null = null;
-  if (keyHash) {
+  // BUY-71129 (re-applied, was clobbered by 554950c7): browser clicks carry no
+  // Bearer header, so the upstream API call embeds ?k=<keyHash>&aid=<agentId>
+  // on /r/ URLs. Bearer auth stays canonical when present; the query params
+  // only fill in the identity for browser redirects.
+  const keyHash = apiKey
+    ? createHash('sha256').update(apiKey).digest('hex')
+    : (pick(q.k) || null);
+  const aidQuery = pick(q.aid) || null;
+  let keyId: string | null = aidQuery;
+  if (keyHash && !keyId) {
     try { const r = await db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]); keyId = r.rows[0]?.id ?? null; } catch { /* best effort */ }
   }
   return { ua, family: cls.family, ipHash, referrer, sourcePage, keyHash, keyId };
@@ -333,6 +340,8 @@ const redirectHandler = async (req: Request, res: Response) => {
   // PostHog event (fire-and-forget)
   // Hash API key before sending to third-party analytics
   trackAffiliateClick({
+    // BUY-71129: uuid identity first (joins the funnel), hash fallback.
+    apiKeyId: who.keyId,
     apiKey: apiKey ? hashKey(apiKey) : null,
     productId,
     merchantId,

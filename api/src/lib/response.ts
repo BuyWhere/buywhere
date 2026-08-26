@@ -66,6 +66,15 @@ export function buildProduct(
   // pass nothing and get `merchantName: null` (same as an orphaned merchant_id). The
   // platform slug (`merchant` / `source`) is preserved unchanged.
   merchantMap?: Record<string, MerchantMapEntry>,
+  // BUY-71129 (re-applied, was clobbered by 554950c7): caller context for
+  // thread-through attribution. api_key_id + key_hash travel on /r/ and
+  // /api/click URLs as ?k= + ?aid= so the redirect handler can attribute the
+  // conversion back to the originating agent even though the browser click
+  // carries no Bearer header. Null/omitted = anonymous click, as before.
+  caller?: {
+    apiKeyId?: string | null;
+    keyHash?: string | null;
+  } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -97,10 +106,21 @@ export function buildProduct(
   // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
   // `affiliate_url` keeps its precomputed wrapper when present.
   const clickUrl = destinationUrl
-    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    ? buildClickUrl({
+        productId,
+        destinationUrl,
+        merchantId: merchant || null,
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const affiliateRedirectUrl = destinationUrl
-    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    ? buildAffiliateRedirectUrl({
+        productId,
+        source: 'product_card',
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
