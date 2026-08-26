@@ -10,6 +10,7 @@ import UpgradeIntentPromptHost from "@/components/UpgradeIntentPromptHost";
 import WebVitals from "@/components/WebVitals";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import SkipLinks from "@/components/SkipLinks";
+import AgentMarketingBlock from "@/components/AgentMarketingBlock";
 import { PosthogProvider } from "@/components/PosthogProvider";
 import { CompareProvider } from "@/lib/compare-context";
 import { DeveloperAuthProvider } from "@/lib/developer-auth";
@@ -35,29 +36,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
-  title: "BuyWhere — Find the best prices across every store",
+  title: "BuyWhere — Compare products and prices across 150,000+ stores",
   description:
-    "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+    "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
-    title: "BuyWhere — Find the best prices across every store",
+    title: "BuyWhere — Compare products and prices across 150,000+ stores",
     description:
-      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "BuyWhere — compare prices across every store",
+        alt: "BuyWhere — compare products and prices across 150,000+ stores",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BuyWhere — Find the best prices across every store",
+    title: "BuyWhere — Compare products and prices across 150,000+ stores",
     description:
-      "Find the best prices across every store across Singapore, Southeast Asia, and the US. Powered by an MCP server and product catalog API for AI agents.",
+      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: ["/og-image.png"],
     creator: "@buywhere",
   },
@@ -78,7 +79,10 @@ export const metadata: Metadata = {
 };
 
 // Avoid long-lived stale HTML referencing removed hashed static assets after deploy.
-export const revalidate = 300;
+// 2026-08-26 (Richmond): ISR regeneration every 5 min turned every crawler visit into a cold catalog search on the
+// replica (p95 12–29 s, zero-result timeouts). Hourly is fresh enough for prices on intent/blog/category pages;
+// deals/brands/stores keep their own 900 s. Do not lower this again without a replica RAM upgrade.
+export const revalidate = 3600;
 
 export default function RootLayout({
   children,
@@ -86,6 +90,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
+  // BUY-75315: derive the agent-marketing block's example query from the current
+  // request pathname so each page renders a keyless GET example relevant to itself.
+  // SEO-GATE 4seen-0826 item 1: reading request headers in the root layout marked EVERY ISR route dynamic
+  // ("Page changed from static to dynamic at runtime" -> HTTP 500 on all brand/store pages, 03:08-11:30Z).
+  // The layout renders a generic agent block; intent pages render their own page-specific block from
+  // their config inside SeoLandingPage (no request headers needed).
+  const agentSearchQuery = "wireless headphones";
+  const agentCountry = "US";
   return (
     <html lang="en" className={inter.variable}>
       <head>
@@ -151,6 +163,8 @@ export default function RootLayout({
                   <WishlistProvider>
                     <RecentlyViewedProvider>
                       {children}
+                      {/* BUY-75315: agent-marketing block, server-rendered on every page */}
+                      <AgentMarketingBlock searchQuery={agentSearchQuery} country={agentCountry} />
                       <CompareFloatingBar />
                       <UpgradeIntentPromptHost />
                     </RecentlyViewedProvider>

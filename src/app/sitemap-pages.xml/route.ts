@@ -1,5 +1,5 @@
 import { buildSitemapResponse, getStaticSitemapEntries, renderUrlSet } from "@/lib/sitemaps";
 
-export function GET(): Response {
-  return buildSitemapResponse(renderUrlSet(getStaticSitemapEntries()));
+export async function GET(): Promise<Response> {
+  return buildSitemapResponse(renderUrlSet(await getStaticSitemapEntries()));
 }

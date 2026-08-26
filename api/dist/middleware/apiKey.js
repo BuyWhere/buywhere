@@ -166,7 +166,7 @@ async function verifyPaperclipTokenWithApi(token) {
     return null;
 }
 async function resolvePaperclipAgentKey(agentId) {
-    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source
+    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_internal
      FROM api_keys
      WHERE signup_channel = 'paperclip_agent'
        AND name = $1
@@ -186,7 +186,7 @@ async function upsertPaperclipAgentKey(agentId, agentName, companyId) {
     const result = await config_1.db.query(`INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit)
      VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000)
      ON CONFLICT (key_hash) DO UPDATE SET last_used_at = NOW()
-     RETURNING id, key_hash, name, tier, signup_channel, attribution_source`, [keyHash, agentName, companyId || null]);
+     RETURNING id, key_hash, name, tier, signup_channel, attribution_source, is_internal`, [keyHash, agentName, companyId || null]);
     return result.rows[0];
 }
 function decodeJwtPayload(token) {
@@ -265,7 +265,7 @@ async function requireApiKey(req, res, next) {
             (0, errors_2.sendSpecError)(res, 'invalid_api_key', 'Invalid or expired OAuth access token', 401);
             return;
         }
-        const r = await config_1.db.query(`SELECT id, name, tier, signup_channel, attribution_source FROM api_keys WHERE id = $1 AND is_active = true`, [tok.apiKeyId]);
+        const r = await config_1.db.query(`SELECT id, name, tier, signup_channel, attribution_source, is_internal FROM api_keys WHERE id = $1 AND is_active = true`, [tok.apiKeyId]);
         if (!r.rows.length) {
             (0, errors_2.sendSpecError)(res, 'invalid_api_key', 'OAuth client key disabled', 401);
             return;
@@ -281,6 +281,7 @@ async function requireApiKey(req, res, next) {
             dailyLimit: limits.daily,
             signupChannel: row.signup_channel,
             attributionSource: row.attribution_source,
+            isInternal: row.is_internal === true,
             dailyRequestCount: 0,
             dailyResetAt: nextMidnightUTC(),
         };
@@ -309,6 +310,7 @@ async function requireApiKey(req, res, next) {
                     dailyLimit: limits.daily,
                     signupChannel: row.signup_channel,
                     attributionSource: row.attribution_source,
+                    isInternal: row.is_internal === true,
                     dailyRequestCount: 0,
                     dailyResetAt: nextMidnightUTC(),
                 };
@@ -325,7 +327,7 @@ async function requireApiKey(req, res, next) {
         return;
     }
     const keyHashes = apiKeyLookupHashes(key);
-    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
+    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active, is_internal,
             daily_request_count, daily_reset_at, weekly_request_count, weekly_reset_at,
             created_at, rpm_limit, daily_limit, failed_request_count
      FROM api_keys WHERE key_hash = ANY($1::text[])`, [keyHashes]);
@@ -431,6 +433,7 @@ async function requireApiKey(req, res, next) {
         dailyLimit,
         signupChannel: row.signup_channel,
         attributionSource: row.attribution_source,
+        isInternal: row.is_internal === true,
         dailyRequestCount,
         dailyResetAt,
     };

@@ -39,7 +39,7 @@ const categories: CouponCategory[] = [
   },
   {
     name: "Home & Living",
-    description: "Appliances, furniture, and home improvement deals across all retailers.",
+    description: "Appliances, furniture, and home improvement deals across the retailers we track.",
     url: "/deals",
     icon: "🏠",
   },
@@ -88,7 +88,7 @@ export default function CouponsPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Never miss a deal</h2>
           <p className="text-gray-600 leading-relaxed mb-8">
-            BuyWhere continuously monitors prices across all retailers. When prices drop, you see it immediately. Set up alerts to get notified when products you care about go on sale.
+            BuyWhere continuously monitors prices across the retailers we track. When prices drop, you see it immediately. Set up alerts to get notified when products you care about go on sale.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

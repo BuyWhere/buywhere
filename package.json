@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/generate-active-blog-slugs.mjs",
+    "prebuild": "node scripts/generate-active-blog-slugs.mjs && bash scripts/check-server-handlers.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

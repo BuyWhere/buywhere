@@ -8,6 +8,7 @@ import {
   filterProductsForCountry,
   isMerchantAllowedForCountry,
 } from "@/lib/merchant-allowlist";
+import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 
 const BASE_URL = "https://buywhere.ai";
 // Origin used to call BuyWhere's own Next.js route handlers from a server
@@ -1533,7 +1534,7 @@ export function buildSeoLandingMetadata(
   };
 }
 
-export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
+export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[], dateModifiedIso?: string) {
   const canonical = toSiteUrl(config.canonicalPath);
   // BUY-66320: resolve the same hero title the page renders so the JSON-LD
   // article headline, breadcrumb, and CollectionPage name stay in sync with
@@ -1629,7 +1630,12 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     image: `${BASE_URL}/og-image.png`,
     inLanguage: config.locale.replace("_", "-"),
     datePublished: config.datePublished || "2026-06-29",
-    dateModified: config.dateModified || "2026-07-25",
+    // BUY-74905 (directive §5): JSON-LD dateModified must mirror the visible
+    // "Updated <date>" stamp and the sitemap <lastmod>. The hash-driven ISO
+    // is threaded through from the caller; falling back to the config's
+    // dateModified preserves the historic intent for legacy pages, and the
+    // 2026-07-25 placeholder is gone — that was a fake freshness signal.
+    dateModified: dateModifiedIso || config.dateModified || config.datePublished || "2026-06-29",
     mainEntityOfPage: canonical,
     about: {
       "@type": "Thing",
@@ -1741,7 +1747,17 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
   };
 }
 
-export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
+// ---------------------------------------------------------------------------
+// BUY-74862 (Day 1): the legacy TS-only registry below is preserved verbatim
+// (so existing imports keep working and tests don't see churn) but is renamed
+// to `seoLandingPagesTs` and is now PRIVATE. The public `seoLandingPages`
+// export below merges in JSON-loaded intent-page configs from
+// content/intent-pages/*.json, with JSON winning on slug clashes. This lets
+// writers iterate on intent pages in PRs without touching this 13k-line
+// file, and unblocks Day 3 (DB-driven route) which will swap the loader for
+// a `seo_pages` table read. (BUY-74862)
+// ---------------------------------------------------------------------------
+const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
   "air-purifier-singapore": {
     slug: "air-purifier-singapore",
     title: "Air Purifier Prices in Singapore — From S$249, Compared Daily",
@@ -13560,3 +13576,14 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
 
 };
+
+// ---------------------------------------------------------------------------
+// BUY-74862 (Day 1): public registry = TS configs ∪ JSON-loaded intent pages
+// (JSON wins on slug clashes). The loader runs at module-init time (build time
+// for `next build`); an empty/missing content/intent-pages directory is
+// treated as "no JSON pages yet" so the build never breaks pre-writer. (BUY-74862)
+// ---------------------------------------------------------------------------
+export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
+  const fromJson = loadIntentPageConfigs();
+  return { ...seoLandingPagesTs, ...fromJson };
+})();

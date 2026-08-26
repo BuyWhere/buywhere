@@ -14,6 +14,10 @@ export interface CanonicalProduct {
   title: string;
   price: ProductPrice;
   merchant: string;
+  // BUY-74689: opaque `merchants.id` reference. Distinct from `merchant` (the
+  // platform slug, e.g. `bestdenki`, `shopee_sg`) — `merchant_id` joins 1:1 to
+  // `merchants.id` and is the lookup key for `merchant_name` / `merchant_slug`.
+  merchant_id?: string | null;
   url: string;
   image_url: string | null;
   region: string | null;
@@ -31,10 +35,31 @@ export interface CanonicalProduct {
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
+  // BUY-75368: A2 weekly report metric — last successful URL probe timestamp.
+  // Always present (null when never checked) so consumers can rely on shape.
+  url_last_checked_at?: string | null;
+  url_status?: string | null;
   // BUY-74173: disclose Amazon price staleness to agents/UI.
   price_as_of?: string;
   // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
   affiliate_url?: string | null;
+  // BUY-74689: human-readable storefront name resolved from the `merchants` table.
+  // `merchant` / `merchant_id` keep the platform slug for filtering; `merchant_name`
+  // (and the URL-safe kebab-case `merchant_slug`) carry the real storefront label so
+  // card badges stop falling through to "Shopify" / "Shopee SG". Null when the row is
+  // not present in `merchants` (orphaned merchant_id) — this is the documented
+  // fallback that BUY-74683 handled on the FE side.
+  merchant_name?: string | null;
+  merchant_slug?: string | null;
+  // BUY-74732: how the catalog row was sourced. Drives the FE `<MerchantBadge>`
+  // verified-mark: only `first_party` (data published by the merchant directly,
+  // e.g. an official Shopify storefront) renders ✓. Resolved by:
+  //   1) the `products.scraped_via` column when present, OR
+  //   2) the `merchants.scraped_via` fallback (legacy rows that only stamped
+  //      the merchant-level flag), OR
+  //   3) null when neither is known (the FE falls back to its legacy
+  //      config.verified path so US retailers keep showing ✓).
+  scraped_via?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
   // BUY-52474: tracking URLs the FE should use for outbound clicks so that
   // `clicks` (via /api/click) and `affiliate_clicks` (via /r/) tables grow
   // from real /v1 traffic. Optional because they're only present when the
@@ -49,7 +74,6 @@ export interface CanonicalProduct {
   // `source` is the retailer/feed origin (e.g. "amazon_us", "shopify");
   // `merchant` is the same value mapped from `domain` alias for backward compat.
   source?: string | null;
-  scraped_via?: string | null;
 }
 
 export type NearMissPredicateFail = 'price' | 'currency' | 'availability' | 'image_url' | 'merchant_url';
@@ -122,6 +146,8 @@ export interface SearchMeta {
   status?: 'ok' | 'degraded' | 'partial_timeout';
   /** BUY-74597: classification for telemetry counters (timeout/auth_failure/upstream_exception/circuit_open). */
   degraded_kind?: DegradedKind;
+  /** BUY-75024: agent-readable stage/reason for degraded fallbacks (e.g. catalog_search). */
+  degraded_reason?: string;
 }
 
 export interface SearchResponse {

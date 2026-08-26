@@ -64,11 +64,21 @@ function parseBlogPost(fileName: string): BlogPost | null {
       : String(publishedAtValue);
 
   const lastUpdatedAtRaw = frontmatter.lastUpdatedAt as string | Date | undefined;
-  const lastUpdatedAtStr = lastUpdatedAtRaw
+  let lastUpdatedAtStr = lastUpdatedAtRaw
     ? lastUpdatedAtRaw instanceof Date
       ? lastUpdatedAtRaw.toISOString().slice(0, 10)
       : String(lastUpdatedAtRaw)
     : publishedAtStr;
+
+  // BUY-74667: enforce `lastUpdatedAt >= publishedAt`. A typed-in error or
+  // editorial draft leftover can land a `lastUpdatedAt` BEFORE `publishedAt`,
+  // which the page would render as "Published June 19, 2026 • Last updated
+  // June 18, 2026" — a logical impossibility exposed by VidMee. Coerce back
+  // to `publishedAt` (which the page uses to hide the "Last updated" row)
+  // so the metadata header is always internally consistent.
+  if (lastUpdatedAtStr < publishedAtStr) {
+    lastUpdatedAtStr = publishedAtStr;
+  }
 
   // Normalize jsonLd: both object (from YAML block) and string frontmatter
   // must end up as a safe JSON string before passing to dangerouslySetInnerHTML.

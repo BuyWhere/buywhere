@@ -54,6 +54,10 @@ export interface AffiliateClickEvent {
   merchantId: string;
   affiliateLinkId: string;
   source: string;
+  pathname?: string | null;
+  currentUrl?: string | null;
+  referrer?: string | null;
+  sessionId?: string | null;
 }
 
 export function trackAffiliateClick(event: AffiliateClickEvent): void {
@@ -67,6 +71,10 @@ export function trackAffiliateClick(event: AffiliateClickEvent): void {
       merchant_id: event.merchantId,
       affiliate_link_id: event.affiliateLinkId,
       source: event.source,
+      ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
+      ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
+      ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
+      ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
     },
   });
 }
@@ -165,12 +173,23 @@ export interface ApiUsageEvent {
   productCategories?: string[] | null;
   signupChannel?: string | null;
   sourcePage?: string | null;
+  // 2026-08-25 attribution fix: one person per key (uuid), internal flag, person props
+  keyHash?: string | null;
+  isInternal?: boolean;
+  agentName?: string | null;
 }
+
+const aliased = new Set<string>();
 
 export function trackApiUsage(event: ApiUsageEvent): void {
   const ph = getClient();
   if (!ph) return;
   const isMcpToolCall = !!event.toolName;
+  // Merge the key-hash identity (product_search/product_view/affiliate_click) into the uuid person, once per process.
+  if (event.keyHash && !aliased.has(event.apiKeyId)) {
+    aliased.add(event.apiKeyId);
+    try { ph.alias({ distinctId: event.apiKeyId, alias: event.keyHash }); } catch { /* never block */ }
+  }
   const extra: Record<string, unknown> = {};
   if (event.queryIntent) extra.query_intent = event.queryIntent;
   if (event.productCategories?.length) extra.product_categories = event.productCategories;
@@ -186,6 +205,9 @@ export function trackApiUsage(event: ApiUsageEvent): void {
       api_key_id: event.apiKeyId,
       result_status: event.resultStatus,
       latency_ms: event.latencyMs,
+      is_internal: event.isInternal === true,
+      agent_name: event.agentName ?? null,
+      $set: { is_internal: event.isInternal === true, tier: event.tier, agent_name: event.agentName ?? null },
       ...(isMcpToolCall ? { tool_name: event.toolName } : {}),
       ...(event.backfilled ? { backfilled: true } : {}),
       ...extra,
@@ -219,7 +241,7 @@ export function trackProductSearch(event: ProductSearchEvent): void {
   const ph = getClient();
   if (!ph) return;
   ph.capture({
-    distinctId: event.apiKey,
+    distinctId: event.apiKeyId,
     event: 'product_search',
     properties: {
       api_key_id: event.apiKeyId,
@@ -245,7 +267,7 @@ export function trackProductView(event: ProductViewEvent): void {
   const ph = getClient();
   if (!ph) return;
   ph.capture({
-    distinctId: event.apiKey,
+    distinctId: event.apiKeyId,
     event: 'product_view',
     properties: {
       api_key_id: event.apiKeyId,

@@ -134,7 +134,7 @@ export default function DevelopersPage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes five MCP tools: search_products (full-text product search across all merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), and list_categories (browse product categories)."
+          text: "BuyWhere exposes five MCP tools: search_products (full-text product search across 150,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), and list_categories (browse product categories)."
         }
       },
       {

@@ -99,25 +99,56 @@ export default async function SGProductSlugPage({ params }: PageProps) {
   const availablePrices = prices.filter((p) => p.price !== null);
   const pageUrl = toSiteUrl(`/products/sg/${resolvedProduct.slug}`);
 
+  // BUY-74926: replace the lone AggregateOffer with an `offers` array containing
+  // one Offer per priced retailer (mirrors the visible <table>) plus an
+  // AggregateOffer summary. AI crawlers can index the individual Offers; the
+  // AggregateOffer is the fallback for engines that only honour one shape.
+  const numericAvailablePrices = availablePrices
+    .map((p) => parseFloat((p.price || "0").replace(/[^0-9.]/g, "")))
+    .filter((n) => Number.isFinite(n));
   const productSchema = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: resolvedProduct.name,
     description: `Compare prices for ${resolvedProduct.name} across top Singapore retailers including Lazada, Shopee, Amazon SG, FairPrice, and Courts.`,
     url: pageUrl,
-    offers: availablePrices.length > 0
-      ? {
-          "@type": "AggregateOffer",
-          priceCurrency: "SGD",
-          offerCount: availablePrices.length,
-          lowPrice: availablePrices.map((p) => parseFloat((p.price || "0").replace(/[^0-9.]/g, ""))).sort((a, b) => a - b)[0],
-          availability: "https://schema.org/InStock",
-        }
-      : {
-          "@type": "AggregateOffer",
-          priceCurrency: "SGD",
-          availability: "https://schema.org/InStock",
-        },
+    offers:
+      availablePrices.length > 0
+        ? [
+            ...availablePrices
+              .map((p) => {
+                const numeric = parseFloat((p.price || "0").replace(/[^0-9.]/g, ""));
+                if (!Number.isFinite(numeric)) return null;
+                return {
+                  "@type": "Offer",
+                  price: numeric.toFixed(2),
+                  priceCurrency: p.currency || "SGD",
+                  availability: p.inStock
+                    ? "https://schema.org/InStock"
+                    : "https://schema.org/OutOfStock",
+                  url: p.url,
+                  seller: { "@type": "Organization", name: p.merchant },
+                };
+              })
+              .filter((o): o is NonNullable<typeof o> => o !== null),
+            {
+              "@type": "AggregateOffer",
+              priceCurrency: "SGD",
+              offerCount: numericAvailablePrices.length,
+              lowPrice: numericAvailablePrices.length > 0
+                ? Math.min(...numericAvailablePrices).toFixed(2)
+                : undefined,
+              highPrice: numericAvailablePrices.length > 0
+                ? Math.max(...numericAvailablePrices).toFixed(2)
+                : undefined,
+              availability: "https://schema.org/InStock",
+            },
+          ]
+        : {
+            "@type": "AggregateOffer",
+            priceCurrency: "SGD",
+            availability: "https://schema.org/InStock",
+          },
   };
 
   const breadcrumbSchema = {
@@ -160,22 +191,61 @@ export default async function SGProductSlugPage({ params }: PageProps) {
 
           <section className="py-10 bg-gray-50">
             <div className="max-w-6xl mx-auto px-4 sm:px-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Price Comparison — {resolvedProduct.name}
               </h2>
 
+              {/* BUY-74926: visible "Prices checked <date>" + machine-readable SSR table
+                  so AI crawlers (OAI-SearchBot, GPTBot, ClaudeBot) can quote retailer
+                  names + SGD prices + checked date exactly as the JSON-LD graph says. */}
               {availablePrices.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                  {availablePrices.map((p) => (
-                    <div key={p.merchant} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                      <div className="font-semibold text-gray-800 mb-1">{p.merchant}</div>
-                      <div className="text-2xl font-bold text-indigo-600 mb-2">{p.price}</div>
-                      <div className="text-sm text-gray-500">
-                        {p.inStock ? "In stock" : "Check availability"}
+                <>
+                  <p className="mb-4 text-sm text-gray-600" data-ssr-prices-checked={new Date().toISOString()}>
+                    Prices checked{" "}
+                    <time dateTime={new Date().toISOString()}>
+                      {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </time>
+                    . BuyWhere compares {availablePrices.length} retailer
+                    {availablePrices.length === 1 ? "" : "s"} for this product in Singapore.
+                  </p>
+                  <table className="mb-8 min-w-full divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white text-left text-sm shadow-sm">
+                    <caption className="sr-only">Live Singapore retailer prices for {resolvedProduct.name}, checked {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.</caption>
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Retailer</th>
+                        <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Price</th>
+                        <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Currency</th>
+                        <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Availability</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {availablePrices.map((p) => {
+                        const numericPrice = (p.price || "").replace(/[^0-9.]/g, "");
+                        return (
+                          <tr key={p.merchant}>
+                            <th scope="row" className="px-4 py-3 font-medium text-gray-900">{p.merchant}</th>
+                            <td className="px-4 py-3 text-gray-900" data-merchant={p.merchant}>
+                              <span data-price={numericPrice || undefined}>{p.price}</span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">{p.currency}</td>
+                            <td className="px-4 py-3 text-gray-700">{p.inStock ? "In Stock" : "Out of Stock"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                    {availablePrices.map((p) => (
+                      <div key={p.merchant} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                        <div className="font-semibold text-gray-800 mb-1">{p.merchant}</div>
+                        <div className="text-2xl font-bold text-indigo-600 mb-2">{p.price}</div>
+                        <div className="text-sm text-gray-500">
+                          {p.inStock ? "In stock" : "Check availability"}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8">
                   <p className="text-gray-600 mb-4">

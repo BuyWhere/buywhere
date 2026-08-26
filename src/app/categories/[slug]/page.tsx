@@ -147,7 +147,7 @@ export default async function CategorySlugPage({ params }: PageProps) {
             the best deals.
           </p>
           <Link
-            href={`/search?q=${slugToQuery(slug)}&region=sg`}
+            href={`/search?q=${slugToQuery(slug)}&region=sg`} rel="nofollow"
             className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
           >
             Search {name} Now →
@@ -189,7 +189,7 @@ export default async function CategorySlugPage({ params }: PageProps) {
             Start comparing {name.toLowerCase()} prices in Singapore today.
           </p>
           <Link
-            href={`/search?q=${slugToQuery(slug)}&region=sg`}
+            href={`/search?q=${slugToQuery(slug)}&region=sg`} rel="nofollow"
             className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
           >
             Compare {name} Prices Now →

@@ -59,6 +59,15 @@ export function buildProduct(
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    // BUY-75368: A2 weekly-report needs url_last_checked_at + url_status on
+    // every search result so Cart can compute the %-of-24h-fresh metric
+    // straight off the response.
+    ...(row.url_last_checked_at !== undefined && {
+      url_last_checked_at: (row.url_last_checked_at as string | null) ?? null,
+    }),
+    ...(row.url_status !== undefined && {
+      url_status: (row.url_status as string | null) ?? null,
+    }),
     ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),

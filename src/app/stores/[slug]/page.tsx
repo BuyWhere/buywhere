@@ -10,6 +10,7 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+// Emergency fix 2026-08-26: the root layout now reads request headers(), which makes an
 export const revalidate = 900;
 
 export default async function StoreDetailPage({ params }: PageProps) {

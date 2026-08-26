@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import { getAllBlogPosts, getBlogPostBySlug } from "@/lib/blog";
 import { toSiteUrl } from "@/lib/site-url";
 import BlogCompareCta from "@/components/blog/BlogCompareCta";
+import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 type PageProps = {
   params: { slug: string };
@@ -21,6 +22,33 @@ function formatDate(date: string) {
     timeZone: "UTC",
   }).format(new Date(date));
 }
+
+function withHashDateModified(jsonLd: string, dateModifiedIso: string): string {
+  try {
+    const parsed = JSON.parse(jsonLd) as Record<string, unknown> | unknown[];
+    const apply = (node: unknown) => {
+      if (!node || typeof node !== "object") return;
+      const rec = node as Record<string, unknown>;
+      const type = rec["@type"];
+      const types = Array.isArray(type) ? type : [type];
+      if (types.includes("Article") || types.includes("BlogPosting")) {
+        rec.dateModified = dateModifiedIso;
+      }
+    };
+    if (Array.isArray(parsed)) {
+      parsed.forEach(apply);
+    } else {
+      apply(parsed);
+      const graph = (parsed as Record<string, unknown>)["@graph"];
+      if (Array.isArray(graph)) graph.forEach(apply);
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return jsonLd;
+  }
+}
+
+export const dynamicParams = false; // SEO-GATE 4seen-0826 item 2: unknown blog slug -> 404 at the routing layer
 
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
@@ -59,7 +87,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default function BlogPostPage({ params }: PageProps) {
+export default async function BlogPostPage({ params }: PageProps) {
   const post = getBlogPostBySlug(params.slug);
   const relatedPosts = getAllBlogPosts()
     .filter((candidate) => candidate.slug !== params.slug)
@@ -69,10 +97,35 @@ export default function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
-  const jsonLd = post.jsonLd ? (
+  // BUY-74905 (directive §5): hash the post's stable content (title +
+  // description + tags + body) and use the persisted ISO as the visible
+  // "Last updated" date. The hash moves only when an editorial commit
+  // actually changes the post, so the visible date and the sitemap
+  // <lastmod> stay aligned (which is the entire point of the ticket).
+  const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
+  const stamp = await getOrUpdatePageLastmod(
+    canonical,
+    serializeHashable({
+      kind: "blog-post",
+      slug: post.slug,
+      title: post.title,
+      description: post.description,
+      author: post.author,
+      tags: post.tags,
+      coverImage: post.coverImage ?? null,
+      body: post.body,
+    }),
+    new Date(post.lastUpdatedAt ?? post.publishedAt).toISOString(),
+  );
+  const checked = formatCheckedStamp(stamp);
+  const lastUpdatedIso = checked.iso;
+  const lastUpdatedDisplay = checked.text;
+
+  const jsonLdSource = post.jsonLd ? withHashDateModified(post.jsonLd, checked.iso) : null;
+  const jsonLd = jsonLdSource ? (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: post.jsonLd }}
+      dangerouslySetInnerHTML={{ __html: jsonLdSource }}
     />
   ) : null;
 
@@ -101,14 +154,24 @@ export default function BlogPostPage({ params }: PageProps) {
               {post.title}
             </h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">{post.description}</p>
-            <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-500">
+            <div
+              className="mt-6 flex flex-wrap gap-3 text-sm text-slate-500"
+              data-ssr-prices-checked={lastUpdatedIso}
+            >
               <span>{post.author}</span>
               <span>•</span>
-              <span>Published {formatDate(post.publishedAt)}</span>
-              {post.lastUpdatedAt && post.lastUpdatedAt !== post.publishedAt && (
+              <span>
+                Published{" "}
+                <time dateTime={new Date(post.publishedAt).toISOString()}>
+                  {formatDate(post.publishedAt)}
+                </time>
+              </span>
+              {lastUpdatedDisplay && lastUpdatedDisplay !== formatDate(post.publishedAt) && (
                 <>
                   <span>•</span>
-                  <span>Last updated {formatDate(post.lastUpdatedAt)}</span>
+                  <span>
+                    Last updated <time dateTime={lastUpdatedIso}>{lastUpdatedDisplay}</time>
+                  </span>
                 </>
               )}
             </div>
@@ -236,7 +299,7 @@ export default function BlogPostPage({ params }: PageProps) {
               <div className="mt-4 space-y-4">
                 {relatedPosts.map((relatedPost) => (
                   <div key={relatedPost.slug} className="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                       {formatDate(relatedPost.publishedAt)}
                     </p>
                     <Link

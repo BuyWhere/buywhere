@@ -1,4 +1,6 @@
 import { ProductGridCard } from "@/components/seo/ProductGridCard";
+import { SeoLandingStickyAnchor } from "@/components/seo/SeoLandingStickyAnchor";
+import { SeoLivePricesSnippet } from "@/components/seo/SeoLivePricesSnippet";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -9,7 +11,10 @@ import {
   type LandingProduct,
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
+import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
+import AgentMarketingBlock from "@/components/AgentMarketingBlock";
+import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -132,11 +137,63 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
   const comparison = buildComparisonRows(config, products);
-  const schema = buildSeoLandingSchema(config, products);
   // BUY-66320: render the hero headline from the live catalog floor (when the
   // config provides a template) so the H1, JSON-LD headline, and breadcrumb
   // all match the lowest visible price.
   const heroTitle = resolveHeroTitle(config, products);
+
+  // BUY-74905 (directive §5): compute a hash of the rendered page body
+  // (config fields + live product snapshot + editorial sections) and pin the
+  // visible "Updated <date>" stamp and JSON-LD `dateModified` to whatever
+  // ISO that hash maps to in the content-hash store. Date moves only when
+  // content changes. (Editorial `refreshedLabel` overrides are honored below
+  // when present — that override still flows through this hash so its
+  // identity-by-content invariant holds.)
+  const hashInputBody = serializeHashable({
+    kind: "seo-landing-page",
+    slug: config.slug,
+    canonicalPath: config.canonicalPath,
+    title: config.title,
+    description: config.description,
+    heroTitle,
+    heroBody: config.heroBody,
+    heroEyebrow: config.heroEyebrow,
+    productSectionTitle: config.productSectionTitle,
+    comparisonSectionTitle: config.comparisonSectionTitle,
+    highlightSectionTitle: config.highlightSectionTitle,
+    adviceSectionTitle: config.adviceSectionTitle,
+    faqSectionTitle: config.faqSectionTitle,
+    comparisonColumns: config.comparisonColumns,
+    comparisonRows: config.comparisonRows,
+    highlights: config.highlights,
+    advicePoints: config.advicePoints,
+    faqs: config.faqs,
+    fallbackProducts: config.fallbackProducts,
+    refreshedLabel: config.refreshedLabel ?? null,
+    // Live catalog floor: sorted by id so order doesn't change the hash.
+    productSnapshot: products
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        currency: p.currency,
+        merchant: p.merchant,
+        updatedAt: p.updatedAt,
+        brand: p.brand,
+        category: p.category,
+      })),
+  });
+  const stamp = await getOrUpdatePageLastmod(
+    toSiteUrl(config.canonicalPath),
+    hashInputBody,
+    new Date(config.dateModified ?? config.datePublished ?? "2026-06-29").toISOString(),
+  );
+  const checked = formatCheckedStamp(stamp);
+  // BUY-74905: thread the hash-stable ISO through the JSON-LD builder so the
+  // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
+  const schema = buildSeoLandingSchema(config, products, checked.iso);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -148,7 +205,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       <main id="main-content" className="flex-1">
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
@@ -159,10 +216,24 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
               </p>
-              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
+              <ul
+                className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100"
+                aria-label="Page metadata"
+                data-ssr-prices-checked={checked.iso}
+              >
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-200">✓</span>
-                  <span>{buildRefreshedLabel(config, products)}</span>
+                  {/* BUY-74905 (directive §5): the visible "Updated <date>" pill
+                      mirrors the JSON-LD `dateModified` and the sitemap
+                      <lastmod>; all three derive from the same content hash
+                      so they move together (or not at all). When an editorial
+                      `refreshedLabel` is set we honor it as text but still
+                      record its content hash so the identity-by-content
+                      invariant holds. */}
+                  <span>
+                    Updated{" "}
+                    <time dateTime={checked.iso}>{checked.text}</time>
+                  </span>
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-200">✓</span>
@@ -202,12 +273,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
+        <SeoLandingStickyAnchor />
+
         <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
               <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
                 Open full search
@@ -367,6 +440,12 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
+        {/* BUY-74862 (Day 1): per-page "Check live prices yourself" snippet. Renders
+            server-side (SSR) with this page's own searchQuery + country so agents
+            and developers who land here can pull the same prices without parsing
+            the page. Visible to crawlers — do NOT hide behind a <details> toggle. */}
+        <SeoLivePricesSnippet config={config} />
+
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
@@ -387,6 +466,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       {config.showRelatedCategory && <RelatedCategoryBlock slug={config.slug} />}
 
+      <AgentMarketingBlock searchQuery={config.searchQuery} country={config.country} />
       <Footer />
     </div>
   );

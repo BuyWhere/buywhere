@@ -2,6 +2,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
+import MerchantIntakeForm from "@/components/MerchantIntakeForm";
 import { buildServiceSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
@@ -95,6 +96,28 @@ export default function MerchantsPage() {
         </div>
       </section>
 
+      {/* Merchant intake form (BUY-75315 — writes to contacts table via /api/v1/contact) */}
+      <section id="apply" className="py-16 bg-white border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-start">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Apply to list your catalog</h2>
+              <p className="text-gray-600 leading-relaxed mb-4">
+                Tell us about your store and how you can feed BuyWhere. We onboard Singapore merchants at no cost during our beta period and respond within one business day.
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>• CSV feed, Shopify/Shopee/Lazada admin API, or existing product URL list</li>
+                <li>• Works alongside any existing channel — no exclusivity</li>
+                <li>• Products are normalized, deduplicated, and ranked deliverable-first</li>
+              </ul>
+            </div>
+            <div>
+              <MerchantIntakeForm />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Why it matters */}
       <section className="py-16 bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -175,7 +198,7 @@ export default function MerchantsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/contact"
+              href="#apply"
               className="inline-flex items-center justify-center px-8 py-3 bg-white text-emerald-700 font-semibold rounded-xl hover:bg-emerald-50 transition-colors"
             >
               List your catalog →

@@ -5,10 +5,12 @@ import Image from 'next/image';
 import { useCompare, CompareProduct } from '@/lib/compare-context';
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge';
 import { MerchantBadge, getMerchantConfig } from '@/components/ui/MerchantBadge';
+import { PlatformChip } from '@/components/ui/PlatformChip';
 import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
+import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 
 interface ProductCardProps {
   deal: {
@@ -18,6 +20,9 @@ interface ProductCardProps {
     original_price?: number;
     discount_pct?: number;
     merchant: string;
+    merchant_slug?: string | null;
+    source?: string | null;
+    scraped_via?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
     url: string;
     is_exclusive?: boolean;
     image_url?: string;
@@ -136,8 +141,11 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
   return (
     <a
       href={deal.url}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
       rel="noopener noreferrer"
+      title={deal.name}
+      aria-label={`View deal: ${deal.name} from ${deal.merchant}`}
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"
     >
       <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1/1'}}>
@@ -207,10 +215,21 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
       </div>
       <div className="p-4">
-        <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors">
+        <h3
+          title={deal.name}
+          aria-label={deal.name}
+          className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors"
+        >
           {deal.name}
         </h3>
-        <MerchantBadge merchant={deal.merchant} className="mb-2" />
+        <div className="mb-2 flex flex-col items-start gap-0.5">
+          <MerchantBadge
+            merchant={deal.merchant}
+            merchantSlug={deal.merchant_slug}
+            scrapedVia={deal.scraped_via}
+          />
+          <PlatformChip source={deal.source} />
+        </div>
         {(deal.rating || deal.stock_status || deal.shipping_info) && (
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {deal.rating && (

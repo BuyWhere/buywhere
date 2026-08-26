@@ -295,6 +295,64 @@ function registerRoutes(app, pool) {
   });
 
   /**
+   * GET /api/monitoring/ceo_kpis?window=24h
+   * BUY-75183: Acceptance-gate readback for P2.6 (silently_empty_rate_24h)
+   * and P2.7 (deliver_to_pass_rate_24h) — Reed (CPO) starts a 14-day rolling
+   * clock once these two columns populate every day.
+   *
+   * BUY-75445: appends the P2.7 gate-counter — per-window count of v2 calls
+   * tagged bucket='external-agent' on monitoring.deliver_to_calls, plus the
+   * subset where gate_passed=t (deliver_to present or inferred). Reed's daily
+   * monitor (BUY-75346) reads `kpis.mcp_v2_external_agent_calls_24h` to verify
+   * the 14-day external-agent > 0/day streak.
+   *
+   * Currently both pre-existing rates derive from monitoring.v_ceo_kpis. The
+   * view supports any window size (the underlying CTEs scan the whole table
+   * for now); the `window` query param is validated and surfaced for forward
+   * compatibility with planned per-window view variants.
+   */
+  const ALLOWED_WINDOWS = ['24h', '7d', '30d'];
+  app.get(`${apiBase}/ceo_kpis`, async (req, res) => {
+    try {
+      const window = ALLOWED_WINDOWS.includes(req.query.window)
+        ? req.query.window
+        : '24h';
+
+      const result = await pool.query(
+        `SELECT report_date,
+                zero_result_rate,
+                near_miss_rate,
+                near_miss_7day_mean_under_threshold,
+                near_miss_latest_sweep_under_threshold,
+                p1_3_nm_status,
+                computed_at,
+                silently_empty_rate_24h,
+                deliver_to_pass_rate_24h,
+                mcp_v2_external_agent_calls_24h,
+                mcp_v2_external_agent_calls_7d,
+                mcp_v2_external_agent_calls_30d,
+                mcp_v2_external_agent_calls_with_deliver_to_24h,
+                mcp_v2_external_agent_calls_with_deliver_to_7d,
+                mcp_v2_external_agent_calls_with_deliver_to_30d
+           FROM monitoring.v_ceo_kpis`
+      );
+      const row = result.rows[0] || null;
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        window,
+        kpis: row,
+      });
+    } catch (error) {
+      console.error('Error fetching ceo_kpis:', error.message);
+      res.status(500).json({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to fetch CEO KPIs',
+      });
+    }
+  });
+
+  /**
    * GET /api/monitoring/health
    * Health check endpoint — process liveness only. The DB ping was removed
    * because the Postgres replica can be in crash-recovery (57P03) right after
@@ -307,7 +365,7 @@ function registerRoutes(app, pool) {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       service: 'buywhere-monitoring-api',
-      version: '1.1.0',
+      version: '1.3.0',
       probes: {
         deploy_fail_poll_interval_ms: p95Service.DEPLOY_FAIL_POLL_INTERVAL_MS,
         deploy_fail_statuses: Array.from(p95Service.DEPLOY_FAIL_STATUSES),

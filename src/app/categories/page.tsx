@@ -70,7 +70,7 @@ export default function CategoriesPage() {
             {countries.map((country) => (
               <Link
                 key={country.code}
-                href={`/search?q=&country=${country.code}`}
+                href={`/search?q=&country=${country.code}`} rel="nofollow"
                 className="px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-300"
               >
                 {country.code}

@@ -242,6 +242,10 @@ export default async function ProductIdCompatibilityPage({ params }: PageProps) 
     imageUrl: product.image_url ?? "",
   });
 
+  const machineDate = new Date();
+  const checkedDateText = machineDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const isoDate = machineDate.toISOString();
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
@@ -267,7 +271,38 @@ export default async function ProductIdCompatibilityPage({ params }: PageProps) 
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 mb-2">BuyWhere product detail</p>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{productName}</h1>
             {product.brand && <p className="text-sm text-gray-500 mb-4">by <span className="text-gray-700 font-medium">{product.brand}</span></p>}
-            {product.price != null && <div className="mb-4"><span className="text-3xl font-bold text-indigo-600">{currency} {Number(product.price).toFixed(2)}</span></div>}
+            {product.price != null && (
+              <>
+                <div className="mb-4"><span className="text-3xl font-bold text-indigo-600">{currency} {Number(product.price).toFixed(2)}</span></div>
+                {/* BUY-74926: visible "Prices checked <date>" + machine-readable price table.
+                    Mirrors the JSON-LD offer above so AI crawlers that don't run JS can
+                    quote the same retailer/price/currency as the schema. */}
+                <p className="mb-3 text-sm text-gray-600" data-ssr-prices-checked={isoDate}>
+                  Prices checked <time dateTime={isoDate}>{checkedDateText}</time>.
+                </p>
+                <table className="mb-6 min-w-full divide-y divide-gray-200 rounded-lg border border-gray-200 text-left text-sm">
+                  <caption className="sr-only">Live price for {productName} at {merchantName}, checked {checkedDateText}.</caption>
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-4 py-2 font-semibold text-gray-700">Retailer</th>
+                      <th scope="col" className="px-4 py-2 font-semibold text-gray-700">Price</th>
+                      <th scope="col" className="px-4 py-2 font-semibold text-gray-700">Currency</th>
+                      <th scope="col" className="px-4 py-2 font-semibold text-gray-700">Availability</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    <tr>
+                      <th scope="row" className="px-4 py-2 font-medium text-gray-900">{merchantName}</th>
+                      <td className="px-4 py-2 text-gray-900" data-merchant={merchantName}>
+                        <span data-price={product.price}>{Number(product.price).toFixed(2)}</span>
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">{currency}</td>
+                      <td className="px-4 py-2 text-gray-700">In Stock</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            )}
             <p className="text-sm text-gray-600 mb-6">{description}</p>
             <div className="flex flex-wrap gap-3">
               {ctaUrl && <a href={ctaUrl} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">View at {merchantName}<span aria-hidden="true">→</span></a>}

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../config';
 import { trackApiUsage } from '../analytics/posthog';
+import { hashKey } from './apiKey';
 
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -203,6 +204,9 @@ export function queryLogMiddleware(endpoint: string) {
         try {
           trackApiUsage({
             apiKeyId: apiKeyRecord.id,
+            keyHash: apiKeyRecord.key ? hashKey(apiKeyRecord.key) : null,
+            isInternal: apiKeyRecord.isInternal === true,
+            agentName: apiKeyRecord.agentName ?? null,
             endpoint,
             method: req.method,
             tier: apiKeyRecord.tier,

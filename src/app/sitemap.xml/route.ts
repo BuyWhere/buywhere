@@ -28,7 +28,6 @@ export async function GET(): Promise<Response> {
     { url: `${SITEMAP_BASE_URL}/sitemap-stores.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-docs.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-blog.xml`, lastModified: now },
-    { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
   ];
 
   const response = buildSitemapResponse(renderSitemapIndex(sitemapEntries));

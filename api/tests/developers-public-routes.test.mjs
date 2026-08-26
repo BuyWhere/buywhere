@@ -28,14 +28,21 @@ after(async () => {
 });
 
 describe('public developer discovery routes', () => {
-  it('GET /developers/sitemap-index.xml returns public sitemap XML', async () => {
+  it('GET /developers/sitemap-index.xml returns public sitemap XML (apex proxy)', async () => {
+    // BUY-74774: apexDiscoveryProxy proxies this path to apex
+    // (buywhere.ai/developers/sitemap-index.xml). Apex returns the canonical
+    // 9-entry sitemap-index; the previous inline stub returned only 1 entry
+    // pointing at /developers/sitemap.xml. The contract is now: <sitemapindex>
+    // with multiple <sitemap> entries.
     const res = await fetch(`http://localhost:${port}/developers/sitemap-index.xml`);
     const body = await res.text();
 
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type') || '', /application\/xml/i);
     assert.match(body, /<sitemapindex/);
-    assert.match(body, /\/developers\/sitemap\.xml/);
+    // Apex contract: at least 9 sitemap entries (was 1 before BUY-74774)
+    const sitemapCount = (body.match(/<sitemap>/g) || []).length;
+    assert.ok(sitemapCount >= 9, `expected >=9 <sitemap> entries (apex parity), got ${sitemapCount}`);
     assert.doesNotMatch(body, /UNAUTHORIZED|Missing Authorization/i);
   });
 

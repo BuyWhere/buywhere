@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config';
 import { buildProduct, buildSearchResponse } from '../lib/response';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 
 const router = Router();
 
@@ -586,7 +587,7 @@ router.get(
     const dataQuery = `
       SELECT id, sku AS source_id, source AS domain, url,
              title, price, currency, image_url, metadata, updated_at,
-             region, country_code
+             region, country_code, merchant_id
       FROM products
       ${whereClause}
       ORDER BY updated_at DESC
@@ -601,8 +602,13 @@ router.get(
       ]);
 
       const total = parseInt(countResult.rows[0].count, 10);
+      // BUY-74689: batched merchant lookup for the demo landing page search.
+      const landingMerchantMap = await lookupMerchantMap(
+        db,
+        dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
+      );
       const products = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false)
+        buildProduct(row as Record<string, unknown>, currency, false, landingMerchantMap)
       );
 
       const responseTimeMs = Date.now() - start;

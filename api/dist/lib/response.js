@@ -57,7 +57,12 @@ function normalizeImageUrl(imageUrl) {
     }
     return imageUrl;
 }
-function buildProduct(row, defaultCurrency, compact) {
+function buildProduct(row, defaultCurrency, compact, 
+// BUY-74689: optional batched lookup from `merchants.id` → {name, slug}. Callers that
+// resolve the map (every product-emitting handler) pass it in; legacy call sites
+// pass nothing and get `merchantName: null` (same as an orphaned merchant_id). The
+// platform slug (`merchant` / `source`) is preserved unchanged.
+merchantMap) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
     // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
@@ -102,9 +107,44 @@ function buildProduct(row, defaultCurrency, compact) {
         country_code: row.country_code || null,
         category_path: Array.isArray(row.category_path) ? row.category_path : null,
         updated_at: row.updated_at || null,
+        // BUY-74689: merchant_id from the row, real storefront name from the batched
+        // merchants lookup. `merchant` / `merchant_id` (platform slug) preserved for
+        // filtering and analytics — emit the resolved name only when the row exists.
+        merchant_id: row.merchant_id || null,
+        merchant_name: (() => {
+            const mid = row.merchant_id || '';
+            const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+            return entry?.name ?? null;
+        })(),
+        merchant_slug: (() => {
+            const mid = row.merchant_id || '';
+            const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+            return entry?.slug || null;
+        })(),
+        // BUY-74732: resolve scraped_via with explicit precedence — the row's own
+        // column (catalog may stamp per-product), then the merchant's row
+        // (legacy where only the merchant-level flag is set), then null. The FE
+        // `<MerchantBadge>` renders ✓ only when the value is `'first_party'`.
+        scraped_via: (() => {
+            const rowSv = row.scraped_via;
+            if (typeof rowSv === 'string' && rowSv.trim())
+                return rowSv.trim();
+            const mid = row.merchant_id || '';
+            const entry = mid && merchantMap ? merchantMap[mid] : undefined;
+            return entry?.scraped_via ?? null;
+        })(),
         // CAT-08: expose stock status as a top-level boolean when known.
         ...(row.in_stock != null && { in_stock: row.in_stock }),
         ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at }),
+        // BUY-75368: A2 weekly-report metric (% search responses carrying a
+        // url_last_checked_at within 24h). Always emit the field (null when
+        // never checked) so consumers can rely on its presence.
+        ...(row.url_last_checked_at !== undefined && {
+            url_last_checked_at: row.url_last_checked_at ?? null,
+        }),
+        ...(row.url_status !== undefined && {
+            url_status: row.url_status ?? null,
+        }),
         ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
         ...(clickUrl != null && { click_url: clickUrl }),
         ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
@@ -119,7 +159,6 @@ function buildProduct(row, defaultCurrency, compact) {
         // for backward compatibility. Agents filtering by `?source=...` need the
         // explicit `source` key in the response to verify the filter took effect.
         source: row.source || null,
-        scraped_via: row.scraped_via || null,
     };
     if (compact) {
         const meta = row.metadata;
@@ -188,6 +227,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
                 confidence: emptiness.confidence,
                 diagnostic: emptiness.diagnostic,
                 degraded_kind: emptiness.degraded_kind,
+                ...(emptiness.degraded_kind && { degraded_reason: emptiness.diagnostic.timed_out_stage ?? 'catalog_search' }),
             }),
         },
     };

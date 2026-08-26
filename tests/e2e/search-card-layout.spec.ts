@@ -45,4 +45,41 @@ test.describe('Search result card layout', () => {
       }
     }
   });
+
+  // BUY-74687: parent card must have a discernible accessible name composed
+  // from the product title + merchant, and the clamped <h2> must expose the
+  // full title via title= + aria-label= so SR/hover users don't lose the
+  // truncated spec info.
+  test('exposes title, aria-label, and composed card accessible name', async ({ page }) => {
+    const response = await page.goto('/search?q=laptop%20singapore&country=sg');
+    expect(response?.status()).toBeLessThan(400);
+
+    const cards = page.getByTestId('search-product-card');
+    await expect(cards.first()).toBeVisible();
+    const cardCount = Math.min(await cards.count(), 8);
+    expect(cardCount).toBeGreaterThanOrEqual(1);
+
+    for (let index = 0; index < cardCount; index += 1) {
+      const card = cards.nth(index);
+      const heading = card.getByRole('heading').first();
+
+      const headingText = (await heading.textContent())?.trim() ?? '';
+      expect(headingText.length).toBeGreaterThan(0);
+
+      await expect(heading).toHaveAttribute('title', headingText);
+      await expect(heading).toHaveAttribute('aria-label', headingText);
+
+      const cardAccessibleName = await card.evaluate((el) => {
+        const label = el.getAttribute('aria-label');
+        if (label) return label;
+        // Fallback: derive the accessible name the same way AT computes it.
+        const headingEl = el.querySelector('h2,h3,[role="heading"]');
+        const headingText = headingEl?.textContent?.trim() ?? '';
+        return headingText;
+      });
+      expect(cardAccessibleName.length).toBeGreaterThan(headingText.length);
+      expect(cardAccessibleName).toContain(headingText);
+      expect(cardAccessibleName.toLowerCase()).toContain('view deal');
+    }
+  });
 });

@@ -4,6 +4,7 @@ exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
 const semanticCache_1 = require("../lib/semanticCache");
 const posthog_1 = require("../analytics/posthog");
+const apiKey_1 = require("./apiKey");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
     /mozilla/i,
@@ -46,6 +47,9 @@ function classifyIsAgent(req) {
  * - Single object data → 1 (product lookup, category detail)
  * - Error responses (4xx+) → null
  * - JSON-RPC → unwrap text content and recurse
+ *
+ * BUY-74597: timeout/degraded empty responses are NOT true zero-result searches —
+ * logging them as 0 poisons the zero-result KPI. Log null instead.
  */
 function extractReturnedProductIds(body, statusCode) {
     if (statusCode >= 400)
@@ -79,6 +83,48 @@ function extractReturnedProductIds(body, statusCode) {
         .map(String)
         .slice(0, 100);
     return ids.length > 0 ? ids : null;
+}
+/**
+ * BUY-74597: extract the degraded_kind classification from the response meta so
+ * `silently_empty_rate_24h` and similar KPIs can subtract degraded responses
+ * from the true-empty bucket. Mirrors the field name on SearchMeta.degraded_kind.
+ */
+function extractDegradedKind(body, statusCode) {
+    if (statusCode >= 400)
+        return null;
+    if (!body || typeof body !== 'object')
+        return null;
+    const b = body;
+    let meta;
+    if (b.jsonrpc === '2.0') {
+        const result = b.result;
+        if (result && typeof result === 'object') {
+            const r = result;
+            if (Array.isArray(r.content) && r.content.length === 1) {
+                const content = r.content[0];
+                if (content.type === 'text' && typeof content.text === 'string') {
+                    try {
+                        const parsed = JSON.parse(content.text);
+                        return extractDegradedKind(parsed, 200);
+                    }
+                    catch {
+                        return null;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    meta = (b.meta && typeof b.meta === 'object') ? b.meta : undefined;
+    if (!meta)
+        return null;
+    const kind = meta.degraded_kind;
+    if (typeof kind === 'string' && kind !== '' && kind !== 'unknown')
+        return kind;
+    // Fallback: legacy degraded=true without a kind is treated as 'upstream_exception'.
+    if (meta.degraded === true && Array.isArray(b.data) && b.data.length === 0)
+        return 'upstream_exception';
+    return null;
 }
 function extractResultCount(body, statusCode) {
     if (statusCode >= 400)
@@ -142,6 +188,7 @@ function queryLogMiddleware(endpoint) {
         res.json = function (body) {
             res.locals.resultCount = extractResultCount(body, res.statusCode);
             res.locals.returnedProductIds = extractReturnedProductIds(body, res.statusCode);
+            res.locals.degradedKind = extractDegradedKind(body, res.statusCode);
             // WP5: thread shopping_job_id into every click_url (runs after the route's
             // cache write serialized the body, so the decoration is never cached).
             const jobId = extractJobId(req);
@@ -178,8 +225,8 @@ function queryLogMiddleware(endpoint) {
             config_1.db.query(`INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, returned_product_ids, response_time_ms,
-           status_code, ip_address, user_agent, cache_hit, job_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15)`, [
+           status_code, ip_address, user_agent, cache_hit, job_id, degraded_kind)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15, $16)`, [
                 apiKeyRecord?.id ?? null,
                 apiKeyRecord?.agentName ?? null,
                 req.agentInfo?.framework || 'unknown',
@@ -195,6 +242,7 @@ function queryLogMiddleware(endpoint) {
                 (req.headers['user-agent'] || '').slice(0, 500),
                 res.locals.cacheHit ?? null,
                 extractJobId(req),
+                res.locals.degradedKind ?? null,
             ]).catch(() => {
                 // Fire-and-forget — don't crash on log failure
             });
@@ -206,6 +254,9 @@ function queryLogMiddleware(endpoint) {
                 try {
                     (0, posthog_1.trackApiUsage)({
                         apiKeyId: apiKeyRecord.id,
+                        keyHash: apiKeyRecord.key ? (0, apiKey_1.hashKey)(apiKeyRecord.key) : null,
+                        isInternal: apiKeyRecord.isInternal === true,
+                        agentName: apiKeyRecord.agentName ?? null,
                         endpoint,
                         method: req.method,
                         tier: apiKeyRecord.tier,

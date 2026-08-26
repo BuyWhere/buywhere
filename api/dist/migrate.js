@@ -906,6 +906,30 @@ async function runMigrations() {
     catch (err) {
         console.warn(`[migration] merchants column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
+    // BUY-74732: Add slug + scraped_via columns to merchants for the
+    // <MerchantBadge> verified-mark logic. Both nullable, idempotent.
+    // - slug: URL-safe kebab-case identifier (e.g. "tangs-sg", "decathlon-sg")
+    // - scraped_via: how the catalog sourced this merchant (first_party/affiliate/aggregator)
+    try {
+        await config_1.db.query(`
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS slug            TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS scraped_via    TEXT;
+    `);
+        console.log('[migration] merchants slug + scraped_via ensured (BUY-74732).');
+    }
+    catch (err) {
+        console.warn(`[migration] merchants slug/scraped_via ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-74732: Add scraped_via column to products for per-row provenance.
+    try {
+        await config_1.db.query(`
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS scraped_via TEXT;
+    `);
+        console.log('[migration] products scraped_via ensured (BUY-74732).');
+    }
+    catch (err) {
+        console.warn(`[migration] products scraped_via ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
     // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
     // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
     try {

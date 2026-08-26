@@ -90,7 +90,7 @@ export default function StoresPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">All stores, one search</h2>
           <p className="text-gray-600 leading-relaxed mb-8">
-            Instead of checking each store individually, use BuyWhere to search across all retailers at once. Our catalog normalizes prices, availability, and product data so you get apples-to-apples comparisons.
+            Instead of checking each store individually, use BuyWhere to search across 150,000+ retailers at once. Our catalog normalizes prices, availability, and product data so you get apples-to-apples comparisons.
           </p>
           <Link
             href="/search"

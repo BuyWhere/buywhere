@@ -5,7 +5,10 @@ const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const queryLog_1 = require("../middleware/queryLog");
+const agentHeaders_1 = require("../middleware/agentHeaders");
 const router = (0, express_1.Router)();
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK catalog responses.
+router.use(agentHeaders_1.agentIndexMiddleware);
 const CACHE_TTL = 300; // 5 min — categories change slowly
 function slugifyCategory(value) {
     return value.toLowerCase().replace(/[^a-z0-9]+/g, '-');

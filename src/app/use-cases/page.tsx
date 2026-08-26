@@ -51,7 +51,7 @@ resp = requests.get(
 )
 items = resp.json()["items"]
 
-# Sort by price across all merchants
+# Sort by price across the catalog
 sorted_items = sorted(items, key=lambda x: x["price"])
 for item in sorted_items:
     print(f"{item['source']:15} {item['currency']} {item['price']:>8.2f}  {item['name'][:40]}")`,

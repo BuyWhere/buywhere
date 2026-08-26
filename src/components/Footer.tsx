@@ -26,7 +26,7 @@ export default function Footer() {
               <li role="listitem"><Link href="/quickstart" className="hover:text-indigo-600">Quickstart</Link></li>
               <li><Link href="/merchants" className="hover:text-indigo-600">Merchants</Link></li>
               <li><Link href="/partners" className="hover:text-indigo-600">Partners</Link></li>
-              <li><Link href="/pricing" className="hover:text-indigo-600">Pricing</Link></li>
+              <li><Link href="/developers" className="hover:text-indigo-600">Developers</Link></li>
             </ul>
           </div>
 

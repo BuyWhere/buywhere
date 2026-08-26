@@ -393,11 +393,23 @@ function ComparisonSummary({
 
 function ComparisonTable({ offers }: { offers: ComparisonOffer[] }) {
   const bestOffer = findBestOffer(offers);
+  const machineDate = new Date();
+  const checkedDateText = machineDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const isoDate = machineDate.toISOString();
 
   return (
     <>
+      {/* BUY-74926: visible "Prices checked <date>" line. AI crawlers that don't run
+          JS (OAI-SearchBot, GPTBot, ClaudeBot) extract this plain-text date and pair
+          it with the per-row prices below. Machine-readable ISO duplicate on <time>
+          so downstream checkers can parse deterministically. */}
+      <p className="mb-4 text-sm text-slate-600" data-ssr-prices-checked={isoDate}>
+        Prices checked <time dateTime={isoDate}>{checkedDateText}</time>.{" "}
+        {offers.length} retailer{offers.length === 1 ? "" : "s"} compared.
+      </p>
       <div className="hidden overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm lg:block">
         <table className="min-w-full divide-y divide-slate-200">
+          <caption className="sr-only">Retailer price comparison, checked {checkedDateText}.</caption>
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Retailer</th>
@@ -455,9 +467,9 @@ function ComparisonTable({ offers }: { offers: ComparisonOffer[] }) {
                       {offer.availability}
                     </span>
                   </td>
-                  <td className="px-6 py-5 align-top">
+                  <td className="px-6 py-5 align-top" data-merchant={offer.merchant}>
                     <p className={`text-xl font-semibold ${isBest ? "text-emerald-700" : "text-slate-950"}`}>
-                      {formatOfferPrice(offer.price, offer.currency)}
+                      <span data-price={offer.price ?? undefined}>{formatOfferPrice(offer.price, offer.currency)}</span>
                     </p>
                     {offer.lastUpdated ? (
                       <p className="mt-1 text-xs text-slate-500">
@@ -625,6 +637,33 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
 
   const compareProducts: CompareProduct[] = offers.map(offerToCompareProduct);
 
+  // BUY-74926: per-Offer JSON-LD so AI crawlers get the same retailer/price/currency
+  // data the visible table shows. Mirrors each row of ComparisonTable exactly.
+  const compareOfferSchema = offers.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@graph": offers
+          .map((offer) => {
+            if (offer.price === null || offer.price === undefined) return null;
+            return {
+              "@type": "Offer",
+              name: offer.name,
+              price: Number(offer.price).toFixed(2),
+              priceCurrency: offer.currency || "USD",
+              availability:
+                offer.inStock === true
+                  ? "https://schema.org/InStock"
+                  : offer.inStock === false
+                    ? "https://schema.org/OutOfStock"
+                    : "https://schema.org/Discontinued",
+              url: offer.href,
+              seller: { "@type": "Organization", name: offer.merchant },
+            };
+          })
+          .filter((o): o is NonNullable<typeof o> => o !== null),
+      }
+    : null;
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
       <Nav />
@@ -632,6 +671,12 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
+      {compareOfferSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(compareOfferSchema) }}
+        />
+      )}
 
       <main id="main-content" tabIndex={-1} className="flex-1">
         <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">

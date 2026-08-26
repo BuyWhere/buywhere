@@ -57,6 +57,8 @@ const mcp_1 = __importDefault(require("./routes/mcp"));
 const analytics_1 = __importDefault(require("./routes/analytics"));
 const revenue_1 = __importDefault(require("./routes/revenue"));
 const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
+const sitemapProxy_1 = __importDefault(require("./routes/sitemapProxy"));
+const apexDiscoveryProxy_1 = __importDefault(require("./routes/apexDiscoveryProxy"));
 const landing_1 = __importDefault(require("./routes/landing"));
 const clicks_1 = __importDefault(require("./routes/clicks"));
 const oauth_1 = __importDefault(require("./routes/oauth"));
@@ -74,6 +76,7 @@ const uptime_1 = __importDefault(require("./routes/admin/uptime"));
 const metrics_1 = __importDefault(require("./routes/admin/metrics"));
 const fxRefresh_1 = __importDefault(require("./routes/admin/fxRefresh"));
 const probes_1 = __importDefault(require("./routes/admin/probes"));
+const metricsTruth_1 = __importDefault(require("./routes/admin/metricsTruth"));
 const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -91,6 +94,17 @@ function createApp() {
     app.use((0, cors_1.default)({
         origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
         credentials: true,
+        // BUY-75413 (P2.3): expose the X-Agent-* headers to browser-side agent
+        // clients. Without this, browsers withhold the headers from JS even
+        // though they appear on the wire. Names must match the values set in
+        // api/src/middleware/agentHeaders.ts.
+        exposedHeaders: [
+            'X-Agent-Protocol',
+            'X-Agent-Card',
+            'X-LLMs-Txt',
+            'X-Agent-Index',
+            'X-Agent-Auth',
+        ],
     }));
     app.use((_req, res, next) => {
         res.set('X-Content-Type-Options', 'nosniff');
@@ -309,20 +323,48 @@ function createApp() {
     app.use('/c', aiCrawlerHeaders, publicCategories_1.default); // /c/:slug — category page
     app.use('/compare', aiCrawlerHeaders, publicCompare_1.default); // /compare?ids=id1,id2 — comparison page
     // Sitemaps
+    // BUY-74774: apexDiscoveryProxy is mounted BEFORE sitemapCompareRouter so
+    // its /sitemap-compare.xml handler takes precedence over the native
+    // DB-backed handler (which currently returns an empty urlset because the
+    // api host's comparison_pages table is not the apex canonical source).
+    app.use(apexDiscoveryProxy_1.default);
     app.use('/sitemap-compare.xml', sitemapCompare_1.default);
-    // Sitemap index — references all sitemaps
+    // BUY-74662: proxy the 9 split-sitemap routes (products, blog, merchants,
+    // stores, brands, categories, comparisons, index, pages) to apex
+    // (buywhere.ai). Apex is canonical; the api host structurally never
+    // registered these routes.
+    app.use(sitemapProxy_1.default);
+    // Sitemap index — references all sitemaps (BUY-74662: now lists all 10
+    // split-sitemaps served on api host — 9 proxied + native compare).
     app.get('/sitemap.xml', (req, res) => {
         const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
         const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
         const base = `${proto}://${host}`;
         const now = new Date().toISOString().slice(0, 10);
+        const splits = [
+            'products',
+            'blog',
+            'merchants',
+            'stores',
+            'brands',
+            'categories',
+            'comparisons',
+            'index',
+            'pages',
+            'compare',
+        ];
+        const entries = splits
+            .map((name) => [
+            '  <sitemap>',
+            `    <loc>${base}/sitemap-${name}.xml</loc>`,
+            `    <lastmod>${now}</lastmod>`,
+            '  </sitemap>',
+        ].join('\n'))
+            .join('\n');
         const xml = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-            '  <sitemap>',
-            `    <loc>${base}/sitemap-compare.xml</loc>`,
-            `    <lastmod>${now}</lastmod>`,
-            '  </sitemap>',
+            entries,
             '</sitemapindex>',
         ].join('\n');
         res.set('Content-Type', 'application/xml; charset=utf-8');
@@ -347,11 +389,6 @@ function createApp() {
             '',
             'Sitemap: https://api.buywhere.ai/sitemap.xml',
         ].join('\n'));
-    });
-    app.get('/llms.txt', (_req, res) => {
-        res.set('X-Robots-Tag', 'ai-index');
-        res.set('Cache-Control', 'public, max-age=86400');
-        res.type('text/plain').send(`# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`);
     });
     app.get('/agents.txt', (_req, res) => {
         res.set('X-Robots-Tag', 'ai-index');
@@ -399,24 +436,12 @@ function createApp() {
             'Sitemap: https://api.buywhere.ai/sitemap.xml',
         ].join('\n'));
     });
-    app.get('/developers/sitemap-index.xml', (req, res) => {
-        const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
-        const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
-        const base = `${proto}://${host}`;
-        const now = new Date().toISOString().slice(0, 10);
-        const xml = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-            '  <sitemap>',
-            `    <loc>${base}/developers/sitemap.xml</loc>`,
-            `    <lastmod>${now}</lastmod>`,
-            '  </sitemap>',
-            '</sitemapindex>',
-        ].join('\n');
-        res.set('Content-Type', 'application/xml; charset=utf-8');
-        res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
-        res.send(xml);
-    });
+    // BUY-74774: /developers/sitemap-index.xml is served by apexDiscoveryProxy
+    // (mounted earlier in the stack via app.use(apexDiscoveryProxyRouter)).
+    // The previous inline stub returned 1 entry pointing only at
+    // /developers/sitemap.xml, shrinking the developer AEO surface vs apex.
+    // Apex returns the canonical 9-entry sitemap-index. No handler needed
+    // here — Express falls through to the proxy router.
     app.get('/developers/sitemap.xml', (req, res) => {
         const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
         const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
@@ -475,6 +500,9 @@ function createApp() {
     app.use(fxRefresh_1.default);
     // BUY-67318: outbound-link probe status debug endpoint.
     app.use(probes_1.default);
+    // BUY-75314: canonical business metrics (clicks, API, catalog, indexation,
+    // traffic, growth, dead links) per /home/paperclip/ops-canon/METRICS-DEFINITIONS.md.
+    app.use(metricsTruth_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });

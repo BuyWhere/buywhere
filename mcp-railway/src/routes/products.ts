@@ -223,6 +223,7 @@ router.get(
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.url_last_checked_at, products.url_status,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
 
@@ -495,6 +496,7 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+               products.url_last_checked_at, products.url_status,
                products.region, products.country_code, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
@@ -748,6 +750,8 @@ router.get(
         'rating', 'title', 'country_code', 'region',
         'canonical_id', 'normalized_price_usd', 'structured_specs',
         'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
+        // BUY-75368: A2 weekly report fields.
+        'url_last_checked_at', 'url_status',
       ]);
       const requested = fields.filter(f => VALID_FIELDS.has(f));
       if (requested.length > 0) {
@@ -931,6 +935,7 @@ router.get(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
@@ -1338,6 +1343,7 @@ router.get(
       result = await db.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
          FROM products WHERE id = $1`,
@@ -1683,6 +1689,7 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                 products.url_last_checked_at, products.url_status,
                  products.region, products.country_code, ${specColumnsJoined}`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache

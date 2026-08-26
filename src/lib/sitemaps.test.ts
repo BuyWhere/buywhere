@@ -107,8 +107,8 @@ test("merchant listing path with trailing slash is normalized to canonical (BUY-
 // STATIC_SITEMAP_ROUTES and the dynamic registries (getAllBlogPosts(),
 // seoLandingPages) emitted them. The fix removed the hardcoded copies
 // from STATIC_SITEMAP_ROUTES and added a Map-based dedupe in the emitter.
-test("getStaticSitemapEntries emits each <loc> at most once (BUY-57452)", () => {
-  const entries = getStaticSitemapEntries();
+test("getStaticSitemapEntries emits each <loc> at most once (BUY-57452)", async () => {
+  const entries = await getStaticSitemapEntries();
   const counts = new Map<string, number>();
   for (const entry of entries) {
     counts.set(entry.url, (counts.get(entry.url) ?? 0) + 1);
@@ -124,10 +124,10 @@ test("getStaticSitemapEntries emits each <loc> at most once (BUY-57452)", () => 
   );
 });
 
-test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-57452)", () => {
+test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-57452)", async () => {
   // These 9 URLs must still appear (we removed hardcoded copies, not the
   // pages themselves), and each must now appear exactly once.
-  const entries = getStaticSitemapEntries();
+  const entries = await getStaticSitemapEntries();
   const urls = new Set(entries.map((e) => e.url));
   const required = [
     "https://buywhere.ai/blog/cheapest-iphone-singapore-2026",
@@ -145,12 +145,12 @@ test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-5745
   }
 });
 
-test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or fewer (BUY-57452)", () => {
+test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or fewer (BUY-57452)", async () => {
   // Pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
   // We accept <=230 to tolerate future removals (e.g. soft-404 slugs)
   // without breaking the test. We assert <=230 strictly so any future
   // re-emission of removed hardcoded entries surfaces here, not in GSC.
-  const entries = getStaticSitemapEntries();
+  const entries = await getStaticSitemapEntries();
   assert.ok(
     entries.length <= 230,
     `sitemap-pages.xml emitted ${entries.length} entries; expected <= 230`,

@@ -200,7 +200,7 @@ export default function GroceryCategoryPage() {
           <p className="text-lg text-gray-600 mb-8">
             Singapore&apos;s supermarket competition is fierce, with NTUC FairPrice, Sheng Siong, Cold Storage, Giant, and online platforms like RedMart and FairPrice Online constantly vying for your basket. BuyWhere monitors prices and promotions across all major retailers, helping you identify the best deals on the products you buy every week.
           </p>
-          <Link href="/search?q=grocery&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=grocery&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Grocery Deals →
           </Link>
         </section>
@@ -261,7 +261,7 @@ export default function GroceryCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Find the best grocery deals in Singapore with BuyWhere.
           </p>
-          <Link href="/search?q=grocery&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=grocery&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Compare Grocery Prices Now →
           </Link>
         </section>

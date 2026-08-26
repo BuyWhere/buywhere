@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-export function GET(): Response {
-  const entries = getStaticSitemapEntries();
+export async function GET(): Promise<Response> {
+  const entries = await getStaticSitemapEntries();
   const docsEntries = entries.filter(
     (entry) => entry.url.endsWith("/docs") || entry.url.includes("/docs/")
   );
