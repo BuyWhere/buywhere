@@ -658,6 +658,7 @@ router.get(
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.url_last_checked_at, products.url_status,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
 
@@ -1135,6 +1136,7 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+               products.url_last_checked_at, products.url_status,
                products.region, products.country_code, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
@@ -1958,6 +1960,7 @@ router.get(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
@@ -2354,7 +2357,8 @@ router.get(
         ftsParams.push(needed);
         const ftsResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, brand, category_path, region, country_code,
+                  url_last_checked_at, url_status
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2435,6 +2439,7 @@ router.get(
       `SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
+              url_last_checked_at, url_status,
               region, country_code, merchant_id
        FROM products
        WHERE is_active = true
