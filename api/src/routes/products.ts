@@ -631,7 +631,13 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
+    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
+    // to filter by retailer/source. The retailer name lives in the `source` column
+    // (aliased as `domain` in the response via buildProduct). Without this filter,
+    // ?source=amazon is silently ignored — same results as ?source=shopify.
+    const source = (req.query.source as string | undefined) || (req.query.domain as string | undefined);
+
+    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${source || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -671,11 +677,6 @@ router.get(
       idx++;
     }
 
-    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
-    // to filter by retailer/source. The retailer name lives in the `source` column
-    // (aliased as `domain` in the response via buildProduct). Without this filter,
-    // ?source=amazon is silently ignored — same results as ?source=shopify.
-    const source = (req.query.source as string | undefined) || (req.query.domain as string | undefined);
     if (source) {
       conditions.push(`source = $${idx}`);
       params.push(source);
