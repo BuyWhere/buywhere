@@ -45,6 +45,11 @@ export interface CanonicalProduct {
   has_affiliate_tracking: boolean;
   is_affiliate: boolean;
   affiliate_disclosure?: string;
+  // BUY-74262: expose raw source column alongside merchant alias.
+  // `source` is the retailer/feed origin (e.g. "amazon_us", "shopify");
+  // `merchant` is the same value mapped from `domain` alias for backward compat.
+  source?: string | null;
+  scraped_via?: string | null;
 }
 
 export type NearMissPredicateFail = 'price' | 'currency' | 'availability' | 'image_url' | 'merchant_url';

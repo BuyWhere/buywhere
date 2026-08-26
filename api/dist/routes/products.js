@@ -553,6 +553,7 @@ const LIST_SORT_TTL_SECONDS = 60;
 // a bad estimate frozen into Redis for the TTL window. Bump the key so live
 // requests can never serve the poisoned entries.
 const LIST_CACHE_PREFIX = 'listv2';
+const LIST_PRODUCTS_TABLE = 'products_partitioned';
 router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.list'), asyncHandler(async (req, res) => {
     // Backward compatibility: early public docs and clients used
     // `/v1/products?q=...` or `/v1/products?query=...` for search. Treat
@@ -649,12 +650,23 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         params.push(category);
         idx++;
     }
+    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
+    // to filter by retailer/source. The retailer name lives in the `source` column
+    // (aliased as `domain` in the response via buildProduct). Without this filter,
+    // ?source=amazon is silently ignored — same results as ?source=shopify.
+    const source = req.query.source || req.query.domain;
+    if (source) {
+        conditions.push(`source = $${idx}`);
+        params.push(source);
+        idx++;
+    }
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
-                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count,
+                products.source, products.scraped_via`;
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
     const productReadDb = (0, readReplica_1.readDb)();
     const [countResult, dataResult] = await Promise.all([
@@ -680,7 +692,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // them via products_pkey reverse scan within 30s. On the partitioned
         // table, the same predicate prunes to the PH partition (one of 30+
         // partitions) and returns in <500ms.
-        productReadDb.query(`EXPLAIN SELECT 1 FROM products ${whereClause}`, params).then((r) => {
+        productReadDb.query(`EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
             if (match)
@@ -692,7 +704,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
             return fb;
         }),
         productReadDb.query(`SELECT ${SELECT_COLUMNS}
-         FROM products
+         FROM ${LIST_PRODUCTS_TABLE} AS products
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]),
@@ -1098,7 +1110,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.region, products.country_code, ${specColumnsJoined},
+               products.source, products.scraped_via`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
@@ -1445,7 +1458,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             : null;
         // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
         if (activeVectorDb) {
-            const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+            // Reuse the semantic-cache embedding if it was already computed above
+            // (avoids a duplicate Gemini API call when both the semantic cache
+            // lookup and the vector query path are active for the same request).
+            const queryVector = res.locals.semVec ?? await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
                 try {
                     // BUY-63271: mark a savepoint before any local (client) queries so a statement
@@ -2568,7 +2584,8 @@ async function warmSearchCache() {
             const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined},
+                 products.source, products.scraped_via`;
             // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
             // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
             // (laptop+US = 70k+ matches) the CTE materializes all matches before LIMIT and

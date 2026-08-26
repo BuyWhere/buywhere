@@ -113,6 +113,13 @@ function buildProduct(row, defaultCurrency, compact) {
         ...(hasAffiliateTracking && {
             affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
         }),
+        // BUY-74262: expose the raw `source` column alongside the `merchant` alias.
+        // The `source` column holds the retailer/feed origin (e.g. "amazon_us",
+        // "shopify"). `merchant` is the same value but mapped from the `domain` alias
+        // for backward compatibility. Agents filtering by `?source=...` need the
+        // explicit `source` key in the response to verify the filter took effect.
+        source: row.source || null,
+        scraped_via: row.scraped_via || null,
     };
     if (compact) {
         const meta = row.metadata;
@@ -155,6 +162,7 @@ function buildProduct(row, defaultCurrency, compact) {
 // BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response is empty AND the caller derived an emptiness reason, attach the emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses ignore this (reasons are only meaningful for empty results).
 function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore, expectedCountryCode, emptiness) {
     const isEmpty = products.length === 0;
+    const status = degraded ? 'degraded' : undefined;
     return {
         data: products,
         // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
@@ -170,6 +178,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
             response_time_ms: responseTimeMs,
             cached,
             ...(degraded != null && { degraded }),
+            ...(status && { status }),
             ...(hasMore != null && { has_more: hasMore }),
             // BUY-71542 / P2.6 + BUY-72044 / P2.6A: surface the empty-result triplet
             // when (a) the caller derived one and (b) the response is genuinely empty.
@@ -178,6 +187,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
                 emptiness_reason: emptiness.emptiness_reason,
                 confidence: emptiness.confidence,
                 diagnostic: emptiness.diagnostic,
+                degraded_kind: emptiness.degraded_kind,
             }),
         },
     };
@@ -208,6 +218,54 @@ function deriveEmptiness(signals) {
     const baseDiag = {
         deliver_to_present: signals.deliverToPresent,
     };
+    // BUY-74597: timeout / auth failure / circuit open / upstream exception take
+    // precedence over other empty-result heuristics. They always return
+    // status=degraded, confidence=low, and a stage diagnostic.
+    if (signals.degradedKind === 'timeout' || signals.degradedKind === 'partial_timeout') {
+        return {
+            emptiness_reason: signals.degradedKind,
+            confidence: 'low',
+            diagnostic: {
+                engine_status: 'degraded',
+                indexed_for_region: signals.regionSupported,
+                category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+                rate_limit_remaining: signals.rateLimitRemaining ?? null,
+                timed_out_stage: signals.timedOutStage ?? null,
+                ...baseDiag,
+            },
+            degraded_kind: signals.degradedKind,
+        };
+    }
+    if (signals.degradedKind === 'auth_failure') {
+        return {
+            emptiness_reason: 'auth_failure',
+            confidence: 'low',
+            diagnostic: {
+                engine_status: 'error',
+                indexed_for_region: signals.regionSupported,
+                category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+                rate_limit_remaining: signals.rateLimitRemaining ?? null,
+                timed_out_stage: null,
+                ...baseDiag,
+            },
+            degraded_kind: 'auth_failure',
+        };
+    }
+    if (signals.degradedKind === 'upstream_exception' || signals.degradedKind === 'circuit_open') {
+        return {
+            emptiness_reason: 'api_error',
+            confidence: 'low',
+            diagnostic: {
+                engine_status: 'degraded',
+                indexed_for_region: signals.regionSupported,
+                category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+                rate_limit_remaining: signals.rateLimitRemaining ?? null,
+                timed_out_stage: signals.timedOutStage ?? null,
+                ...baseDiag,
+            },
+            degraded_kind: signals.degradedKind,
+        };
+    }
     if (signals.apiError) {
         return {
             emptiness_reason: 'api_error',
