@@ -1,9 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import CategoryProductGrid from '@/components/seo/CategoryProductGrid';
 import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
+import { fetchCategoryProducts, categorySlugToSearchQuery } from '@/lib/category-products';
+
+// BUY-75418: SSR product grids must be fresh
+export const dynamic = "force-dynamic";
 
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
@@ -72,6 +77,7 @@ export default async function CategorySlugPage({ params }: PageProps) {
 
   const name = category.name;
   const canonicalCategoryUrl = toSiteUrl(`/categories/${slug}`);
+  const ssrProducts = await fetchCategoryProducts(categorySlugToSearchQuery(slug), "SG", 12);
 
   const schemaMarkup = {
     '@context': 'https://schema.org',
@@ -136,6 +142,8 @@ export default async function CategorySlugPage({ params }: PageProps) {
           </p>
           <HeroSearch />
         </div>
+
+        <CategoryProductGrid products={ssrProducts} category={name} country="SG" />
 
         {/* We're building section */}
         <div className="mb-16 bg-indigo-50 border border-indigo-100 rounded-xl p-8 text-center">

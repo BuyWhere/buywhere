@@ -1,9 +1,17 @@
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
+import CategoryProductGrid from "@/components/seo/CategoryProductGrid";
 import { buildWebPageSchema } from "@/lib/page-schema";
+import { fetchCategoryProducts } from "@/lib/category-products";
 
-export default function USLandingPage() {
+// BUY-75418: SSR product grids must be fresh — use force-dynamic
+export const dynamic = "force-dynamic";
+
+export default async function USLandingPage() {
+  // BUY-75418: server-render product grid for AI crawlers
+  const ssrProducts = await fetchCategoryProducts("electronics", "US", 12);
+
   const schema = buildWebPageSchema({
     path: "/us",
     name: "BuyWhere — AI-Powered Product Discovery in the United States",
@@ -89,6 +97,8 @@ export default function USLandingPage() {
           </div>
         </div>
       </section>
+
+      <CategoryProductGrid products={ssrProducts} category="Electronics" country="US" />
 
       <section className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">

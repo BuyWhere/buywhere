@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import SgCategoryProductGrid from '@/components/seo/SgCategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Grocery Singapore | Compare Prices on Food, Beverages & Daily Essentials',
@@ -11,7 +12,7 @@ export const metadata = buildSgCategoryMetadata(
 
 const CATEGORY_URL = toSiteUrl('/categories/grocery');
 
-export default function GroceryCategoryPage() {
+export default async function GroceryCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -92,6 +93,8 @@ export default function GroceryCategoryPage() {
           </p>
           <HeroSearch />
         </div>
+
+        <SgCategoryProductGrid slug="grocery" name="Grocery" />
 
         {/* Why Compare Section */}
         <section className="mb-16">

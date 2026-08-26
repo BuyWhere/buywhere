@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import SgCategoryProductGrid from '@/components/seo/SgCategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Home & Living Singapore | Compare Best Prices on Furniture & Household Items',
@@ -11,7 +12,7 @@ export const metadata = buildSgCategoryMetadata(
 
 const CATEGORY_URL = toSiteUrl('/categories/home-living');
 
-export default function HomeLivingCategoryPage() {
+export default async function HomeLivingCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -92,6 +93,8 @@ export default function HomeLivingCategoryPage() {
           </p>
           <HeroSearch />
         </div>
+
+        <SgCategoryProductGrid slug="home-living" name="Home & Living" />
 
         {/* Why Compare Section */}
         <section className="mb-16">

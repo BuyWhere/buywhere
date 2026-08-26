@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import SgCategoryProductGrid from '@/components/seo/SgCategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories',
@@ -11,7 +12,7 @@ export const metadata = buildSgCategoryMetadata(
 
 const CATEGORY_URL = toSiteUrl('/categories/fashion');
 
-export default function FashionCategoryPage() {
+export default async function FashionCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -92,6 +93,8 @@ export default function FashionCategoryPage() {
           </p>
           <HeroSearch />
         </div>
+
+        <SgCategoryProductGrid slug="fashion" name="Fashion" />
 
         {/* Why Use BuyWhere Section */}
         <section className="mb-16">

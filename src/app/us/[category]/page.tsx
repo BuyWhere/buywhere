@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { USSearchAutocomplete } from "@/components/USSearchAutocomplete";
 import { USDealsSection } from "@/components/USDealsSection";
+import CategoryProductGrid from "@/components/seo/CategoryProductGrid";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import { fetchCategoryProducts, categorySlugToSearchQuery } from "@/lib/category-products";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -67,6 +69,10 @@ const DEFAULT_CATEGORY = {
   keywords: ["price comparison", "Amazon", "Walmart", "Target", "Best Buy", "deals"],
   subcategories: [],
 };
+
+// BUY-75418: SSR product grids must be fresh — use force-dynamic so the page
+// re-fetches products on every request (5-min Next.js cache handles stampede).
+export const dynamic = "force-dynamic";
 
 function formatCategoryName(slug: string): string {
   return slug
@@ -298,6 +304,10 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
   const stats = await fetchCatalogStats();
   const productCountLabel = stats ? formatCompactProductCount(stats.totalProducts) : "Millions";
 
+  // BUY-75418: server-render product grid for AI crawlers
+  const searchQuery = categorySlugToSearchQuery(category);
+  const ssrProducts = await fetchCategoryProducts(searchQuery, "US", 12);
+
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -357,6 +367,7 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />
+        <CategoryProductGrid products={ssrProducts} category={categoryName} country="US" />
         <CTASection category={category} />
       </main>
 

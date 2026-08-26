@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
+import SgCategoryProductGrid from '@/components/seo/SgCategoryProductGrid';
 
 export const metadata = buildSgCategoryMetadata(
   'Beauty & Health Singapore | Compare Best Skincare, Makeup & Wellness Prices',
@@ -11,7 +12,7 @@ export const metadata = buildSgCategoryMetadata(
 
 const CATEGORY_URL = toSiteUrl('/categories/beauty-health');
 
-export default function BeautyHealthCategoryPage() {
+export default async function BeautyHealthCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -92,6 +93,8 @@ export default function BeautyHealthCategoryPage() {
           </p>
           <HeroSearch />
         </div>
+
+        <SgCategoryProductGrid slug="beauty-health" name="Beauty & Health" />
 
         {/* Why Compare Section */}
         <section className="mb-16">
