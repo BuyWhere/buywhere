@@ -25,6 +25,7 @@ import {
   extractProductIds,
   hasOutboundUrl,
 } from '../monitoring/shoppingJobFunnel';
+import { recordCacheHitLatency, readCacheHitLatencyPercentiles } from '../monitoring/cacheStats';
 
 // BUY-73521: start funnel writer on module load (idempotent).
 startShoppingJobFunnel();
@@ -41,6 +42,9 @@ const V2_BUYER_TOOLS = new Set([
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-75411: per-(q,cc) MCP FTS snapshot TTL. 300s (5 min) bounds staleness
+// between ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
+const MCP_FTS_CACHE_TTL_SECONDS = parseInt(process.env.MCP_FTS_CACHE_TTL_SECONDS || '300', 10);
 
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
@@ -505,6 +509,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed.results) {
+        // BUY-75411: record cache-hit wall-clock latency so the admin probe
+        // can report p95 over the sliding window. Sorted set key shape
+        // matches api/src/monitoring/cacheStats.ts exactly.
+        await recordCacheHitLatency(redis, Date.now() - t0);
         return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
       }
     }
@@ -759,7 +767,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
 
   try {
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', MCP_FTS_CACHE_TTL_SECONDS);
   } catch (_) { /* cache write failure is non-fatal */ }
 
   // F24 (2026-08-22): nudge agents that skipped deliver_to — added after the
@@ -1599,6 +1607,11 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       if (keys.length > 0) await redis.del(...keys);
       const searchKeys = await redis.keys('search:*');
       if (searchKeys.length > 0) await redis.del(...searchKeys);
+      // BUY-75411: MCP /search_products uses fts:* keys; prior ingestion
+      // paths only busted products:* + search:*, so per-(q,cc) snapshots
+      // survived reindexes indefinitely. Clear the FTS namespace on success.
+      const ftsKeys = await redis.keys('fts:*');
+      if (ftsKeys.length > 0) await redis.del(...ftsKeys);
       await redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
     } catch (e) {
       console.warn('[mcp:ingest] Cache invalidation failed:', (e as Error).message);
@@ -2196,6 +2209,38 @@ router.get('/health/regions', async (_req: Request, res: Response) => {
       regions: {},
       note: 'snapshotter degraded',
     });
+  }
+});
+
+// GET /mcp/health/cache_hit_latency — BUY-75411 MCP search_products cache-hit p95.
+// Public and cheap: reads Redis sorted-set samples only; no DB query.
+router.get('/health/cache_hit_latency', async (req: Request, res: Response) => {
+  const windowParam = Number(req.query.window ?? 3600);
+  const windowSeconds = Number.isFinite(windowParam) && windowParam > 0 && windowParam <= 7 * 24 * 3600
+    ? Math.floor(windowParam)
+    : 3600;
+  const ttlSeconds = Number(process.env.MCP_FTS_CACHE_TTL_SECONDS || 300);
+  try {
+    const latency = await readCacheHitLatencyPercentiles(redis, windowSeconds);
+    const p95 = latency.p95_ms ?? null;
+    res.json({
+      window_seconds: latency.window_seconds ?? windowSeconds,
+      sample_count: latency.sample_count ?? 0,
+      p50_ms: latency.p50_ms ?? null,
+      p95_ms: p95,
+      p99_ms: latency.p99_ms ?? null,
+      max_ms: latency.max_ms ?? null,
+      buckets_considered: latency.buckets_considered ?? 0,
+      cache_ttl_seconds: ttlSeconds,
+      available: latency.available === true,
+      reason: latency.reason ?? null,
+      threshold_ms: 200,
+      passes_p95_under_200ms: p95 !== null && p95 <= 200,
+      probe_note: 'MCP search_products cache-hit latency samples from Redis sorted set qembed:fts:cache_hit:60:<bucket>',
+      ts: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ error: 'mcp_cache_hit_latency_failed', message: (err as Error).message });
   }
 });
 
