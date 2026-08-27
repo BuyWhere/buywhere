@@ -39,7 +39,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main id="main-content" className="flex-1 flex items-center justify-center px-4 py-16">
+      <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-16">
         <div className="max-w-2xl w-full text-center">
           <div className="mb-10">
             <svg
