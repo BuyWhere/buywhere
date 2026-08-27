@@ -19,6 +19,11 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Mobile safe area padding for footer — prevents content cut-off behind browser chrome */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1.5rem);
+  }
 }
 
 /* Search input placeholder — WCAG AA contrast on dark indigo hero background.

@@ -4,7 +4,7 @@ import { FormEvent, useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 
-const exampleQueries = ['wireless headphones', 'standing desk', '4k monitor'];
+const exampleQueries = ['4k monitor', 'standing desk', 'wireless headphones'];
 const countryOptions = [
   { value: 'us', label: 'US' },
   { value: 'sg', label: 'Singapore' },
@@ -123,7 +123,7 @@ export function HomeProductSearch() {
                     setQuery(example);
                     submitQuery(example);
                   }}
-                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 max-w-[12rem] truncate"
+                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 max-w-[10rem] sm:max-w-[12rem] truncate"
                 >
                   {example}
                 </button>
