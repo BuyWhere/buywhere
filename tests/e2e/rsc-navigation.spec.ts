@@ -65,6 +65,21 @@ test.describe('BUY-67036 RSC navigation requests', () => {
     await ctx.dispose();
   });
 
+  test('/deals full Chrome RSC nav returns 200', async ({ baseURL }) => {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        'User-Agent': CHROME_UA,
+        Accept: 'text/x-component',
+        RSC: '1',
+        'Next-Router-State-Tree': RSC_STATE_TREE,
+      },
+    });
+    const response = await ctx.get('/deals');
+    expect(response.status()).toBe(200);
+    await ctx.dispose();
+  });
+
   test('/search simple RSC prefetch still returns 200', async ({ baseURL }) => {
     const ctx = await request.newContext({
       baseURL,
@@ -89,6 +104,20 @@ test.describe('BUY-67036 RSC navigation requests', () => {
       },
     });
     const response = await ctx.get('/compare?q=laptop&_rsc=test');
+    expect(response.status()).toBe(200);
+    await ctx.dispose();
+  });
+
+  test('/deals simple RSC prefetch still returns 200', async ({ baseURL }) => {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        'User-Agent': CHROME_UA,
+        Accept: 'text/x-component',
+        RSC: '1',
+      },
+    });
+    const response = await ctx.get('/deals?_rsc=test');
     expect(response.status()).toBe(200);
     await ctx.dispose();
   });
@@ -129,6 +158,21 @@ test.describe('BUY-67036 RSC navigation requests', () => {
       },
     });
     const response = await ctx.get('/compare?ids=a-b&q=gaming%20laptop');
+    expect(response.status()).toBe(200);
+    await ctx.dispose();
+  });
+
+  test('/deals populated __PAGE__ shape returns 200 (heartbeat probe shape)', async ({ baseURL }) => {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        'User-Agent': CHROME_UA,
+        Accept: 'text/x-component',
+        RSC: '1',
+        'Next-Router-State-Tree': POPULATED_PAGE_TREE,
+      },
+    });
+    const response = await ctx.get('/deals');
     expect(response.status()).toBe(200);
     await ctx.dispose();
   });

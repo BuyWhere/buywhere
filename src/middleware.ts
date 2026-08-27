@@ -504,7 +504,7 @@ export async function middleware(request: NextRequest) {
   // strip in commit 27113c030 but the merge into main (12bcfd452) dropped it
   // from src/middleware.ts; live still 500s on the populated __PAGE__ shape
   // that VidMee + BUY-66904 measured. For RSC navigation requests to /search
-  // and /compare, strip the Next-Router-State-Tree header so Next.js falls
+  // /compare, and /deals, strip the Next-Router-State-Tree header so Next.js falls
   // back to a fresh route render (still 200, still the intended content). The
   // route is force-dynamic + has per-route error.tsx + Promise<searchParams>,
   // so a fresh render is safe.
@@ -513,7 +513,7 @@ export async function middleware(request: NextRequest) {
   if (
     rscFlag === "1" &&
     routerStateHeader &&
-    (pathname === "/search" || pathname === "/compare")
+    (pathname === "/search" || pathname === "/compare" || pathname === "/deals")
   ) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.delete("next-router-state-tree");

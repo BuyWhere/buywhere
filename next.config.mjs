@@ -408,6 +408,17 @@ const nextConfig = {
             value: 'www.buywhere.ai',
           },
         ],
+        missing: [
+          {
+            type: 'header',
+            key: 'rsc',
+            value: '1',
+          },
+          {
+            type: 'query',
+            key: '_rsc',
+          },
+        ],
         destination: 'https://buywhere.ai/:path*',
         permanent: true,
       },
