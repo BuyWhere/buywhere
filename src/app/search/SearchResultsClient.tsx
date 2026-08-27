@@ -778,7 +778,8 @@ function SearchInputSkeleton() {
 function SearchResultsSkeleton() {
   return (
     <div
-      className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      // BUY-75930: max-w-full ensures grid never exceeds viewport on mobile
+      className="grid max-w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       aria-hidden="true"
     >
       {Array.from({ length: 8 }).map((_, index) => (
@@ -901,7 +902,8 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
@@ -962,7 +964,8 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            // BUY-75930: break-words prevents mid-specifier truncation like "2.4GH..."
+            className="line-clamp-2 break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
             title={product.name}
             aria-label={product.name}
           >
@@ -1310,7 +1313,8 @@ export default function SearchResultsClient({
   const hasActiveSearch = debouncedQuery.length >= MIN_QUERY_LENGTH;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
+    // BUY-75930: overflow-x hidden prevents horizontal scroll on mobile
+    <div className="flex min-h-screen flex-col overflow-x bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
       <Header />
 
       <main id="main-content" className="flex-1">
@@ -1636,7 +1640,8 @@ export default function SearchResultsClient({
               {!loadingInitial && products.length > 0 ? (
                 <>
                   <div
-                    className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                    // BUY-75930: max-w-full ensures grid never exceeds viewport on mobile
+                    className="grid max-w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
