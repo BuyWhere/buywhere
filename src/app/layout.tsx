@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 import dynamic from "next/dynamic";
 import "./globals.css";
+import "@/components/ui/design-tokens.css";
 import DeveloperSessionBootstrap from "@/components/DeveloperSessionBootstrap";
 import SentryErrorBoundary from "@/components/SentryErrorBoundary";
 import UpgradeIntentPromptHost from "@/components/UpgradeIntentPromptHost";
