@@ -6,6 +6,11 @@
   --color-primary: #4f46e5;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: Inter, system-ui, sans-serif;
 }
