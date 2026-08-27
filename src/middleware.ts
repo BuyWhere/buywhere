@@ -711,8 +711,17 @@ export async function middleware(request: NextRequest) {
   // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
   // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
   // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
-  // BUY-71641: Removed middleware handling for /p/{1-7 digit}
-  // Let the page component call notFound() to render full not-found.tsx page
+  // BUY-71641: Redirect short /p/{1-7 digit} ids to /not-found. notFound() inside the
+  // /p/[id] page streams an empty __next_error__ shell (RSC not-found tree renders
+  // null for this dynamic route), so a redirect is the only path that renders the
+  // full not-found.tsx page (Header/Footer/styled CTAs). /not-found itself serves
+  // HTTP 404, so the hard-404 contract from BUY-72180 is preserved.
+  const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
+  if (pShortIdMatch) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/not-found";
+    return tagAgent(NextResponse.redirect(url, 302));
+  }
 
   // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
   // notFound() for missing products but Next.js App Router streams the not-found
@@ -731,8 +740,31 @@ export async function middleware(request: NextRequest) {
   const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(pathname);
   if (pIdMatch) {
     const productId = pIdMatch[1];
-    // BUY-71641: Removed middleware 404 interception
-    // Let the page component call notFound() to render full not-found.tsx page
+    // BUY-71641: probe the API; on an actual product-not-found (HTTP 404, not a
+    // transient 429/5xx), redirect to /not-found so the full styled 404 page
+    // renders. An empty 404 NextResponse (the pre-fix shape) or notFound() in
+    // the page both stream a blank __next_error__ shell — the redirect is the
+    // only path that renders not-found.tsx. Transient failures fall through to
+    // the page handler as before (BUY-72409).
+    try {
+      const apiRes = await fetch(
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${encodeURIComponent(productId)}`,
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}`,
+          },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (apiRes.status === 404) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        return tagAgent(NextResponse.redirect(url, 302));
+      }
+    } catch {
+      // probe failure/timeout — fall through and let the page render
+    }
   }
 
   // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
