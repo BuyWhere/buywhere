@@ -82,6 +82,13 @@ export function trackAffiliateClick(event: AffiliateClickEvent): void {
       ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
       ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
       ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
+      // BUY-74988: $set ensures PostHog materializes source → mat_source so
+      // HogQL property-filtered queries (mat_source=NULL → 0 results) resolve.
+      $set: {
+        source: event.source,
+        ...(event.pathname ? { pathname: event.pathname } : {}),
+        ...(event.currentUrl ? { current_url: event.currentUrl } : {}),
+      },
     },
   });
 }
