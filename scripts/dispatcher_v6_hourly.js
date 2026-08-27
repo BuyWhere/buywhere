@@ -286,16 +286,16 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
     stats AS (
       SELECT
         CASE WHEN EXISTS (SELECT 1 FROM children)
-          THEN (SELECT COALESCE(SUM(s.n_tup_ins), 0) FROM pg_stat_user_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
-          ELSE (SELECT COALESCE(n_tup_ins, 0) FROM pg_stat_user_tables WHERE relname = 'products' AND schemaname = 'public')
+          THEN (SELECT COALESCE(SUM(s.n_tup_ins), 0) FROM pg_stat_all_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
+          ELSE (SELECT COALESCE(n_tup_ins, 0) FROM pg_stat_all_tables WHERE relname = 'products' AND schemaname = 'public')
         END AS n_tup_ins,
         CASE WHEN EXISTS (SELECT 1 FROM children)
-          THEN (SELECT COALESCE(SUM(s.n_tup_upd), 0) FROM pg_stat_user_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
-          ELSE (SELECT COALESCE(n_tup_upd, 0) FROM pg_stat_user_tables WHERE relname = 'products' AND schemaname = 'public')
+          THEN (SELECT COALESCE(SUM(s.n_tup_upd), 0) FROM pg_stat_all_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
+          ELSE (SELECT COALESCE(n_tup_upd, 0) FROM pg_stat_all_tables WHERE relname = 'products' AND schemaname = 'public')
         END AS n_tup_upd,
         CASE WHEN EXISTS (SELECT 1 FROM children)
-          THEN (SELECT COALESCE(SUM(s.n_live_tup), 0) FROM pg_stat_user_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
-          ELSE (SELECT COALESCE(n_live_tup, 0) FROM pg_stat_user_tables WHERE relname = 'products' AND schemaname = 'public')
+          THEN (SELECT COALESCE(SUM(s.n_live_tup), 0) FROM pg_stat_all_tables s WHERE s.relid IN (SELECT relid FROM children) AND s.schemaname = 'public')
+          ELSE (SELECT COALESCE(n_live_tup, 0) FROM pg_stat_all_tables WHERE relname = 'products' AND schemaname = 'public')
         END AS n_live_tup
     ),
     live AS (${liveCountSql}),
