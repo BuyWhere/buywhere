@@ -111,6 +111,9 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               {formatPrice(product.price, product.currency)}
             </p>
           </div>
+          {/* BUY-70352: unify CTA shape — both branches get identical pill geometry.
+              Merchant rows get the interactive button with external link.
+              Non-merchant rows get a passive span (no nested interactive element). */}
           {isMerchantOffer ? (
             <span
               role="button"
@@ -122,8 +125,10 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               Buy at {product.merchant}
             </span>
           ) : (
-            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
-              View details
+            <span
+              className={`inline-flex min-h-11 items-center justify-center rounded-full bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+            >
+              Compare prices
             </span>
           )}
         </div>
