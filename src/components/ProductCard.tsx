@@ -10,7 +10,7 @@ import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
-import { attachProductCardClickAttribution } from '@/lib/click-attribution';
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 
 interface ProductCardProps {
   deal: {
@@ -138,12 +138,16 @@ function formatUSD(price: number): string {
 export const ProductCard = React.memo(function ProductCard({ deal, comparisonEnabled }: ProductCardProps) {
   const config = getMerchantConfig(deal.merchant);
 
+  // BUY-75417: route affiliate links through /r/direct/{id} so crawlers
+  // (GPTBot, ClaudeBot, PerplexityBot) see a followable server-rendered href.
+  const redirectHref = buildAffiliateRedirectUrl(deal.id) || deal.url;
+
   return (
     <a
-      href={deal.url}
+      href={redirectHref}
       onClick={attachProductCardClickAttribution}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer nofollow sponsored"
       title={deal.name}
       aria-label={`View deal: ${deal.name} from ${deal.merchant}`}
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"

@@ -1,5 +1,21 @@
 import posthog from 'posthog-js';
 
+/**
+ * Build an /r/direct/{id} affiliate redirect URL so the link is
+ * server-rendered and crawlable by AI bots (GPTBot, ClaudeBot, etc.).
+ * The /r/ route proxies through api.buywhere.ai which 302-redirects
+ * to the external retailer URL, giving crawlers a followable path.
+ *
+ * BUY-75417: AI crawlers could not see retailer links when they were
+ * external URLs or client-rendered only.
+ */
+export function buildAffiliateRedirectUrl(
+  productId: string | number | null | undefined,
+): string | null {
+  if (productId == null) return null;
+  return `/r/direct/${encodeURIComponent(String(productId))}`;
+}
+
 function safePostHogSessionId(): string | null {
   try {
     const maybePostHog = posthog as typeof posthog & { get_session_id?: () => string | null };

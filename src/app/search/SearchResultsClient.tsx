@@ -10,7 +10,7 @@ import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
-import { attachProductCardClickAttribution } from '@/lib/click-attribution';
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 import { SortDropdown, normalizeSortMode, type SortMode } from './SortDropdown';
 import { FilterSidebar, type FacetOption } from './FilterSidebar';
 import { FilterChipRow } from './FilterChipRow';
@@ -894,7 +894,15 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     scrapedVia,
     source: item.source ?? null,
     imageUrl,
-    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
+    // BUY-75417: prefer /r/direct/{id} for server-rendered crawlers, fall
+    // back to the API affiliate redirect, then click_url, etc.
+    href: buildAffiliateRedirectUrl(item.id)
+      || item.affiliate_redirect_url
+      || item.click_url
+      || item.affiliate_url
+      || item.buy_url
+      || item.url
+      || '#',
     // BUY-67977: derive brand from the title when the API does not provide
     // one, so the meta slot renders a consistent brand line across all cards
     // in a grid row (rather than only the rare rows where the ingest lane
@@ -1111,7 +1119,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
       href={product.href}
       onClick={attachProductCardClickAttribution}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer nofollow sponsored"
       aria-label={`View deal: ${product.name} from ${product.merchant}`}
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >

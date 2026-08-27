@@ -5,6 +5,7 @@ import Image from "next/image";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { AffiliateLink } from "@/components/AffiliateLink";
+import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { CrossMarketWidget } from "@/components/ui/CrossMarketWidget";
 import Link from "next/link";
 import { useCompare } from "@/lib/compare-context";
@@ -395,7 +396,9 @@ function USRetailerCard({
             productId={productId}
             platform={price.merchant.toLowerCase().replace(".", "")}
             productName={productName}
-            href={price.url}
+            // BUY-75417: route through /r/direct/{id} so crawlers see a
+            // followable server-rendered href instead of an external domain.
+            href={buildAffiliateRedirectUrl(productId) || price.url}
             className="block w-full text-center px-4 py-3 font-semibold rounded-xl transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
           >
             View on {price.merchant}
