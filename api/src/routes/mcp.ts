@@ -1604,39 +1604,51 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     });
     await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
     await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
+
+    // BUY-72082: Tier search via search_products partitioned table (97M rows,
+    // GIN-indexed, country-partitioned) instead of the 368M-row products table.
+    // Stage 1 selects candidate ids + price + updated_at from the tier; stage 2
+    // joins back to products by PK for the full MCP output columns. Mirrors the
+    // search_products fix and avoids the full-table FTS scans that push FBP over
+    // the 30s statement_timeout across SEA markets.
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-    const conditions: string[] = ['is_active = true', 'price > 0'];
-    const params: unknown[] = [];
-    params.push(productName);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-    params.push(requestedCountry);
-    conditions.push(`country_code = $${params.length}`);
-    if (minPrice > 0) {
-      params.push(minPrice);
-      conditions.push(`price >= $${params.length}`);
+    const tierConditions: string[] = [];
+    const tierParams: unknown[] = [];
+    tierParams.push(productName);
+    tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
+    tierParams.push(requestedCountry);
+    tierConditions.push(`sp.country_code = $${tierParams.length}`);
+    if (region) {
+      tierParams.push(region);
+      tierConditions.push(`sp.region = $${tierParams.length}`);
     }
-    params.push(CANDIDATE_POOL);
-    const candidateWhere = conditions.join(' AND ');
+    if (minPrice > 0) {
+      tierParams.push(minPrice);
+      tierConditions.push(`sp.price >= $${tierParams.length}`);
+    }
+    const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
+
+    tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
-         SELECT id, price, updated_at
-         FROM products
-         WHERE ${candidateWhere}
-         LIMIT $${params.length}
+         SELECT sp.id, sp.price, sp.updated_at
+         FROM search_products sp ${tierWhere}
+         LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at
          FROM cand
          ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
-         LIMIT $${params.length + 1}
+         LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
+       WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
-      [...params, limit]
+      tierParams
     );
     recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
   } catch (e: any) {
