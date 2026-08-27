@@ -77,6 +77,10 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
 }
 
 // GET /v1/brand/:slug
+// 2026-08-27: `WHERE brand = $1` was a sequential scan of the 365M-row products table (no brand index) →
+// 30 s statement timeout → 500 → every brand page 404'd whenever the Redis cache expired. Narrowing with the
+// FTS GIN index (brand names are in search_vector) turns it into a bitmap scan (100–250 ms on the replica).
+// lower(brand) because the column is mixed-case (Dyson/DYSON).
 // Returns brand data and products for a given brand slug
 router.get(
   '/:slug',
@@ -121,7 +125,8 @@ router.get(
           url,
           country_code
         FROM products
-        WHERE brand = $1
+        WHERE search_vector @@ plainto_tsquery('english', $1)
+          AND lower(brand) = lower($1)
           AND is_active = true
           AND is_available = true
         ORDER BY avg_rating DESC NULLS LAST, price ASC
@@ -145,7 +150,8 @@ router.get(
       const countQuery = `
         SELECT COUNT(*) as total
         FROM products
-        WHERE brand = $1
+        WHERE search_vector @@ plainto_tsquery('english', $1)
+          AND lower(brand) = lower($1)
           AND is_active = true
           AND is_available = true
       `;
