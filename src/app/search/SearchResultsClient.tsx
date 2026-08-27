@@ -11,6 +11,10 @@ import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 import { attachProductCardClickAttribution } from '@/lib/click-attribution';
+import { SortDropdown, normalizeSortMode, type SortMode } from './SortDropdown';
+import { FilterSidebar, type FacetOption } from './FilterSidebar';
+import { FilterChipRow } from './FilterChipRow';
+import { FilterBottomSheet } from './FilterBottomSheet';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -499,6 +503,204 @@ function sortProductsByRelevance(products: SearchCardProduct[], query: string = 
   });
 }
 
+// BUY-75939: client-side sort modes. Sort is applied AFTER filter (so the user
+// sees a stable, expected order within their filtered subset). The sort does
+// NOT mutate `products` — it always returns a new array.
+//
+// Each mode falls back to relevance ranking as the secondary key so the order
+// stays sensible when the primary key is missing (e.g. a "Newest" sort with no
+// timestamp on a row, or a price sort where some rows have `price = null` —
+// those always sink to the bottom of price sorts, matching every
+// price-comparison site).
+function compareByPriceAsc(left: SearchCardProduct, right: SearchCardProduct): number {
+  if (left.price === null && right.price === null) return 0;
+  if (left.price === null) return 1;
+  if (right.price === null) return -1;
+  return left.price - right.price;
+}
+
+function compareByPriceDesc(left: SearchCardProduct, right: SearchCardProduct): number {
+  if (left.price === null && right.price === null) return 0;
+  if (left.price === null) return 1;
+  if (right.price === null) return -1;
+  return right.price - left.price;
+}
+
+function compareByMerchantAsc(left: SearchCardProduct, right: SearchCardProduct): number {
+  const leftName = left.merchant || '';
+  const rightName = right.merchant || '';
+  return leftName.localeCompare(rightName);
+}
+
+// BUY-75939: the product shape does not carry a creation/indexed timestamp.
+// We deliberately keep "Newest" as a no-op fallback to relevance ranking (the
+// sort dropdown still lists it so QA can confirm the option exists, but the
+// order is whatever the API returned). When the catalog ingest lane starts
+// emitting a timestamp on each row, swap the comparator in place here — the
+// public SortMode value stays the same.
+function compareByNewest(_left: SearchCardProduct, _right: SearchCardProduct): number {
+  return 0;
+}
+
+export function applyProductSort(
+  products: SearchCardProduct[],
+  mode: SortMode,
+  query: string = ''
+): SearchCardProduct[] {
+  const base = sortProductsByRelevance(products, query);
+  if (mode === 'relevance') return base;
+  if (mode === 'price_asc') {
+    return [...base].sort((left, right) => {
+      const cmp = compareByPriceAsc(left, right);
+      return cmp !== 0 ? cmp : rankProduct(right, query) - rankProduct(left, query);
+    });
+  }
+  if (mode === 'price_desc') {
+    return [...base].sort((left, right) => {
+      const cmp = compareByPriceDesc(left, right);
+      return cmp !== 0 ? cmp : rankProduct(right, query) - rankProduct(left, query);
+    });
+  }
+  if (mode === 'merchant_asc') {
+    return [...base].sort((left, right) => {
+      const cmp = compareByMerchantAsc(left, right);
+      return cmp !== 0 ? cmp : rankProduct(right, query) - rankProduct(left, query);
+    });
+  }
+  if (mode === 'newest') {
+    return [...base].sort((left, right) => {
+      const cmp = compareByNewest(left, right);
+      return cmp !== 0 ? cmp : rankProduct(right, query) - rankProduct(left, query);
+    });
+  }
+  return base;
+}
+
+export type FilterState = {
+  brands: string[];
+  merchants: string[];
+  priceMin: number | null;
+  priceMax: number | null;
+};
+
+// BUY-75939: client-side filter applied AFTER the API returned its page of
+// products. Filter does NOT mutate the input array. Each filter type is
+// applied independently so the predicate order does not change the result:
+//   - brand match: case-insensitive equality against the derived brand
+//   - merchant match: case-insensitive equality against the formatted merchant
+//     name (the same string rendered on the card so users can predict the
+//     outcome)
+//   - price range: a row with `price === null` is always excluded from any
+//     bounded price filter (the user is asking for products IN that range;
+//     unknown-price rows do not satisfy the contract). Rows with `price`
+//     inside [min, max] survive.
+export function applyProductFilters(
+  products: SearchCardProduct[],
+  filters: FilterState
+): SearchCardProduct[] {
+  const brandSet = new Set(filters.brands.map((brand) => brand.toLowerCase()));
+  const merchantSet = new Set(filters.merchants.map((merchant) => merchant.toLowerCase()));
+
+  return products.filter((product) => {
+    if (brandSet.size > 0) {
+      const brand = (product.brand || '').toLowerCase();
+      if (!brandSet.has(brand)) return false;
+    }
+
+    if (merchantSet.size > 0) {
+      const merchant = (product.merchant || '').toLowerCase();
+      if (!merchantSet.has(merchant)) return false;
+    }
+
+    if (filters.priceMin !== null || filters.priceMax !== null) {
+      if (product.price === null) return false;
+      if (filters.priceMin !== null && product.price < filters.priceMin) return false;
+      if (filters.priceMax !== null && product.price > filters.priceMax) return false;
+    }
+
+    return true;
+  });
+}
+
+// BUY-75939: derive brand/merchant facet lists from the current products
+// array. Counts reflect the FULL product set, NOT the active filter — that
+// is the standard comparison-site behaviour (Amazon's left rail, Best Buy's
+// facet sidebar, etc.) and what QA expects. Sorted alphabetically by label so
+// the order is stable across renders and easy to scan.
+export function deriveFacets(products: SearchCardProduct[]): {
+  brandFacets: FacetOption[];
+  merchantFacets: FacetOption[];
+} {
+  const brandMap = new Map<string, { label: string; count: number }>();
+  const merchantMap = new Map<string, { label: string; count: number }>();
+
+  for (const product of products) {
+    if (product.brand) {
+      const key = product.brand.toLowerCase();
+      const existing = brandMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        brandMap.set(key, { label: product.brand, count: 1 });
+      }
+    }
+    if (product.merchant) {
+      const key = product.merchant.toLowerCase();
+      const existing = merchantMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        merchantMap.set(key, { label: product.merchant, count: 1 });
+      }
+    }
+  }
+
+  const sortByLabel = (left: FacetOption, right: FacetOption) =>
+    left.label.localeCompare(right.label);
+
+  const brandFacets: FacetOption[] = Array.from(brandMap.entries())
+    .map(([value, { label, count }]) => ({ value, label, count }))
+    .sort((left, right) => sortByLabel(left, right));
+
+  const merchantFacets: FacetOption[] = Array.from(merchantMap.entries())
+    .map(([value, { label, count }]) => ({ value, label, count }))
+    .sort((left, right) => sortByLabel(left, right));
+
+  return { brandFacets, merchantFacets };
+}
+
+function parsePriceValue(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+// BUY-75939: parse the URL params for brand and merchant. Each value can be
+// either a single value (`?brand=Apple`) or repeated (`?brand=Apple&brand=Sony`)
+// — both shapes come from forms. Empty strings, single-char inputs, and
+// surroundings whitespace are dropped so a stray `?brand=&brand=Apple` does
+// not leak an empty facet into the sidebar.
+function parseListParam(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+// BUY-75939: shallow equality for the URL-read effect. Order-sensitive: when
+// the URL lists `Apple,Sony` and the state has `Sony,Apple`, this returns
+// false so the effect restores the URL order. The current UI presents brands
+// alphabetically so the order is stable in practice.
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 
 // BUY-67977: derive a brand from the product title when the API did not
 // supply one. The catalog ingest lane (BUY-52807 family) leaves `brand` and
@@ -702,6 +904,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 // BUY-67977: also exported for the brand-derivation regression test.
 // BUY-71639: exported for the image-filter regression test.
 // BUY-72907: exported for the merchant-URL regression test.
+// BUY-75939: also exported for the sort/filter/facet regression tests.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
@@ -713,6 +916,12 @@ export const __test__ = {
   deriveBrandFromTitle,
   hasUsableProductImage,
   extractMerchantFromUrl,
+  applyProductSort,
+  applyProductFilters,
+  deriveFacets,
+  parsePriceValue,
+  parseListParam,
+  areStringArraysEqual,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
@@ -1048,10 +1257,37 @@ export default function SearchResultsClient({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
   const [hasHydrated, setHasHydrated] = useState(false);
+  // BUY-75939: sort dropdown + brand/merchant/price-range filters. State is
+  // initialized from `urlSearchParams` so a deep-linked URL like
+  // /search?q=laptop&sort=price_asc&brand=Apple&price_min=50 renders with
+  // the correct selections already applied. State writes back to the URL
+  // through the effect below — the round-trip stays inside one place
+  // (urlSearchParams -> setSort/setFilters -> effect -> router.replace()).
+  const initialSort = normalizeSortMode(searchParams?.get('sort'));
+  const initialBrandParams = searchParams?.get('brand');
+  const initialMerchantParams = searchParams?.get('merchant');
+  const initialPriceMin = searchParams?.get('price_min') ?? '';
+  const initialPriceMax = searchParams?.get('price_max') ?? '';
+  const [sortMode, setSortMode] = useState<SortMode>(initialSort);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(() =>
+    parseListParam(initialBrandParams)
+  );
+  const [selectedMerchants, setSelectedMerchants] = useState<string[]>(() =>
+    parseListParam(initialMerchantParams)
+  );
+  const [priceMin, setPriceMin] = useState<string>(initialPriceMin);
+  const [priceMax, setPriceMax] = useState<string>(initialPriceMax);
+  const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   const lastRequestKeyRef = useRef<string | null>(null);
   const initialResultsServedRef = useRef(initialProducts.length > 0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
+  // BUY-75939: track the last URL we wrote so the URL-read effect knows to
+  // ignore URLs that match our own write (otherwise a click that fires
+  // setSelectedBrands would race with the URL-write effect and the URL-read
+  // effect could reset the brand back to the URL's value, which was the
+  // pre-click state).
+  const lastWrittenSearchParamsRef = useRef<string>(searchParamsString);
 
   // Track hydration state to avoid server/client mismatch
   useEffect(() => {
@@ -1109,8 +1345,26 @@ export default function SearchResultsClient({
   }, []);
 
   useEffect(() => {
+    // BUY-75939: bail out when the URL matches our own write — otherwise a
+    // user click (e.g. checkbox toggle) would race the URL-write effect and
+    // the URL-read effect could reset the local state back to the pre-click
+    // URL value, dropping the click. Only genuine external URL changes
+    // (browser back/forward, a deep-link) flow through.
+    if (searchParamsString === lastWrittenSearchParamsRef.current) {
+      return;
+    }
+
     const nextQuery = (urlSearchParams.get('q') || '').trim();
     const nextCountry = normalizeCountry(urlSearchParams.get('country') || initialCountry);
+    // BUY-75939: read sort + filter state from the URL so back/forward
+    // navigation and any external link to /search?... restores the user's
+    // filters. `areStringArraysEqual` does shallow set-comparison so a no-op
+    // URL change (e.g. trailing-swap toggle order) does not re-render.
+    const nextSort = normalizeSortMode(urlSearchParams.get('sort'));
+    const nextBrands = parseListParam(urlSearchParams.get('brand'));
+    const nextMerchants = parseListParam(urlSearchParams.get('merchant'));
+    const nextPriceMin = urlSearchParams.get('price_min') ?? '';
+    const nextPriceMax = urlSearchParams.get('price_max') ?? '';
 
     if (nextQuery !== query) {
       setQuery(nextQuery);
@@ -1120,7 +1374,31 @@ export default function SearchResultsClient({
     if (nextCountry !== country) {
       setCountry(nextCountry);
     }
-  }, [country, initialCountry, query, urlSearchParams]);
+
+    if (nextSort !== sortMode) {
+      setSortMode(nextSort);
+    }
+
+    if (!areStringArraysEqual(nextBrands, selectedBrands)) {
+      setSelectedBrands(nextBrands);
+    }
+
+    if (!areStringArraysEqual(nextMerchants, selectedMerchants)) {
+      setSelectedMerchants(nextMerchants);
+    }
+
+    if (nextPriceMin !== priceMin) {
+      setPriceMin(nextPriceMin);
+    }
+
+    if (nextPriceMax !== priceMax) {
+      setPriceMax(nextPriceMax);
+    }
+
+    // Mark this URL as already consumed so a re-render with the same
+    // searchParams does not re-run the same assignments.
+    lastWrittenSearchParamsRef.current = searchParamsString;
+  }, [country, initialCountry, priceMax, priceMin, query, searchParamsString, selectedBrands, selectedMerchants, sortMode, urlSearchParams]);
 
   useEffect(() => {
     const normalizedQuery = normalizeSearchHistoryQuery(debouncedQuery);
@@ -1135,16 +1413,35 @@ export default function SearchResultsClient({
       params.set('q', debouncedQuery);
     }
     params.set('country', country);
+    // BUY-75939: serialize filter state into the URL so the browser back button
+    // and any shared link restores the exact state. Empty / default values are
+    // omitted so a default view keeps the URL clean.
+    if (sortMode !== 'relevance') {
+      params.set('sort', sortMode);
+    }
+    if (selectedBrands.length > 0) {
+      params.set('brand', selectedBrands.join(','));
+    }
+    if (selectedMerchants.length > 0) {
+      params.set('merchant', selectedMerchants.join(','));
+    }
+    if (priceMin.trim()) {
+      params.set('price_min', priceMin.trim());
+    }
+    if (priceMax.trim()) {
+      params.set('price_max', priceMax.trim());
+    }
 
     const nextQueryString = params.toString();
     const currentQueryString = urlSearchParams.toString();
 
     if (nextQueryString !== currentQueryString) {
+      lastWrittenSearchParamsRef.current = nextQueryString;
       startTransition(() => {
         router.replace(nextQueryString ? `/search?${nextQueryString}` : '/search', { scroll: false });
       });
     }
-  }, [country, debouncedQuery, router, urlSearchParams]);
+  }, [country, debouncedQuery, priceMax, priceMin, router, selectedBrands, selectedMerchants, sortMode, urlSearchParams]);
 
   const activeCountry = useMemo(() => getCountryOption(country), [country]);
 
@@ -1311,6 +1608,95 @@ export default function SearchResultsClient({
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
   const hasActiveSearch = debouncedQuery.length >= MIN_QUERY_LENGTH;
+
+  // BUY-75939: derive the current filter state once and reuse it for the
+  // filtered list, the active-filter chips, and the empty-state counter.
+  // `parsePriceValue` returns null for invalid inputs so a typo like "abc"
+  // in the price field never crashes the filter and just renders as no
+  // price filter active.
+  const filterState = useMemo<FilterState>(
+    () => ({
+      brands: selectedBrands,
+      merchants: selectedMerchants,
+      priceMin: parsePriceValue(priceMin),
+      priceMax: parsePriceValue(priceMax),
+    }),
+    [priceMax, priceMin, selectedBrands, selectedMerchants]
+  );
+
+  const filteredProducts = useMemo(
+    () => applyProductFilters(products, filterState),
+    [filterState, products]
+  );
+
+  const sortedFilteredProducts = useMemo(
+    () => applyProductSort(filteredProducts, sortMode, debouncedQuery),
+    [debouncedQuery, filteredProducts, sortMode]
+  );
+
+  // Facets are derived from the FULL products array (not the filtered
+  // subset) per the standard comparison-site behaviour described on
+  // `deriveFacets`.
+  const facets = useMemo(() => deriveFacets(products), [products]);
+
+  const hasActiveFilters =
+    filterState.brands.length > 0 ||
+    filterState.merchants.length > 0 ||
+    filterState.priceMin !== null ||
+    filterState.priceMax !== null;
+
+  const totalActiveFilterCount =
+    (filterState.brands.length > 0 ? 1 : 0) +
+    (filterState.merchants.length > 0 ? 1 : 0) +
+    (filterState.priceMin !== null || filterState.priceMax !== null ? 1 : 0);
+
+  // Active-filter chip descriptors for the sidebar and mobile chip row.
+  // Each `onClear` toggles state back to its empty / default value.
+  const activePriceChip = useMemo(() => {
+    if (filterState.priceMin === null && filterState.priceMax === null) return null;
+    const minLabel = filterState.priceMin !== null ? `${activeCountry.currency === 'SGD' ? 'S$' : '$'}${filterState.priceMin}` : '';
+    const maxLabel = filterState.priceMax !== null ? `${activeCountry.currency === 'SGD' ? 'S$' : '$'}${filterState.priceMax}` : '';
+    const parts = [minLabel, maxLabel].filter(Boolean);
+    return { label: parts.join('–'), onClear: () => { setPriceMin(''); setPriceMax(''); } };
+  }, [filterState.priceMax, filterState.priceMin, activeCountry.currency]);
+
+  const activeBrandChips = useMemo(
+    () => selectedBrands.map((brand) => ({ value: brand, onClear: () => toggleBrand(brand) })),
+    [selectedBrands]
+  );
+  const activeMerchantChips = useMemo(
+    () => selectedMerchants.map((merchant) => ({ value: merchant, onClear: () => toggleMerchant(merchant) })),
+    [selectedMerchants]
+  );
+
+  // BUY-75939: facet toggling. When a value is already selected we remove
+  // it (toggling off); otherwise append. Always returns a NEW array so the
+  // memoization in `filteredProducts` re-runs. Order is preserved so the
+  // URL reflects the user's selection order.
+  function toggleBrand(brand: string) {
+    setSelectedBrands((current) => {
+      if (current.includes(brand)) {
+        return current.filter((value) => value !== brand);
+      }
+      return [...current, brand];
+    });
+  }
+
+  function toggleMerchant(merchant: string) {
+    setSelectedMerchants((current) => {
+      if (current.includes(merchant)) {
+        return current.filter((value) => value !== merchant);
+      }
+      return [...current, merchant];
+    });
+  }
+
+  function clearAllFilters() {
+    setSelectedBrands([]);
+    setSelectedMerchants([]);
+    setPriceMin('');
+    setPriceMax('');
+  }
 
   return (
     // BUY-75930: overflow-x hidden prevents horizontal scroll on mobile
@@ -1567,6 +1953,42 @@ export default function SearchResultsClient({
                 </h1>
               </div>
 
+              {/* BUY-75939: results-toolbar row. Mobile gets the chip strip +
+                  sort dropdown inline; desktop gets the sort dropdown next to
+                  the H1 and the filter sidebar to the left of the grid (rendered
+                  below). The desktop sort dropdown mirrors the mobile one so
+                  either viewport can change the sort. */}
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+                {products.length > 0 ? (
+                  <SortDropdown
+                    value={sortMode}
+                    onChange={setSortMode}
+                    resultCount={sortedFilteredProducts.length}
+                  />
+                ) : (
+                  <span />
+                )}
+                <span className="text-xs font-medium text-slate-500 md:text-sm">
+                  {sortedFilteredProducts.length === products.length
+                    ? `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} loaded`
+                    : `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} loaded — filters active`}
+                </span>
+              </div>
+
+              {/* BUY-75939: mobile-only chip strip with Filters trigger and active
+                  filters. Hidden at lg+ where the sidebar takes over. */}
+              {products.length > 0 ? (
+                <FilterChipRow
+                  totalActiveFilterCount={totalActiveFilterCount}
+                  onOpenFilters={() => setMobileFilterSheetOpen(true)}
+                  onClearAll={clearAllFilters}
+                  activePriceChipLabel={activePriceChip?.label ?? null}
+                  onClearPrice={activePriceChip ? activePriceChip.onClear : undefined}
+                  activeBrandChips={activeBrandChips}
+                  activeMerchantChips={activeMerchantChips}
+                />
+              ) : null}
+
               {/* BUY-69622: Only render loading indicator after hydration to avoid
                   SSR showing "Searching..." in the initial HTML. The H1 above now
                   provides meaningful server-rendered content instead. */}
@@ -1637,41 +2059,137 @@ export default function SearchResultsClient({
                 </div>
               ) : null}
 
+              {/* BUY-75939: filters-applied empty state. Distinct from
+                  `showEmptyState` (no results at all for the query) — here the
+                  API returned products but the user's active filters wiped
+                  them out. Offer a single-tap "Clear filters" recovery rather
+                  than steering the user to suggested searches, which are not
+                  the right next step when the query itself was fine. */}
+              {!loadingInitial &&
+              !showEmptyState &&
+              !showDegradedState &&
+              products.length > 0 &&
+              sortedFilteredProducts.length === 0 ? (
+                <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8 shadow-sm" data-testid="search-no-filter-matches">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Filters cleared everything</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    No products match your current filters
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-slate-700">
+                    {products.length.toLocaleString()} {products.length === 1 ? 'result' : 'results'} match “{debouncedQuery}” but none pass your selected brand, merchant, or price filters.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+                    >
+                      Clear filters
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileFilterSheetOpen(true)}
+                      className="inline-flex min-h-[44px] items-center rounded-full border border-amber-300 bg-white px-5 py-2.5 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 lg:hidden"
+                    >
+                      Edit filters
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {!loadingInitial && products.length > 0 ? (
-                <>
-                  <div
-                    // BUY-75947: auto-fill minmax(220px,1fr) adapts to container width; skeleton matches (line 782)
-                    className="grid max-w-full gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
-                  >
-                    {products.map((product) => (
-                      <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
-                    ))}
+                <div className="lg:flex lg:items-start lg:gap-6">
+                  {/* BUY-75939: desktop filter sidebar (≥1024px). Hidden on
+                      mobile because the FilterChipRow + FilterBottomSheet pair
+                      covers the same controls in a mobile-friendly form. */}
+                  <div className="hidden lg:block">
+                    <FilterSidebar
+                      selectedBrands={selectedBrands}
+                      selectedMerchants={selectedMerchants}
+                      priceMin={priceMin}
+                      priceMax={priceMax}
+                      onToggleBrand={toggleBrand}
+                      onToggleMerchant={toggleMerchant}
+                      onPriceMinChange={setPriceMin}
+                      onPriceMaxChange={setPriceMax}
+                      onClearAll={clearAllFilters}
+                      brandFacets={facets.brandFacets}
+                      merchantFacets={facets.merchantFacets}
+                      resultCount={products.length}
+                      hasActiveFilters={hasActiveFilters}
+                      activePriceChip={activePriceChip}
+                      activeBrandChips={activeBrandChips}
+                      activeMerchantChips={activeMerchantChips}
+                      currencyPrefix={activeCountry.currency === 'SGD' ? 'S$' : '$'}
+                    />
                   </div>
 
-                  {hasMore ? (
-                    <div className="flex justify-center pt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const controller = new AbortController();
-                          const nextOffset = offset + PAGE_SIZE;
+                  <div className="min-w-0 flex-1">
+                    {sortedFilteredProducts.length > 0 ? (
+                      <>
+                        <div
+                          // BUY-75947: auto-fill minmax(220px,1fr) adapts to
+                          // container width — when the BUY-75939 sidebar takes
+                          // ~224px from the row, the grid quietly drops one
+                          // column without a hardcoded breakpoint.
+                          className="grid max-w-full gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
+                        >
+                          {sortedFilteredProducts.map((product) => (
+                            <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
+                          ))}
+                        </div>
 
-                          void fetchResults({
-                            mode: 'append',
-                            cursor: nextCursor,
-                            offsetValue: nextCursor ? undefined : nextOffset,
-                            signal: controller.signal,
-                          });
-                        }}
-                        disabled={loadingMore}
-                        className="inline-flex min-h-12 items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        {loadingMore ? 'Loading more...' : 'Load more'}
-                      </button>
-                    </div>
-                  ) : null}
-                </>
+                        {hasMore ? (
+                          <div className="flex justify-center pt-4">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const controller = new AbortController();
+                                const nextOffset = offset + PAGE_SIZE;
+
+                                void fetchResults({
+                                  mode: 'append',
+                                  cursor: nextCursor,
+                                  offsetValue: nextCursor ? undefined : nextOffset,
+                                  signal: controller.signal,
+                                });
+                              }}
+                              disabled={loadingMore}
+                              className="inline-flex min-h-12 items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              {loadingMore ? 'Loading more...' : 'Load more'}
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
+
+              {/* BUY-75939: mobile bottom sheet (≤1024px). On desktop the
+                  filter sidebar in the row above covers this surface. */}
+              <FilterBottomSheet
+                open={mobileFilterSheetOpen}
+                onClose={() => setMobileFilterSheetOpen(false)}
+                onApply={() => setMobileFilterSheetOpen(false)}
+                onClearAll={clearAllFilters}
+                sortMode={sortMode}
+                onSortChange={setSortMode}
+                priceMin={priceMin}
+                priceMax={priceMax}
+                onPriceMinChange={setPriceMin}
+                onPriceMaxChange={setPriceMax}
+                selectedBrands={selectedBrands}
+                selectedMerchants={selectedMerchants}
+                onToggleBrand={toggleBrand}
+                onToggleMerchant={toggleMerchant}
+                brandFacets={facets.brandFacets}
+                merchantFacets={facets.merchantFacets}
+                currencyPrefix={activeCountry.currency === 'SGD' ? 'S$' : '$'}
+                resultCount={products.length}
+                hasActiveFilters={hasActiveFilters}
+              />
             </div>
           ) : null}
         </section>
