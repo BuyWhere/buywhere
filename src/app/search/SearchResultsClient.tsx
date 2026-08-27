@@ -538,7 +538,12 @@ function compareByMerchantAsc(left: SearchCardProduct, right: SearchCardProduct)
 // order is whatever the API returned). When the catalog ingest lane starts
 // emitting a timestamp on each row, swap the comparator in place here — the
 // public SortMode value stays the same.
-function compareByNewest(_left: SearchCardProduct, _right: SearchCardProduct): number {
+function compareByNewest(
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  _left: SearchCardProduct,
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  _right: SearchCardProduct,
+): number {
   return 0;
 }
 

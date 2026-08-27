@@ -77,9 +77,7 @@ export default function Error({
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button onClick={reset}>Try again</Button>
-            <Link href="/">
-              <Button variant="secondary">Go home</Button>
-            </Link>
+            <Button href="/" variant="secondary">Go home</Button>
           </div>
         </div>
       </main>

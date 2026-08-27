@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -48,12 +47,8 @@ export default function GlobalError({
             we&apos;re working to fix it. Please try again shortly.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/">
-              <Button>Go home</Button>
-            </Link>
-            <Link href="/search">
-              <Button variant="secondary">Search products</Button>
-            </Link>
+            <Button href="/">Go home</Button>
+            <Button href="/search" variant="secondary">Search products</Button>
           </div>
         </div>
       </main>

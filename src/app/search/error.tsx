@@ -2,7 +2,6 @@
 
 // BUY-67036: route-local error boundary so that RSC navigation failures
 // during /search surface a friendly retry UI instead of an opaque 500 body.
-import Link from "next/link";
 import { useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -34,9 +33,7 @@ export default function SearchError({
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button onClick={reset}>Try again</Button>
-            <Link href="/">
-              <Button variant="secondary">Go home</Button>
-            </Link>
+            <Button href="/" variant="secondary">Go home</Button>
           </div>
         </div>
       </main>
