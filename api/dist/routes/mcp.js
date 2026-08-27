@@ -876,9 +876,15 @@ async function handleSearchProducts(args) {
     }
     // BUY-69738: category was removed from SQL WHERE (caused heap scan at 400M+ rows).
     // Filter in-memory after fetch — ILIKE match is cheap on the bounded result set.
+    // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch.
     if (category && rows.length > 0) {
         const catLower = category.toLowerCase();
-        rows = rows.filter(r => (r.category || '').toLowerCase().includes(catLower));
+        rows = rows.filter(r => {
+            const rowCat = (r.category || '').trim();
+            if (!rowCat)
+                return true; // keep unknown-category rows
+            return rowCat.toLowerCase().includes(catLower);
+        });
     }
     const merchantMapForMcpSearch = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, rows.map((row) => row.merchant_id ?? null));
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact, merchantMapForMcpSearch));
@@ -1421,9 +1427,17 @@ async function handleFindBestPrice(args) {
             releaseClientSafely(bestPriceClient);
     }
     // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
+    // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch, and
+    // sources like US ingestors (Shopify bulk) often leave category NULL, so stripping them
+    // entirely would return 0 results even when valid products exist.
     if (category && result && result.rows.length > 0) {
         const catLower = category.toLowerCase();
-        result.rows = result.rows.filter(r => (r.category || '').toLowerCase().includes(catLower));
+        result.rows = result.rows.filter(r => {
+            const rowCat = (r.category || '').trim();
+            if (!rowCat)
+                return true; // keep unknown-category rows
+            return rowCat.toLowerCase().includes(catLower);
+        });
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const neg = deviceFilter.negativeTerms;

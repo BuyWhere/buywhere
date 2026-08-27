@@ -994,11 +994,14 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
 
   // BUY-69738: category was removed from SQL WHERE (caused heap scan at 400M+ rows).
   // Filter in-memory after fetch — ILIKE match is cheap on the bounded result set.
+  // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch.
   if (category && rows.length > 0) {
     const catLower = category.toLowerCase();
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      ((r.category as string) || '').toLowerCase().includes(catLower)
-    );
+    rows = (rows as Record<string, unknown>[]).filter(r => {
+      const rowCat = ((r.category as string) || '').trim();
+      if (!rowCat) return true; // keep unknown-category rows
+      return rowCat.toLowerCase().includes(catLower);
+    });
   }
 
   const merchantMapForMcpSearch = await lookupMerchantMap(
@@ -1592,11 +1595,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
 
   // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
+  // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch, and
+  // sources like US ingestors (Shopify bulk) often leave category NULL, so stripping them
+  // entirely would return 0 results even when valid products exist.
   if (category && result && result.rows.length > 0) {
     const catLower = category.toLowerCase();
-    result.rows = result.rows.filter(r =>
-      ((r.category as string) || '').toLowerCase().includes(catLower)
-    );
+    result.rows = result.rows.filter(r => {
+      const rowCat = ((r.category as string) || '').trim();
+      if (!rowCat) return true; // keep unknown-category rows
+      return rowCat.toLowerCase().includes(catLower);
+    });
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
