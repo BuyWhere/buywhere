@@ -29,13 +29,9 @@ const history = await client.priceHistory('sku_123', {
   limit: 30,
   since: '2026-01-01T00:00:00Z',
 });
+const deals = await client.deals.getDeals({ country: 'US', limit: 10 });
 
-const webhook = await client.webhooks.create(
-  'https://example.com/webhooks/buywhere',
-  ['price_drop', 'product_update'],
-);
-
-console.log(results.items.length, comparison.products.length, history.price_history.length, webhook.id);
+console.log(results.items.length, comparison.products.length, history.price_history.length, deals.items.length);
 ```
 
 ## Configuration
@@ -58,14 +54,12 @@ const client = new BuyWhereSDK({
 });
 ```
 
-## Compare, price history, webhooks & key rotation
+## Compare, price history & deals
 
 ```ts
 import type {
   CompareResponse,
   PriceHistoryResponse,
-  RotateApiKeyResponse,
-  Webhook,
 } from '@buywhere/sdk';
 
 const client = createClient('bw_live_your_api_key');
@@ -76,16 +70,6 @@ const historyResult: PriceHistoryResponse = await client.priceHistory('sku_123',
   limit: 14,
   since: '2026-04-01T00:00:00Z',
 });
-
-const rotation: RotateApiKeyResponse = await client.rotateApiKey();
-
-const createdWebhook = await client.webhooks.create(
-  'https://example.com/webhooks/buywhere',
-  ['price_drop'],
-);
-
-const webhooks: Webhook[] = await client.webhooks.list();
-await client.webhooks.delete(createdWebhook.id);
 ```
 
 The existing namespaced helpers still work:
@@ -95,6 +79,21 @@ const categoryComparison = await client.compare.compareByCategory('electronics')
 const product = await client.products.getProduct(12345);
 const deals = await client.deals.getDeals({ country: 'US', limit: 10 });
 ```
+
+## Not available yet (BUY-70872)
+
+These methods exist in the type surface but have **no deployed API route**. They throw
+`BuyWhereError` with status `501` rather than issuing a request that would 404:
+
+| Method | Why | Use instead |
+| --- | --- | --- |
+| `client.rotateApiKey()` | `/v1/keys/{id}/rotate` never deployed | `POST /v1/keys` to mint a replacement key |
+| `client.webhooks.create/list/delete()` | no customer-facing `/v1/webhooks` API | poll `client.deals.getDeals()` / `client.search.search()` |
+| `client.products.getAlerts()` | `/v1/products/{id}/alerts` never deployed | poll `client.products.getPriceHistory()` |
+| `client.products.getReviewsSummary()` | `/v1/products/{id}/reviews/summary` never deployed | — |
+| `client.deals.getDealsFeed()` | `/v1/deals/feed` never deployed (BUY-70605) | `client.deals.getDeals()` |
+
+They will be removed in the next major version, or re-enabled if the routes ship.
 
 ## Agent search (semantic)
 
