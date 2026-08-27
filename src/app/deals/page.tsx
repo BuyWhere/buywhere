@@ -1,4 +1,5 @@
 import Schema from '@/components/Schema';
+import { apiBase, apiHeaders } from "@/lib/server-api";
 import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildCollectionPageSchema } from '@/lib/page-schema';
 
@@ -19,7 +20,7 @@ interface Deal {
 async function getDeals(): Promise<Deal[]> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/v1/deals`, {
+    const res = await fetch(`${apiBase()}/v1/deals`, { headers: apiHeaders(),
       next: { revalidate: 900 },
     });
     if (!res.ok) return [];

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { apiBase, apiHeaders } from "@/lib/server-api";
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -18,7 +19,7 @@ interface BrandData {
 
 async function getBrandData(slug: string): Promise<BrandData> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
+  const res = await fetch(`${apiBase()}/v1/brand/${slug}`, { headers: apiHeaders(),
     next: { revalidate: 900 },
   });
   if (res.status === 404) {

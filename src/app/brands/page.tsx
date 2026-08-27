@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { apiBase, apiHeaders } from "@/lib/server-api";
 import Link from 'next/link';
 
 export const revalidate = 900;
@@ -13,7 +14,7 @@ interface Brand {
 async function getBrands(): Promise<Brand[]> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/v1/brands`, {
+    const res = await fetch(`${apiBase()}/v1/brands`, { headers: apiHeaders(),
       next: { revalidate: 900 },
     });
     if (!res.ok) return [];
