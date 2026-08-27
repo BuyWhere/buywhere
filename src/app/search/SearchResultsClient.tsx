@@ -778,8 +778,8 @@ function SearchInputSkeleton() {
 function SearchResultsSkeleton() {
   return (
     <div
-      // BUY-75930: max-w-full ensures grid never exceeds viewport on mobile
-      className="grid max-w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      // BUY-75947: auto-fill minmax(220px,1fr) adapts to container width; matches live grid (line 1649)
+      className="grid max-w-full gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
       aria-hidden="true"
     >
       {Array.from({ length: 8 }).map((_, index) => (
@@ -1338,7 +1338,7 @@ export default function SearchResultsClient({
         ) : null}
 
         <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
-          <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
+          <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               {/* Hide the hero H1 + eyebrow when an active search is running so the query
                   isn't echoed twice. The result-count heading below becomes the single,
@@ -1527,7 +1527,7 @@ export default function SearchResultsClient({
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <section className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -1640,8 +1640,8 @@ export default function SearchResultsClient({
               {!loadingInitial && products.length > 0 ? (
                 <>
                   <div
-                    // BUY-75930: max-w-full ensures grid never exceeds viewport on mobile
-                    className="grid max-w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                    // BUY-75947: auto-fill minmax(220px,1fr) adapts to container width; skeleton matches (line 782)
+                    className="grid max-w-full gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
                   >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
