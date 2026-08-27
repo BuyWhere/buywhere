@@ -56,6 +56,15 @@ function defaultQueryHandler(sql, params) {
   if (typeof sql === 'string' && sql.includes('COUNT')) {
     return Promise.resolve({ rows: [{ count: '2' }] });
   }
+  // BUY-72082 tier search stage-2: PK detail lookup joins back to products for
+  // the full MCP output columns. Match it before `category_path` — this query's
+  // column list legitimately contains `category_path` (a products column alias),
+  // which would otherwise be swallowed by the category-listing branch below.
+  if (typeof sql === 'string' && sql.includes('FROM products WHERE id IN')) {
+    return Promise.resolve({
+      rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 }), makeProduct('2', { title: 'Office Laptop', price: 899 })],
+    });
+  }
   if (typeof sql === 'string' && sql.includes('category_path')) {
     return Promise.resolve({ rows: [{ slug: 'electronics', name: 'Electronics', product_count: '150' }] });
   }
