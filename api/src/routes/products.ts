@@ -200,6 +200,7 @@ async function tryTierSearch(
     minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
     deliverTo?: string; includeUnshippable?: boolean; deliverToInferred?: boolean;
+    source?: string; scrapedVia?: string;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -231,6 +232,7 @@ async function tryTierSearch(
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
   if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  if (p.scrapedVia) { conds.push(`sp.scraped_via = $${i}`); params.push(p.scrapedVia); i++; }
   // BUY-73321: exclude price outliers from search results using currency-aware bands.
   // Prevents ingestion-cleaned outliers from surfacing in the search tier.
   { const band = PRICE_BANDS[p.currency.toUpperCase()] || PRICE_BANDS["SGD"];
@@ -874,6 +876,11 @@ router.get(
     const requestStart = Date.now();
     const rawQuery = ((req.query.q || req.query.query) as string) || '';
     const domain = req.query.domain as string | undefined;
+    // BUY-76037: extract `source` param (direct retailer/source filter, same column as `domain`).
+    // Prefer explicit `source` over `domain` when both are supplied (same semantics as /v1/products).
+    const source = (req.query.source as string | undefined) || domain;
+    // BUY-76037: extract `scraped_via` param to filter by ingestion pipeline origin.
+    const scrapedVia = req.query.scraped_via as string | undefined;
     const region = req.query.region as string | undefined;
     const category = req.query.category as string | undefined;
     const categoryId = req.query.category_id as string | undefined;
@@ -892,7 +899,10 @@ router.get(
     // No silent default: callers must pass a market when they want a hard filter.
     const explicitDeliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const explicitCountry = explicitDeliverTo || ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
-    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
+    // BUY-76037: accept `cc` as a country-code shortcut (same semantics as `country_code`).
+    // When `cc` is set and no explicit country/country_code/deliver_to is given, treat it as country_code.
+    const cc = (req.query.cc as string | undefined)?.toUpperCase() || undefined;
+    const countryCode = explicitCountry || cc; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     // BUY-73952: deliver_to default inference — agent queries that supply country_code but omit
     // deliver_to should still get shipping-ranked results. Infer deliver_to from country_code
     // when it's missing, and stamp meta.deliver_to_inferred=true so callers know the rank was
@@ -960,7 +970,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${outboundProbeEnabled() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${outboundProbeEnabled() ? 'probe1' : 'probe0'}:${qNorm}:${source || ''}:${scrapedVia || ''}:${region || ''}:${countryCode || ''}:${cc || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -1032,8 +1042,9 @@ router.get(
     if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
-        category, brand, domain, compact, requestStart, cacheKey,
+        category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable, deliverToInferred,
+        source, scrapedVia,
       });
       if (handled) return;
     }
@@ -1076,9 +1087,14 @@ router.get(
       baseIdx += canonicalSources.length;
     }
 
-    if (domain) {
+    if (source) {
       baseConditions.push(`source = $${baseIdx}`);
-      baseParams.push(domain);
+      baseParams.push(source);
+      baseIdx++;
+    }
+    if (scrapedVia) {
+      baseConditions.push(`scraped_via = $${baseIdx}`);
+      baseParams.push(scrapedVia);
       baseIdx++;
     }
     if (region) {
