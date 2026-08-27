@@ -1,6 +1,6 @@
 import posthog from 'posthog-js';
 
-function safePostHogSessionId(): string | null {
+export function safePostHogSessionId(): string | null {
   try {
     const maybePostHog = posthog as typeof posthog & { get_session_id?: () => string | null };
     return maybePostHog.get_session_id?.() || null;

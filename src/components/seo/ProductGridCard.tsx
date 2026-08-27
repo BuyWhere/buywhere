@@ -33,7 +33,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   // but only when the browser follows the redirect; bots that fetch the page
   // without JS never hit the /r/ endpoint, so the DB-level affiliate_clicks
   // row is the authoritative source for bot traffic.
-  function fireProductCardPosthog(href: string) {
+  function fireProductCardPosthog() {
     if (typeof window === "undefined") return;
     try {
       posthog.capture("affiliate_click", {
@@ -59,7 +59,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   function handleMerchantClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    fireProductCardPosthog(product.href);
+    fireProductCardPosthog();
     window.open(product.href, "_blank", "noopener,noreferrer");
   }
 
@@ -67,7 +67,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       e.stopPropagation();
-      fireProductCardPosthog(product.href);
+      fireProductCardPosthog();
       window.open(product.href, "_blank", "noopener,noreferrer");
     }
   }
