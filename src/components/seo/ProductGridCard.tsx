@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
+import { safePostHogSessionId } from "@/lib/click-attribution";
+import posthog from "posthog-js";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
 
 function formatPrice(price: number | null, currency: string) {
@@ -25,9 +27,39 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   // href for the explicit "Buy at <merchant>" button below.
   const detailUrl = product.productUrl || product.href || `/search?q=${encodeURIComponent(product.name)}`;
 
+  // BUY-74988: fire client-side PostHog affiliate_click with page attribution
+  // fields so intent-page product-card clicks carry source_page / current_url
+  // into PostHog analytics.  The server-side /r/ handler also emits this event
+  // but only when the browser follows the redirect; bots that fetch the page
+  // without JS never hit the /r/ endpoint, so the DB-level affiliate_clicks
+  // row is the authoritative source for bot traffic.
+  function fireProductCardPosthog(href: string) {
+    if (typeof window === "undefined") return;
+    try {
+      posthog.capture("affiliate_click", {
+        source: "product_card",
+        product_id: String(product.id),
+        merchant_id: product.merchant,
+        affiliate_link_id: "",
+        pathname: window.location.pathname,
+        $pathname: window.location.pathname,
+        current_url: window.location.href,
+        $current_url: window.location.href,
+        ...(document.referrer ? { referrer: document.referrer, $referrer: document.referrer } : {}),
+        ...(safePostHogSessionId() ? { session_id: safePostHogSessionId(), $session_id: safePostHogSessionId() } : {}),
+        $set: {
+          source: "product_card",
+          pathname: window.location.pathname,
+          current_url: window.location.href,
+        },
+      });
+    } catch { /* never block navigation */ }
+  }
+
   function handleMerchantClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    fireProductCardPosthog(product.href);
     window.open(product.href, "_blank", "noopener,noreferrer");
   }
 
@@ -35,6 +67,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       e.stopPropagation();
+      fireProductCardPosthog(product.href);
       window.open(product.href, "_blank", "noopener,noreferrer");
     }
   }
