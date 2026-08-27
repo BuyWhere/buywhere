@@ -862,6 +862,11 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         if (keys.length > 0) await redis.del(...keys);
         const searchKeys = await redis.keys('search:*');
         if (searchKeys.length > 0) await redis.del(...searchKeys);
+        // BUY-75291: also bust MCP /search_products fts:v7:* so reindexed
+        // products surface immediately instead of staying frozen at the
+        // first-hit snapshot for the full MCP_FTS_CACHE_TTL.
+        const ftsKeys = await redis.keys('fts:v7:*');
+        if (ftsKeys.length > 0) await redis.del(...ftsKeys);
 
         await redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1000));
         await redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));

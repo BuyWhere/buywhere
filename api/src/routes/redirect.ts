@@ -1,10 +1,29 @@
 import { Router, Request, Response } from 'express';
+import { classifyUserAgent, hashIp, clientIp } from '../lib/botClass';
 import { generateShopeeSgDeeplink, isAffiliateWrapped } from '../lib/involveAsia';
 import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
 import { fallbackForBrokenDestination } from '../lib/brokenDestinationFallbacks';
 import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
+
+// truth layer (2026-08-26): record WHO clicked. Before this, every click row had empty UA/IP/referrer,
+// so crawlers following /r links were indistinguishable from shoppers.
+async function whoClicked(req: Request, apiKey: string | null) {
+  const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+  const cls = classifyUserAgent(ua);
+  const ipHash = hashIp(clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } }));
+  const q = req.query as Record<string, unknown>;
+  const pick = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
+  const referrer = (pick(q.referrer) || pick(q.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
+  const sourcePage = pick(q.pathname).slice(0, 300) || null;
+  const keyHash = apiKey ? createHash('sha256').update(apiKey).digest('hex') : null;
+  let keyId: string | null = null;
+  if (keyHash) {
+    try { const r = await db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]); keyId = r.rows[0]?.id ?? null; } catch { /* best effort */ }
+  }
+  return { ua, family: cls.family, ipHash, referrer, sourcePage, keyHash, keyId };
+}
 
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -217,14 +236,17 @@ const redirectHandler = async (req: Request, res: Response) => {
     let apiKey: string | null = null;
     if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
     const source = firstQueryValue(req.query.source) || 'api_response';
+    const who = await whoClicked(req, apiKey);
     (async () => {
       try {
         await withTimeout(
           db.query(
             `INSERT INTO affiliate_clicks
-               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true)`,
-            [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
+               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
+                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`,
+            [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
           ),
           REDIRECT_TIMEOUT_MS,
           'affiliate_clicks insert (dead)'
@@ -288,14 +310,17 @@ const redirectHandler = async (req: Request, res: Response) => {
   const sessionId = firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id);
 
   // Log click to DB best-effort (do not block the redirect on a slow write)
+  const who = await whoClicked(req, apiKey);
   (async () => {
     try {
       await withTimeout(
         db.query(
           `INSERT INTO affiliate_clicks
-             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
+             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
         ),
         REDIRECT_TIMEOUT_MS,
         'affiliate_clicks insert'

@@ -7,6 +7,7 @@ const config_1 = require("../config");
 const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
+const agentHeaders_1 = require("../middleware/agentHeaders");
 const posthog_1 = require("../analytics/posthog");
 const cacheStats_1 = require("../monitoring/cacheStats");
 const queryLog_1 = require("../middleware/queryLog");
@@ -331,8 +332,8 @@ async function tryTierSearch(req, res, p) {
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) *
-            (${amazonRankMultiplierSql('cand', false)}) AS rank
-      FROM cand ORDER BY rank DESC LIMIT 200
+            (${amazonRankMultiplierSql('sp', false)}) AS rank
+      FROM cand sp ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
@@ -354,25 +355,37 @@ async function tryTierSearch(req, res, p) {
     // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
     const titleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id, sp.title, sp.category, sp.source, sp.price, sp.updated_at FROM search_products sp
       WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
+    ), top AS (
+      SELECT id,
+             ((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) AS title_rank
+      FROM tcand sp
+      ORDER BY title_rank DESC, id DESC
+      LIMIT 200
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}top.title_rank DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id, sp.title, sp.category, sp.source, sp.price, sp.updated_at FROM search_products sp
       WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
+    ), top AS (
+      SELECT id,
+             ((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) AS title_rank
+      FROM tcand sp
+      ORDER BY title_rank DESC, id DESC
+      LIMIT 200
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}top.title_rank DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -562,6 +575,10 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q, inferred = fa
     }
 }
 const router = (0, express_1.Router)();
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK responses for catalog queries.
+// Mounted before any route handler so every catalog response carries the
+// canonical query URL (q + country_code) for agent-client re-use.
+router.use(agentHeaders_1.agentIndexMiddleware);
 // GET /v1/products
 // List products with pagination + filter + sort (API v1 contract).
 // Query params: page (default 1), limit (default 20, max 100),
@@ -677,14 +694,34 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         params.push(category);
         idx++;
     }
+    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
+    // to filter by retailer/source. The retailer name lives in the `source` column
+    // (aliased as `domain` in the response via buildProduct). Without this filter,
+    // ?source=amazon is silently ignored — same results as ?source=shopify.
+    const source = req.query.source || req.query.domain;
+    if (source) {
+        conditions.push(`source = $${idx}`);
+        params.push(source);
+        idx++;
+    }
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.url_last_checked_at, products.url_status,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
-                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count,
+                products.source, products.scraped_via`;
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
     const productReadDb = (0, readReplica_1.readDb)();
+    // BUY-74513: track whether the EXPLAIN count sub-query fell back to
+    // pg_class.reltuples (the GLOBAL 89M table total, same value for every
+    // country call) so the response body can mark pagination.total=null and
+    // surface meta.degraded=true + meta.approximate=true instead of the
+    // bogus 90M US-lie. Must be declared OUTSIDE the Promise.all array literal
+    // (an array literal only holds expressions — a `let` inside it is a
+    // parse error: TS1005 `,` expected).
+    let countDegraded = false;
     const [countResult, dataResult] = await Promise.all([
         // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
         // country + active + priced + optional category), not the global pg_class
@@ -708,6 +745,12 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         // them via products_pkey reverse scan within 30s. On the partitioned
         // table, the same predicate prunes to the PH partition (one of 30+
         // partitions) and returns in <500ms.
+        //
+        // BUY-74513: see countDegraded declared above. The .catch() below sets
+        // it true when EXPLAIN failed AND we fell back to pg_class.reltuples —
+        // the GLOBAL number is unsafe to expose as pagination.total, so the
+        // response body surfaces meta={ degraded:true, approximate:true,
+        // count_source:'pg_class_fallback', reason:'EXPLAIN_count_failed' }.
         productReadDb.query(`EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`, params).then((r) => {
             const planRow = String(r.rows[0]?.['QUERY PLAN'] || '');
             const match = planRow.match(/rows=(\d+)/);
@@ -715,7 +758,8 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
                 return { rows: [{ count: parseInt(match[1], 10) }] };
             throw new Error('planner_estimate_missing');
         }).catch(async (err) => {
-            console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
+            console.warn('[products.list] EXPLAIN estimate failed, falling back to pg_class (BUY-74513 degraded):', err?.message || err);
+            countDegraded = true;
             const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
             return fb;
         }),
@@ -725,8 +769,14 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]),
     ]);
-    const total = parseInt(countResult.rows[0].count, 10);
-    const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
+    const rawTotal = parseInt(countResult.rows[0].count, 10);
+    // BUY-74513: when the count sub-query fell back to pg_class.reltuples, the
+    // surfaced number is the GLOBAL table total (same value for every country)
+    // and is unsafe to expose as pagination.total. Return null instead so
+    // clients render "unknown total" rather than the bogus 89M US-lie. The
+    // accompanying meta.degraded/approximate flags tell them why.
+    const total = countDegraded ? null : rawTotal;
+    const total_pages = countDegraded || rawTotal === 0 ? (countDegraded ? null : 0) : Math.ceil(rawTotal / limit);
     // BUY-74689: batched merchant lookup so list responses also carry merchant_name /
     // merchant_slug. Single ANY() query against `merchants` (replica).
     const merchantMap = await (0, merchantLookup_1.lookupMerchantMap)(productReadDb, dataResult.rows.map((row) => row.merchant_id ?? null));
@@ -739,6 +789,12 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         source: 'products.list',
         req,
     });
+    // BUY-74513: when the count sub-query was degraded (pg_class fallback),
+    // propagate the flag on the response so consumers can distinguish a real
+    // EXPLAIN estimate from a "we lost the count — go look somewhere else"
+    // envelope. Non-degraded responses get meta={} to keep the response
+    // shape stable (clients should always read .meta — missing keys is not
+    // a signal).
     const body = {
         data,
         pagination: {
@@ -748,6 +804,18 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
             total_pages,
             response_time_ms: Date.now() - requestStart,
         },
+        meta: countDegraded
+            ? {
+                degraded: true,
+                approximate: true,
+                count_source: 'pg_class_fallback',
+                reason: 'EXPLAIN_count_failed',
+            }
+            : {
+                degraded: false,
+                approximate: true,
+                count_source: 'planner_estimate',
+            },
     };
     config_1.redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => { });
     if (res.headersSent)
@@ -767,26 +835,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!res.headersSent) {
             // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
             // agent's toolchain; a 504 gets the tool dropped from rotation.
-            const degradedBody = {
-                data: [],
-                meta: {
-                    total: 0,
-                    limit: 20,
-                    offset: 0,
-                    response_time_ms: Date.now() - requestStart,
-                    cached: false,
-                    degraded: true,
-                    emptiness_reason: 'api_error',
-                    confidence: 'low',
-                    diagnostic: {
-                        engine_status: 'error',
-                        indexed_for_region: true,
-                        category_recognized: true,
-                        rate_limit_remaining: null,
-                        deliver_to_present: Boolean(req.query.deliver_to || req.query.country_code || req.query.country),
-                    },
-                },
-            };
+            const degradedBody = (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildV1SearchEmptiness(false, 'timeout', 'catalog_search'));
             res.status(200).json(degradedBody);
             // BUY-65260: cache the degraded payload for a short window so a repeat of
             // an always-slow query returns from Redis instead of re-running the 10s
@@ -844,7 +893,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // and labels availability; never hard-filters (country_code remains the hard filter).
     // BUY-73952: explicitDeliverTo/deliverToInferred are computed earlier from country_code.
     const includeUnshippable = req.query.include_unshippable !== 'false';
-    const buildV1SearchEmptiness = (apiError = false) => (0, response_1.deriveEmptiness)({
+    const buildV1SearchEmptiness = (apiError = false, degradedKind, timedOutStage) => (0, response_1.deriveEmptiness)({
         regionHasAnyData: true,
         categoryHasAnyData: true,
         apiError,
@@ -857,6 +906,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         deliverToPresent: Boolean(deliverTo || countryCode),
         unfilteredHasAnyData: null,
         queryAmbiguous: null,
+        degradedKind,
+        timedOutStage,
     });
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -1129,7 +1180,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.url_last_checked_at, products.url_status,
+               products.region, products.country_code, ${specColumnsJoined},
+               products.source, products.scraped_via`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
@@ -1325,6 +1378,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+        await client.query(`SET LOCAL enable_seqscan = off`); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
         await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
         // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
         // queries are already bounded by the freshness guardrail, so their OR cost is
@@ -1624,17 +1678,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             }
             client.release();
             if (!res.headersSent) {
-                res.status(200).json({
-                    data: [],
-                    meta: {
-                        total: 0,
-                        limit: 20,
-                        offset: 0,
-                        response_time_ms: 0,
-                        cached: false,
-                        degraded: true,
-                    },
-                });
+                res.status(200).json((0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildV1SearchEmptiness(false, 'timeout', 'catalog_search')));
             }
             return;
         }
@@ -1879,6 +1923,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         const dealResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
@@ -2187,7 +2232,8 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             }
             ftsParams.push(needed);
             const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, brand, category_path, region, country_code,
+                  url_last_checked_at, url_status
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2255,6 +2301,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const result = await (0, readReplica_1.readDb)().query(`SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
+              url_last_checked_at, url_status,
               region, country_code, merchant_id
        FROM products
        WHERE is_active = true
@@ -2620,7 +2667,8 @@ async function warmSearchCache() {
             const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined},
+                 products.source, products.scraped_via`;
             // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
             // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
             // (laptop+US = 70k+ matches) the CTE materializes all matches before LIMIT and

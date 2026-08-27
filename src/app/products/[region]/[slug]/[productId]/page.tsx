@@ -208,6 +208,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   // BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
   const fallbackProduct = apiProduct ? null : await getSeoLandingFallbackProduct(region, productId, merchantSlug);
   if (!apiProduct && !fallbackProduct) {
+    notFound(); // SEO-GATE 4seen-0826 item 2: retired product -> real 404, not a 200 "Product Not Found" page
     // Unknown region-specific product id. Bounce to a search page derived from
     // the slug so the SEO landing-page card CTA still lands somewhere useful
     // instead of a 404.

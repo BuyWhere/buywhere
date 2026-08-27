@@ -33,6 +33,16 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // SEO-GATE 4seen-0826 item 7: once-indexed URLs 301 to their closest live successor (directive §2.4)
+      { source: "/blog/where-to-buy-laptop-singapore", destination: "/blog/best-laptop-deals-singapore", permanent: true },
+      { source: "/blog/where-to-buy-laptop-singapore/", destination: "/blog/best-laptop-deals-singapore", permanent: true },
+      { source: "/docs/blog/posts/macbook-air-vs-dell-xps-13-college-guide", destination: "/blog/cheapest-macbook-air-m3-12-countries-compared", permanent: true },
+      { source: "/docs/blog/posts/macbook-air-vs-dell-xps-13-college-guide/", destination: "/blog/cheapest-macbook-air-m3-12-countries-compared", permanent: true },
+      { source: "/blog/singapore-product-data-api-what-to-look-for", destination: "/developers", permanent: true },
+      { source: "/blog/singapore-product-data-api-what-to-look-for/", destination: "/developers", permanent: true },
+      { source: "/blog/where-to-buy-skincare-singapore", destination: "/categories/beauty-health", permanent: true },
+      { source: "/blog/where-to-buy-skincare-singapore/", destination: "/categories/beauty-health", permanent: true },
+
       // BUY-68319/BUY-67102: keep root-domain MCP clients on the
       // canonical API-host MCP endpoint instead of the human docs page.
       {
@@ -333,6 +343,19 @@ const nextConfig = {
       {
         source: '/developers/pricing',
         destination: '/pricing',
+        permanent: true,
+      },
+      // BUY-75315: /pricing and /challenge route into /developers — header nav no
+      // longer links to either, but legacy external links and crawlers must be
+      // 301'd (not 410'd — indexation directive forbids 410 for retired URLs).
+      {
+        source: '/pricing',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/challenge',
+        destination: '/developers',
         permanent: true,
       },
       {

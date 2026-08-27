@@ -1,11 +1,11 @@
 {
   "name": "buywhere-monitoring-api",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "BuyWhere Monitoring API: p95, embedding-pipeline metrics, and alert relay",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test api/tests/embedding.test.mjs"
+    "test": "node --test api/tests/embedding.test.mjs api/tests/ceoKpisRoute.test.mjs"
   },
   "dependencies": {
     "express": "^4.18.2",

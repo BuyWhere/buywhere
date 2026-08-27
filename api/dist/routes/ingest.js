@@ -717,6 +717,12 @@ async function handleIngest(req, res) {
             const searchKeys = await config_1.redis.keys('search:*');
             if (searchKeys.length > 0)
                 await config_1.redis.del(...searchKeys);
+            // BUY-75291: also bust MCP /search_products fts:v7:* so reindexed
+            // products surface immediately instead of staying frozen at the
+            // first-hit snapshot for the full MCP_FTS_CACHE_TTL.
+            const ftsKeys = await config_1.redis.keys('fts:v7:*');
+            if (ftsKeys.length > 0)
+                await config_1.redis.del(...ftsKeys);
             await config_1.redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1000));
             await config_1.redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));
         }

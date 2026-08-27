@@ -37,7 +37,7 @@ const apiCatalog = {
           },
           {
             name: "get_deals",
-            description: "Find current deals, discounts, and price drops across all retailers.",
+            description: "Find current deals, discounts, and price drops across 150,000+ retailers in the BuyWhere catalog.",
           },
           {
             name: "get_price_history",

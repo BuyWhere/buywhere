@@ -48,6 +48,8 @@ function withHashDateModified(jsonLd: string, dateModifiedIso: string): string {
   }
 }
 
+export const dynamicParams = false; // SEO-GATE 4seen-0826 item 2: unknown blog slug -> 404 at the routing layer
+
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
 }

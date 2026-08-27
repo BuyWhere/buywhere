@@ -1,0 +1,69 @@
+{
+  "slug": "ps5-pro-vs-ps5-us",
+  "title": "PS5 Pro vs PS5 in the US (2026) — which PlayStation should you buy",
+  "description": "PS5 Pro vs the standard PS5 compared for US gamers: live USD prices from Amazon, Best Buy, Walmart, GameStop, Sony and direct, with buying advice on performance, storage, 4K gaming and whether the Pro is worth the premium.",
+  "heroEyebrow": "US PlayStation comparison",
+  "heroTitle": "PS5 Pro vs PS5 in the US — 2026 live price comparison",
+  "heroTitleTemplate": "PS5 Pro vs PS5 in the US — from {floorPrice} for the Pro today",
+  "heroBody": "The PS5 Pro and the standard PS5 occupy different tiers in the US market in 2026. The Pro delivers noticeably better graphics for 4K gaming with enhanced ray tracing and AI upscaling through PlayStation Spectral Super Resolution, while the standard PS5 remains the better value for most American households. Whether the Pro's premium is worth it depends on your TV, your gaming habits and whether you are still on a 1080p set or a mid-range 4K that cannot fully showcase what the Pro offers. In the US, pricing varies wildly between Sony direct, Amazon, Best Buy, Walmart, GameStop and the disc/digital editions — sales events like Prime Day and Black Friday move the standard PS5 significantly while the Pro stays closer to its list price. This page pulls live PS5 Pro and PS5 console listings from BuyWhere's catalog so you can compare current USD prices side by side.",
+  "canonicalPath": "/ps5-pro-vs-ps5-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "Sony PlayStation 5 Pro",
+  "backupQueries": ["PS5 Pro", "PlayStation 5", "Sony PS5", "PS5 console"],
+  "minPrice": 350,
+  "requiredProductTerms": ["playstation", "sony", "console"],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated August 26, 2026",
+  "datePublished": "2026-08-26",
+  "dateModified": "2026-08-26",
+  "productSectionTitle": "Live PS5 Pro and PS5 prices in the US",
+  "comparisonSectionTitle": "PS5 Pro vs PS5 — at a glance",
+  "comparisonColumns": ["Spec / feature", "PS5 Pro", "PS5 (standard)"],
+  "comparisonRows": [
+    { "label": "Target resolution", "values": ["4K with AI upscaling, 8K output supported", "4K with dynamic resolution scaling"] },
+    { "label": "Ray tracing", "values": ["Hardware-accelerated RT in more titles at higher fidelity", "Hardware RT in supported titles at lower fidelity"] },
+    { "label": "Storage", "values": ["2 TB SSD standard", "1 TB SSD on Slim; older models 825 GB"] },
+    { "label": "Disc drive", "values": ["Disc and digital editions sold", "Disc and digital editions sold"] },
+    { "label": "Game performance", "values": ["Sustained higher frame rates in 'Enhanced' titles", "Native performance, mid-tier fidelity"] },
+    { "label": "Backwards compatibility", "values": ["Full PS5 and supported PS4 library", "Full PS5 and supported PS4 library"] },
+    { "label": "US warranty", "values": ["1-year Sony US through authorised retailers", "Same coverage"] },
+    { "label": "Best for", "values": ["4K TV owners, graphics enthusiasts, long-term keepers", "Budget buyers, 1080p users, second household consoles"] }
+  ],
+  "highlightSectionTitle": "What actually separates the PS5 Pro from the standard PS5",
+  "highlights": [
+    { "title": "The graphics upgrade only shows on capable displays", "body": "The PS5 Pro's extra GPU muscle translates to better visual fidelity only if your TV can actually display it. If you are on a 1080p TV, a mid-tier 4K set without HDMI 2.1, or a display without VRR support, you will not see most of what the Pro adds. Owners of newer LG OLED, Samsung QD-OLED or Sony Bravia sets with full HDMI 2.1 bandwidth are the ones who truly benefit from the Pro's hardware." },
+    { "title": "2TB of storage eliminates the juggling act", "body": "The Pro's 2TB SSD doubles what you get on the standard PS5 Slim. Modern games regularly consume 80-150GB each, and the 1TB drive fills up faster than most people expect. If you maintain a library of installed games plus regular PS Plus downloads, the Pro's extra space removes the constant uninstall-reinstall dance that plagues standard PS5 owners." },
+    { "title": "Not every game gets the Pro treatment", "body": "Sony's 'PS5 Pro Enhanced' program has grown to cover most major 2025-2026 releases, but a significant portion of the library — particularly indie titles and older games — runs identically on both consoles. Before paying the premium, check whether the specific games you play most often have Pro enhancements." },
+    { "title": "Where you buy matters for warranty, not performance", "body": "Sony direct, Amazon, Best Buy, Walmart and GameStop all sell US-market PS5 units with the standard one-year Sony US warranty. Grey-market sellers offering deep discounts are usually selling international models that lack US warranty coverage. For a console you expect to keep for years, the warranty peace of mind is worth the modest premium at authorized retailers." }
+  ],
+  "adviceSectionTitle": "How to choose between PS5 Pro and PS5 in the US",
+  "advicePoints": [
+    "Pick the PS5 Pro if you own a 4K TV with HDMI 2.1 and VRR, you play graphically demanding titles, and you keep consoles for multiple years.",
+    "Pick the standard PS5 if you are on a 1080p or older 4K TV, you want the best value per dollar, or you are buying a second console for another room.",
+    "Watch for Prime Day, Black Friday and Cyber Monday sales. The standard PS5 sees significant discounts during these events; the Pro typically sees smaller, if any, price drops.",
+    "Factor in the cost of games. If you buy a lot of physical discs, factor in the disc drive cost for digital-only models — or just get the disc version from the start.",
+    "GameStop trade-in deals can sometimes provide better value than outright purchase, especially if you have previous-generation games or hardware to trade.",
+    "Consider whether you need a 4K Blu-ray player. If you collect physical movies, the PS5 Pro's disc drive handles 4K Blu-rays; the digital edition does not."
+  ],
+  "faqSectionTitle": "PS5 Pro vs PS5 in the US — common questions",
+  "faqs": [
+    { "question": "Is the PS5 Pro worth the extra money in the US?", "answer": "Only if you have a capable 4K display and play games that support PS5 Pro Enhanced. For most buyers on 1080p or older 4K TVs, the standard PS5 delivers 95% of the experience at a meaningfully lower price." },
+    { "question": "How much storage do the PS5 Pro and standard PS5 have?", "answer": "The Pro comes with 2TB. The PS5 Slim has 1TB, while older launch models had 825GB. The extra space on the Pro is the single biggest practical upgrade for heavy gamers." },
+    { "question": "Do all PS5 games work better on the Pro?", "answer": "Only games with a 'PS5 Pro Enhanced' badge get the visual upgrades. Many indie titles and older releases run identically. Check Sony's official list to see if your library benefits." },
+    { "question": "Does a grey-market PS5 have US warranty?", "answer": "No. Grey-market units from third-party sellers typically lack US warranty coverage. Buy from Sony, Amazon, Best Buy, Walmart or GameStop for full 1-year Sony US warranty." },
+    { "question": "When do PS5 consoles go on sale in the US?", "answer": "The deepest discounts traditionally appear during Amazon Prime Day (July), Black Friday (November) and Cyber Monday. The standard PS5 sees the biggest price drops; the Pro drops less frequently." },
+    { "question": "Can I use my existing PS5 accessories on the Pro?", "answer": "Yes. All PS5 controllers, PS VR2, PlayStation Portal and licensed accessories work interchangeably between the Pro and standard PS5. Your game saves and trophies transfer automatically." }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": { "en-SG": "/ps5-pro-vs-ps5-singapore" },
+  "inboundLinks": ["/cheapest-ps5-us", "/best-gaming-laptops-us", "/best-oled-tvs-us"],
+  "categoryIntro": {
+    "heading": "How US PS5 pricing actually works",
+    "body": "The US PS5 market splits into two distinct pricing patterns. The standard PS5 sells through so many channels — Sony, Amazon, Best Buy, Walmart, GameStop — that its price drops noticeably during major sales events. The PS5 Pro has a much smaller retail footprint, with most buyers getting it from Sony or authorized retailers at or near list price. That pricing gap is why comparing live listings matters: a standard PS5 on sale can cost hundreds less than the Pro, while the Pro's premium only makes sense if your setup can actually display the difference."
+  },
+  "owner": "Surf",
+  "reviewer": "Hue",
+  "queueRow": 102
+}

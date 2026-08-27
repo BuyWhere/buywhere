@@ -179,11 +179,33 @@ $REPORT
       --data-raw "$PAYLOAD" \
       2>/dev/null || echo '{"error":"curl failed"}')
 
-    NEW_ISSUE_ID=$(echo "$RESPONSE" | jq -r '.identifier // .id // empty' 2>/dev/null)
+    NEW_ISSUE_ID=$(echo "$RESPONSE" | jq -r '.identifier // empty' 2>/dev/null)
+    NEW_ISSUE_UUID=$(echo "$RESPONSE" | jq -r '.id // empty' 2>/dev/null)
     if [[ -n "$NEW_ISSUE_ID" ]]; then
       log "Filed child issue (direct): $NEW_ISSUE_ID"
       touch "$DEDUP_FILE"
       FILED=1
+      # Backfill the canonical_throughput_hourly.failure_issue_id link so each
+      # FAIL row is traceable to its ticket. Best-effort (non-fatal): if the
+      # DB write is unavailable the ticket is still filed. BUY-69678.
+      if [[ -n "$NEW_ISSUE_UUID" ]]; then
+        HOUR_SQL=$(echo "$DISPATCHER_OUTPUT" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    hs = data.get('metrics', {}).get('hour_start', '')
+    print(hs)
+except:
+    print('')
+")
+        if [[ -n "$HOUR_SQL" ]]; then
+          if psql "$CATALOG_DB_URL" -qtA -c "UPDATE canonical_throughput_hourly SET failure_issue_id = '$NEW_ISSUE_UUID' WHERE hour_start = '$HOUR_SQL'::timestamptz AND (failure_issue_id IS NULL OR failure_issue_id = '')" >/dev/null 2>&1; then
+            log "Backfilled failure_issue_id=$NEW_ISSUE_UUID for $HOUR_SQL"
+          else
+            log_err "Backfill UPDATE failed for $HOUR_SQL (ticket $NEW_ISSUE_ID already filed)"
+          fi
+        fi
+      fi
     else
       log_err "Direct-file path failed: $RESPONSE"
     fi

@@ -76,6 +76,7 @@ const uptime_1 = __importDefault(require("./routes/admin/uptime"));
 const metrics_1 = __importDefault(require("./routes/admin/metrics"));
 const fxRefresh_1 = __importDefault(require("./routes/admin/fxRefresh"));
 const probes_1 = __importDefault(require("./routes/admin/probes"));
+const metricsTruth_1 = __importDefault(require("./routes/admin/metricsTruth"));
 const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -93,6 +94,17 @@ function createApp() {
     app.use((0, cors_1.default)({
         origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
         credentials: true,
+        // BUY-75413 (P2.3): expose the X-Agent-* headers to browser-side agent
+        // clients. Without this, browsers withhold the headers from JS even
+        // though they appear on the wire. Names must match the values set in
+        // api/src/middleware/agentHeaders.ts.
+        exposedHeaders: [
+            'X-Agent-Protocol',
+            'X-Agent-Card',
+            'X-LLMs-Txt',
+            'X-Agent-Index',
+            'X-Agent-Auth',
+        ],
     }));
     app.use((_req, res, next) => {
         res.set('X-Content-Type-Options', 'nosniff');
@@ -488,6 +500,9 @@ function createApp() {
     app.use(fxRefresh_1.default);
     // BUY-67318: outbound-link probe status debug endpoint.
     app.use(probes_1.default);
+    // BUY-75314: canonical business metrics (clicks, API, catalog, indexation,
+    // traffic, growth, dead links) per /home/paperclip/ops-canon/METRICS-DEFINITIONS.md.
+    app.use(metricsTruth_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });

@@ -5,6 +5,7 @@ import { db, redis, vectorDb } from '../config';
 import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
+import { agentIndexMiddleware } from '../middleware/agentHeaders';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -308,8 +309,8 @@ async function tryTierSearch(
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) *
-            (${amazonRankMultiplierSql('cand', false)}) AS rank
-      FROM cand ORDER BY rank DESC LIMIT 200
+            (${amazonRankMultiplierSql('sp', false)}) AS rank
+      FROM cand sp ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
@@ -332,25 +333,37 @@ async function tryTierSearch(
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id, sp.title, sp.category, sp.source, sp.price, sp.updated_at FROM search_products sp
       WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
+    ), top AS (
+      SELECT id,
+             ((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) AS title_rank
+      FROM tcand sp
+      ORDER BY title_rank DESC, id DESC
+      LIMIT 200
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}top.title_rank DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id, sp.title, sp.category, sp.source, sp.price, sp.updated_at FROM search_products sp
       WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
+    ), top AS (
+      SELECT id,
+             ((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) AS title_rank
+      FROM tcand sp
+      ORDER BY title_rank DESC, id DESC
+      LIMIT 200
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${amazonRankMultiplierSql('sp', false)})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}top.title_rank DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -527,6 +540,11 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
 
 const router = Router();
 
+// BUY-75413 (P2.3): emit X-Agent-Index on 200 OK responses for catalog queries.
+// Mounted before any route handler so every catalog response carries the
+// canonical query URL (q + country_code) for agent-client re-use.
+router.use(agentIndexMiddleware);
+
 // GET /v1/products
 // List products with pagination + filter + sort (API v1 contract).
 // Query params: page (default 1), limit (default 20, max 100),
@@ -613,7 +631,13 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
+    // BUY-74262: accept both `source` (contract param) and `domain` (legacy alias)
+    // to filter by retailer/source. The retailer name lives in the `source` column
+    // (aliased as `domain` in the response via buildProduct). Without this filter,
+    // ?source=amazon is silently ignored — same results as ?source=shopify.
+    const source = (req.query.source as string | undefined) || (req.query.domain as string | undefined);
+
+    const cacheKey = `${LIST_CACHE_PREFIX}:${currency}:${countryCode}:${category || ''}:${source || ''}:${sortColumn || 'unsorted'}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -653,17 +677,33 @@ router.get(
       idx++;
     }
 
+    if (source) {
+      conditions.push(`source = $${idx}`);
+      params.push(source);
+      idx++;
+    }
+
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.url_last_checked_at, products.url_status,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
-                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count,
+                products.source, products.scraped_via`;
 
     const orderBy = sortColumn ? `ORDER BY products.${sortColumn} ${order}, products.id DESC` : '';
 
     const productReadDb = readDb();
+    // BUY-74513: track whether the EXPLAIN count sub-query fell back to
+    // pg_class.reltuples (the GLOBAL 89M table total, same value for every
+    // country call) so the response body can mark pagination.total=null and
+    // surface meta.degraded=true + meta.approximate=true instead of the
+    // bogus 90M US-lie. Must be declared OUTSIDE the Promise.all array literal
+    // (an array literal only holds expressions — a `let` inside it is a
+    // parse error: TS1005 `,` expected).
+    let countDegraded = false;
     const [countResult, dataResult] = await Promise.all([
       // BUY-73584: scoped planner estimate for the FILTERED predicate (currency +
       // country + active + priced + optional category), not the global pg_class
@@ -687,6 +727,12 @@ router.get(
       // them via products_pkey reverse scan within 30s. On the partitioned
       // table, the same predicate prunes to the PH partition (one of 30+
       // partitions) and returns in <500ms.
+      //
+      // BUY-74513: see countDegraded declared above. The .catch() below sets
+      // it true when EXPLAIN failed AND we fell back to pg_class.reltuples —
+      // the GLOBAL number is unsafe to expose as pagination.total, so the
+      // response body surfaces meta={ degraded:true, approximate:true,
+      // count_source:'pg_class_fallback', reason:'EXPLAIN_count_failed' }.
       productReadDb.query(
         `EXPLAIN SELECT 1 FROM ${LIST_PRODUCTS_TABLE} AS products ${whereClause}`,
         params
@@ -696,7 +742,8 @@ router.get(
         if (match) return { rows: [{ count: parseInt(match[1], 10) }] };
         throw new Error('planner_estimate_missing');
       }).catch(async (err) => {
-        console.warn('[products.list] EXPLAIN estimate failed, using pg_class fallback:', err?.message || err);
+        console.warn('[products.list] EXPLAIN estimate failed, falling back to pg_class (BUY-74513 degraded):', err?.message || err);
+        countDegraded = true;
         const fb = await productReadDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
         return fb;
       }),
@@ -710,8 +757,14 @@ router.get(
       ),
     ]);
 
-    const total = parseInt(countResult.rows[0].count, 10);
-    const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
+    const rawTotal = parseInt(countResult.rows[0].count, 10);
+    // BUY-74513: when the count sub-query fell back to pg_class.reltuples, the
+    // surfaced number is the GLOBAL table total (same value for every country)
+    // and is unsafe to expose as pagination.total. Return null instead so
+    // clients render "unknown total" rather than the bogus 89M US-lie. The
+    // accompanying meta.degraded/approximate flags tell them why.
+    const total = countDegraded ? null : rawTotal;
+    const total_pages = countDegraded || rawTotal === 0 ? (countDegraded ? null : 0) : Math.ceil(rawTotal / limit);
     // BUY-74689: batched merchant lookup so list responses also carry merchant_name /
     // merchant_slug. Single ANY() query against `merchants` (replica).
     const merchantMap = await lookupMerchantMap(
@@ -731,6 +784,12 @@ router.get(
       req,
     });
 
+    // BUY-74513: when the count sub-query was degraded (pg_class fallback),
+    // propagate the flag on the response so consumers can distinguish a real
+    // EXPLAIN estimate from a "we lost the count — go look somewhere else"
+    // envelope. Non-degraded responses get meta={} to keep the response
+    // shape stable (clients should always read .meta — missing keys is not
+    // a signal).
     const body = {
       data,
       pagination: {
@@ -740,6 +799,18 @@ router.get(
         total_pages,
         response_time_ms: Date.now() - requestStart,
       },
+      meta: countDegraded
+        ? {
+            degraded: true,
+            approximate: true,
+            count_source: 'pg_class_fallback',
+            reason: 'EXPLAIN_count_failed',
+          }
+        : {
+            degraded: false,
+            approximate: true,
+            count_source: 'planner_estimate',
+          },
     };
 
     redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => {});
@@ -1135,7 +1206,9 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.url_last_checked_at, products.url_status,
+               products.region, products.country_code, ${specColumnsJoined},
+               products.source, products.scraped_via`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -1348,6 +1421,7 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      await client.query(`SET LOCAL enable_seqscan = off`); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
       await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
 
       // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
@@ -1957,6 +2031,7 @@ router.get(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
@@ -2353,7 +2428,8 @@ router.get(
         ftsParams.push(needed);
         const ftsResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, brand, category_path, region, country_code,
+                  url_last_checked_at, url_status
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2434,6 +2510,7 @@ router.get(
       `SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
+              url_last_checked_at, url_status,
               region, country_code, merchant_id
        FROM products
        WHERE is_active = true
@@ -2845,7 +2922,8 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined},
+                 products.source, products.scraped_via`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
       // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries

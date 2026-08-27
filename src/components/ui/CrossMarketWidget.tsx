@@ -125,7 +125,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
           <h3 className="text-base font-semibold text-gray-900">Also Available in Other Markets</h3>
         </div>
         <Link
-          href={`/search?q=${encodeURIComponent(productName)}`}
+          href={`/search?q=${encodeURIComponent(productName)}`} rel="nofollow"
           className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
         >
           Compare all markets →

@@ -485,7 +485,6 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/partnership", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
   // BUY-56627 / BUY-57452: /best-* URLs and the 6 blog + 3 product
   // dupes (cheapest-iphone-singapore-2026, best-laptop-deals-singapore,
@@ -497,7 +496,6 @@ const STATIC_SITEMAP_ROUTES = [
   // (line ~190). Keeping them here caused each of those 9 URLs to appear
   // TWICE in sitemap-pages.xml (once with priority 0.9 and once with 0.8).
   { path: "/mcp-ecommerce", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
   // BUY-66281: ChatGPT plugin manifest. Already served at

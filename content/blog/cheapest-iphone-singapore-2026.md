@@ -4,7 +4,6 @@ title: "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant"
 description: "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-18"
 tags: ["iphone", "singapore", "pricing", "comparison", "apple"]
 jsonLd: >
   {
@@ -15,7 +14,7 @@ jsonLd: >
         "headline": "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant",
         "description": "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026.",
         "datePublished": "2026-06-19",
-        "dateModified": "2026-06-18",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",

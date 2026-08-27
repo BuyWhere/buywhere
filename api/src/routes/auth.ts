@@ -310,7 +310,8 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
   // Set rate limit: 60s
   await redis.set(rateLimitKey, '1', 'EX', 60);
 
-  await sendVerificationEmail(normalizedEmail, newToken);
+  const backfill = req.body && req.body.backfill === true;
+  await sendVerificationEmail(normalizedEmail, newToken, { backfill });
 
   res.json({ message: 'Verification email resent.' });
 });

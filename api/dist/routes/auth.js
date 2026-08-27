@@ -246,7 +246,8 @@ router.post('/resend-verification', async (req, res) => {
      WHERE id = $3`, [newToken, expiresAt, row.id]);
     // Set rate limit: 60s
     await config_1.redis.set(rateLimitKey, '1', 'EX', 60);
-    await (0, email_1.sendVerificationEmail)(normalizedEmail, newToken);
+    const backfill = req.body && req.body.backfill === true;
+    await (0, email_1.sendVerificationEmail)(normalizedEmail, newToken, { backfill });
     res.json({ message: 'Verification email resent.' });
 });
 // GET /v1/auth/me — inspect metadata for the authenticated key

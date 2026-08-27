@@ -11,7 +11,7 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "macbook air",
+  "searchQuery": "apple macbook laptop",
   "backupQueries": ["Apple MacBook Air M4", "MacBook Air M3 13-inch", "MacBook Air M4 15"],
   "minPrice": 800,
   "requiredProductTerms": ["macbook air", "apple", "macbook"],

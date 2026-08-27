@@ -35,6 +35,10 @@ export interface CanonicalProduct {
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
+  // BUY-75368: A2 weekly report metric — last successful URL probe timestamp.
+  // Always present (null when never checked) so consumers can rely on shape.
+  url_last_checked_at?: string | null;
+  url_status?: string | null;
   // BUY-74173: disclose Amazon price staleness to agents/UI.
   price_as_of?: string;
   // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
@@ -66,6 +70,10 @@ export interface CanonicalProduct {
   has_affiliate_tracking: boolean;
   is_affiliate: boolean;
   affiliate_disclosure?: string;
+  // BUY-74262: expose raw source column alongside merchant alias.
+  // `source` is the retailer/feed origin (e.g. "amazon_us", "shopify");
+  // `merchant` is the same value mapped from `domain` alias for backward compat.
+  source?: string | null;
 }
 
 export type NearMissPredicateFail = 'price' | 'currency' | 'availability' | 'image_url' | 'merchant_url';

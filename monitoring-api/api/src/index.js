@@ -146,6 +146,7 @@ app.get('/', (req, res) => {
       p95_history: '/api/monitoring/p95/history?market=sg&endpoint=search|similar',
       p95_all: '/api/monitoring/p95/all',
       alerts: '/api/monitoring/alerts?kind=deploy_fail|semantic_p95',
+      ceo_kpis: '/api/monitoring/ceo_kpis?window=24h',
       record: 'POST /api/monitoring/p95/record',
       compute: 'POST /api/monitoring/p95/compute',
       embedding_pipeline_state: 'GET /api/monitoring/embedding/pipeline_state',
@@ -160,7 +161,7 @@ app.get('/', (req, res) => {
       railway_deploy_fail: { interval_ms: 300_000, statuses: ['FAILED'] },
       disk_space: { interval_ms: 300_000, thresholds: { warn: '20GB free', critical: '5GB free' } }
     },
-    documentation: 'BUY-31208 P95 Monitoring Infrastructure, BUY-22737 extended probes, BUY-54722 embedding-pipeline metrics'
+    documentation: 'BUY-31208 P95 Monitoring Infrastructure, BUY-22737 extended probes, BUY-54722 embedding-pipeline metrics, BUY-75183 P2.6/P2.7 ceo_kpis acceptance gate, BUY-75445 external-agent v2 call counter on ceo_kpis'
   });
 });
 

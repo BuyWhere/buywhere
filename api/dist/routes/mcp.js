@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MCP_FTS_CACHE_TTL_SECONDS = void 0;
 const express_1 = require("express");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
@@ -16,8 +17,11 @@ const deviceClassifier_1 = require("../lib/deviceClassifier");
 const instrumentation_1 = require("../lib/instrumentation");
 const healthSnapshot_1 = require("../monitoring/healthSnapshot");
 const shoppingJobFunnel_1 = require("../monitoring/shoppingJobFunnel");
+const v2KpiWriter_1 = require("../monitoring/v2KpiWriter");
 // BUY-73521: start funnel writer on module load (idempotent).
 (0, shoppingJobFunnel_1.startShoppingJobFunnel)();
+// BUY-75415: start v2 KPI sink writer on module load (idempotent).
+// Auto-started inside the module — explicit call here would be redundant.
 // BUY-73521: v2 buyer-context tools that participate in the purchase funnel.
 // All have REQUIRED deliver_to per the v2 wire contract (BUY-72533).
 const V2_BUYER_TOOLS = new Set([
@@ -35,6 +39,10 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 ]);
 const router = (0, express_1.Router)();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
+// ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
+// Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
+exports.MCP_FTS_CACHE_TTL_SECONDS = parseInt(process.env.MCP_FTS_CACHE_TTL_SECONDS || '60', 10);
 async function acquireMcpClient() {
     let timer;
     try {
@@ -217,6 +225,13 @@ const TOOLS = [
             type: 'object',
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
+                // BUY-75287: accept the natural `query` alias so callers (Atlas cycle 23,
+                // agents) using it don't silently fall into the no-q browse branch — that
+                // path returns 0 rows plus a pg_class.reltuples "total" (~364,777,600)
+                // that looks like fabricated cache data. Live repro (2026-08-26):
+                // api.buywhere.ai/mcp search_products(query="running shoes",
+                // country_code="TH") → data:[], total:364777600, cached:false.
+                query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -366,6 +381,8 @@ const V2_TOOLS = [
             required: ['deliver_to'],
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
+                // BUY-75287: `query` alias for q — see v1 schema above for rationale.
+                query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q). Without this, callers passing `query` get 0 rows and the reltuples-derived total — see BUY-75287.' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -464,7 +481,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args) {
     const t0 = Date.now();
     void args.deliver_to;
-    const q = args.q || '';
+    // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
+    // cycle 23, agents) passing `query` instead of canonical `q` silently fall
+    // into the no-q browse branch: 0 rows plus a pg_class.reltuples "total"
+    // (~364,777,600) that looks like fabricated cache data. Same regression was
+    // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
+    // refactors; this re-applies and documents the contract on both handlers.
+    const q = (args.q || args.query || '').trim();
     const mode = args.mode || 'hybrid';
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -524,6 +547,9 @@ async function handleSearchProducts(args) {
         if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed.results) {
+                // BUY-75411: record cache-hit wall-clock latency so the admin probe
+                // can report p95 over the sliding window.
+                await (0, cacheStats_1.recordCacheHitLatency)(config_1.redis, Date.now() - t0);
                 return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
             }
         }
@@ -581,11 +607,19 @@ async function handleSearchProducts(args) {
         throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
-        // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-        // complete within 12s via GIN index; anything longer signals plan regression or
-        // pool exhaustion. Failing fast prevents cascading connection starvation.
+        // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
+        // fast into the BUY-74597 degraded envelope rather than holding a pooled
+        // connection across the full client timeout. The GIN bitmap plan must
+        // complete inside this budget; anything longer signals plan regression
+        // or pool exhaustion.
+        // Reduce timeout to protect against runaway queries and increase work_mem
+        // to encourage bitmap GIN plans. Additionally, disable sequential scans for
+        // this short-lived request to force the planner to use the GIN indexes
+        // (search_vector + region/country). This mitigates the observed ~12s
+        // catalog_search latency on SEA markets.
         await searchClient.query('SET statement_timeout = 4000');
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+        await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
         const COUNT_CAP = 1001;
         if (q) {
             const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
@@ -702,7 +736,8 @@ async function handleSearchProducts(args) {
                             detailConditions.push(`region = $${detailParams.length}`);
                         }
                         const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products WHERE ${detailConditions.join(' AND ')}`, detailParams);
                         // Preserve ranking order
                         const byId = new Map(detailResult.rows.map(r => [r.id, r]));
@@ -715,7 +750,8 @@ async function handleSearchProducts(args) {
                     params.push(CANDIDATE_LIMIT, limit, offset);
                     const result = await searchClient.query(`SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
+                      url_last_checked_at, url_status
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -730,7 +766,8 @@ async function handleSearchProducts(args) {
                 params.push(CANDIDATE_LIMIT, limit, offset);
                 const result = await searchClient.query(`SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code,
+                    url_last_checked_at, url_status
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -750,6 +787,7 @@ async function handleSearchProducts(args) {
             const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
             const rawResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
+                url_last_checked_at, url_status,
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
@@ -872,7 +910,7 @@ async function handleSearchProducts(args) {
         result.meta.emptiness_reason = 'no_match';
     }
     try {
-        await config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+        await config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', exports.MCP_FTS_CACHE_TTL_SECONDS);
     }
     catch (_) { /* cache write failure is non-fatal */ }
     // F24 (2026-08-22): nudge agents that skipped deliver_to — added after the
@@ -1046,6 +1084,7 @@ async function handleGetDeals(args) {
               CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
+              p.url_last_checked_at, p.url_status,
               p.discount_pct
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
@@ -1329,6 +1368,7 @@ async function handleFindBestPrice(args) {
             throw err;
         });
         await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+        await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
         const requestedCountry = country;
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
         const conditions = ['is_active = true', 'price > 0'];
@@ -1355,7 +1395,8 @@ async function handleFindBestPrice(args) {
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
+              p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`, [...params, limit]);
@@ -1698,6 +1739,12 @@ async function handleIngestProducts(args) {
             const searchKeys = await config_1.redis.keys('search:*');
             if (searchKeys.length > 0)
                 await config_1.redis.del(...searchKeys);
+            // BUY-75291: MCP /search_products uses fts:v7:* keys; prior ingestion
+            // paths only busted products:* + search:*, so per-(q,cc) snapshots
+            // survived reindexes indefinitely. Clear the FTS namespace on success.
+            const ftsKeys = await config_1.redis.keys('fts:v7:*');
+            if (ftsKeys.length > 0)
+                await config_1.redis.del(...ftsKeys);
             await config_1.redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
         }
         catch (e) {
@@ -2422,6 +2469,19 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 if (funnelJobId && result && typeof result === 'object') {
                     result.shopping_job_id = funnelJobId;
                 }
+                // BUY-75415: forward-direction INSERT into monitoring.deliver_to_calls
+                // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
+                // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
+                try {
+                    (0, v2KpiWriter_1.recordV2KpiSink)({
+                        toolName,
+                        args: toolArgs,
+                        apiKey: rawApiKey,
+                        result,
+                        statusCode: 200,
+                    });
+                }
+                catch { /* swallowed inside recordV2KpiSink */ }
                 return res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
                 }));
@@ -2438,6 +2498,19 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         (0, healthSnapshot_1.recordToolCall)({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
                     }
                     catch { }
+                    // BUY-75415: same forward-direction write as tools/call (v2 tools may
+                    // also be invoked via direct method name; the gate metric must reflect
+                    // both surfaces).
+                    try {
+                        (0, v2KpiWriter_1.recordV2KpiSink)({
+                            toolName: method,
+                            args,
+                            apiKey: req.apiKeyRecord?.key ?? null,
+                            result,
+                            statusCode: 200,
+                        });
+                    }
+                    catch { /* swallowed inside recordV2KpiSink */ }
                     return res.json(jsonrpcOk(id, {
                         content: [{ type: 'text', text: JSON.stringify(result) }],
                     }));

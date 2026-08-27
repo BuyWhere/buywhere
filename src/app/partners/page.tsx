@@ -2,6 +2,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
+import PartnerIntakeForm from "@/components/PartnerIntakeForm";
 import { buildWebPageSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
@@ -60,11 +61,33 @@ export default function PartnersPage() {
               demand routing work in this new world.
             </p>
             <Link
-              href="/contact"
+              href="#apply"
               className="inline-flex items-center justify-center px-6 py-3 bg-white text-violet-700 font-semibold rounded-xl hover:bg-violet-50 transition-colors"
             >
               Explore partnerships →
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Partnership intake form (BUY-75315 — writes to contacts table via /api/v1/contact) */}
+      <section id="apply" className="py-16 bg-white border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-start">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Propose a partnership</h2>
+              <p className="text-gray-600 leading-relaxed mb-4">
+                Tell us what you want to build together. We&rsquo;re early-stage and shipping fast — most partnerships go from first conversation to scoped plan within a week.
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>• Attribution &amp; referral infrastructure</li>
+                <li>• Platform &amp; AI framework integrations</li>
+                <li>• Demand &amp; distribution routing</li>
+              </ul>
+            </div>
+            <div>
+              <PartnerIntakeForm />
+            </div>
           </div>
         </div>
       </section>
@@ -140,7 +163,7 @@ export default function PartnersPage() {
             referral infrastructure, or AI-commerce tooling, we want to talk.
           </p>
           <Link
-            href="/contact"
+            href="#apply"
             className="inline-flex items-center justify-center px-8 py-3 bg-white text-violet-700 font-semibold rounded-xl hover:bg-violet-50 transition-colors"
           >
             Get in touch →

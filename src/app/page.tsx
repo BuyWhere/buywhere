@@ -282,46 +282,133 @@ export default function HomePage() {
       />
 
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
-      {/* Hero */}
+      {/* Hero — comparison-first per BUY-75315 (Richmond decisions 2026-08-26) */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
-          <div className="max-w-3xl mx-auto text-center mb-6">
+          <div className="max-w-3xl mx-auto text-center mb-8">
             <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
               <span className="inline-flex shrink-0 items-center gap-x-1.5">
                 <span className="status-dot inline-block h-2 w-2 shrink-0 self-center rounded-full bg-green-600" aria-hidden="true"></span>
-                <span className="whitespace-nowrap">300M+ products</span>
+                <span className="whitespace-nowrap">360M+ products</span>
               </span>
               <span className="hidden sm:inline" aria-hidden="true">·</span>
-              <span className="whitespace-nowrap">900,000+ merchants</span>
+              <span className="whitespace-nowrap">950,000+ merchants</span>
               <span className="hidden sm:inline" aria-hidden="true">·</span>
-              <span className="whitespace-nowrap">One API</span>
+              <span className="whitespace-nowrap">SG &amp; US</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Find the best prices across every store.
+              Compare products and prices across 150,000+ stores.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              One search across 900,000+ storefronts worldwide — deepest coverage in the US and Singapore, with thousands of new stores added every week.
+              Compare prices and availability across 950,000+ stores — Singapore and the United States,
+              side by side, in one search.
             </p>
           </div>
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
-            <div className="flex flex-col gap-3 justify-center mb-6 sm:flex-row sm:gap-4">
+            <p className="text-base font-semibold text-white">
+              Live product comparisons updated daily — prices second, API third.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Live comparison examples — comparison-first per BUY-75315 */}
+      <section role="region" aria-label="Live comparisons" className="bg-white py-16 border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Live comparisons</h2>
+            <p className="text-lg text-gray-600 leading-relaxed">
+              Real pages indexed by ChatGPT, Claude, and Perplexity. Each one prices the same product
+              across multiple retailers and ships with a server-rendered table AI crawlers can read.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { slug: "iphone-16-price-singapore", title: "iPhone 16 — Singapore", tagline: "Compare across authorised resellers" },
+              { slug: "best-gaming-laptops-us", title: "Best gaming laptops — US 2026", tagline: "6 top models, priced live" },
+              { slug: "laptop-singapore", title: "Laptop deals — Singapore", tagline: "Ultraportable, gaming, student picks" },
+            ].map(({ slug, title, tagline }) => (
               <Link
-                href="/compare"
-                className="inline-flex w-full items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors sm:w-auto"
+                key={slug}
+                href={`/${slug}`}
+                className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-5 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
               >
-                Browse price comparisons →
+                <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
+                <p className="text-sm text-gray-600">{tagline}</p>
+                <p className="mt-3 text-sm font-medium text-indigo-600">View comparison →</p>
               </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Prices second */}
+      <section role="region" aria-label="Deals" className="bg-gray-50 py-16 border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Today&rsquo;s prices</h2>
+            <p className="text-lg text-gray-600 leading-relaxed">
+              Real-time deals across categories. Every link routes through our affiliate layer
+              so merchants stay attributed.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { label: "Electronics", href: "/deals?category=electronics" },
+              { label: "Laptops", href: "/deals?category=laptops" },
+              { label: "Smartphones", href: "/deals?category=smartphones" },
+              { label: "Home & Living", href: "/deals?category=home-living" },
+              { label: "Fashion", href: "/deals?category=fashion" },
+              { label: "Health & Wellness", href: "/deals?category=health-wellness" },
+            ].map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+          <div className="mt-6">
+            <Link href="/deals" className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm">
+              Browse all deals →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* API third — Developers link */}
+      <section role="region" aria-label="API for developers" className="bg-gray-900 py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex flex-col md:flex-row items-start gap-12">
+            <div className="flex-1 text-white">
+              <h2 className="text-2xl font-bold mb-4">For AI agents and developers</h2>
+              <p className="text-gray-300 mb-6">
+                One REST API and MCP server for product search, price comparison, and merchant handoff.
+                Location-aware ranking, sub-250ms latency, structured JSON or compact agent mode.
+              </p>
               <Link
                 href="/developers"
-                className="inline-flex w-full items-center justify-center px-3 py-2 text-sm underline text-white/90 hover:text-white transition-colors sm:w-auto"
+                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
               >
-                For developers →
+                Read the developer docs →
               </Link>
             </div>
-            <p className="text-base font-semibold text-white">
-              300M+ structured products from 900,000+ merchant catalogs — normalized, deduplicated, and location-aware.
-            </p>
+            <div className="flex-1 w-full min-w-0">
+              <div className="bg-gray-800 rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-gray-900" tabIndex={0} aria-label="Scrollable Python search example" role="region">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
+                  <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/70"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500/70"></div>
+                  <span className="ml-2 text-xs text-gray-300 font-mono">search.py</span>
+                </div>
+                <pre tabIndex={0} className="p-4 text-sm text-gray-200 font-mono overflow-x-auto leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-inset">
+                  <code>{codeSnippet}</code>
+                </pre>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -381,39 +468,6 @@ export default function HomePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Code demo */}
-      <section role="region" aria-label="Content section" className="bg-gray-900 py-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col md:flex-row items-start gap-12">
-            <div className="flex-1 text-white">
-              <h2 className="text-2xl font-bold mb-4">Query regional products in 5 lines</h2>
-              <p className="text-gray-300 mb-6">
-                One API call returns structured product data: name, price, SKU, retailer, image, and availability. No scraping, no merchant-by-merchant parsing.
-              </p>
-              <Link
-                href="/developers"
-                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
-              >
-                View docs →
-              </Link>
-            </div>
-            <div className="flex-1 w-full min-w-0">
-              <div className="bg-gray-800 rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-gray-900" tabIndex={0} aria-label="Scrollable Python search example" role="region">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
-                  <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/70"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-500/70"></div>
-                  <span className="ml-2 text-xs text-gray-300 font-mono">search.py</span>
-                </div>
-                <pre tabIndex={0} className="p-4 text-sm text-gray-200 font-mono overflow-x-auto leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-inset">
-                  <code>{codeSnippet}</code>
-                </pre>
-              </div>
-            </div>
           </div>
         </div>
       </section>

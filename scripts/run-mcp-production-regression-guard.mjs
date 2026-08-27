@@ -96,6 +96,31 @@ async function main() {
           failed = true;
         }
       }
+      // BUY-75345: v2 buyer-context surface MUST be present on the canonical MCP
+      // host. The 14d P2.7 adoption gate (monitoring.mcp_v2_request_log external-agent
+      // >0/day) cannot start if external agents cannot discover v2 here.
+      // Gate: at least the 5 v2 tools are registered, AND tools/list returns >=10
+      // tools total. This catches future regressions where a deploy strips the v2
+      // wire from the compiled dist (see the 2026-08-26 incident where the
+      // mcp-server Railway service ran a stale api/dist build that pre-dated v2).
+      const V2_REQUIRED = [
+        'search_products_v2',
+        'get_product_v2',
+        'compare_products_v2',
+        'get_deals_v2',
+        'find_best_price_v2',
+      ];
+      const missingV2 = V2_REQUIRED.filter((n) => !toolNames.includes(n));
+      if (missingV2.length > 0) {
+        console.error(`Missing v2 tool(s): ${missingV2.join(', ')} (BUY-75345: v2 wire required on canonical MCP host)`);
+        failed = true;
+      } else {
+        console.log(`v2 surface ok: ${V2_REQUIRED.length} tools present`);
+      }
+      if (toolNames.length < 10) {
+        console.error(`tools/list returned ${toolNames.length} tools (< 10 expected — BUY-75345)`);
+        failed = true;
+      }
     }
   } catch (err) {
     console.error('tools/list error:', err.message);
@@ -137,6 +162,33 @@ async function main() {
     failed = true;
   } else if (!dealsOk) {
     console.warn('get_deals advisory: check did not pass (GET_DEALS_GUARD_HARD_FAIL not set)');
+  }
+
+  // BUY-75345: v2 wire contract — search_products_v2 MUST reject calls without
+  // deliver_to with a -32602 INVALID_PARAMETER. If this passes silently, the
+  // v2 wire has regressed to v1 behavior (which infers country from
+  // country_code, allowing the call to succeed) — P2.7 gate would tick green
+  // for the wrong reason. Skip if MCP_API_KEY isn't set (cannot authenticate
+  // a tools/call).
+  if (MCP_API_KEY) {
+    try {
+      const v2Probe = await jsonRpc('tools/call', {
+        name: 'search_products_v2',
+        arguments: { q: 'laptop', limit: 1 },
+      }, 3);
+      const err = v2Probe?.error;
+      if (err && err.code === -32602 && /deliver_to/i.test(String(err.message || ''))) {
+        console.log('v2 wire contract ok: search_products_v2 without deliver_to -> -32602');
+      } else {
+        console.error(
+          `v2 wire contract REGRESSION: expected -32602 'deliver_to' missing; got ${JSON.stringify(err).slice(0, 200)}`,
+        );
+        failed = true;
+      }
+    } catch (err) {
+      console.error('v2 wire contract probe error:', err.message);
+      failed = true;
+    }
   }
 
   if (failed) {

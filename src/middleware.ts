@@ -51,6 +51,17 @@ const BASELINE_SECURITY_HEADERS: [string, string][] = [
   ],
 ];
 
+// BUY-75413 (P2.3): AI agent discovery headers applied to EVERY public response
+// on buywhere.ai/* (the apex site). The three always-on headers mirror the
+// api.buywhere.ai values so an agent receives the same Agent Card + LLMs-Txt
+// regardless of which host it hits. Per the P2.3 spec, X-Agent-Index and
+// X-Agent-Auth are NOT emitted on the apex site (no auth/catalog surface).
+const AGENT_DISCOVERY_HEADERS: [string, string][] = [
+  ["X-Agent-Protocol", "buywhere/v1"],
+  ["X-Agent-Card", "https://api.buywhere.ai/.well-known/agent.json"],
+  ["X-LLMs-Txt", "https://api.buywhere.ai/llms.txt"],
+];
+
 function isHtmlRequest(request: NextRequest): boolean {
   const accept = request.headers.get("accept") ?? "";
   return accept.includes("text/html") || accept.includes("application/xhtml+xml");
@@ -63,6 +74,16 @@ function applyBaselineSecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
+// BUY-75413: P2.3 agent-discovery headers are unconditional — applied on every
+// middleware-passed-through response on the apex host, not gated by
+// isHtmlRequest (the 8-criterion gate measures the full surface).
+function applyAgentDiscoveryHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of AGENT_DISCOVERY_HEADERS) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 function withBaselineSecurityHeaders(
   request: NextRequest,
   response: NextResponse
@@ -70,6 +91,22 @@ function withBaselineSecurityHeaders(
   if (isHtmlRequest(request)) {
     applyBaselineSecurityHeaders(response);
   }
+  // BUY-75413 (P2.3): agent-discovery headers are applied unconditionally,
+  // not gated on isHtmlRequest. The P2.3 acceptance gate measures every
+  // middleware-passed-through response on buywhere.ai/* — HTML and JSON alike.
+  applyAgentDiscoveryHeaders(response);
+  return response;
+}
+
+/**
+ * BUY-75413 (P2.3): wrap ad-hoc NextResponse objects (redirects, rewrites,
+ * 4xx shells, 410s, etc.) so they carry the agent-discovery headers before
+ * being returned from the middleware function. Mirrors the path-mutation in
+ * withBaselineSecurityHeaders but works for explicit responses that bypass
+ * the standard NextResponse.next() pipeline.
+ */
+function tagAgent(response: NextResponse): NextResponse {
+  applyAgentDiscoveryHeaders(response);
   return response;
 }
 
@@ -206,7 +243,7 @@ function optionalMetadataMiss(pathname: string): NextResponse | null {
   const miss = OPTIONAL_METADATA_MISSES[pathname];
   if (!miss) return null;
 
-  return new NextResponse(miss.body, {
+  const response = new NextResponse(miss.body, {
     status: 404,
     headers: {
       "Content-Type": miss.contentType,
@@ -214,6 +251,9 @@ function optionalMetadataMiss(pathname: string): NextResponse | null {
       "X-Robots-Tag": "noindex",
     },
   });
+  // BUY-75413 (P2.3): even 404 metadata misses carry the agent-discovery headers.
+  applyAgentDiscoveryHeaders(response);
+  return response;
 }
 
 
@@ -253,14 +293,15 @@ function normalizePathname(pathname: string): string {
  * removed.  Google Search Console treats a 308→/blog redirect as "Page with
  * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
  * tells Google to drop the URL cleanly.
+ *
+ * BUY-74947 (SEO-GATE): the five where-to-buy-* SG posts below were
+ * regenerated under BUY-74907 and re-entered the blog canonical surface. They
+ * are removed from this deny-list so middleware stops returning 410 for them;
+ * the App Router resolves each via generateStaticParams() and they appear in
+ * sitemap-blog.xml. Removing dead-slug entries requires a named SEO-GATE
+ * ticket per the indexation directive.
  */
-const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-iphone-16-singapore",
-  "where-to-buy-macbook-air-m3-singapore",
-  "where-to-buy-nintendo-switch-singapore",
-  "where-to-buy-ps5-singapore",
-  "where-to-buy-sony-wh-1000xm5-singapore",
-]);
+const DEAD_BLOG_SLUGS = new Set<string>([]);
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
@@ -476,7 +517,7 @@ export async function middleware(request: NextRequest) {
   ) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.delete("next-router-state-tree");
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return tagAgent(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
   // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
@@ -485,18 +526,19 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/robots.txt" || pathname === "/developers/robots") {
     const url = request.nextUrl.clone();
     url.pathname = "/robots.txt";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
   if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
+
 
   const ua = request.headers.get("user-agent") ?? "";
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
@@ -508,16 +550,16 @@ export async function middleware(request: NextRequest) {
 
   // Dead blog slugs → 410 Gone (clean removal signal for Google, not a redirect)
   if (isDeadBlogSlug(pathname)) {
-    return new NextResponse(null, {
+    return tagAgent(new NextResponse(null, {
       status: 410,
       headers: { "Content-Type": "text/plain" },
-    });
+    }));
   }
 
   // Dead top-level paths that no longer exist — return 410 Gone so Google stops retrying
   const normalizedForDead = normalizePathname(pathname);
   if (normalizedForDead === "/merchants/join") {
-    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    return tagAgent(new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } }));
   }
 
   // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
@@ -525,25 +567,25 @@ export async function middleware(request: NextRequest) {
   if (normalizedForDead === "/compare/us/electronics") {
     const url = request.nextUrl.clone();
     url.pathname = "/compare/electronics";
-    return NextResponse.redirect(url, 301);
+    return tagAgent(NextResponse.redirect(url, 301));
   }
   if (normalizedForDead === "/compare/us/amazon/walmart") {
     const url = request.nextUrl.clone();
     url.pathname = "/compare";
     url.search = "country_code=us&q=amazon%20walmart";
-    return NextResponse.redirect(url, 301);
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
   // Moved content: product index pages now redirect to their country pages
   if (normalizedForDead === "/products/us") {
     const url = request.nextUrl.clone();
     url.pathname = "/us";
-    return NextResponse.redirect(url, 301);
+    return tagAgent(NextResponse.redirect(url, 301));
   }
   if (normalizedForDead === "/products/sg") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url, 301);
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
   // /about now renders src/app/about/page.tsx with title + meta description
@@ -560,7 +602,7 @@ export async function middleware(request: NextRequest) {
   if (normalizedForDead.startsWith("/products/sg/")) {
     const afterSgPrefix = normalizedForDead.slice("/products/sg/".length);
     if (afterSgPrefix.split("/").filter(Boolean).length <= 1) {
-      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+      return tagAgent(new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } }));
     }
   }
 
@@ -588,7 +630,7 @@ export async function middleware(request: NextRequest) {
     const nonSlashPath = pathname.slice(0, -1);
     const trailingSlashRedirect = legacyRedirectPath(host, nonSlashPath);
     if (trailingSlashRedirect === "__DEAD_BLOG_SLUG__" || trailingSlashRedirect === "__GONE__") {
-      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+      return tagAgent(new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } }));
     }
     if (trailingSlashRedirect) {
       const url = request.nextUrl.clone();
@@ -596,7 +638,7 @@ export async function middleware(request: NextRequest) {
       url.port = "";
       url.protocol = "https:";
       url.pathname = trailingSlashRedirect;
-      return NextResponse.redirect(url, 301);
+      return tagAgent(NextResponse.redirect(url, 301));
     }
     // No legacy remap: 301 to the canonical non-slash URL on the same origin.
     // Emit rel=canonical via Link header so GSC picks up the canonical signal
@@ -612,12 +654,12 @@ export async function middleware(request: NextRequest) {
       301
     );
     tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
-    return tsResponse;
+    return tagAgent(tsResponse);
   }
 
   const redirectPath = legacyRedirectPath(host, pathname);
   if (redirectPath === "__DEAD_BLOG_SLUG__" || redirectPath === "__GONE__") {
-    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    return tagAgent(new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } }));
   }
   if (redirectPath) {
     const url = request.nextUrl.clone();
@@ -625,7 +667,7 @@ export async function middleware(request: NextRequest) {
     url.port = "";
     url.protocol = "https:";
     url.pathname = redirectPath;
-    return NextResponse.redirect(url, 301);
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
 // BUY-72180: /products/{1-7 digit numeric} hard-404 gate.
@@ -640,14 +682,14 @@ export async function middleware(request: NextRequest) {
   // feeds, archived sitemaps).
   const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
   if (productsShortNumericMatch) {
-    return new NextResponse("Product Not Found", {
+    return tagAgent(new NextResponse("Product Not Found", {
       status: 404,
       statusText: "Product Not Found",
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-Robots-Tag": "noindex, nofollow",
       },
-    });
+    }));
   }
 
   // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
@@ -666,7 +708,7 @@ export async function middleware(request: NextRequest) {
     const productId = productsNumericMatch[1];
     const url = request.nextUrl.clone();
     url.pathname = `/p/${productId}`;
-    return NextResponse.redirect(url, 308);
+    return tagAgent(NextResponse.redirect(url, 308));
   }
 
   // BUY-72180: /p/{1-7 digit numeric} hard-404 gate (companion to /products/{short-numeric}).
@@ -675,14 +717,14 @@ export async function middleware(request: NextRequest) {
   // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
   const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
   if (pShortIdMatch) {
-    return new NextResponse("Product Not Found", {
+    return tagAgent(new NextResponse("Product Not Found", {
       status: 404,
       statusText: "Product Not Found",
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-Robots-Tag": "noindex, nofollow",
       },
-    });
+    }));
   }
 
   // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
@@ -712,7 +754,7 @@ export async function middleware(request: NextRequest) {
         }
       );
       if (apiRes.status === 404) {
-        return new NextResponse(null, { status: 404, statusText: "Product Not Found" });
+        return tagAgent(new NextResponse(null, { status: 404, statusText: "Product Not Found" }));
       }
       // Transient errors (429/401/403/5xx): do NOT 404 — fall through and let the
       // page handler render. The PDP route will fetch the product itself and show
@@ -766,7 +808,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/robots.txt") {
     const url = request.nextUrl.clone();
     url.pathname = "/robots.txt";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
   if (
     pathname === "/developers/sitemap.xml" ||
@@ -775,12 +817,12 @@ export async function middleware(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap.xml";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return NextResponse.rewrite(url);
+    return tagAgent(NextResponse.rewrite(url));
   }
 
   // Content negotiation: rewrite to dedicated markdown route handlers.
@@ -790,12 +832,12 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/" || pathname === "") {
       const url = request.nextUrl.clone();
       url.pathname = "/index.md";
-      return NextResponse.rewrite(url);
+      return tagAgent(NextResponse.rewrite(url));
     }
     if (pathname === "/docs") {
       const url = request.nextUrl.clone();
       url.pathname = "/docs-md";
-      return NextResponse.rewrite(url);
+      return tagAgent(NextResponse.rewrite(url));
     }
   }
 

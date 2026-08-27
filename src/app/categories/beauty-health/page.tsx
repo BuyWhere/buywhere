@@ -138,7 +138,7 @@ export default function BeautyHealthCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Authenticity Verification</h3>
               </div>
               <p className="text-gray-600">
-                All retailers are verified authorized sellers to ensure product authenticity
+                The retailer is shown on every listing — check for authorized sellers before you buy
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -230,7 +230,7 @@ export default function BeautyHealthCategoryPage() {
           <p className="text-lg text-gray-600 mb-8">
             Singapore&apos;s beauty market spans everything from luxury department store counters to affordable drugstore finds. BuyWhere helps you navigate the full spectrum, comparing prices across retailers like Sephora, Watsons, Guardian, Robinsons, and online-first beauty shops. Whether you are stocking up on daily essentials or investing in a premium skincare routine, our comparison tools help you get the most value.
           </p>
-          <Link href="/search?q=beauty+health&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=beauty+health&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Beauty & Health Deals →
           </Link>
         </section>
@@ -291,7 +291,7 @@ export default function BeautyHealthCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Find the best beauty and health products in Singapore with BuyWhere.
           </p>
-          <Link href="/search?q=beauty+health&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=beauty+health&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Compare Beauty & Health Prices Now →
           </Link>
         </section>

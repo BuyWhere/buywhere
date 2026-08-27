@@ -154,9 +154,10 @@ async function resolvePaperclipAgentKey(agentId: string): Promise<{
   tier: string;
   signup_channel: string | null;
   attribution_source: string | null;
+  is_internal?: boolean;
 } | null> {
   const result = await db.query(
-    `SELECT id, key_hash, name, tier, signup_channel, attribution_source
+    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_internal
      FROM api_keys
      WHERE signup_channel = 'paperclip_agent'
        AND name = $1
@@ -182,6 +183,7 @@ async function upsertPaperclipAgentKey(
   tier: string;
   signup_channel: string | null;
   attribution_source: string | null;
+  is_internal?: boolean;
 }> {
   const existing = await resolvePaperclipAgentKey(agentId);
   if (existing) return existing;
@@ -191,7 +193,7 @@ async function upsertPaperclipAgentKey(
     `INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit)
      VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000)
      ON CONFLICT (key_hash) DO UPDATE SET last_used_at = NOW()
-     RETURNING id, key_hash, name, tier, signup_channel, attribution_source`,
+     RETURNING id, key_hash, name, tier, signup_channel, attribution_source, is_internal`,
     [keyHash, agentName, companyId || null]
   );
   return result.rows[0];
@@ -275,7 +277,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       return;
     }
     const r = await db.query(
-      `SELECT id, name, tier, signup_channel, attribution_source FROM api_keys WHERE id = $1 AND is_active = true`,
+      `SELECT id, name, tier, signup_channel, attribution_source, is_internal FROM api_keys WHERE id = $1 AND is_active = true`,
       [tok.apiKeyId]
     );
     if (!r.rows.length) {
@@ -293,6 +295,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       dailyLimit: limits.daily,
       signupChannel: row.signup_channel,
       attributionSource: row.attribution_source,
+      isInternal: row.is_internal === true,
       dailyRequestCount: 0,
       dailyResetAt: nextMidnightUTC(),
     };
@@ -322,6 +325,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
           dailyLimit: limits.daily,
           signupChannel: row.signup_channel,
           attributionSource: row.attribution_source,
+      isInternal: row.is_internal === true,
           dailyRequestCount: 0,
           dailyResetAt: nextMidnightUTC(),
         };
@@ -339,7 +343,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
 
   const keyHashes = apiKeyLookupHashes(key);
   const result = await db.query(
-    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
+    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active, is_internal,
             daily_request_count, daily_reset_at, weekly_request_count, weekly_reset_at,
             created_at, rpm_limit, daily_limit, failed_request_count
      FROM api_keys WHERE key_hash = ANY($1::text[])`,
@@ -470,6 +474,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     dailyLimit,
     signupChannel: row.signup_channel,
     attributionSource: row.attribution_source,
+      isInternal: row.is_internal === true,
     dailyRequestCount,
     dailyResetAt,
   };

@@ -143,6 +143,15 @@ export function buildProduct(
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(isAmazonMerchant && row.updated_at != null && { price_as_of: row.updated_at as string }),
+    // BUY-75368: A2 weekly-report metric (% search responses carrying a
+    // url_last_checked_at within 24h). Always emit the field (null when
+    // never checked) so consumers can rely on its presence.
+    ...(row.url_last_checked_at !== undefined && {
+      url_last_checked_at: (row.url_last_checked_at as string | null) ?? null,
+    }),
+    ...(row.url_status !== undefined && {
+      url_status: (row.url_status as string | null) ?? null,
+    }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
@@ -151,6 +160,12 @@ export function buildProduct(
     ...(hasAffiliateTracking && {
       affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
     }),
+    // BUY-74262: expose the raw `source` column alongside the `merchant` alias.
+    // The `source` column holds the retailer/feed origin (e.g. "amazon_us",
+    // "shopify"). `merchant` is the same value but mapped from the `domain` alias
+    // for backward compatibility. Agents filtering by `?source=...` need the
+    // explicit `source` key in the response to verify the filter took effect.
+    source: (row.source as string) || null,
   };
 
   if (compact) {

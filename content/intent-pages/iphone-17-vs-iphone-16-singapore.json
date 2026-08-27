@@ -6,29 +6,81 @@
   "heroTitle": "iPhone 17 vs iPhone 16 in Singapore (2026) — live prices and which to buy",
   "heroTitleTemplate": "iPhone 17 vs iPhone 16 in Singapore — from {floorPrice} today",
   "heroBody": "In Singapore both the iPhone 17 and iPhone 16 sit on the same retail shelves: Apple Singapore, Challenger, Courts, Harvey Norman, the three telcos, Shopee Mall, LazMall and parallel importers all stock both models. The iPhone 17 brings a 120 Hz ProMotion display to the base model for the first time, a new camera bar and better battery life, while the iPhone 16 has become the value play for recontract bundles and voucher-driven marketplace sales. This page compares live Singapore prices in S$ so you can decide whether the 17's upgrades are worth the premium for your next two-year cycle.",
-  "inboundLinks": ["/best-iphones-singapore", "/search?q=iPhone+16+Singapore", "/search?q=iPhone+17+Singapore"],
+  "inboundLinks": [
+    "/best-iphones-singapore",
+    "/search?q=iPhone+16+Singapore",
+    "/search?q=iPhone+17+Singapore"
+  ],
   "canonicalPath": "/iphone-17-vs-iphone-16-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "iPhone 17 vs iPhone 16",
-  "backupQueries": ["Apple iPhone 17", "Apple iPhone 16", "iPhone 17 Pro Singapore"],
+  "searchQuery": "Apple iPhone",
+  "backupQueries": [
+    "Apple iPhone 17",
+    "Apple iPhone 16",
+    "iPhone 17 Pro Singapore"
+  ],
   "minPrice": 600,
-  "requiredProductTerms": ["iphone", "apple", "smartphone"],
+  "requiredProductTerms": [
+    "iphone",
+    "apple",
+    "smartphone"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-25",
   "productSectionTitle": "Live iPhone 17 and iPhone 16 prices in Singapore",
   "comparisonSectionTitle": "iPhone 17 vs iPhone 16 — at a glance",
-  "comparisonColumns": ["Spec / feature", "iPhone 17", "iPhone 16"],
+  "comparisonColumns": [
+    "Spec / feature",
+    "iPhone 17",
+    "iPhone 16"
+  ],
   "comparisonRows": [
-    { "label": "Display", "values": ["Super Retina XDR with ProMotion 120 Hz across all models", "Super Retina XDR 60 Hz on base and Plus; 120 Hz only on Pro models"] },
-    { "label": "Chip", "values": ["A19 Pro with faster GPU and improved ray tracing", "A18 Bionic — still capable for everyday apps and most games"] },
-    { "label": "Camera", "values": ["New camera bar layout with improved main sensor and low-light fusion", "Dual-camera layout; strong performance but weaker in low light and zoom"] },
-    { "label": "Battery", "values": ["Larger battery and more efficient modem — longest iPhone battery yet", "All-day battery for typical users; heavy days need a mid-day top-up"] },
-    { "label": "Build", "values": ["Thinner chassis with refined titanium-aluminium frame", "Aluminium and glass; slightly thicker and heavier"] },
-    { "label": "Best suited for", "values": ["Buyers who keep a phone 3+ years, shoot video or want the smoothest display", "Buyers who want a modern iPhone at a lower total cost, especially with recontract deals"] }
+    {
+      "label": "Display",
+      "values": [
+        "Super Retina XDR with ProMotion 120 Hz across all models",
+        "Super Retina XDR 60 Hz on base and Plus; 120 Hz only on Pro models"
+      ]
+    },
+    {
+      "label": "Chip",
+      "values": [
+        "A19 with faster everyday performance and improved graphics efficiency",
+        "A18 Bionic — still capable for everyday apps and most games"
+      ]
+    },
+    {
+      "label": "Camera",
+      "values": [
+        "New camera bar layout with improved main sensor and low-light fusion",
+        "Dual-camera layout; strong performance but weaker in low light and zoom"
+      ]
+    },
+    {
+      "label": "Battery",
+      "values": [
+        "Larger battery and more efficient modem — longest iPhone battery yet",
+        "All-day battery for typical users; heavy days need a mid-day top-up"
+      ]
+    },
+    {
+      "label": "Build",
+      "values": [
+        "Thinner chassis with refined titanium-aluminium frame",
+        "Aluminium and glass; slightly thicker and heavier"
+      ]
+    },
+    {
+      "label": "Best suited for",
+      "values": [
+        "Buyers who keep a phone 3+ years, shoot video or want the smoothest display",
+        "Buyers who want a modern iPhone at a lower total cost, especially with recontract deals"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed from iPhone 16 to iPhone 17",
   "highlights": [
@@ -42,7 +94,7 @@
     },
     {
       "title": "Battery life buys you time",
-      "body": "A larger battery plus a more efficient A19 Pro modem means the iPhone 17 reliably lasts longer on days with heavy Grab rides, Google Maps navigation and photo shoots. For a three- or four-year ownership cycle that extra headroom delays the need for a battery replacement."
+      "body": "A larger battery plus a more efficient A19 platform means the iPhone 17 reliably lasts longer on days with heavy Grab rides, Google Maps navigation and photo shoots. For a three- or four-year ownership cycle that extra headroom delays the need for a battery replacement."
     },
     {
       "title": "Recontract bundles narrow the price gap",
@@ -86,7 +138,9 @@
     }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/iphone-17-vs-iphone-16-us" },
+  "hreflangAlternates": {
+    "en-US": "/iphone-17-vs-iphone-16-us"
+  },
   "categoryIntro": {
     "heading": "Why Singapore iPhone prices change every week",
     "body": "Singapore has multiple competing channels for the same iPhone: Apple Singapore, authorised resellers, three telcos with recontract bundles, and marketplace official stores all run separate promotions. Prices move around 9.9, 10.10, 11.11, 12.12 and telco launch campaigns rather than following Apple's list price, which is why a static comparison goes stale quickly and why this page reads live listings instead."

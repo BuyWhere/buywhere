@@ -6,6 +6,7 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+// Emergency fix 2026-08-26: the root layout now reads request headers(), which makes an
 export const revalidate = 900;
 
 interface BrandProduct {
@@ -27,17 +28,32 @@ interface BrandData {
   products: BrandProduct[];
 }
 
-async function getBrandData(slug: string): Promise<BrandData | null> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
-      next: { revalidate: 900 },
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
+async function getBrandData(slug: string): Promise<BrandData> {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
+    next: { revalidate: 900 },
+  });
+  if (res.status === 404) {
+    // Definitive does-not-exist → caller should notFound()
+    return null as unknown as BrandData;
   }
+  if (!res.ok) {
+    // Transient backend failure (5xx, 429, etc.) → caller should 503
+    throw Object.assign(new Error(`Brand API returned ${res.status}`), { status: res.status });
+  }
+  return res.json();
+}
+
+function buildTransientErrorResponse(slug: string): Response {
+  const message = `Brand "${slug}" is temporarily unavailable. The catalog backend returned an error. Please try again in a few minutes.`;
+  return new Response(message, {
+    status: 503,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Retry-After': '120',
+      'Cache-Control': 'public, max-age=0, must-revalidate',
+    },
+  });
 }
 
 function buildJsonLd(data: BrandData) {
@@ -73,9 +89,21 @@ function buildJsonLd(data: BrandData) {
 
 export default async function BrandsBrandPage({ params }: PageProps) {
   const { slug } = await params;
-  const brand = await getBrandData(slug);
+  let brand: BrandData;
+  try {
+    brand = await getBrandData(slug);
+  } catch (err: unknown) {
+    // Transient backend failure (5xx, timeout, network) → 503 with Retry-After.
+    // NEVER 404 on transient errors: a 404 tells Google to drop the URL.
+    if (err && typeof err === 'object' && 'status' in err) {
+      return buildTransientErrorResponse(slug);
+    }
+    // Unknown error type → also treat as transient
+    return buildTransientErrorResponse(slug);
+  }
 
   if (!brand) {
+    // Definitive does-not-exist: API returned 404 for this slug
     notFound();
   }
 
@@ -185,7 +213,13 @@ export default async function BrandsBrandPage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const brand = await getBrandData(slug);
+  let brand: BrandData | null = null;
+  try {
+    brand = await getBrandData(slug);
+  } catch {
+    // Transient error during metadata generation → use generic title
+    // (page component will serve 503; metadata is best-effort)
+  }
 
   if (!brand) {
     return { title: 'Brand Not Found' };
