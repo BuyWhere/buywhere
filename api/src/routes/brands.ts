@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { db, redis } from '../config';
+import { redis } from '../config';
+import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -133,7 +134,7 @@ router.get(
         LIMIT 24
       `;
 
-      const result = await db.query(query, [brandMeta.name]);
+      const result = await readDb().query(query, [brandMeta.name]);
 
       // Transform products to match frontend interface
       const products = result.rows.map((row) => ({
@@ -160,7 +161,7 @@ router.get(
         ) s
       `;
 
-      const countResult = await db.query(countQuery, [brandMeta.name]);
+      const countResult = await readDb().query(countQuery, [brandMeta.name]);
       const product_count = parseInt(countResult.rows[0].total, 10);
 
       const response = {
