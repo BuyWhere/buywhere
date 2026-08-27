@@ -649,6 +649,29 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         if (queryVec && vectorDb) {
           let candidateIds: string[];
 
+          // BUY-73859: the vector half of hybrid/semantic search reads the
+          // global product_embeddings index (separate Postgres instance) with
+          // no country scoping. When a buyer country filter is present, FTS
+          // stays scoped to the country via the search_products tier, but the
+          // vector candidates were unrestricted — so SG/MY/TH/VN queries
+          // returned US google_shopping rows interleaved with local results.
+          // Since the embeddings table does not carry country_code (and lives
+          // in a different DB than products), resolve a vector candidate's
+          // country by batch-lookup against the search_products tier (which is
+          // partitioned by country_code) before it can enter the RRF merge or
+          // become an unranked semantic result.
+          async function filterVectorByCountry(vecIds: string[]): Promise<string[]> {
+            if (!country || vecIds.length === 0) return vecIds;
+            const vph = vecIds.map((_, i) => `$${i + 1}`).join(',');
+            const ccRes = await searchClient.query<{ id: string }>(
+              `SELECT DISTINCT sp.id FROM search_products sp
+               WHERE sp.id IN (${vph}) AND sp.country_code = $${vecIds.length + 1}`,
+              [...vecIds, country]
+            );
+            const inCountry = new Set(ccRes.rows.map(r => r.id));
+            return vecIds.filter(id => inCountry.has(id));
+          }
+
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
             const vecRows = await vectorDb.query<{ product_id: string }>(
@@ -656,7 +679,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                ORDER BY embedding <=> $1::vector LIMIT 200`,
               [queryVec]
             );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            const countryFiltered = await filterVectorByCountry(vecRows.rows.map(r => r.product_id));
+            candidateIds = countryFiltered.slice(0, limit + offset);
           } else {
             // Hybrid: app-level RRF of FTS ranks + vector ranks
             const [ftsResult, vecResult] = await Promise.all([
@@ -670,8 +694,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 [queryVec]
               ),
             ]);
+            const vecCountryFiltered = await filterVectorByCountry(vecResult.rows.map(r => r.product_id));
             const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+            // Note: also drop FTS ids from the country-scoped vector set that the
+            // tier query already excluded (belt-and-suspenders for any id that
+            // slipped a tier partition but is absent from products).
+            const vecRank = new Map(
+              vecCountryFiltered
+                .filter(id => !ftsRank.has(id))
+                .map((id, i) => [id, i + 1])
+            );
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
             candidateIds = [...allIds]
               .map(id => ({
