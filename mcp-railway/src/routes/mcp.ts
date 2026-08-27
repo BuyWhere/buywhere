@@ -1261,6 +1261,38 @@ async function handleListCategories(args: Record<string, unknown>) {
   }
 }
 
+// BUY-76206: normalize find_best_price product queries before they reach
+// plainto_tsquery / buildDeviceFilter. Strips trailing price/shipping/store
+// noise and collapses whitespace so ranking is driven by the product noun,
+// not spurious lexemes (mirrors the queryPreprocessor the search_products
+// path uses). Kept inline here to avoid a cross-tree import; the full
+// queryPreprocessor port is tracked under BUY-76206.
+const FBP_NOISE_TERMS = [
+  'price', 'prices', 'cheap', 'cheapest', 'best', 'buy', 'preorder', 'pre-order',
+  'official', 'original', 'genuine', 'sale', 'deal', 'discount', 'ship', 'shipping',
+  'free ship', 'in stock', 'stock', 'new', 'warranty', 'sg', 'singapore', 'store',
+  'shop', 'online', 'fast', 'delivery', 'near me',
+  '$', 's$', 'us$', 'rm', '฿', '₫', 'php', 'idr',
+];
+
+function normalizeFbpQuery(raw: string): string {
+  // Strip currency/cents sequences ("S$199", "US$50", "฿30,000", "30,000") first so the
+  // currency letter doesn't linger as an orphan token. Use a conservative 4+ digit
+  // price/year drop only; short model digits ("15", "s24", "ps5") are product identity
+  // and must be preserved.
+  let q = raw.toLowerCase()
+    .replace(/\b(?:s|us|rm)?[$฿₫]\s?\d{1,3}(?:,\d{3})*\.?\d*\b/g, ' ')
+    .replace(/[$฿₫]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ');
+  for (const t of FBP_NOISE_TERMS) {
+    q = q.replace(new RegExp(`\\b${t.replace(/[$฿₫]/g, '\\$&')}\\b`, 'g'), ' ');
+  }
+  // Drop leftover standalone year/price-like tokens (2026, 30000); never bare 1-3
+  // digit model tags.
+  q = q.split(' ').filter(tok => !/^\d{4,}$/.test(tok)).join(' ');
+  return q.replace(/\s+/g, ' ').trim();
+}
+
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
@@ -1277,8 +1309,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
+  // BUY-76206: rank on a noise-stripped query; keep the raw productName for the
+  // response envelope and the title-ILIKE fallback (which needs the full string).
+  const searchName = normalizeFbpQuery(productName) || productName;
+
   // BUY-67522: infer exact device-family queries and reject accessory results.
-  const deviceFilter = buildDeviceFilter(productName, country);
+  const deviceFilter = buildDeviceFilter(searchName, country);
 
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
     return buildMcpDegradedBestPriceResponse({
@@ -1301,7 +1337,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the 30s statement_timeout across SEA markets.
   const tierConditions: string[] = [];
   const tierParams: unknown[] = [];
-  tierParams.push(productName);
+  // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
+  tierParams.push(searchName);
   tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
   if (country) {
     tierParams.push(country);
@@ -1325,6 +1362,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  // BUY-76206 (2026-08-27): rank relevant products FIRST (ts_rank DESC), then price ASC.
+  // The previous pure price-ASC order let a cheap accessory that merely shared a
+  // lexeme win ("laptop stand" → $ backpack), producing wrong/empty FBP results.
+  // ts_rank runs on the FTS-matched candidate window only, so the GIN scan is unchanged
+  // and the sort stays bounded (CANDIDATE_POOL).
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
   const bestPriceClient = await acquireMcpClient();
@@ -1334,13 +1376,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at
+         SELECT sp.id, sp.price, sp.updated_at,
+                ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
          FROM search_products sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
-         SELECT id, price, updated_at
+         SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
+         ORDER BY rk DESC NULLS LAST,
+                  (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
+                  updated_at DESC
          LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
