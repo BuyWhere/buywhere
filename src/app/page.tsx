@@ -365,6 +365,7 @@ export default function HomePage() {
               <Link
                 key={href}
                 href={href}
+                prefetch={false}
                 className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
               >
                 {label}
@@ -372,7 +373,7 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-6">
-            <Link href="/deals" className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm">
+            <Link href="/deals" prefetch={false} className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm">
               Browse all deals →
             </Link>
           </div>
@@ -563,6 +564,7 @@ export default function HomePage() {
               <Link
                 key={href}
                 href={href}
+                prefetch={false}
                 className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
               >
                 {label}
@@ -591,6 +593,7 @@ export default function HomePage() {
           </div>
           <Link
             href="/compare"
+            prefetch={false}
             className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm"
           >
             Browse all price comparisons →

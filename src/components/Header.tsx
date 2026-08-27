@@ -32,9 +32,9 @@ export default function Header() {
 
         <span className="sr-only">Use Tab to navigate links, Enter to activate</span>
         <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden lg:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
-          <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
-          <Link href="/search" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Search</Link>
-          <Link href="/deals" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Deals</Link>
+          <Link href="/compare" prefetch={false} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
+          <Link href="/search" prefetch={false} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Search</Link>
+          <Link href="/deals" prefetch={false} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Deals</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
           <Link href="/developers" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Developers</Link>
           <AuthNavControls />
@@ -84,9 +84,9 @@ export default function Header() {
 
       {open && (
         <nav id="mobile-nav" role="navigation" tabIndex={0} className="lg:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700 dark:text-gray-300" aria-label="Mobile navigation">
-          <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Compare</Link>
-          <Link href="/search" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Search</Link>
-          <Link href="/deals" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Deals</Link>
+          <Link href="/compare" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Compare</Link>
+          <Link href="/search" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Search</Link>
+          <Link href="/deals" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Deals</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Blog</Link>
           <Link href="/developers" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Developers</Link>
           <AuthNavControls mobile onNavigate={() => setOpen(false)} />

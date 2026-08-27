@@ -81,9 +81,9 @@ export default function Nav() {
 
         {/* Desktop nav — Compare · Search · Deals · Blog · Developers (BUY-75315) */}
         <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
-          <Link href="/compare" className="hover:text-indigo-600 transition-colors">Compare</Link>
-          <Link href="/search" className="hover:text-indigo-600 transition-colors">Search</Link>
-          <Link href="/deals" className="hover:text-indigo-600 transition-colors">Deals</Link>
+          <Link href="/compare" prefetch={false} className="hover:text-indigo-600 transition-colors">Compare</Link>
+          <Link href="/search" prefetch={false} className="hover:text-indigo-600 transition-colors">Search</Link>
+          <Link href="/deals" prefetch={false} className="hover:text-indigo-600 transition-colors">Deals</Link>
           <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
           <DevDropdown />
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
@@ -152,9 +152,9 @@ export default function Nav() {
               ))}
             </div>
           )}
-          <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Compare</Link>
-          <Link href="/search" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Search</Link>
-          <Link href="/deals" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Deals</Link>
+          <Link href="/compare" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Compare</Link>
+          <Link href="/search" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Search</Link>
+          <Link href="/deals" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Deals</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
             <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
