@@ -682,10 +682,10 @@ export async function middleware(request: NextRequest) {
   // feeds, archived sitemaps).
   const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
   if (productsShortNumericMatch) {
-    // Rewrite to /not-found so Next.js renders not-found.tsx with full layout
+    // Redirect to /not-found to render the full not-found.tsx page
     const url = request.nextUrl.clone();
     url.pathname = "/not-found";
-    return tagAgent(NextResponse.rewrite(url));
+    return tagAgent(NextResponse.redirect(url, 302));
   }
 
   // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
@@ -711,13 +711,8 @@ export async function middleware(request: NextRequest) {
   // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
   // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
   // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
-  const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
-  if (pShortIdMatch) {
-    // Rewrite to /not-found so Next.js renders not-found.tsx with full layout
-    const url = request.nextUrl.clone();
-    url.pathname = "/not-found";
-    return tagAgent(NextResponse.rewrite(url));
-  }
+  // BUY-71641: Removed middleware handling for /p/{1-7 digit}
+  // Let the page component call notFound() to render full not-found.tsx page
 
   // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
   // notFound() for missing products but Next.js App Router streams the not-found
@@ -736,28 +731,8 @@ export async function middleware(request: NextRequest) {
   const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(pathname);
   if (pIdMatch) {
     const productId = pIdMatch[1];
-    // Check via internal API - if 404, return hard 404 before page streams.
-    try {
-      const apiRes = await fetch(
-        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
-        {
-          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
-          signal: AbortSignal.timeout(3000),
-        }
-      );
-      if (apiRes.status === 404) {
-        // Rewrite to /not-found so Next.js renders not-found.tsx with full layout
-        const url = request.nextUrl.clone();
-        url.pathname = "/not-found";
-        return tagAgent(NextResponse.rewrite(url));
-      }
-      // Transient errors (429/401/403/5xx): do NOT 404 — fall through and let the
-      // page handler render. The PDP route will fetch the product itself and show
-      // its own error/loading state. 404-ing here on rate-limit would otherwise
-      // take down every /p/{id} for the duration of the throttle window.
-    } catch {
-      // Network error - let page render (will show its own error state)
-    }
+    // BUY-71641: Removed middleware 404 interception
+    // Let the page component call notFound() to render full not-found.tsx page
   }
 
   // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
