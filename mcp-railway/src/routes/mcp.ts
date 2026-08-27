@@ -1256,65 +1256,66 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     });
   }
 
-  // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
+  const CANDIDATE_POOL = Math.max(limit * 50, 500);
 
-  params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-
+  // BUY-72082: Tier search via search_products partitioned table (97M rows,
+  // GIN-indexed, country-partitioned) instead of the 368M-row products table.
+  // Stage 1 selects candidate ids + price + updated_at from the tier; stage 2
+  // joins back to products by PK for the full MCP output columns. This mirrors
+  // the search_products fix and avoids the full-table FTS scans that push FBP
+  // over the 30s statement_timeout across SEA markets.
+  const tierConditions: string[] = [];
+  const tierParams: unknown[] = [];
+  tierParams.push(productName);
+  tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
   if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
+    tierParams.push(country);
+    tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
   if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
+    tierParams.push(region);
+    tierConditions.push(`sp.region = $${tierParams.length}`);
   }
   if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
+    tierParams.push(`%${category}%`);
+    tierConditions.push(`sp.category ILIKE $${tierParams.length}`);
   }
-
   // BUY-67522: for exact device queries, enforce a floor that accessories cannot satisfy.
   if (deviceFilter.minLocal > 0) {
-    params.push(deviceFilter.minLocal);
-    conditions.push(`price >= $${params.length}`);
+    tierParams.push(deviceFilter.minLocal);
+    tierConditions.push(`sp.price >= $${tierParams.length}`);
   }
-
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
-  // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
-  // were already defined above — a TS2451 redeclare error that broke every deploy.)
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 10s → 30s; top_ids CTE mean=10s/p99.9=370s under load, 10s window tripped -32603 on lock-waves
+    tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
-         SELECT id, price, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+         SELECT sp.id, sp.price, sp.updated_at
+         FROM search_products sp ${tierWhere}
+         LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at
          FROM cand
          ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
-         LIMIT $${params.length}
+         LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
+       WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
-      params
+      tierParams
     );
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
     if (result.rows.length === 0) {
