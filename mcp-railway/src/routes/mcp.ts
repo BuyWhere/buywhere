@@ -1475,7 +1475,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return false;
   };
 
-  const candidates = result.rows.filter(r => !isAccessory(r));
+  // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
+  // rather than returning empty. The SQL found products; returning nothing is
+  // worse than returning accessories (the user can refine the query).
+  const filteredAccessories = result.rows.filter(r => !isAccessory(r));
+  const candidates = filteredAccessories.length > 0 ? filteredAccessories : result.rows;
 
   const data = candidates.map((r: Record<string, unknown>) => ({
     id: r.id,
