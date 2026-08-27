@@ -1993,6 +1993,7 @@ async function handleSearchProductsV2(args: Record<string, unknown>) {
     }
     throw e;
   }
+  args.country_code = deliverTo;
   const result = await handleSearchProducts(args);
   applyNoMatchMeta(result);
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
@@ -2036,6 +2037,7 @@ async function handleGetDealsV2(args: Record<string, unknown>) {
     }
     throw e;
   }
+  args.country_code = deliverTo;
   const result = await handleGetDeals(args);
   applyNoMatchMeta(result);
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
@@ -2058,6 +2060,7 @@ async function handleCompareProductsV2(args: Record<string, unknown>) {
     }
     throw e;
   }
+  args.country_code = deliverTo;
   const result = await handleCompareProducts(args);
   applyNoMatchMeta(result);
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
@@ -2081,6 +2084,7 @@ async function handleFindBestPriceV2(args: Record<string, unknown>) {
     }
     throw e;
   }
+  args.country_code = deliverTo;
   const result = await handleFindBestPrice(args);
   applyNoMatchMeta(result);
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
@@ -2104,6 +2108,7 @@ async function handleGetProductV2(args: Record<string, unknown>) {
     }
     throw e;
   }
+  args.country_code = deliverTo;
   const result = await handleGetProduct(args);
   applyNoMatchMeta(result);
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
