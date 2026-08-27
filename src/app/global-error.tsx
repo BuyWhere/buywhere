@@ -46,7 +46,7 @@ export default function GlobalError({
             We encountered an unexpected error. Our team has been notified and
             we&apos;re working to fix it. Please try again shortly.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
             <Button href="/">Go home</Button>
             <Button href="/search" variant="secondary">Search products</Button>
           </div>
