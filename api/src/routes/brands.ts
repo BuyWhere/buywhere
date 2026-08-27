@@ -114,21 +114,21 @@ router.get(
       const brandMeta = BRAND_METADATA[normalizedSlug];
 
       // Query products for this brand
+      // Bounded-candidate pattern (same as get_deals): the FTS GIN index narrows to this brand's rows,
+      // we take the first 2,000 without sorting, then rank those. Sorting the full match set for a
+      // big brand (Apple/Nike = millions of rows) blew the 30 s statement timeout.
       const query = `
-        SELECT
-          id,
-          title,
-          price,
-          avg_rating as rating,
-          in_stock,
-          image_url,
-          url,
-          country_code
-        FROM products
-        WHERE search_vector @@ plainto_tsquery('english', $1)
-          AND lower(brand) = lower($1)
-          AND is_active = true
-          AND is_available = true
+        WITH cand AS (
+          SELECT id, title, price, avg_rating, in_stock, image_url, url, country_code
+          FROM products
+          WHERE search_vector @@ plainto_tsquery('english', $1)
+            AND lower(brand) = lower($1)
+            AND is_active = true
+            AND is_available = true
+          LIMIT 2000
+        )
+        SELECT id, title, price, avg_rating as rating, in_stock, image_url, url, country_code
+        FROM cand
         ORDER BY avg_rating DESC NULLS LAST, price ASC
         LIMIT 24
       `;
@@ -147,13 +147,17 @@ router.get(
       }));
 
       // Get total product count
+      // Bounded count: an exact COUNT(*) over a big brand is a multi-second scan; 5,000 means "5,000+".
       const countQuery = `
-        SELECT COUNT(*) as total
-        FROM products
-        WHERE search_vector @@ plainto_tsquery('english', $1)
-          AND lower(brand) = lower($1)
-          AND is_active = true
-          AND is_available = true
+        SELECT COUNT(*) as total FROM (
+          SELECT 1
+          FROM products
+          WHERE search_vector @@ plainto_tsquery('english', $1)
+            AND lower(brand) = lower($1)
+            AND is_active = true
+            AND is_available = true
+          LIMIT 5000
+        ) s
       `;
 
       const countResult = await db.query(countQuery, [brandMeta.name]);
