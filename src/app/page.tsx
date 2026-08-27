@@ -307,7 +307,7 @@ export default function HomePage() {
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
             <p className="text-base font-semibold text-white">
-              Live product comparisons updated daily — prices second, API third.
+              Live product comparisons updated daily — real-time price tracking with a fast, agent-ready API.
             </p>
           </div>
         </div>
