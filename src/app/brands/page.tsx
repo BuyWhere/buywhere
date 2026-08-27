@@ -13,7 +13,6 @@ interface Brand {
 
 async function getBrands(): Promise<Brand[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const res = await fetch(`${apiBase()}/v1/brands`, { headers: apiHeaders(),
       next: { revalidate: 900 },
     });

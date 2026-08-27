@@ -30,7 +30,6 @@ interface BrandData {
 }
 
 async function getBrandData(slug: string): Promise<BrandData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
   const res = await fetch(`${apiBase()}/v1/brand/${slug}`, { headers: apiHeaders(),
     next: { revalidate: 900 },
   });
