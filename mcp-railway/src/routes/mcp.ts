@@ -488,8 +488,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.country_code || args.country);
+  // BUY-73666: deliver_to takes precedence over country_code/country per tool
+  // schema contract. Without this, MCP clients passing deliver_to="US" get SG
+  // results because the country filter was never applied.
+  const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;

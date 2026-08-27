@@ -13587,3 +13587,127 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
   const fromJson = loadIntentPageConfigs();
   return { ...seoLandingPagesTs, ...fromJson };
 })();
+
+// ---------------------------------------------------------------------------
+// BUY-74928 [OPENAI-CHANNEL]: 40-60-word plain-text answer block above the
+// fold on every intent page and on the live-offers /compare surface. The
+// shape ChatGPT retrieval lifts is:
+//   "The cheapest <intent> in <country> today is <price> at <retailer>,
+//    <delta> less than <next retailer> (<price>). Prices checked
+//    <Month D, YYYY> across <N> retailers."
+//
+// Honest lastmod (directive §5): the "Prices checked <date>" uses the same
+// ISO stamp as the visible "Updated <date>" pill and the JSON-LD
+// `dateModified` — all three derive from the same content-hash store so they
+// move together (or not at all). The stamp passed in is computed from the
+// same getOrUpdatePageLastmod call that drives the JSON-LD, so a content
+// change moves every visible date at once.
+//
+// Returns null when the live catalog has fewer than 2 priced offers — a
+// 40-60-word block naming "cheapest" / "next retailer" with only one priced
+// offer would be invented, which the indexation directive (§1C) forbids.
+// ---------------------------------------------------------------------------
+export type AnswerBlock = {
+  /** Plain-text verdict — the 40-60-word block crawlers lift. */
+  text: string;
+  /** Rendered "Prices checked <Month D, YYYY>" text. */
+  checkedText: string;
+  /** Machine-readable ISO duplicate of the checked date. */
+  checkedIso: string;
+  /** Number of priced retailer rows used to compute the verdict. */
+  retailerCount: number;
+  /** Cheapest retailer display name (sanitized). */
+  cheapestMerchant: string;
+  /** Cheapest price in the page's currency. */
+  cheapestPrice: number;
+  /** Second-cheapest price (used to compute the delta). May equal cheapest if only one priced row. */
+  nextPrice: number | null;
+};
+
+function priceText(value: number, currency: string): string {
+  // 4seen OAI-SearchBot checklist item 6 — "currency and country as text every
+  // time (US$749 / S$1,299)". Intl's en-SG/SGD formatter emits `$1,000` without
+  // a country prefix on some ICU versions, so build the prefix explicitly and
+  // let Intl format the digit grouping + symbol position.
+  const prefix = currency === "SGD" ? "S$" : currency === "USD" ? "US$" : "";
+  try {
+    const formatted = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+    return prefix ? `${prefix}${formatted}` : `${formatted} ${currency}`;
+  } catch {
+    return `${prefix || ""}${value}`;
+  }
+}
+
+function shortMerchant(value: string): string {
+  return stripMerchantTenantSuffix(value).replace(/\s+store$/i, "").trim() || "a retailer";
+}
+
+export function buildAnswerBlock(
+  config: Pick<SeoLandingPageConfig, "searchQuery" | "country" | "currency">,
+  products: LandingProduct[],
+  checked: { iso: string; text: string },
+): AnswerBlock | null {
+  const priced = products
+    .map((p) => ({
+      merchant: shortMerchant(p.merchant || "BuyWhere seller"),
+      price: p.price !== null && p.price !== undefined && Number.isFinite(Number(p.price))
+        ? Number(p.price)
+        : null,
+    }))
+    .filter((row): row is { merchant: string; price: number } => row.price !== null && row.price > 0)
+    .sort((a, b) => a.price - b.price);
+
+  // Deduplicate identical merchants (a Walmart and "walmart" pair); keep the
+  // cheapest price per merchant so the verdict doesn't double-count.
+  const byMerchant = new Map<string, { merchant: string; price: number }>();
+  for (const row of priced) {
+    const key = row.merchant.toLowerCase();
+    const existing = byMerchant.get(key);
+    if (!existing || row.price < existing.price) {
+      byMerchant.set(key, row);
+    }
+  }
+  const ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
+
+  if (ranked.length < 2) {
+    // Need at least two distinct priced retailers to honestly name a "next retailer"
+    // and a delta. The 4seen charter forbids padding the verdict with invented
+    // numbers — return null and let the page render only the price table.
+    return null;
+  }
+
+  const cheapest = ranked[0];
+  const next = ranked[1];
+  const delta = next.price - cheapest.price;
+  const retailerCount = ranked.length;
+  const country = config.country;
+  const currency = config.currency;
+
+  // Sentence 1 — the verdict ChatGPT retrieval lifts.
+  const sentenceOne = `The cheapest ${config.searchQuery} in ${country} today is ${priceText(cheapest.price, currency)} at ${cheapest.merchant}, ${priceText(delta, currency)} less than ${next.merchant} (${priceText(next.price, currency)}).`;
+  // Sentence 2 — the visible "Prices checked" stamp + retailer count.
+  const sentenceTwo = `Prices checked ${checked.text} across ${retailerCount} retailer${retailerCount === 1 ? "" : "s"}.`;
+  // Sentence 3 — spread range + average, so the block actually fills the
+  // 40-60-word target the 4seen charter asks for and gives crawlers a second
+  // quotable figure. Skip the range/average when we only have two ranked rows.
+  let sentenceThree = "";
+  if (ranked.length >= 3) {
+    const highest = ranked[ranked.length - 1];
+    const avg = ranked.reduce((sum, r) => sum + r.price, 0) / ranked.length;
+    const range = highest.price - cheapest.price;
+    sentenceThree = ` Across the full set, the price range runs from ${priceText(cheapest.price, currency)} to ${priceText(highest.price, currency)} — a spread of ${priceText(range, currency)} — with an average of ${priceText(Math.round(avg), currency)}.`;
+  }
+
+  return {
+    text: `${sentenceOne} ${sentenceTwo}${sentenceThree}`,
+    checkedText: checked.text,
+    checkedIso: checked.iso,
+    retailerCount,
+    cheapestMerchant: cheapest.merchant,
+    cheapestPrice: cheapest.price,
+    nextPrice: next.price,
+  };
+}
