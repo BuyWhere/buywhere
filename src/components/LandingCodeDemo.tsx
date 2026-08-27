@@ -34,7 +34,7 @@ const { products } = await response.json();
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Semantic Search</h3>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Natural language queries return relevant products across 150,000+ retailers with a consistent schema.
+                Natural language queries return relevant products across 950,000+ retailers with a consistent schema.
               </p>
             </div>
 

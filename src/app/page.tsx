@@ -16,7 +16,7 @@ const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "One API, one schema, 300M+ products across 900,000+ merchants. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
+    desc: "One API, one schema, 300M+ products across 950,000+ merchants. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
     cta: "Read the docs",
     ctaHref: "/developers",
   },
@@ -123,7 +123,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. 300M+ products across 900,000+ merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
+    "Product catalog API and MCP server for AI agents. 300M+ products across 950,000+ merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",
@@ -224,7 +224,7 @@ const jsonLd = {
       url: "https://buywhere.ai",
       name: "BuyWhere",
       description:
-        "MCP server and product catalog API for AI agents. 300M+ products across 900,000+ merchants worldwide, with location-aware deliver_to ranking and availability labels.",
+        "MCP server and product catalog API for AI agents. 300M+ products across 950,000+ merchants worldwide, with location-aware deliver_to ranking and availability labels.",
       publisher: { "@id": "https://buywhere.ai/#organization" },
       inLanguage: "en",
       potentialAction: {
@@ -297,7 +297,7 @@ export default function HomePage() {
               <span className="whitespace-nowrap">SG &amp; US</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Compare products and prices across 150,000+ stores.
+              Compare products and prices across 950,000+ stores.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
               Compare prices and availability across 950,000+ stores — Singapore and the United States,
@@ -507,7 +507,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index 300M+ products across 900,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 300M+ products across 950,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"

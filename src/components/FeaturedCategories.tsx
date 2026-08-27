@@ -143,7 +143,7 @@ export function FeaturedCategories() {
         <div className="flex items-center justify-between mb-10">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Featured Categories</h2>
-            <p className="text-sm text-gray-500 mt-1">Browse top categories across 150,000+ stores</p>
+            <p className="text-sm text-gray-500 mt-1">Browse top categories across 950,000+ stores</p>
           </div>
           <Link
             href="/categories"

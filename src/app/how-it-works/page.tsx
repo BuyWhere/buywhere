@@ -9,7 +9,7 @@ import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata: Metadata = buildPageMetadata({
   title: "How It Works — BuyWhere AI Product Catalog",
   description:
-    "See how BuyWhere connects AI agents to product data across 900,000+ merchants — from natural language query to purchase-ready results.",
+    "See how BuyWhere connects AI agents to product data across 950,000+ merchants — from natural language query to purchase-ready results.",
   path: "/how-it-works/",
 });
 
@@ -18,7 +18,7 @@ export default function HowItWorksPage() {
     path: "/how-it-works",
     name: "How It Works — BuyWhere AI Product Catalog",
     description:
-      "See how BuyWhere connects AI agents to product data across 900,000+ merchants.",
+      "See how BuyWhere connects AI agents to product data across 950,000+ merchants.",
     breadcrumb: [
       { name: "Home", path: "/" },
       { name: "How It Works", path: "/how-it-works" },
