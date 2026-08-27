@@ -31,9 +31,13 @@ import {
   hasOutboundUrl,
 } from '../monitoring/shoppingJobFunnel';
 import { recordV2KpiSink } from '../monitoring/v2KpiWriter';
+import { startV2RequestLog, recordV2Request, buildV2RequestRow } from '../monitoring/v2RequestLog';
 
 // BUY-73521: start funnel writer on module load (idempotent).
 startShoppingJobFunnel();
+
+// BUY-72550: start v2 request log writer on module load (idempotent).
+startV2RequestLog();
 
 // BUY-75415: start v2 KPI sink writer on module load (idempotent).
 // Auto-started inside the module — explicit call here would be redundant.
@@ -2756,6 +2760,20 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
             statusCode: 200,
           });
         } catch { /* swallowed inside recordV2KpiSink */ }
+        // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
+        if (toolName.endsWith('_v2')) {
+          try {
+            const v2Row = buildV2RequestRow({
+              requestId: id,
+              toolName,
+              args: toolArgs,
+              apiKey: rawApiKey,
+              gatePassed: true, // we reached dispatchTool, so gate didn't reject
+              outcome: 'success',
+            });
+            recordV2Request(v2Row);
+          } catch { /* best-effort telemetry */ }
+        }
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
@@ -2784,6 +2802,21 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
               statusCode: 200,
             });
           } catch { /* swallowed inside recordV2KpiSink */ }
+          // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
+          if (method.endsWith('_v2')) {
+            try {
+              const rawApiKey = (req as unknown as { apiKeyRecord?: { key?: string } }).apiKeyRecord?.key;
+              const v2Row = buildV2RequestRow({
+                requestId: id,
+                toolName: method,
+                args,
+                apiKey: rawApiKey,
+                gatePassed: true, // we reached dispatchTool, so gate didn't reject
+                outcome: 'success',
+              });
+              recordV2Request(v2Row);
+            } catch { /* best-effort telemetry */ }
+          }
           return res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));
@@ -2796,6 +2829,23 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       try {
         recordToolCall({ tool: _toolName, region: extractRegion(_toolArgs), latency_ms: Date.now() - _startMs, error: true });
       } catch {}
+      // BUY-72550: record v2 request error for adoption telemetry (fire-and-forget).
+      if (_toolName.endsWith('_v2')) {
+        try {
+          const rawApiKey = (req as unknown as { apiKeyRecord?: { key?: string } }).apiKeyRecord?.key;
+          const rpcErr = err as { code?: number | string; message?: string };
+          const outcome = (typeof rpcErr.code === 'number' && rpcErr.code === -32602) ? 'gate_rejected' : 'rpc_error';
+          const v2Row = buildV2RequestRow({
+            requestId: id,
+            toolName: _toolName,
+            args: _toolArgs,
+            apiKey: rawApiKey,
+            gatePassed: outcome !== 'gate_rejected',
+            outcome,
+          });
+          recordV2Request(v2Row);
+        } catch { /* best-effort telemetry */ }
+      }
     }
     const e = err as { code?: number | string; message?: string };
     // BUY-57370: handle both numeric tool-error codes and PG string error codes.

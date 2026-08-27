@@ -1066,6 +1066,59 @@ export async function runMigrations() {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-72556: Server-side v2 adoption telemetry. Atlas's daily 23:56Z
+  // aggregator (BUY-72550) reads this table + the v2_adoption_daily view to
+  // emit data/v2-adoption-server-side/YYYY-MM-DD.csv. The api process
+  // writes one row per JSON-RPC tools/call whose params.name ends with `_v2`
+  // (see api/src/monitoring/v2RequestLog.ts). Idempotent — IF NOT EXISTS
+  // guards make re-runs cheap.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS monitoring.mcp_v2_request_log (
+        id                  BIGSERIAL    PRIMARY KEY,
+        request_id          TEXT         NOT NULL,
+        tool_name           TEXT         NOT NULL,
+        deliver_to_present  BOOLEAN      NOT NULL,
+        country_code        TEXT             NULL,
+        gate_passed         BOOLEAN      NOT NULL,
+        outcome             TEXT         NOT NULL,
+        api_key_hash        TEXT             NULL,
+        received_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_at
+        ON monitoring.mcp_v2_request_log (received_at);
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_tool
+        ON monitoring.mcp_v2_request_log (received_at, tool_name);
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_outcome
+        ON monitoring.mcp_v2_request_log (received_at, outcome);
+
+      CREATE OR REPLACE VIEW monitoring.v2_adoption_daily AS
+      SELECT
+        date_trunc('day', received_at AT TIME ZONE 'UTC')::date       AS day,
+        tool_name,
+        COUNT(*)                                                      AS total_v2_calls,
+        COUNT(*) FILTER (WHERE deliver_to_present)                    AS calls_with_deliver_to,
+        COUNT(*) FILTER (WHERE gate_passed)                           AS calls_gate_passed,
+        COUNT(*) FILTER (WHERE outcome = 'gate_rejected')             AS calls_gate_rejected,
+        COUNT(*) FILTER (WHERE outcome = 'transport_error')           AS calls_transport_error,
+        ROUND(
+          COUNT(*) FILTER (WHERE deliver_to_present)::numeric
+          / NULLIF(COUNT(*), 0), 4
+        )                                                             AS deliver_to_pass_rate,
+        ROUND(
+          COUNT(*) FILTER (WHERE gate_passed)::numeric
+          / NULLIF(COUNT(*), 0), 4
+        )                                                             AS gate_pass_rate,
+        COUNT(DISTINCT api_key_hash)                                  AS distinct_api_keys
+      FROM monitoring.mcp_v2_request_log
+      GROUP BY 1, 2;
+    `);
+    console.log('[migration] mcp_v2_request_log + v2_adoption_daily ensured (BUY-72556).');
+  } catch (err: any) {
+    console.warn(`[migration] mcp_v2_request_log ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   console.log('Migrations complete.');
 }
 
