@@ -17,6 +17,7 @@ Output: per-merchant/feed log line with scraped/ingested/failed counts.
 import argparse
 import asyncio
 import csv
+import inspect
 import io
 import json
 import re
@@ -495,15 +496,22 @@ async def run_pipeline(
     scrape_only: bool,
     proxy: Optional[str] = None,
 ) -> list[dict]:
-    async with httpx.AsyncClient(
-        headers={
+    client_kwargs = {
+        "headers": {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json",
         },
-        timeout=httpx.Timeout(60.0, connect=10.0),
-        proxy=proxy,
-        verify=False,
-    ) as client:
+        "timeout": httpx.Timeout(60.0, connect=10.0),
+        "verify": False,
+    }
+    if proxy:
+        async_client_params = inspect.signature(httpx.AsyncClient).parameters
+        if "proxy" in async_client_params:
+            client_kwargs["proxy"] = proxy
+        elif "proxies" in async_client_params:
+            client_kwargs["proxies"] = proxy
+
+    async with httpx.AsyncClient(**client_kwargs) as client:
         tasks = []
         for store_domain, consumer_key, consumer_secret in woo_stores:
             tasks.append(process_woo_store(client, store_domain, api_key, api_url, scrape_only, batch_size, consumer_key, consumer_secret))
