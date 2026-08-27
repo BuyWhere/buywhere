@@ -682,11 +682,10 @@ export async function middleware(request: NextRequest) {
   // feeds, archived sitemaps).
   const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
   if (productsShortNumericMatch) {
-    return tagAgent(new NextResponse("Product Not Found", {
+    // Let Next.js render the not-found.tsx page instead of returning plain text
+    return tagAgent(new NextResponse(null, {
       status: 404,
-      statusText: "Product Not Found",
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
         "X-Robots-Tag": "noindex, nofollow",
       },
     }));
@@ -717,11 +716,10 @@ export async function middleware(request: NextRequest) {
   // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
   const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
   if (pShortIdMatch) {
-    return tagAgent(new NextResponse("Product Not Found", {
+    // Let Next.js render the not-found.tsx page instead of returning plain text
+    return tagAgent(new NextResponse(null, {
       status: 404,
-      statusText: "Product Not Found",
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
         "X-Robots-Tag": "noindex, nofollow",
       },
     }));
@@ -754,7 +752,8 @@ export async function middleware(request: NextRequest) {
         }
       );
       if (apiRes.status === 404) {
-        return tagAgent(new NextResponse(null, { status: 404, statusText: "Product Not Found" }));
+        // Let Next.js render the not-found.tsx page
+        return tagAgent(new NextResponse(null, { status: 404 }));
       }
       // Transient errors (429/401/403/5xx): do NOT 404 — fall through and let the
       // page handler render. The PDP route will fetch the product itself and show
