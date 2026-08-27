@@ -1760,6 +1760,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let medianUsd: number | null = null;
   let minAllowedUsd: number | null = null;
   let finalRows = result ? result.rows.filter(r => !isAccessory(r)) : [];
+  // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
+  // rather than returning empty. The SQL found products; returning nothing is
+  // worse than returning accessories (the user can refine the query).
+  if (finalRows.length === 0 && result && result.rows.length > 0) {
+    finalRows = result.rows;
+  }
 
   if (finalRows.length >= 3) {
     const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
