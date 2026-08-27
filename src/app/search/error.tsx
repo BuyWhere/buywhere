@@ -31,7 +31,7 @@ export default function SearchError({
             Something hiccupped on our end while loading search results. Try the query
             again, or jump to a category below.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
             <Button onClick={reset}>Try again</Button>
             <Button href="/" variant="secondary">Go home</Button>
           </div>
