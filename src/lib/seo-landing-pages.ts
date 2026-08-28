@@ -73,6 +73,7 @@ export type LandingProduct = {
   imageUrl: string | null;
   href: string;
   productUrl?: string | null;
+  affiliateUrl?: string | null;
   brand: string | null;
   category: string | null;
   countryCode?: string | null;
@@ -436,6 +437,8 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.product_url,
       item.url,
     ),
+    // BUY-76340: add affiliateUrl for ProductGridCard to use as primary link
+    affiliateUrl: normalizeExternalHref(item.affiliate_redirect_url),
     brand: item.brand || null,
     category: item.category || null,
     updatedAt: item.updated_at || null,

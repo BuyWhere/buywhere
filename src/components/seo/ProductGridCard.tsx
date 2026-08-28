@@ -33,7 +33,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   // crawlable affiliate redirect so AI crawlers (GPTBot, ClaudeBot) and real
   // users both earn commission (target 10K affiliate clicks/day from intent
   // pages). Prefer /r/direct/{id}; fall back to any external merchant href.
-  const affiliateHref = buildAffiliateRedirectUrl(product.id) || product.href || "#";
+  const affiliateHref = product.affiliateUrl || buildAffiliateRedirectUrl(product.id) || product.href || "#";
 
   // A card is a "merchant offer" when it has a real external/affiliate target
   // to send the shopper to (as opposed to a passive compare-only row whose
