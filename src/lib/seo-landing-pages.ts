@@ -12,12 +12,6 @@ import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 
 const BASE_URL = "https://buywhere.ai";
 
-// Country code → full name (used in verdict templates to avoid "in SG" / "in US")
-const COUNTRY_FULL_NAME: Record<string, string> = {
-  SG: "Singapore",
-  US: "United States",
-};
-
 // Country tokens to strip from searchQuery when building verdict sentences.
 const COUNTRY_TOKENS_TO_STRIP = ["Singapore", "SG", "United States", "US"];
 

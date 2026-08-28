@@ -1,9 +1,11 @@
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Schema from "@/components/Schema";
+import CategoryProductGrid from "@/components/CategoryProductGrid";
 import { buildWebPageSchema } from "@/lib/page-schema";
+import { fetchCategoryProducts } from "@/lib/category-products";
 
-export default function USLandingPage() {
+export default async function USLandingPage() {
   const schema = buildWebPageSchema({
     path: "/us",
     name: "BuyWhere — AI-Powered Product Discovery in the United States",
@@ -13,6 +15,11 @@ export default function USLandingPage() {
       { name: "Home", path: "/" },
       { name: "United States", path: "/us" },
     ],
+  });
+  const products = await fetchCategoryProducts({
+    queries: ["laptop", "wireless headphones", "smartphone", "tv", "monitor", "camera"],
+    country: "US",
+    limit: 12,
   });
   return (
     <>
@@ -52,6 +59,13 @@ export default function USLandingPage() {
           </p>
         </div>
       </section>
+
+      <CategoryProductGrid
+        products={products}
+        country="US"
+        title="Popular products with live prices"
+        description="Compare current retailer prices on popular electronics in the United States."
+      />
 
       <section className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
