@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { db, redis, vectorDb } from '../config';
-import { servingReadDbConnect } from '../lib/readReplica';
+// BUY-76535: search_products now uses the primary `db` pool directly (see below);
+// servingReadDbConnect() is intentionally no longer referenced here.
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -599,18 +600,29 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
-  // 2026-08-22: search reads go to the replica (REPLICA_DATABASE_URL) — the api
-  // tree moved there long ago; this tree still hit the primary and timed out
-  // under ingest/dedupe pressure.
-  // BUY-76535: route through health-aware readDb() (from readReplica.ts) instead
-  // of the unconditional replicaDb pool. readDb() returns the replica only when
-  // WAL-freshness probe confirms it's streaming with zero LSN gap; otherwise it
-  // transparently falls back to the primary `db` pool. This matches the api tree's
-  // servingReadDbConnect() pattern, which already handles replica degradation.
-  // Without this, search_products fails on ALL markets when the replica is
-  // unreachable while get_deals/find_best_price (primary `db`) continue working.
+  //
+  // BUY-76535 (REGRESSION — 2026-08-28): search_products is served from the primary
+  // `db` pool, NOT the read replica. Previously (2026-08-22) search reads were routed
+  // to the replica (REPLICA_DATABASE_URL) for load-spreading, and on 08-28 through
+  // the health-aware servingReadDbConnect()/readDb() which falls back to the primary
+  // only when the replica is WAL-stale.
+  //
+  // That routing was the source of the recurring ALL-MARKET degraded SEV-1
+  // (degraded_kind=upstream_exception, degraded_reason=catalog_search). The replica
+  // passes the WAL-freshness probe (streaming, zero LSN gap) yet does NOT serve the
+  // data interactive search needs: `search_products` browse returns total=0
+  // (products.reltuples=0) while the primary holds 365.8M rows, and FTS search on the
+  // replica fast-fails with upstream_exception on every market. get_deals/find_best_price
+  // (primary `db`) stayed healthy the entire time — proving the replica routing alone
+  // was breaking search_products. The primary FTS path (enable_seqscan=off, GIN)
+  // returns in 8-650ms, so the replication-freshness probe does NOT protect search:
+  // it validates WAL lag, not search-data availability on the replica.
+  //
+  // Fix: route search_products to the primary `db` pool directly. Revisit load
+  // spreading only AFTER the replica is provisioned with a populated search_products
+  // tier (BUY-76552/BUY-76643 tracking).
   const searchClient = await Promise.race([
-    servingReadDbConnect(),
+    db.connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
