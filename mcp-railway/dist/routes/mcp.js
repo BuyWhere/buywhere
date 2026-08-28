@@ -569,18 +569,31 @@ async function handleSearchProducts(args) {
         // 30s matches REST tier timeout headroom while still failing fast vs
         // runaway queries.
         // BUY-76553: mirror REST tier settings exactly with transaction
-        // Diagnostic: check what database we're connected to
-        const dbCheck = await searchClient.query(`
-      SELECT current_database() as db, current_schema() as schema,
-             EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_search_products
-    `);
-        console.log(`[search_products] DEBUG: connected to db=${dbCheck.rows[0].db} schema=${dbCheck.rows[0].schema} has_search_products=${dbCheck.rows[0].has_search_products}`);
-        console.log(`[search_products] DEBUG: q=${q} country=${country} tierWhere=${tierWhere} tierParams=${JSON.stringify(tierParams)}`);
-        await searchClient.query('BEGIN');
-        await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
-        await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
-        await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-        await searchClient.query(`SET LOCAL work_mem = '64MB'`);
+        // Diagnostic: check what database we're connected to and if search_products exists
+        try {
+            const dbCheck = await searchClient.query(`
+        SELECT current_database() as db, current_schema() as schema,
+               EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_sp,
+               (SELECT COUNT(*) FROM search_products LIMIT 1)::text as sp_count
+      `);
+            console.log(`[search_products] DEBUG: db=${dbCheck.rows[0].db} has_sp=${dbCheck.rows[0].has_sp} sp_count=${dbCheck.rows[0].sp_count}`);
+        }
+        catch (dbErr) {
+            console.error(`[search_products] DEBUG: dbCheck FAILED:`, dbErr);
+            throw dbErr;
+        }
+        console.log(`[search_products] DEBUG: q=${q} country=${country}`);
+        try {
+            await searchClient.query('BEGIN');
+            await searchClient.query(`SET LOCAL statement_timeout = '5000'`);
+            await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+            await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+            await searchClient.query(`SET LOCAL work_mem = '64MB'`);
+        }
+        catch (setupErr) {
+            console.error(`[search_products] DEBUG: SETUP FAILED:`, setupErr);
+            throw setupErr;
+        }
         // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
         // The non-partitioned search_products table with country_code filter produces
         // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
