@@ -62,6 +62,7 @@ interface TruthResponse {
     human_clicks: MetricLine;
     fetcher_clicks: MetricLine;
     unclassified_clicks: MetricLine;
+    unverified_clicks: MetricLine;
     by_source: Array<{ source: string; clicks: number; definition: string }>;
     by_source_page_top_20: Array<{
       source_page: string;
@@ -122,31 +123,30 @@ function cacheKey(window: WindowKey): string {
 
 // ─── Catalog DB sources ────────────────────────────────────────────────
 
-// Detect whether affiliate_clicks has agent_framework column (truth-clicks branch).
+// Detect whether affiliate_clicks has the truth-clicks columns.
 // We probe once per process via a cached boolean to avoid an information_schema
 // round trip on every request.
-let agentFrameworkColumnCached: boolean | null = null;
-async function hasAgentFrameworkColumn(): Promise<boolean> {
-  if (agentFrameworkColumnCached !== null) return agentFrameworkColumnCached;
+let truthClickColumnsCached: boolean | null = null;
+async function hasTruthClickColumns(): Promise<boolean> {
+  if (truthClickColumnsCached !== null) return truthClickColumnsCached;
   try {
     const r = await catalogDb.query<{ exists: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM information_schema.columns
-         WHERE table_schema='public' AND table_name='affiliate_clicks'
-           AND column_name='agent_framework'
-       ) AS exists`,
+      `SELECT COUNT(*) = 3 AS exists
+         FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='affiliate_clicks'
+          AND column_name = ANY(ARRAY['agent_framework', 'is_internal', 'referrer'])`,
     );
-    agentFrameworkColumnCached = Boolean(r.rows[0]?.exists);
+    truthClickColumnsCached = Boolean(r.rows[0]?.exists);
   } catch {
-    agentFrameworkColumnCached = false;
+    truthClickColumnsCached = false;
   }
-  return agentFrameworkColumnCached;
+  return truthClickColumnsCached;
 }
 
 // Clicks: totals, by source, by source_page. Returns nulls with reasons when
 // truth-clicks branch hasn't landed (per METRICS-DEFINITIONS § Clicks).
 async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> {
-  const hasAf = await hasAgentFrameworkColumn();
+  const hasAf = await hasTruthClickColumns();
 
   if (!hasAf) {
     // Until truth-clicks lands, count ALL clicks and report them as unclassified.
@@ -200,6 +200,14 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
           'All clicks in the window. Pre-truth-clicks, none are classified as human vs fetcher; report the unclassified total so callers do not mistake raw volume for KPI.',
         source: 'affiliate_clicks (count, all rows)',
       },
+      unverified_clicks: {
+        value: null,
+        unit: 'clicks',
+        definition:
+          'Human-looking clicks that cannot be counted as human KPI because the BuyWhere referrer/internal truth fields are unavailable.',
+        source: 'affiliate_clicks.agent_framework/referrer/is_internal',
+        reason: 'unclassified: truth-clicks branch not yet merged',
+      },
       by_source: bySourceRes.rows.map((r) => ({
         source: String(r.source ?? 'unknown'),
         clicks: Number(r.clicks),
@@ -220,12 +228,29 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
   const totalRes = await catalogDb.query<{
     human_clicks: string;
     fetcher_clicks: string;
+    unclassified_clicks: string;
+    unverified_clicks: string;
   }>(
     `SELECT
-       COUNT(*) FILTER (WHERE agent_framework = 'human' AND is_internal = false)::bigint AS human_clicks,
+       COUNT(*) FILTER (
+         WHERE agent_framework = 'human'
+           AND is_internal = false
+           AND COALESCE(referrer, '') ~* '^https?://([^/]+\\.)?buywhere\\.ai(/|$)'
+       )::bigint AS human_clicks,
        COUNT(*) FILTER (WHERE agent_framework IN
          ('ChatGPT-User','ClaudeBot','PerplexityBot','GPTBot','Googlebot','Bingbot')
-       )::bigint AS fetcher_clicks
+         AND is_internal = false
+       )::bigint AS fetcher_clicks,
+       COUNT(*) FILTER (
+         WHERE is_internal = false
+           AND agent_framework NOT IN
+             ('human','ChatGPT-User','ClaudeBot','PerplexityBot','GPTBot','Googlebot','Bingbot')
+       )::bigint AS unclassified_clicks,
+       COUNT(*) FILTER (
+         WHERE agent_framework = 'human'
+           AND is_internal = false
+           AND NOT (COALESCE(referrer, '') ~* '^https?://([^/]+\\.)?buywhere\\.ai(/|$)')
+       )::bigint AS unverified_clicks
      FROM affiliate_clicks
      WHERE clicked_at >= NOW() - ($1::int * INTERVAL '1 day')`,
     [windowDays],
@@ -233,9 +258,10 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
   const bySourceRes = await catalogDb.query<{ source: string; clicks: string }>(
     `SELECT COALESCE(NULLIF(source, ''), 'unknown') AS source,
             COUNT(*)::bigint AS clicks
-       FROM affiliate_clicks
+      FROM affiliate_clicks
       WHERE clicked_at >= NOW() - ($1::int * INTERVAL '1 day')
         AND agent_framework = 'human' AND is_internal = false
+        AND COALESCE(referrer, '') ~* '^https?://([^/]+\\.)?buywhere\\.ai(/|$)'
       GROUP BY 1
       ORDER BY clicks DESC
       LIMIT 20`,
@@ -244,9 +270,10 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
   const byPageRes = await catalogDb.query<{ source_page: string; clicks: string }>(
     `SELECT COALESCE(NULLIF(referrer, ''), 'unknown') AS source_page,
             COUNT(*)::bigint AS clicks
-       FROM affiliate_clicks
+      FROM affiliate_clicks
       WHERE clicked_at >= NOW() - ($1::int * INTERVAL '1 day')
         AND agent_framework = 'human' AND is_internal = false
+        AND COALESCE(referrer, '') ~* '^https?://([^/]+\\.)?buywhere\\.ai(/|$)'
       GROUP BY 1
       ORDER BY clicks DESC
       LIMIT 20`,
@@ -254,13 +281,15 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
   );
   const human = Number(totalRes.rows[0]?.human_clicks ?? 0);
   const fetcher = Number(totalRes.rows[0]?.fetcher_clicks ?? 0);
+  const unclassified = Number(totalRes.rows[0]?.unclassified_clicks ?? 0);
+  const unverified = Number(totalRes.rows[0]?.unverified_clicks ?? 0);
   return {
     human_clicks: {
       value: human,
       unit: 'clicks',
       definition:
-        'Affiliate clicks whose redirect-time User-Agent classifies as a human and not an internal probe. KPI.',
-      source: 'affiliate_clicks.agent_framework = human AND is_internal = false',
+        'Affiliate clicks whose redirect-time User-Agent classifies as human, is not internal, and has a buywhere.ai referrer. KPI.',
+      source: 'affiliate_clicks.agent_framework = human AND is_internal = false AND referrer ~ buywhere.ai',
     },
     fetcher_clicks: {
       value: fetcher,
@@ -270,12 +299,18 @@ async function loadClicks(windowDays: number): Promise<TruthResponse['clicks']> 
       source: 'affiliate_clicks.agent_framework IN (ClaudeBot, ChatGPT-User, ...)',
     },
     unclassified_clicks: {
-      value: null,
+      value: unclassified,
       unit: 'clicks',
       definition:
-        'All clicks minus (human + fetcher). Rows where agent_framework is null / unknown / custom.',
-      source: 'affiliate_clicks where agent_framework NOT IN (human, known bot)',
-      reason: 'computed only when human+fetcher do not cover the population; reported separately when material',
+        'Non-internal clicks where agent_framework is unknown/custom and cannot be counted as human KPI or fetcher traffic.',
+      source: 'affiliate_clicks where is_internal = false AND agent_framework NOT IN (human, known bot)',
+    },
+    unverified_clicks: {
+      value: unverified,
+      unit: 'clicks',
+      definition:
+        'Human-looking non-internal clicks without a buywhere.ai referrer. These are reported as unverified, not human KPI.',
+      source: 'affiliate_clicks.agent_framework = human AND is_internal = false AND referrer !~ buywhere.ai',
     },
     by_source: bySourceRes.rows.map((r) => ({
       source: String(r.source ?? 'unknown'),
@@ -715,6 +750,7 @@ router.get('/v1/admin/metrics/truth', adminAuth, async (req: Request, res: Respo
       human_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       fetcher_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       unclassified_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      unverified_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       by_source: [],
       by_source_page_top_20: [],
     } as TruthResponse['clicks'])),

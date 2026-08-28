@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.classifyUserAgent = classifyUserAgent;
 exports.hashIp = hashIp;
+exports.normalizeIp = normalizeIp;
 exports.clientIp = clientIp;
 // botClass.ts — one classifier for "who is this request from" (truth layer, 2026-08-26).
 // Mirrors the site middleware's crawler patterns so clicks, API events and pageviews agree.
@@ -25,12 +26,21 @@ function classifyUserAgent(ua) {
     return { isBot: false, family: 'human' };
 }
 function hashIp(ip) {
+    const normalized = normalizeIp(ip);
+    if (!normalized)
+        return null;
+    return (0, crypto_1.createHash)('sha256').update(normalized).digest('hex').slice(0, 32);
+}
+function normalizeIp(ip) {
     if (!ip)
         return null;
-    return (0, crypto_1.createHash)('sha256').update(ip).digest('hex').slice(0, 32);
+    const trimmed = ip.trim();
+    if (!trimmed)
+        return null;
+    return trimmed.startsWith('::ffff:') ? trimmed.slice('::ffff:'.length) : trimmed;
 }
 function clientIp(req) {
     const xff = req.headers['x-forwarded-for'];
     const first = Array.isArray(xff) ? xff[0] : (typeof xff === 'string' ? xff.split(',')[0] : '');
-    return (first || '').trim() || req.ip || req.socket?.remoteAddress || null;
+    return normalizeIp((first || '').trim() || req.ip || req.socket?.remoteAddress || null);
 }

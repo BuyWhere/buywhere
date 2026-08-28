@@ -16,11 +16,18 @@ export function classifyUserAgent(ua: string | undefined | null): { isBot: boole
   return { isBot: false, family: 'human' };
 }
 export function hashIp(ip: string | undefined | null): string | null {
+  const normalized = normalizeIp(ip);
+  if (!normalized) return null;
+  return createHash('sha256').update(normalized).digest('hex').slice(0, 32);
+}
+export function normalizeIp(ip: string | undefined | null): string | null {
   if (!ip) return null;
-  return createHash('sha256').update(ip).digest('hex').slice(0, 32);
+  const trimmed = ip.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('::ffff:') ? trimmed.slice('::ffff:'.length) : trimmed;
 }
 export function clientIp(req: { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } }): string | null {
   const xff = req.headers['x-forwarded-for'];
   const first = Array.isArray(xff) ? xff[0] : (typeof xff === 'string' ? xff.split(',')[0] : '');
-  return (first || '').trim() || req.ip || req.socket?.remoteAddress || null;
+  return normalizeIp((first || '').trim() || req.ip || req.socket?.remoteAddress || null);
 }

@@ -12,7 +12,8 @@ import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
 async function whoClicked(req: Request, apiKey: string | null) {
   const ua = String(req.headers['user-agent'] || '').slice(0, 300);
   const cls = classifyUserAgent(ua);
-  const ipHash = hashIp(clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } }));
+  const ip = clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } });
+  const ipHash = hashIp(ip);
   const q = req.query as Record<string, unknown>;
   const pick = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
   const referrer = (pick(q.referrer) || pick(q.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
@@ -29,7 +30,21 @@ async function whoClicked(req: Request, apiKey: string | null) {
   if (keyHash && !keyId) {
     try { const r = await db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]); keyId = r.rows[0]?.id ?? null; } catch { /* best effort */ }
   }
-  return { ua, family: cls.family, ipHash, referrer, sourcePage, keyHash, keyId };
+  const internalIpHashes = new Set(
+    ['168.144.134.188', ...(process.env.BUYWHERE_INTERNAL_EGRESS_IPS || '').split(',')]
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map((v) => hashIp(v))
+      .filter((v): v is string => Boolean(v)),
+  );
+  for (const hash of (process.env.BUYWHERE_INTERNAL_EGRESS_IP_HASHES || '').split(',')) {
+    const trimmed = hash.trim();
+    if (trimmed) internalIpHashes.add(trimmed);
+  }
+  const isProbeHeader = String(req.headers['x-buywhere-probe'] || '').trim() === '1';
+  const isInternal = isProbeHeader || (ipHash ? internalIpHashes.has(ipHash) : false);
+  const family = isInternal ? 'internal' : cls.family;
+  return { ua, family, ipHash, referrer, sourcePage, keyHash, keyId, isInternal };
 }
 
 function hashKey(rawKey: string): string {
@@ -250,10 +265,10 @@ const redirectHandler = async (req: Request, res: Response) => {
           db.query(
             `INSERT INTO affiliate_clicks
                (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
-                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`,
+                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13,$14)`,
             [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
           ),
           REDIRECT_TIMEOUT_MS,
           'affiliate_clicks insert (dead)'
@@ -324,10 +339,10 @@ const redirectHandler = async (req: Request, res: Response) => {
         db.query(
           `INSERT INTO affiliate_clicks
              (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
-              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
         ),
         REDIRECT_TIMEOUT_MS,
         'affiliate_clicks insert'

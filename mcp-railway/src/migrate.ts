@@ -118,10 +118,19 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   destination_url TEXT NOT NULL,
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS agent_framework TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS ip_hash TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
+  ON affiliate_clicks(clicked_at, agent_framework, is_internal);
 
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
