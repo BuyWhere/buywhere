@@ -772,7 +772,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // BUY-72082: Embed failed — fall through to tier keyword FTS.
           // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
           // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-          tierParams.push(limit + offset);
+          // BUY-76552: REMOVED tierParams.push(limit + offset) — the tierFts SQL
+          // uses hardcoded LIMIT 1000 and LIMIT 200, not $3. The extra param caused
+          // 08P01 "bind message supplies 3 parameters but prepared statement requires 2".
           const tierFts = await spQuery<{ id: string; rank: number }>(
             `WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
@@ -805,7 +807,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // BUY-72082: Keyword (FTS) path via search_products tier.
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
         // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-        tierParams.push(limit + offset);
+        // BUY-76552: REMOVED tierParams.push(limit + offset) — same reason as above.
         const tierFts = await spQuery<{ id: string; rank: number }>(
           `WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
