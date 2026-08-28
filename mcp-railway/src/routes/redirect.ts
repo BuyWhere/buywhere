@@ -34,6 +34,27 @@ async function whoClicked(req: Request, apiKey: string | null) {
   return { ua, family, ipHash, referrer, sourcePage, keyHash, keyId, isInternal };
 }
 
+async function insertAffiliateClickWithTruth(values: unknown[]): Promise<void> {
+  try {
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      values,
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      values.slice(0, 13),
+    );
+  }
+}
+
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
@@ -154,11 +175,7 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   const who = await whoClicked(req, apiKey);
 
   // Log click to DB (before redirect)
-  await db.query(
-    `INSERT INTO affiliate_clicks
-       (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
-        user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+  await insertAffiliateClickWithTruth(
     [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
      who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
   );

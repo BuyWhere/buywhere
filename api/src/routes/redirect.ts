@@ -43,6 +43,32 @@ async function whoClicked(req: Request, apiKey: string | null) {
   return { ua, family, ipHash, referrer, sourcePage, keyHash, keyId, isInternal };
 }
 
+async function insertAffiliateClickWithTruth(
+  values: unknown[],
+  isDeadClick: boolean,
+): Promise<void> {
+  const deadColumns = isDeadClick ? ', was_dead_at_click' : '';
+  const deadValues = isDeadClick ? ', true' : '';
+  try {
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
+       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13,$14)`,
+      values,
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13)`,
+      values.slice(0, 13),
+    );
+  }
+}
+
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
@@ -258,13 +284,10 @@ const redirectHandler = async (req: Request, res: Response) => {
     (async () => {
       try {
         await withTimeout(
-          db.query(
-            `INSERT INTO affiliate_clicks
-               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
-                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13,$14)`,
+          insertAffiliateClickWithTruth(
             [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
+             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
+            true,
           ),
           REDIRECT_TIMEOUT_MS,
           'affiliate_clicks insert (dead)'
@@ -332,13 +355,10 @@ const redirectHandler = async (req: Request, res: Response) => {
   (async () => {
     try {
       await withTimeout(
-        db.query(
-          `INSERT INTO affiliate_clicks
-             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
-              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        insertAffiliateClickWithTruth(
           [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
+           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
+          false,
         ),
         REDIRECT_TIMEOUT_MS,
         'affiliate_clicks insert'
