@@ -14,14 +14,14 @@ there never will be again.
 2. **Production deploys are Railway deploys**: `serviceInstanceDeployV2` on the BuyWhere Railway project
    (see the deploy-railway / deploy-mcp-railway workflows). "production" in a workflow name is not a
    deploy target — read the file.
-3. **Embeddings resume ONLY under the founder-approved 60-day plan (BUY-76510, 28 Aug 2026).**
+3. **Embeddings resume ONLY under the founder-approved 60-day plan (BUY-76567, 28 Aug 2026).**
    The old Gemini pipeline is gone for good: the vector table was wiped on 11–12 Aug and re-embedded at
    7–15x the market rate while nothing consumed it. New rules: model = Qwen3-Embedding-4B (1024-dim) via
    DeepInfra (SiliconFlow failover); every embedding call goes through the dedicated embeddings API key
    Richmond created (the budget fence — $10 one-off, $25/month, alert above); scope = in-stock, priced
    products only; feature first (hybrid search default + product matching), backfill second; nightly
    pg_dump of product_embeddings to R2; only the embed worker may write to vector-db — never a one-shot
-   service with DSNs attached. No Gemini embedding calls, ever. Read BUY-76510 before touching search.
+   service with DSNs attached. No Gemini embedding calls, ever. Read BUY-76567 before touching search.
 
 
 This document is for autonomous agents operating in the BuyWhere repository.
