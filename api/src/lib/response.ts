@@ -247,9 +247,18 @@ export function buildSearchResponse(
     diagnostic: EmptinessDiagnostic;
     degraded_kind?: import('../types/product').DegradedKind;
   } | null,
+  mode?: 'keyword' | 'semantic' | 'hybrid',
 ): SearchResponse {
   const isEmpty = products.length === 0;
   const status: SearchResponse['meta']['status'] | undefined = degraded ? 'degraded' : undefined;
+  // BUY-76440: mode-identity. When the search handler passes the mode it actually
+  // ran, surface it so integrators can verify semantic/hybrid really executed the
+  // embedding-ranked path. mapModeEngine pairs each mode with its engine name.
+  const mode_used_engine = mode
+    ? (mode === 'semantic' ? 'semantic (pgvector hnsw)'
+       : mode === 'hybrid' ? 'hybrid (rrf + pgvector hnsw)'
+       : 'keyword (fts)')
+    : undefined;
   return {
     data: products,
     // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
@@ -264,6 +273,7 @@ export function buildSearchResponse(
       offset,
       response_time_ms: responseTimeMs,
       cached,
+      ...(mode != null && { mode_used: mode, mode_used_engine }),
       ...(degraded != null && { degraded }),
       ...(status && { status }),
       ...(hasMore != null && { has_more: hasMore }),

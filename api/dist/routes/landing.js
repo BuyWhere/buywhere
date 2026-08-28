@@ -1,10 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const response_1 = require("../lib/response");
 const merchantLookup_1 = require("../lib/merchantLookup");
 const router = (0, express_1.Router)();
+// BUY-71129 (re-applied): caller identity thread-through. Landing routes are
+// usually unauthenticated, so this returns null in most cases — but if a
+// logged-in agent hits a marketing landing page, the conversion still joins.
+function callerContextForUrl(req) {
+    const rec = req.apiKeyRecord;
+    if (!rec || !rec.id || !rec.key)
+        return null;
+    return { apiKeyId: rec.id, keyHash: (0, crypto_1.createHash)('sha256').update(rec.key).digest('hex') };
+}
 function baseUrl(req) {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
     const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
@@ -588,7 +598,7 @@ router.get('/demo/search', async (req, res) => {
         const total = parseInt(countResult.rows[0].count, 10);
         // BUY-74689: batched merchant lookup for the demo landing page search.
         const landingMerchantMap = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, dataResult.rows.map((row) => row.merchant_id ?? null));
-        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, landingMerchantMap));
+        const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, landingMerchantMap, callerContextForUrl(req)));
         const responseTimeMs = Date.now() - start;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, 0, responseTimeMs, false);
         res.json({ ...responseBody, demo: true });

@@ -62,7 +62,13 @@ function buildProduct(row, defaultCurrency, compact,
 // resolve the map (every product-emitting handler) pass it in; legacy call sites
 // pass nothing and get `merchantName: null` (same as an orphaned merchant_id). The
 // platform slug (`merchant` / `source`) is preserved unchanged.
-merchantMap) {
+merchantMap, 
+// BUY-71129 (re-applied, was clobbered by 554950c7): caller context for
+// thread-through attribution. api_key_id + key_hash travel on /r/ and
+// /api/click URLs as ?k= + ?aid= so the redirect handler can attribute the
+// conversion back to the originating agent even though the browser click
+// carries no Bearer header. Null/omitted = anonymous click, as before.
+caller) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
     // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
@@ -90,10 +96,21 @@ merchantMap) {
     // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
     // `affiliate_url` keeps its precomputed wrapper when present.
     const clickUrl = destinationUrl
-        ? (0, instrumentation_1.buildClickUrl)({ productId, destinationUrl, merchantId: merchant || null })
+        ? (0, instrumentation_1.buildClickUrl)({
+            productId,
+            destinationUrl,
+            merchantId: merchant || null,
+            keyHash: caller?.keyHash ?? null,
+            agentId: caller?.apiKeyId ?? null,
+        })
         : null;
     const affiliateRedirectUrl = destinationUrl
-        ? (0, instrumentation_1.buildAffiliateRedirectUrl)({ productId, source: 'product_card' })
+        ? (0, instrumentation_1.buildAffiliateRedirectUrl)({
+            productId,
+            source: 'product_card',
+            keyHash: caller?.keyHash ?? null,
+            agentId: caller?.apiKeyId ?? null,
+        })
         : null;
     const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
     const base = {
@@ -199,9 +216,17 @@ merchantMap) {
     return base;
 }
 // BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response is empty AND the caller derived an emptiness reason, attach the emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses ignore this (reasons are only meaningful for empty results).
-function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore, expectedCountryCode, emptiness) {
+function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore, expectedCountryCode, emptiness, mode) {
     const isEmpty = products.length === 0;
     const status = degraded ? 'degraded' : undefined;
+    // BUY-76440: mode-identity. When the search handler passes the mode it actually
+    // ran, surface it so integrators can verify semantic/hybrid really executed the
+    // embedding-ranked path. mapModeEngine pairs each mode with its engine name.
+    const mode_used_engine = mode
+        ? (mode === 'semantic' ? 'semantic (pgvector hnsw)'
+            : mode === 'hybrid' ? 'hybrid (rrf + pgvector hnsw)'
+                : 'keyword (fts)')
+        : undefined;
     return {
         data: products,
         // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
@@ -216,6 +241,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
             offset,
             response_time_ms: responseTimeMs,
             cached,
+            ...(mode != null && { mode_used: mode, mode_used_engine }),
             ...(degraded != null && { degraded }),
             ...(status && { status }),
             ...(hasMore != null && { has_more: hasMore }),

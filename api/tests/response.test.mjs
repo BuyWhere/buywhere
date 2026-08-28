@@ -211,6 +211,38 @@ describe('buildSearchResponse', () => {
     assert.equal(res.data[1].id, 'p2');
     assert.equal(res.data[2].id, 'p3');
   });
+
+  describe('mode-identity (BUY-76440)', () => {
+    it('defaults to no mode_used on non-search builders', () => {
+      const res = buildSearchResponse([sampleProduct], 1, 20, 0, 5, false);
+      assert.equal(res.meta.mode_used, undefined);
+      assert.equal(res.meta.mode_used_engine, undefined);
+    });
+
+    it('emits mode_used=_semantic_ + pgvector engine when mode=semantic', () => {
+      const res = buildSearchResponse([sampleProduct], 1, 20, 0, 5, false, undefined, false, 'US', null, 'semantic');
+      assert.equal(res.meta.mode_used, 'semantic');
+      assert.match(res.meta.mode_used_engine, /pgvector hnsw/i);
+    });
+
+    it('emits mode_used=hybrid + rrf engine when mode=hybrid', () => {
+      const res = buildSearchResponse([sampleProduct], 1, 20, 0, 5, false, undefined, false, 'US', null, 'hybrid');
+      assert.equal(res.meta.mode_used, 'hybrid');
+      assert.match(res.meta.mode_used_engine, /rrf/i);
+    });
+
+    it('emits mode_used=keyword + fts engine when mode=keyword', () => {
+      const res = buildSearchResponse([sampleProduct], 1, 20, 0, 5, false, undefined, false, 'US', null, 'keyword');
+      assert.equal(res.meta.mode_used, 'keyword');
+      assert.match(res.meta.mode_used_engine, /fts/i);
+    });
+
+    it('mode_used stays present on empty degraded envelopes', () => {
+      const res = buildSearchResponse([], 0, 20, 0, 5, false, true, false, 'US', null, 'semantic');
+      assert.equal(res.meta.mode_used, 'semantic');
+      assert.equal(res.meta.degraded, true);
+    });
+  });
 });
 
 describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
