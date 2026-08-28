@@ -32,7 +32,10 @@ export function AffiliateLink({
   children,
   className,
   target = "_blank",
-  rel = "noopener noreferrer",
+  // BUY-75417: affiliate-standard rel — Google/FTC require nofollow sponsored on
+  // every affiliate anchor, whether the href is an /r/ redirect (product-detail
+  // buy buttons, compare-table "Open retailer") or a direct merchant URL.
+  rel = "noopener noreferrer nofollow sponsored",
   ...rest
 }: AffiliateLinkProps) {
   const platformName = platform.includes('_') ? platform.split('_')[1] || platform : platform;

@@ -68,8 +68,12 @@ type McpDegradedTool = 'search_products' | 'get_deals' | 'find_best_price';
 type McpDegradedStage = 'catalog_search' | 'offer_aggregation' | 'merchant_join';
 type McpDegradedKind = 'timeout' | 'auth_failure' | 'upstream_exception' | 'circuit_open';
 
-const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 3);
-const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 30_000);
+// BUY-76535: threshold 3 was too low — 15 concurrent MCP probes exhaust the 50-conn pool
+// in seconds, causing rapid circuit trips that keep all markets permanently degraded.
+// Raised to 10 (enough to absorb a full concurrent probe wave) and cooldown to 120s
+// (enough for pool to drain before re-admitting traffic).
+const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 10);
+const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 120_000);
 const mcpDegradedCircuitState = new Map<string, { failures: number; openedUntil: number }>();
 
 function mcpCircuitKey(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
