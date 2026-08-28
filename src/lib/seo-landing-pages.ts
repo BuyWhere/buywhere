@@ -11,6 +11,27 @@ import {
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 
 const BASE_URL = "https://buywhere.ai";
+
+// Country code → full name (used in verdict templates to avoid "in SG" / "in US")
+const COUNTRY_FULL_NAME: Record<string, string> = {
+  SG: "Singapore",
+  US: "United States",
+};
+
+// Country tokens to strip from searchQuery when building verdict sentences.
+const COUNTRY_TOKENS_TO_STRIP = ["Singapore", "SG", "United States", "US"];
+
+/**
+ * Strips country tokens from a searchQuery string.
+ * E.g. "air purifier Singapore" → "air purifier"
+ */
+export function stripCountryTokens(query: string): string {
+  let stripped = query;
+  for (const token of COUNTRY_TOKENS_TO_STRIP) {
+    stripped = stripped.replace(new RegExp(`\\b${token}\\b`, "gi"), "");
+  }
+  return stripped.replace(/\s+/g, " ").trim();
+}
 // Origin used to call BuyWhere's own Next.js route handlers from a server
 // component during SSR. The /api/products/search route resolves the backend API
 // key and degraded/fallback logic centrally, so routing catalog lookups through

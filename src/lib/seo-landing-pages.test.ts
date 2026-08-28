@@ -10,6 +10,7 @@ import {
   isCompleteRobotVacuum,
   resolveHeroTitle,
   seoLandingPages,
+  stripCountryTokens,
   verifyReachableImage,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
@@ -1302,4 +1303,16 @@ test("BUY-73741: live SSR HTML for /best-gaming-laptops-us contains zero CompuMa
     /\bnamshi\b|\bmumzworld\b/i,
     "live SSR HTML must not contain Namshi / MumzWorld",
   );
+});
+
+// BUY-76505: verdict sentence strips country tokens from searchQuery
+test("BUY-76505: stripCountryTokens removes country tokens from query", () => {
+  assert.equal(stripCountryTokens("air purifier Singapore"), "air purifier");
+  assert.equal(stripCountryTokens("air purifier SG"), "air purifier");
+  assert.equal(stripCountryTokens("laptop US"), "laptop");
+  assert.equal(stripCountryTokens("laptop United States"), "laptop");
+  assert.equal(stripCountryTokens("Sony headphones Singapore SG US United States"), "Sony headphones");
+  assert.equal(stripCountryTokens("sINGAPORE laptop"), "laptop");
+  assert.equal(stripCountryTokens("laptop us best"), "laptop best");
+  assert.equal(stripCountryTokens("Sony headphones"), "Sony headphones");
 });
