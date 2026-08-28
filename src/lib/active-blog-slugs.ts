@@ -7,6 +7,7 @@
  */
 
 export const ACTIVE_BLOG_SLUGS: string[] = [
+  "air-quality-agent-mcp-hdb",
   "airpods-pro-2-cheapest-us-sg-my-jp",
   "amazon-prime-day-2026-preview",
   "best-gaming-laptops-us-2026",
