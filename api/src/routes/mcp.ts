@@ -743,6 +743,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // genuine timeouts beyond 30s.
     await searchClient.query('SET statement_timeout = 30000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+    // BUY-76552+BUY-76553: mirror REST tier settings to fix timeout on MCP.
+    // REST uses these settings and works; MCP was timing out without them.
+    await searchClient.query('SET gin_fuzzy_search_limit = 0'); // fuzzy sampling breaks multi-word AND
+    await searchClient.query('SET max_parallel_workers_per_gather = 0'); // disable parallelism to match REST tier behavior
     // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
     // The non-partitioned search_products table with country_code filter produces
     // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
