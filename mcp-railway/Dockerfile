@@ -2,14 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install production deps only — dist/ is committed so no build step needed
 COPY mcp-railway/package.json mcp-railway/package-lock.json ./
-RUN npm ci
+RUN npm ci --omit=dev && npm cache clean --force
 
-COPY mcp-railway/tsconfig.json ./
-COPY mcp-railway/src/ ./src/
-
-RUN npm run build
-RUN npm prune --production
+# Copy committed dist + config (no build required)
+COPY mcp-railway/dist/ ./dist/
+COPY mcp-railway/dist/config.js ./dist/config.js
+COPY mcp-railway/dist/config-no-redis.js ./dist/config-no-redis.js
 
 ENV NODE_ENV=production
 ENV MCP_PORT=8081
