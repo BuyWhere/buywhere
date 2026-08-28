@@ -513,7 +513,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
+      // BUY-76552: empty arrays are truthy in JS — skip cache for zero-result
+      // or degraded responses to prevent cache poisoning that perpetuates
+      // transient 0-result outages (cache → serve 0 → cache 0 → …).
+      if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
         // BUY-75411: record cache-hit wall-clock latency so the admin probe
         // can report p95 over the sliding window. Sorted set key shape
         // matches api/src/monitoring/cacheStats.ts exactly.
@@ -618,17 +621,22 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    // BUY-56185 / BUY-76552: raised from 12s to 30s. Under cold-cache conditions
+    // the GIN bitmap plan on the non-partitioned search_products table (96M rows)
+    // with country_code filter takes ~13s for broad queries like 'laptop' (246K+
+    // global matches rechecked against country filter). The 12s timeout caused
+    // every v2 search to throw upstream_exception → degraded 0 results.
+    // 30s matches REST tier timeout headroom while still failing fast vs
+    // runaway queries.
+    await searchClient.query('SET statement_timeout = 30000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    // BUY-76535: force the GIN index path. Without this the planner picks a seq
-    // scan on the 96M-row search_products table (or a bare idx_sp_cc_price btree
-    // scan that filters every SG row), pushing the FTS query past the 12s
-    // statement_timeout -> upstream_exception / all-market degraded. Mirrors
-    // get_deals (1036) and find_best_price (1386) which already set this.
-    await searchClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
+    // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
+    // The non-partitioned search_products table with country_code filter produces
+    // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
+    // when seqscan is off, pushing the count query past the 12s statement_timeout
+    // under cold-cache conditions. The planner naturally chooses the GIN index
+    // path when it's optimal; forcing it backfires on the tier table. Keep
+    // enable_seqscan=off for get_deals/find_best_price (different query patterns).
     const COUNT_CAP = 1001;
     if (q) {
       // BUY-72082: count via tier table (97M, GIN-indexed) for fast total

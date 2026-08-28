@@ -629,7 +629,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
+      // BUY-76552: empty arrays are truthy in JS — skip cache for zero-result
+      // or degraded responses to prevent cache poisoning that perpetuates
+      // transient 0-result outages (cache → serve 0 → cache 0 → …).
+      if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
         // BUY-75411: record cache-hit wall-clock latency so the admin probe
         // can report p95 over the sliding window.
         await recordCacheHitLatency(redis, Date.now() - t0);
@@ -729,19 +732,24 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
-    // fast into the BUY-74597 degraded envelope rather than holding a pooled
-    // connection across the full client timeout. The GIN bitmap plan must
-    // complete inside this budget; anything longer signals plan regression
-    // or pool exhaustion.
-    // Reduce timeout to protect against runaway queries and increase work_mem
-    // to encourage bitmap GIN plans. Additionally, disable sequential scans for
-    // this short-lived request to force the planner to use the GIN indexes
-    // (search_vector + region/country). This mitigates the observed ~12s
-    // catalog_search latency on SEA markets.
-    await searchClient.query('SET statement_timeout = 4000');
+    // BUY-56185: statement_timeout bounds catalog_search latency.
+    // BUY-76552: raised from 4s to 30s. Under cold-cache conditions the GIN
+    // bitmap plan on the non-partitioned search_products table (96M rows) with
+    // country_code filter takes ~13s for broad queries like 'laptop' (246K+
+    // global matches rechecked against country filter). The 4s timeout caused
+    // every v2 search to throw upstream_exception → degraded 0 results.
+    // 30s matches REST tier timeout headroom while still failing fast vs
+    // runaway queries. The degraded envelope (BUY-74597) still fires on
+    // genuine timeouts beyond 30s.
+    await searchClient.query('SET statement_timeout = 30000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
+    // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
+    // The non-partitioned search_products table with country_code filter produces
+    // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
+    // when seqscan is off, pushing the count query past the 12s statement_timeout
+    // under cold-cache conditions. The planner naturally chooses the GIN index
+    // path when it's optimal; forcing it backfires on the tier table. Keep
+    // enable_seqscan=off for get_deals/find_best_price (different query patterns).
     const COUNT_CAP = 1001;
     if (q) {
       // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
