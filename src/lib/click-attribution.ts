@@ -9,11 +9,22 @@ import posthog from 'posthog-js';
  * BUY-75417: AI crawlers could not see retailer links when they were
  * external URLs or client-rendered only.
  */
+/**
+ * BUY-76340: /r/direct/{id} only resolves for numeric catalog product IDs.
+ * Non-numeric IDs (e.g. "lp1", "ap2", "g3") are fallback-product slugs that
+ * have no entry in affiliate_links or products — the redirect handler returns
+ * the fallback URL (buywhere.ai homepage) instead of the merchant link.
+ * Returning null for non-numeric IDs lets ProductGridCard fall back to
+ * `product.href` (a search-result deep-link) instead of a broken /r/ redirect.
+ */
 export function buildAffiliateRedirectUrl(
   productId: string | number | null | undefined,
 ): string | null {
   if (productId == null) return null;
-  return `/r/direct/${encodeURIComponent(String(productId))}`;
+  const id = String(productId);
+  // Only generate affiliate redirects for numeric catalog product IDs
+  if (!/^\d+$/.test(id)) return null;
+  return `/r/direct/${encodeURIComponent(id)}`;
 }
 
 function safePostHogSessionId(): string | null {
