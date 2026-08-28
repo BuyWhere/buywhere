@@ -585,10 +585,9 @@ async function handleSearchProducts(args) {
         console.log(`[search_products] DEBUG: q=${q} country=${country}`);
         try {
             await searchClient.query('BEGIN');
-            await searchClient.query(`SET statement_timeout = '5000'`); // session-level SET
-            await searchClient.query(`SET gin_fuzzy_search_limit = 0`);
-            await searchClient.query(`SET max_parallel_workers_per_gather = 0`);
-            await searchClient.query(`SET work_mem = '64MB'`);
+            await searchClient.query(`SET LOCAL statement_timeout = '4000'`);
+            await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+            await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         }
         catch (setupErr) {
             console.error(`[search_products] DEBUG: SETUP FAILED:`, setupErr);
