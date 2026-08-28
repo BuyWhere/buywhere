@@ -624,29 +624,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // every v2 search to throw upstream_exception → degraded 0 results.
     // 30s matches REST tier timeout headroom while still failing fast vs
     // runaway queries.
-    // BUY-76553: mirror REST tier settings exactly with transaction
-    // Diagnostic: check what database we're connected to and if search_products exists
-    try {
-      const dbCheck = await searchClient.query<{db: string, schema: string, has_sp: boolean, sp_count: string}>(`
-        SELECT current_database() as db, current_schema() as schema,
-               EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_sp,
-               (SELECT COUNT(*) FROM search_products LIMIT 1)::text as sp_count
-      `);
-      console.log(`[search_products] DEBUG: db=${dbCheck.rows[0].db} has_sp=${dbCheck.rows[0].has_sp} sp_count=${dbCheck.rows[0].sp_count}`);
-    } catch (dbErr) {
-      console.error(`[search_products] DEBUG: dbCheck FAILED:`, dbErr);
-      throw dbErr;
-    }
-    console.log(`[search_products] DEBUG: q=${q} country=${country}`);
-    try {
-      await searchClient.query('BEGIN');
-      await searchClient.query(`SET LOCAL statement_timeout = '4000'`);
-      await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
-      await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    } catch (setupErr) {
-      console.error(`[search_products] DEBUG: SETUP FAILED:`, setupErr);
-      throw setupErr;
-    }
+    // BUY-76553: no transaction, no SET LOCAL - pool-level statement_timeout applies
+    // Pool-level SET happens on every new connection (config.ts: db.on('connect', ...)
     // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
     // The non-partitioned search_products table with country_code filter produces
     // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
@@ -862,13 +841,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
-    await searchClient.query('COMMIT').catch(() => {});
     // Derive total from search results since we skipped the count query.
     total = (rows as Record<string, unknown>[] | null)?.length ?? 0;
-    console.log(`[search_products] DEBUG: SUCCESS total=${total} rows=${(rows as unknown[] | null)?.length ?? 0}`);
+    console.log(`[search_products] DEBUG: SUCCESS total=${total}`);
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
-    await searchClient.query('ROLLBACK').catch(() => {});
     // BUY-74597: classify and return the canonical degraded envelope. Never throw
     // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
     const degradedKind = classifyMcpDegradedKind(err);
