@@ -98,10 +98,10 @@ describe('BUY-60368 hash-prefilter', () => {
       path.resolve(__dirnameFixed, '../src/jobs/embedProducts.ts'),
       'utf8'
     );
-    const sourceDbBlock = src.match(/sourceDb\.query[\s\S]*?\[overscan\][\s\S]*?\)/);
-    assert.ok(sourceDbBlock, 'expected sourceDb.query block to be present');
+    const sourceDbBlocks = [...src.matchAll(/sourceDb\.query[\s\S]*?\);/g)].map((m) => m[0]);
+    assert.ok(sourceDbBlocks.length > 0, 'expected sourceDb.query block to be present');
     assert.ok(
-      !/product_embeddings/i.test(sourceDbBlock[0]),
+      sourceDbBlocks.every((block) => !/product_embeddings/i.test(block)),
       'BUY-60368: sourceDb query must NOT reference product_embeddings'
     );
     assert.ok(

@@ -307,7 +307,7 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or FLOWAI_EMBED_API_KEY unavailable.', default: 'hybrid' },
       },
     },
   },
@@ -462,7 +462,7 @@ const V2_TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or FLOWAI_EMBED_API_KEY unavailable.', default: 'hybrid' },
       },
     },
   },
@@ -563,8 +563,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // refactors; this re-applies and documents the contract on both handlers.
   const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
-  const geminiKey = process.env.GEMINI_API_KEY ?? '';
-  const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
+  const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+  const useVector = vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const region = (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
@@ -774,16 +774,16 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         rows = [];
       } else if (useVector) {
         // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
-        // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
+        // Hybrid and semantic paths embed the query via Flow AI, query the vector DB
         // separately, then merge in application code (two separate PG instances).
         // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
         let queryVec: string | null = null;
         try {
-          const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
+          const embedKey = `qembed:flow-embed-1@1024:${Buffer.from(q).toString('base64').slice(0, 48)}`;
           queryVec = await recordQueryCacheLookup(redis, embedKey, () => redis.get(embedKey));
           if (!queryVec) {
-            queryVec = await embedQuery(q, geminiKey);
-            await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
+            queryVec = await embedQuery(q, flowAiKey);
+            await redis.set(embedKey, queryVec, 'EX', 3600).catch(() => {});
           }
         } catch (embedErr) {
           console.warn('[search] embed query failed, falling back to FTS:', (embedErr as Error).message);
@@ -797,12 +797,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
             try {
               // BUY-68327: api.buywhere.ai/mcp can still point at a mixed-dimension
-              // vector table. Restrict to the 512-dim Gemini model and fail open to
+              // vector table. Restrict to the 512-dim Flow AI model and fail open to
               // keyword FTS if pgvector still rejects the query.
               const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                 WHERE model_ver = 'flow-embed-1@1024'
+                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
                 [queryVec]
               );
               // BUY-74181: re-scope global vector candidates to the requested market
@@ -822,12 +822,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
             let vecRows: { product_id: string }[] = [];
             let ftsRows: { id: string }[] = [];
             try {
-              // BUY-68327: keep vector failures (including 512/1024 dimension
+              // BUY-68327: keep vector failures (including vector dimension
               // mismatch) from rejecting the whole hybrid request.
               const vecResult = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                 WHERE model_ver = 'flow-embed-1@1024'
+                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
                 [queryVec]
               );
               vecRows = vecResult.rows;
@@ -2138,7 +2138,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let refResult;
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      `SELECT embedding_v2::text AS embedding FROM product_embeddings WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`,
       [productId]
     );
   } catch {
@@ -2153,9 +2153,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding <=> $1::vector)::float AS distance
+      `SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY distance LIMIT $3`,
+       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`,
       [refEmbedding, productId, limit]
     );
   } catch {

@@ -520,14 +520,14 @@ async function tryTierSearch(req, res, p) {
         return false;
     }
 }
-async function getCachedQueryEmbedding(query, geminiKey) {
+async function getCachedQueryEmbedding(query, flowAiKey) {
     try {
-        const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+        const embedKey = `qembed:flow-embed-1@1024:${Buffer.from(query).toString('base64').slice(0, 48)}`;
         const cached = await config_1.redis.get(embedKey).catch(() => null);
         if (cached)
             return cached;
-        // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
-        const vector = await (0, embedProducts_1.embedQuery)(query, geminiKey);
+        // BUY-52466: switched from Jina to Flow AI flow-embed-1 (1024-dim).
+        const vector = await (0, embedProducts_1.embedQuery)(query, flowAiKey);
         // BUY-56117: 6× TTL (60s→3600s) — embed call is the cold-path bottleneck for
         // hybrid/semantic. Same fix as 4b9c3e4fd that was lost in reset-and-reapply.
         await config_1.redis.set(embedKey, vector, 'EX', 3600).catch(() => { });
@@ -985,7 +985,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             const semParts = cacheKey.split(':');
             const semScope = `a1:${semParts[1]}:${semParts[2]}|${semParts.slice(4).join(':')}`;
             let semVec = null;
-            const semGk = process.env.GEMINI_API_KEY ?? '';
+            const semGk = process.env.FLOWAI_EMBED_API_KEY ?? '';
             if (semGk)
                 semVec = await getCachedQueryEmbedding(q, semGk);
             const semHit = await (0, semanticCache_1.semanticLookup)(config_1.redis, semScope, qNorm, semVec);
@@ -1559,8 +1559,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             }
             return r;
         };
-        const geminiKey = process.env.GEMINI_API_KEY ?? '';
-        const activeVectorDb = q !== '' && searchMode !== 'keyword' && config_1.vectorDb != null && geminiKey !== ''
+        const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+        const activeVectorDb = q !== '' && searchMode !== 'keyword' && config_1.vectorDb != null && flowAiKey !== ''
             ? config_1.vectorDb
             : null;
         // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
@@ -1569,11 +1569,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             // FTS runs on `client` (catalog DB pool) and embed+KNN on `activeVectorDb`
             // (vector DB pool) — independent connections, safe to run in parallel.
             // Reuse the semantic-cache embedding if it was already computed above
-            // (avoids a duplicate Gemini API call when both the semantic cache
+            // (avoids a duplicate Flow AI API call when both the semantic cache
             // lookup and the vector query path are active for the same request).
             const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
             const savedSemVec = res.locals.semVec;
-            // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN.
+            // Embed + KNN: may hit Flow AI API (100-500ms cold) then vector DB KNN.
             // Runs on activeVectorDb (vector DB pool) — independent of client.
             let queryVector = null;
             let semanticCandidates = { rows: [] };
@@ -1581,7 +1581,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             const queryVecPromise = (async () => {
                 if (savedSemVec)
                     return savedSemVec;
-                return getCachedQueryEmbedding(q, geminiKey);
+                return getCachedQueryEmbedding(q, flowAiKey);
             })();
             const knnPromise = (async () => {
                 const vec = await queryVecPromise;
@@ -1593,8 +1593,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 try {
                     // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
                     semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
-               ORDER BY embedding <=> $1::vector
+               WHERE model_ver = 'flow-embed-1@1024'
+               ORDER BY embedding_v2 <=> $1::vector
                LIMIT $2`, [vec, candidateCap]);
                 }
                 catch {
@@ -2225,14 +2225,11 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     let similarityFallback = false;
     if (config_1.vectorDb) {
         try {
-            // Fetch pre-computed embedding for this product. Gate on model_ver exactly
-            // like the search KNN (BUY-76440 + BUY-65476/BUY-52089): the KNN casts
-            // $1::vector and the HNSW index is 512-dim, so a legacy 1024-dim embedding
-            // for this product would throw a dimension-mismatch error and push the
-            // whole handler past the 10s race into a 504. Only a gemini-512 embedding
-            // is usable for the same-model KNN below.
-            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
-           WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`, [id]);
+            // Fetch pre-computed Flow AI 1024-dim embedding for this product.
+            // Gate on model_ver exactly and use embedding_v2; the old embedding
+            // column is Gemini-512 and must never feed Flow KNN.
+            const embResult = await config_1.vectorDb.query(`SELECT embedding_v2 AS embedding FROM product_embeddings
+           WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`, [id]);
             if (embResult.rows.length > 0) {
                 const embeddingStr = embResult.rows[0].embedding;
                 // KNN: rows with smallest cosine distance first.
@@ -2241,11 +2238,11 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
                 // same-dimension vectors — legacy 1024-dim rows would otherwise poison the
                 // results and defeat the HNSW index's dimension gating.
                 const knnResult = await config_1.vectorDb.query(`SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
+                    1 - (embedding_v2 <=> $1::vector) AS score
              FROM product_embeddings
-             WHERE model_ver = 'gemini-embedding-001@512'
+             WHERE model_ver = 'flow-embed-1@1024'
                AND product_id != $2
-             ORDER BY embedding <=> $1::vector
+             ORDER BY embedding_v2 <=> $1::vector
              LIMIT $3`, [embeddingStr, id, limit]);
                 const knnIds = knnResult.rows.map((r) => String(r.product_id));
                 const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));

@@ -2,7 +2,7 @@
 //
 // Reuses already-cached search responses for queries that are the same after
 // normalization ("Wireless  Headphones!" == "wireless headphones") or semantically
-// near-identical (cosine >= SIM_THRESHOLD on the gemini-embedding-001@512 vector the
+// near-identical (cosine >= SIM_THRESHOLD on the flow-embed-1@1024 vector the
 // hybrid path already computes). Entries are scoped to the full (country, filters,
 // limit, mode, ...) tuple, so a hit can never leak across markets or filter sets.
 //
@@ -15,7 +15,7 @@
 // Kill switch: set SEMANTIC_CACHE=0 on the service and redeploy.
 // Guarded by api/tests/semantic-cache-contract.test.mjs (both code trees).
 
-// Threshold calibrated 2026-08-06 on gemini-embedding-001@512 live pairs:
+// Threshold calibrated 2026-08-06 on flow-embed-1@1024 live pairs:
 // positives — plural 0.87, typo 0.88, close-synonym 0.89, exact-after-norm 1.0;
 // worst cross-product NEGATIVE (keyboard vs mouse) 0.79. Do not raise past 0.90
 // (kills all real matches) or drop below 0.80 (wrong-product territory).

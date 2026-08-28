@@ -162,12 +162,12 @@ async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
  *      one (price-only updates — ~80% of ingest — never re-embed),
  *   4. if still over budget, take the top N by recency (within this tick).
  *
- * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
- * taskType=RETRIEVAL_DOCUMENT, batch size 64.
+ * BUY-76567: Uses Flow AI flow-embed-1 with 1024-dim vectors.
+ * Scope is in-stock and price > 0 only — never full catalog.
  *
  * @param sourceDb     Read pool for products (partitioned by country_code)
  * @param vectorDb     Vector DB pool (product_embeddings lives here)
- * @param apiKey       Gemini API key
+ * @param apiKey       Flow AI embedding API key
  * @param batchLimit   Max products to embed this tick
  * @param countryCode  Country partition to scan this tick (e.g. 'US'). If
  *                     omitted, falls back to the old updated_at DESC scan
@@ -221,7 +221,8 @@ export async function runEmbedBatch(
        FROM products_partitioned p
        WHERE p.country_code = $1
          AND p.is_active = true
-         AND p.price IS NOT NULL
+         AND p.price > 0
+         AND p.in_stock IS DISTINCT FROM false
          ${watermarkCondition}
        ORDER BY p.updated_at ASC
        LIMIT $${paramIdx}`,
@@ -244,7 +245,8 @@ export async function runEmbedBatch(
       `SELECT id, title, description, price
        FROM products
        WHERE is_active = true
-         AND price IS NOT NULL
+         AND price > 0
+         AND in_stock IS DISTINCT FROM false
        ORDER BY updated_at DESC
        LIMIT $1`,
       [batchLimit]
