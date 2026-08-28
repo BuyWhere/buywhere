@@ -6,6 +6,9 @@
 name: Deploy API to Railway
 
 on:
+  push:
+    branches: [main]
+    paths: ['app/**', 'alembic/**', 'requirements.txt', 'pyproject.toml']
   workflow_dispatch:
     inputs:
       environment:
