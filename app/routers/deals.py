@@ -1,6 +1,8 @@
 """
 GET /v1/deals — products currently priced below their original/historical price (BUY-347).
 
+BUY-76907: Fixed category filter to apply before discount_pct index scan.
+
 Query parameters:
   category         — filter by category (optional)
   min_discount_pct — minimum discount percentage, default 10 (0–100)
