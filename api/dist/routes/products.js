@@ -1573,25 +1573,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             // lookup and the vector query path are active for the same request).
             const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
             const savedSemVec = res.locals.semVec;
-            // Fire hybrid FTS immediately — independent of embed, no dependencies
-            let ftsResult = { rows: [] };
-            const ftsPromise = searchMode === 'hybrid'
-                ? client.query(`WITH fts_cand AS MATERIALIZED (
-                 SELECT id, search_vector
-                 FROM products
-                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                 LIMIT ${CANDIDATE_CAP}
-               ), fts_top AS (
-                 SELECT id
-                 FROM fts_cand
-                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
-                 LIMIT 200
-               )
-               SELECT id FROM fts_top`, searchParams).then((r) => { ftsResult = r; }).catch((err) => {
-                    console.warn('[search] FTS failed in hybrid path:', err?.message || err);
-                })
-                : Promise.resolve();
-            // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN
+            // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN.
+            // Runs on activeVectorDb (vector DB pool) — independent of client.
             let queryVector = null;
             let semanticCandidates = { rows: [] };
             let embedFailed = false;
@@ -1622,6 +1605,26 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             // timeout in the hybrid FTS candidate query does not leave the transaction
             // in ABORTED state and break the fail-open FTS fallback.
             await client.query('SAVEPOINT before_vector');
+            // BUY-56117: Fire hybrid FTS AFTER savepoint — the FTS query runs on
+            // `client` (same connection as the savepoint), so it must be issued after.
+            let ftsResult = { rows: [] };
+            const ftsPromise = searchMode === 'hybrid'
+                ? client.query(`WITH fts_cand AS MATERIALIZED (
+                 SELECT id, search_vector
+                 FROM products
+                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                 LIMIT ${CANDIDATE_CAP}
+               ), fts_top AS (
+                 SELECT id
+                 FROM fts_cand
+                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
+                 LIMIT 200
+               )
+               SELECT id FROM fts_top`, searchParams).then((r) => { ftsResult = r; }).catch((err) => {
+                    console.warn('[search] FTS failed in hybrid path:', err?.message || err);
+                })
+                : Promise.resolve();
+            // Await both in parallel — FTS on client, KNN on vectorDb
             await Promise.all([ftsPromise, knnPromise]);
             if (queryVector && !embedFailed) {
                 try {
@@ -2217,9 +2220,14 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     let similarityFallback = false;
     if (config_1.vectorDb) {
         try {
-            // Fetch pre-computed embedding for this product.
+            // Fetch pre-computed embedding for this product. Gate on model_ver exactly
+            // like the search KNN (BUY-76440 + BUY-65476/BUY-52089): the KNN casts
+            // $1::vector and the HNSW index is 512-dim, so a legacy 1024-dim embedding
+            // for this product would throw a dimension-mismatch error and push the
+            // whole handler past the 10s race into a 504. Only a gemini-512 embedding
+            // is usable for the same-model KNN below.
             const embResult = await config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`, [id]);
+           WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`, [id]);
             if (embResult.rows.length > 0) {
                 const embeddingStr = embResult.rows[0].embedding;
                 // KNN: rows with smallest cosine distance first.
