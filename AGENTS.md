@@ -1,5 +1,24 @@
 # Fleet Agent Policy — BuyWhere
 
+## GOOGLE CLOUD IS DECOMMISSIONED (2026-08-28 — founder directive, standing rule)
+
+**BuyWhere runs on Railway only.** Google Cloud project `gaia-calendar-488606` (Cloud Run, Cloud SQL
+`buywhere-staging`, Memorystore, Artifact Registry) is being shut down. There is NO GCP production and
+there never will be again.
+
+1. **Never deploy to, create, or repoint anything at Google Cloud.** The workflows
+   `deploy-api-production.yml` (Cloud Run) and `build-on-push.yml` (Artifact Registry) and `deploy/gcp/`
+   have been deleted. Do not recreate them, do not run `gcloud`, do not add `GCP_*` secrets.
+   (Rex triggered the Cloud Run deploy workflow on 26 Aug and again on 28 Aug 07:06 — it fails, and it
+   was never the production deploy.)
+2. **Production deploys are Railway deploys**: `serviceInstanceDeployV2` on the BuyWhere Railway project
+   (see the deploy-railway / deploy-mcp-railway workflows). "production" in a workflow name is not a
+   deploy target — read the file.
+3. **The embedding pipeline is STOPPED** (`buywhere-embed-worker` and the droplet backfill). The vector
+   table was wiped on 11–12 Aug and re-embedded at SGD ~3/day for nothing. Do not restart, recreate, or
+   re-embed. Embeddings resume only after Rex presents a need + budget to Richmond and he approves.
+
+
 This document is for autonomous agents operating in the BuyWhere repository.
 
 ## API Key Hygiene (BUY-72823 — standing rule)
