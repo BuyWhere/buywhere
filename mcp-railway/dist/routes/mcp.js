@@ -1,41 +1,9 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
+const readReplica_1 = require("../lib/readReplica");
 const embedProducts_1 = require("../jobs/embedProducts");
 const apiKey_1 = require("../middleware/apiKey");
 const queryLog_1 = require("../middleware/queryLog");
@@ -586,11 +554,9 @@ async function handleSearchProducts(args) {
     // servingReadDbConnect() pattern, which already handles replica degradation.
     // Without this, search_products fails on ALL markets when the replica is
     // unreachable while get_deals/find_best_price (primary `db`) continue working.
-    // BUY-76553: force primary db to see if replica is the problem
-    const { db } = await Promise.resolve().then(() => __importStar(require('../config')));
-    console.log(`[search_products] DEBUG: using PRIMARY db (not replica)`);
-    const searchClient = await db.connect();
-    // Diagnostic: check what database we're connected to
+    // BUY-76553: must use replica which has search_products table
+    const searchClient = await (0, readReplica_1.servingReadDbConnect)();
+    // Diagnostic: check what we're connected to
     try {
         const dbCheck = await searchClient.query(`
       SELECT current_database() as db,
@@ -601,7 +567,6 @@ async function handleSearchProducts(args) {
     }
     catch (dbErr) {
         console.error(`[search_products] DEBUG: dbCheck FAILED:`, dbErr);
-        throw dbErr;
     }
     try {
         // BUY-56185 / BUY-76552: raised from 12s to 30s. Under cold-cache conditions
