@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import Redis from 'ioredis';
 
 // BUY-51454: a missing DATABASE_URL used to silently fall back to localhost:5432, which
@@ -14,12 +14,16 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// BUY-76552: prepareThreshold=0 prevents Railway PostgreSQL proxy from mishandling
+// the Prepare/Execute cycle across connections reused for multiple query shapes.
 export const db = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/buywhere',
   max: parseInt(process.env.PG_POOL_MAX || '50'),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-});
+} as PoolConfig);
+// @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+db.options.prepareThreshold = 0;
 // Set statement_timeout on new connections to match Railway Postgres default
 db.on('connect', (client) => {
   client.query(`SET statement_timeout = '4000'`).catch(() => {});
@@ -34,12 +38,17 @@ db.on('connect', (client) => {
 const replicaStatementTimeout = parseInt(process.env.REPLICA_STATEMENT_TIMEOUT || '60000');
 
 export const replicaDb: Pool | null = process.env.REPLICA_DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.REPLICA_DATABASE_URL,
-      max: parseInt(process.env.PG_POOL_MAX || '20'),
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    })
+  ? (() => {
+      const pool = new Pool({
+        connectionString: process.env.REPLICA_DATABASE_URL,
+        max: parseInt(process.env.PG_POOL_MAX || '20'),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      } as PoolConfig);
+      // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+      pool.options.prepareThreshold = 0;
+      return pool;
+    })()
   : null;
 
 if (replicaDb) {
@@ -62,12 +71,17 @@ db.on('connect', (client) => {
 // maglev catalog (~127M) when CATALOG_DATABASE_URL is set; otherwise they fall back
 // to the primary `db` (zero behavior change). Auth and ALL writes stay on `db`.
 export const catalogDb: Pool = process.env.CATALOG_DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.CATALOG_DATABASE_URL,
-      max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    })
+  ? (() => {
+      const pool = new Pool({
+        connectionString: process.env.CATALOG_DATABASE_URL,
+        max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      } as PoolConfig);
+      // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+      pool.options.prepareThreshold = 0;
+      return pool;
+    })()
   : db;
 
 if (process.env.CATALOG_DATABASE_URL) {
@@ -129,7 +143,9 @@ export const vectorDb: Pool | null = process.env.VECTOR_DB_URL
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
-      });
+      } as PoolConfig);
+      // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+      pool.options.prepareThreshold = 0;
       pool.on('connect', (client) => {
         client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => {});
       });

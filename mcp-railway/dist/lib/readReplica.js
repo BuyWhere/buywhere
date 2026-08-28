@@ -53,13 +53,25 @@ const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '50'); // rais
 // when the un-replayed WAL gap is within a bounded threshold (default 50MB).
 const LSN_GAP_HEALTHY_BYTES = parseInt(process.env.REPLICA_LSN_GAP_HEALTHY_BYTES || '52428800');
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
+// BUY-76552: set prepareThreshold=0 to disable server-side prepared statements.
+// Railway's PostgreSQL proxy misroutes Prepare/Execute when a single connection is
+// reused across multiple query shapes with different param counts, causing 08P01
+// "bind message supplies N parameters but prepared statement requires M". With
+// prepareThreshold=0, every query uses the simple text protocol — no Prepare/Execute
+// cycle, no proxy confusion, no 08P01. Slightly higher wire overhead (~5%) is
+// acceptable vs catastrophic 0-result outages.
 exports.replicaPool = REPLICA_URL
-    ? new pg_1.Pool({
-        connectionString: REPLICA_URL,
-        max: REPLICA_POOL_MAX,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-    })
+    ? (() => {
+        const pool = new pg_1.Pool({
+            connectionString: REPLICA_URL,
+            max: REPLICA_POOL_MAX,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+        });
+        // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+        pool.options.prepareThreshold = 0;
+        return pool;
+    })()
     : null;
 if (exports.replicaPool) {
     // Replica connections are read-only; apply the same statement timeout guard

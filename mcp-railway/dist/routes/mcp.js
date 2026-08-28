@@ -776,6 +776,7 @@ async function handleSearchProducts(args) {
         const errMsg = err?.message || String(err);
         const errCode = err?.code || 'none';
         console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0, 200)}`);
+        console.warn(`[search_products] DEBUG: tierParams.length=${tierParams.length} tierWhere="${tierWhere}" q="${q}" country="${country}" domain="${domain}" mode="${mode}" useVector=${useVector}`);
         console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
         return buildMcpDegradedSearchResponse({
             tool: 'search_products',
