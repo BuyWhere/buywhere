@@ -13689,8 +13689,24 @@ export function buildAnswerBlock(
   const country = config.country;
   const currency = config.currency;
 
+  // BUY-76505: Map country code to full name for verdict sentence.
+  const countryNames: Record<string, string> = {
+    SG: "Singapore",
+    US: "United States",
+  };
+  const countryName = countryNames[country] || country;
+
+  // BUY-76505: Strip country tokens from searchQuery to avoid redundancy.
+  // E.g., "air purifier Singapore" -> "air purifier"
+  const countryTokens = ["singapore", "sg", "united states", "us"];
+  const cleanedQuery = config.searchQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => !countryTokens.includes(word))
+    .join(" ");
+
   // Sentence 1 — the verdict ChatGPT retrieval lifts.
-  const sentenceOne = `The cheapest ${config.searchQuery} in ${country} today is ${priceText(cheapest.price, currency)} at ${cheapest.merchant}, ${priceText(delta, currency)} less than ${next.merchant} (${priceText(next.price, currency)}).`;
+  const sentenceOne = `The cheapest ${cleanedQuery} in ${countryName} today is ${priceText(cheapest.price, currency)} at ${cheapest.merchant}, ${priceText(delta, currency)} less than ${next.merchant} (${priceText(next.price, currency)}).`;
   // Sentence 2 — the visible "Prices checked" stamp + retailer count.
   const sentenceTwo = `Prices checked ${checked.text} across ${retailerCount} retailer${retailerCount === 1 ? "" : "s"}.`;
   // Sentence 3 — spread range + average, so the block actually fills the
