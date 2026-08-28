@@ -629,6 +629,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // 30s matches REST tier timeout headroom while still failing fast vs
     // runaway queries.
     // BUY-76553: mirror REST tier settings exactly with transaction
+    // Diagnostic: check what database we're connected to
+    const dbCheck = await searchClient.query<{db: string, schema: string, has_search_products: boolean}>(`
+      SELECT current_database() as db, current_schema() as schema,
+             EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_search_products
+    `);
+    console.log(`[search_products] DEBUG: connected to db=${dbCheck.rows[0].db} schema=${dbCheck.rows[0].schema} has_search_products=${dbCheck.rows[0].has_search_products}`);
     console.log(`[search_products] DEBUG: q=${q} country=${country} tierWhere=${tierWhere} tierParams=${JSON.stringify(tierParams)}`);
     await searchClient.query('BEGIN');
     await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
