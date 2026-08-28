@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomUUID } from 'crypto';
-import { db, redis, vectorDb, replicaDb } from '../config';
+import { db, redis, vectorDb } from '../config';
+import { servingReadDbConnect } from '../lib/readReplica';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -601,8 +602,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // 2026-08-22: search reads go to the replica (REPLICA_DATABASE_URL) — the api
   // tree moved there long ago; this tree still hit the primary and timed out
   // under ingest/dedupe pressure.
+  // BUY-76535: route through health-aware readDb() (from readReplica.ts) instead
+  // of the unconditional replicaDb pool. readDb() returns the replica only when
+  // WAL-freshness probe confirms it's streaming with zero LSN gap; otherwise it
+  // transparently falls back to the primary `db` pool. This matches the api tree's
+  // servingReadDbConnect() pattern, which already handles replica degradation.
+  // Without this, search_products fails on ALL markets when the replica is
+  // unreachable while get_deals/find_best_price (primary `db`) continue working.
   const searchClient = await Promise.race([
-    (replicaDb ?? db).connect(),
+    servingReadDbConnect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
