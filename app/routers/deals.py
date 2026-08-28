@@ -146,30 +146,23 @@ async def get_deals(
     except Exception:
         pass  # Non-fatal — proceed without timeout if the session state doesn't allow it
 
-    # BUY-59774 fix: use the generated discount_pct column which is covered by the
-    # existing idx_products_partitioned_deals_partial index (partial on discount_pct
-    # IS NOT NULL). This avoids the full-seqscan + JSONB-key-exists-check on all
-    # 28M US rows that caused statement_timeout on /v1/deals.
-    # BUY-76907 fix: Apply category filter FIRST before discount_pct filter to ensure
-    # correct results. The idx_products_deals_discount_pct index on (currency, discount_pct)
-    # returns results sorted by discount_pct, so filtering by category AFTER the index scan
+    # BUY-76907 fix: Apply category filter FIRST before discount_pct index scan.
+    # The idx_products_deals_discount_pct index on (currency, discount_pct) returns
+    # results sorted by discount_pct, so filtering by category AFTER the index scan
     # causes wrong results (e.g. all categories return Beauty because Beauty/SGD dominates).
     base_query = select(Product).where(Product.is_active == True)
 
-    # Category filter goes FIRST to ensure correct results
+    # Apply category filter FIRST to constrain the result set before the index scan
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
-
-    base_query = (
-        base_query
-        .where(text("discount_pct IS NOT NULL"))
-        .where(text("discount_pct >= :min_pct").bindparams(min_pct=threshold_pct))
-    )
-
     if market:
         base_query = base_query.where(Product.country_code == market)
     if currency:
         base_query = base_query.where(Product.currency == currency)
+
+    # Then apply discount filters (covered by idx_products_deals_discount_pct index)
+    base_query = base_query.where(text("discount_pct IS NOT NULL"))
+    base_query = base_query.where(text("discount_pct >= :min_pct").bindparams(min_pct=threshold_pct))
 
     # Sort by discount depth (largest discount first)
     base_query = base_query.order_by(text("discount_pct DESC"))
