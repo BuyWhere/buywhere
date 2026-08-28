@@ -492,7 +492,9 @@ async function getCachedQueryEmbedding(query: string, geminiKey: string): Promis
     if (cached) return cached;
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
     const vector = await embedQuery(query, geminiKey);
-    await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
+    // BUY-56117: 6× TTL (60s→3600s) — embed call is the cold-path bottleneck for
+    // hybrid/semantic. Same fix as 4b9c3e4fd that was lost in reset-and-reapply.
+    await redis.set(embedKey, vector, 'EX', 3600).catch(() => {});
     return vector;
   } catch (err) {
     console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
@@ -1606,30 +1608,71 @@ router.get(
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
+        // BUY-56117: Fire FTS and embed+KNN concurrently via Promise.all.
+        // FTS runs on `client` (catalog DB pool) and embed+KNN on `activeVectorDb`
+        // (vector DB pool) — independent connections, safe to run in parallel.
         // Reuse the semantic-cache embedding if it was already computed above
         // (avoids a duplicate Gemini API call when both the semantic cache
         // lookup and the vector query path are active for the same request).
-        const queryVector = (res.locals.semVec as string | null) ?? await getCachedQueryEmbedding(q, geminiKey);
-        if (queryVector) {
+        const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+        const savedSemVec = res.locals.semVec as string | null;
+
+        // Fire hybrid FTS immediately — independent of embed, no dependencies
+        let ftsResult: { rows: Array<{ id: string }> } = { rows: [] };
+        const ftsPromise = searchMode === 'hybrid'
+          ? client.query<{ id: string }>(
+              `WITH fts_cand AS MATERIALIZED (
+                 SELECT id, search_vector
+                 FROM products
+                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                 LIMIT ${CANDIDATE_CAP}
+               ), fts_top AS (
+                 SELECT id
+                 FROM fts_cand
+                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
+                 LIMIT 200
+               )
+               SELECT id FROM fts_top`,
+              searchParams
+            ).then((r) => { ftsResult = r; }).catch((err) => {
+              console.warn('[search] FTS failed in hybrid path:', (err as Error)?.message || err);
+            })
+          : Promise.resolve();
+
+        // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN
+        let queryVector: string | null = null;
+        let semanticCandidates: { rows: Array<{ product_id: string }> } = { rows: [] };
+        let embedFailed = false;
+        const queryVecPromise = (async () => {
+          if (savedSemVec) return savedSemVec;
+          return getCachedQueryEmbedding(q, geminiKey);
+        })();
+        const knnPromise = (async () => {
+          const vec = await queryVecPromise;
+          if (!vec) { embedFailed = true; return; }
+          queryVector = vec;
           try {
-            // BUY-63271: mark a savepoint before any local (client) queries so a statement
-            // timeout in the hybrid FTS candidate query does not leave the transaction
-            // in ABORTED state and break the fail-open FTS fallback.
-            await client.query('SAVEPOINT before_vector');
-            const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
             // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
-            // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
-            // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
-            // to FTS silently — that would make semantic = keyword (the original bug). Instead,
-            // we return 0 results, which at least makes semantic DIFFERENT from keyword.
-            const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
+            semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
                WHERE model_ver = 'gemini-embedding-001@512'
                ORDER BY embedding <=> $1::vector
                LIMIT $2`,
-              [queryVector, candidateCap]
+              [vec, candidateCap]
             );
+          } catch {
+            embedFailed = true;
+          }
+        })();
 
+        // BUY-63271: mark a savepoint before any local (client) queries so a statement
+        // timeout in the hybrid FTS candidate query does not leave the transaction
+        // in ABORTED state and break the fail-open FTS fallback.
+        await client.query('SAVEPOINT before_vector');
+        await Promise.all([ftsPromise, knnPromise]);
+
+        if (queryVector && !embedFailed) {
+          try {
             const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
             let filteredSemanticIds: string[] = [];
             if (rawSemanticIds.length > 0) {
@@ -1648,23 +1691,8 @@ router.get(
 
             let rankedCandidateIds = filteredSemanticIds;
             if (searchMode === 'hybrid') {
-              const ftsCandidates = await client.query<{ id: string }>(
-                `WITH fts_cand AS MATERIALIZED (
-                   SELECT id, search_vector
-                   FROM products
-                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                   LIMIT ${CANDIDATE_CAP}
-                 ), fts_top AS (
-                   SELECT id
-                   FROM fts_cand
-                   ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
-                   LIMIT 200
-                 )
-                 SELECT id FROM fts_top`,
-                searchParams
-              );
               rankedCandidateIds = mergeRrfCandidateIds(
-                ftsCandidates.rows.map((row) => row.id),
+                ftsResult.rows.map((row) => row.id),
                 filteredSemanticIds,
                 candidateCap
               );
@@ -1777,6 +1805,7 @@ router.get(
             false,
             countryCode || null,
             buildV1SearchEmptiness(false, 'timeout', 'catalog_search'),
+            searchMode as 'keyword' | 'semantic' | 'hybrid',
           ));
         }
         return;
@@ -1853,6 +1882,9 @@ router.get(
       filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false,
       countryCode || null,
       filteredProducts.length === 0 ? buildV1SearchEmptiness(false) : null,
+      // BUY-76440: stamp mode-identity so semantic/hybrid responses are provably
+      // the embedding-ranked path, not a silent FTS degrade.
+      searchMode as 'keyword' | 'semantic' | 'hybrid',
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q, deliverToInferred);
 
@@ -2341,8 +2373,11 @@ router.get(
     }
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
-    // Verify product exists in main DB
-    const srcResult = await db.query(
+    // Verify product exists in main DB (BUY-76440: read via the search replica —
+    // the source lookup is a pure read and the primary is IO-bound during index
+    // builds, so the replica answers sub-200ms; the previous `db` (primary) path
+    // made Find-Similar take 5s+ and time out at the 10s cap).
+    const srcResult = await readDb().query(
       `SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`,
       [id]
@@ -2370,6 +2405,10 @@ router.get(
         if (embResult.rows.length > 0) {
           const embeddingStr: string = embResult.rows[0].embedding;
           // KNN: rows with smallest cosine distance first.
+          // BUY-76440 + BUY-65476/BUY-52089: gate on model_ver = gemini-512 exactly
+          // like the search KNN, so the query embedding (512-dim) only ever matches
+          // same-dimension vectors — legacy 1024-dim rows would otherwise poison the
+          // results and defeat the HNSW index's dimension gating.
           const knnResult = await vectorDb.query<{
             product_id: string;
             score: string;
@@ -2377,7 +2416,8 @@ router.get(
             `SELECT product_id,
                     1 - (embedding <=> $1::vector) AS score
              FROM product_embeddings
-             WHERE product_id != $2
+             WHERE model_ver = 'gemini-embedding-001@512'
+               AND product_id != $2
              ORDER BY embedding <=> $1::vector
              LIMIT $3`,
             [embeddingStr, id, limit]
@@ -2386,9 +2426,11 @@ router.get(
           const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));
 
           if (knnIds.length > 0) {
-            // Fetch full product details from main DB.
+            // Fetch full product details (BUY-76440: read via the replica — pure read,
+            // matches the search path's replica routing; the primary detail fetch was
+            // the dominant cost in the 5.5s Find-Similar latency).
             const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await db.query(
+            const detailResult = await readDb().query(
               `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                       image_url, brand, category_path, region, country_code
                FROM products
@@ -2428,7 +2470,7 @@ router.get(
         let where = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
         if (sourceCountry) { where += ` AND country_code = $5`; params.push(sourceCountry); }
         params.push(limit);
-        const bcResult = await db.query(
+        const bcResult = await readDb().query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                   image_url, brand, category_path, region, country_code
            FROM products
@@ -2453,7 +2495,7 @@ router.get(
         ftsIdx++;
         if (sourceCountry) { ftsWhere += ` AND country_code = $${ftsIdx}`; ftsParams.push(sourceCountry); ftsIdx++; }
         ftsParams.push(needed);
-        const ftsResult = await db.query(
+        const ftsResult = await readDb().query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                   image_url, brand, category_path, region, country_code,
                   url_last_checked_at, url_status
