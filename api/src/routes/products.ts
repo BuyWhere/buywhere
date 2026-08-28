@@ -1652,17 +1652,22 @@ router.get(
         // BUY-56117: Fire hybrid FTS AFTER savepoint — the FTS query runs on
         // `client` (same connection as the savepoint), so it must be issued after.
         let ftsResult: { rows: Array<{ id: string }> } = { rows: [] };
+        // BUY-76520: rank multiplier (amazonRankMultiplierSql/velocity) references
+        // products.source/price/category/metadata — those cols must be in fts_cand's
+        // FROM scope. Previously the ORDER BY ran against `fts_cand` while still
+        // qualifying products.*, raising 42P01 (missing FROM-clause entry) → hybrid 500.
+        // Select rank columns into fts_cand and qualify them via the fts_cand alias.
         const ftsPromise = searchMode === 'hybrid'
           ? client.query<{ id: string }>(
               `WITH fts_cand AS MATERIALIZED (
-                 SELECT id, search_vector
+                 SELECT id, search_vector, source, price, category, metadata, updated_at
                  FROM products
                 ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
                  LIMIT ${CANDIDATE_CAP}
                ), fts_top AS (
                  SELECT id
                  FROM fts_cand
-                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
+                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('fts_cand', true)}) DESC
                  LIMIT 200
                )
                SELECT id FROM fts_top`,
