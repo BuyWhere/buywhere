@@ -107,7 +107,7 @@ async function upsertWatermark(
 ): Promise<void> {
   await client.query(
     `INSERT INTO embed_watermark (partition_name, last_updated_at, rows_embedded, zero_ticks, updated_at)
-     VALUES ($1, $2, $3, $4, NOW())
+     VALUES ($1, $2, $3, 0, NOW())
      ON CONFLICT (partition_name) DO UPDATE
        SET last_updated_at = EXCLUDED.last_updated_at,
            rows_embedded   = EXCLUDED.rows_embedded,
@@ -116,7 +116,7 @@ async function upsertWatermark(
              ELSE embed_watermark.zero_ticks + 1
            END,
            updated_at = NOW()`,
-    [partitionName, nextWatermark, rowsEmbedded, zeroTicks]
+    [partitionName, nextWatermark, rowsEmbedded]
   );
 }
 
