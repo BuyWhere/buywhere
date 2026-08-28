@@ -1,5 +1,21 @@
 import posthog from 'posthog-js';
 
+// Curated landing-page product ids (seo-landing-pages.ts) are *not* catalog
+// ids — they are static per-page slot identifiers (e.g. "lp1", "g3"). They
+// never resolve in `affiliate_links.product_id` or `products.id`, so the /r/
+// handler 302s them to the homepage (BUY-76479). Returning null lets the
+// caller fall through to its own non-affiliate path (internal search).
+//
+// All known curated-slot prefixes in seo-landing-pages.ts (audited 2026-08-28):
+// ap, f, g, i, lp, m, nc, q, r, sh. Real catalog ids look like "prod_*" or
+// long UUID/numeric strings, so a short alpha-prefix + digits pattern is safe.
+// New prefixes added to seo-landing-pages.ts MUST be added here too.
+const CURATED_SLOT_ID_PATTERN = /^(?:ap|f|g|i|lp|m|nc|q|r|sh)\d+$/i;
+
+function isCuratedSlotId(id: string): boolean {
+  return CURATED_SLOT_ID_PATTERN.test(id);
+}
+
 /**
  * Build an /r/direct/{id} affiliate redirect URL so the link is
  * server-rendered and crawlable by AI bots (GPTBot, ClaudeBot, etc.).
@@ -8,6 +24,11 @@ import posthog from 'posthog-js';
  *
  * BUY-75417: AI crawlers could not see retailer links when they were
  * external URLs or client-rendered only.
+ *
+ * BUY-76479: returns null for curated landing-page slot ids (lp1, g3,
+ * featured2, slot7, …) — these never have a real affiliate destination,
+ * so the /r/ handler would just 302 to the homepage. Callers fall back to
+ * the internal BuyWhere path instead.
  */
 /**
  * BUY-76340: /r/direct/{id} only resolves for numeric catalog product IDs.
@@ -22,8 +43,9 @@ export function buildAffiliateRedirectUrl(
 ): string | null {
   if (productId == null) return null;
   const id = String(productId);
-  // Only generate affiliate redirects for numeric catalog product IDs
-  if (!/^\d+$/.test(id)) return null;
+  // Curated slot ids (lp1, g3, etc.) and non-numeric IDs get null
+  // so callers fall back to internal search links
+  if (isCuratedSlotId(id) || !/^\d+$/.test(id)) return null;
   return `/r/direct/${encodeURIComponent(id)}`;
 }
 
