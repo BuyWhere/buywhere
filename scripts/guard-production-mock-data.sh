@@ -59,7 +59,7 @@ HARDCODED_PATTERNS=(
 )
 
 for pattern in "${HARDCODED_PATTERNS[@]}"; do
-  MATCHES=$(rg --line-number --color=never "${EXCLUDES[@]}" --glob '!src/app/api/products/search/route.ts' "$pattern" src/ 2>/dev/null || true)
+  MATCHES=$(rg --line-number --color=never "${EXCLUDES[@]}" "$pattern" src/ 2>/dev/null || true)
   if [ -n "$MATCHES" ]; then
     echo "  ❌ HARDCODED PRODUCT FALLBACK: ${pattern}"
     echo "$MATCHES" | sed 's/^/    /'
