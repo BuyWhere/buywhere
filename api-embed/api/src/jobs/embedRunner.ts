@@ -70,6 +70,10 @@ if (!replicaDb) {
 
 const liveVectorDb = vectorDb;
 const liveReplicaDb = replicaDb;
+// BUY-76503: watermark persistence must use the PRIMARY DB (db / DATABASE_URL),
+// NOT the replica. REPLICA_DATABASE_URL points to a read-only streaming standby;
+// INSERT/UPDATE on embed_watermark there fails with SQLSTATE 25006.
+const liveDb = db;
 
 let running = false;
 
@@ -172,17 +176,18 @@ async function tick(): Promise<void> {
 
   try {
     // 1. Pick the next partition via round-robin, skipping stale-complete ones.
-    const partition = await pickNextPartition(liveReplicaDb, roundRobinIdx);
+    //    Reads embed_watermark state — use PRIMARY (liveDb), not replica.
+    const partition = await pickNextPartition(liveDb, roundRobinIdx);
     if (!partition) {
       console.log('[embed-runner] All partitions are stale-complete; nothing to sweep this tick');
       // Reset all stale partitions so they get re-scanned tomorrow
-      await liveReplicaDb.query(
+      await liveDb.query(
         `UPDATE embed_watermark SET zero_ticks = 0 WHERE zero_ticks >= $1`,
         [STALE_SKIP_THRESHOLD]
       );
     } else {
-      // 2. Load watermark for this partition.
-      const wm = await loadWatermark(liveReplicaDb, partition);
+      // 2. Load watermark for this partition (PRIMARY, writable).
+      const wm = await loadWatermark(liveDb, partition);
 
       // 3. Determine scan direction.
       //    - No watermark yet → start from NULL (full backfill, ASC from oldest)
@@ -224,10 +229,10 @@ async function tick(): Promise<void> {
         `duration=${(summary.duration_ms / 1000).toFixed(1)}s`
       );
 
-      // 5. Persist watermark. Done in a transaction on the replica so it
-      // survives worker restarts. A crash between step 4 and 5 means we
-      // re-scan the same rows next tick (hash gate prevents duplicate embeds).
-      const client = await liveReplicaDb.connect();
+      // 5. Persist watermark. Done in a transaction on the PRIMARY (writable).
+      // A crash between step 4 and 5 means we re-scan the same rows next tick
+      // (hash gate prevents duplicate embeds).
+      const client = await liveDb.connect();
       try {
         await client.query('BEGIN');
         await upsertWatermark(
@@ -273,6 +278,7 @@ async function main(): Promise<void> {
   const shutdown = async (sig: string) => {
     console.log(`[embed-runner] Received ${sig}, shutting down`);
     await db.end().catch(() => {});
+    await liveReplicaDb.end().catch(() => {});
     await liveVectorDb.end().catch(() => {});
     process.exit(0);
   };
@@ -282,7 +288,7 @@ async function main(): Promise<void> {
   // Ensure embed_watermark rows exist for all partitions (idempotent insert).
   // This creates the rows if they don't exist yet (e.g. first boot).
   try {
-    await liveReplicaDb.query(
+    await liveDb.query(
       `INSERT INTO embed_watermark (partition_name, last_updated_at, rows_embedded, zero_ticks)
        SELECT p, NULL, 0, 0
        FROM unnest($1::text[]) AS p

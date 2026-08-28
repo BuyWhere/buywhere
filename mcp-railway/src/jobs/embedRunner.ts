@@ -68,6 +68,10 @@ if (!replicaDb) {
 
 const liveVectorDb = vectorDb;
 const liveReplicaDb = replicaDb;
+// BUY-76503: watermark persistence must use the PRIMARY DB (db / DATABASE_URL),
+// NOT the replica. REPLICA_DATABASE_URL points to a read-only streaming standby;
+// INSERT/UPDATE on embed_watermark there fails with SQLSTATE 25006.
+const liveDb = db;
 
 let running = false;
 
@@ -151,15 +155,15 @@ async function tick(): Promise<void> {
   console.log(`[embed-runner] Starting embedding tick (batch_limit=${BATCH_LIMIT})`);
 
   try {
-    const partition = await pickNextPartition(liveReplicaDb, roundRobinIdx);
+    const partition = await pickNextPartition(liveDb, roundRobinIdx);
     if (!partition) {
       console.log('[embed-runner] All partitions are stale-complete; resetting and waiting for next tick');
-      await liveReplicaDb.query(
+      await liveDb.query(
         `UPDATE embed_watermark SET zero_ticks = 0 WHERE zero_ticks >= $1`,
         [STALE_SKIP_THRESHOLD]
       );
     } else {
-      const wm = await loadWatermark(liveReplicaDb, partition);
+      const wm = await loadWatermark(liveDb, partition);
       let watermark: Date | undefined = wm?.last_updated_at ?? undefined;
 
       if (watermark) {
@@ -190,7 +194,7 @@ async function tick(): Promise<void> {
         `duration=${(summary.duration_ms / 1000).toFixed(1)}s`
       );
 
-      const client = await liveReplicaDb.connect();
+      const client = await liveDb.connect();
       try {
         await client.query('BEGIN');
         await upsertWatermark(client, partition, summary.nextWatermark, summary.processed);
@@ -230,6 +234,7 @@ async function main(): Promise<void> {
   const shutdown = async (sig: string) => {
     console.log(`[embed-runner] Received ${sig}, shutting down`);
     await db.end().catch(() => {});
+    await liveReplicaDb.end().catch(() => {});
     await liveVectorDb.end().catch(() => {});
     process.exit(0);
   };
@@ -237,7 +242,7 @@ async function main(): Promise<void> {
   process.on('SIGINT',  () => void shutdown('SIGINT'));
 
   try {
-    await liveReplicaDb.query(
+    await liveDb.query(
       `INSERT INTO embed_watermark (partition_name, last_updated_at, rows_embedded, zero_ticks)
        SELECT p, NULL, 0, 0
        FROM unnest($1::text[]) AS p
