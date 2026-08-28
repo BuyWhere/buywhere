@@ -351,6 +351,22 @@ function sendOpenApiSpec(res) {
                     },
                 },
             },
+            '/products/{id}/similar': {
+                get: {
+                    summary: 'Find similar products by embedding similarity',
+                    operationId: 'findSimilarProducts',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'UUID of the source product' },
+                        { name: 'limit', in: 'query', schema: { type: 'integer', default: 10, minimum: 1, maximum: 20 }, description: 'Number of similar products to return' },
+                    ],
+                    responses: {
+                        '200': { description: 'Array of similar products with similarity scores' },
+                        '400': { description: 'Invalid product id' },
+                        '404': { description: 'Product not found' },
+                    },
+                },
+            },
             '/categories': {
                 get: {
                     summary: 'List top-level product categories',

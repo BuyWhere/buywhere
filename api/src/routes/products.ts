@@ -2400,10 +2400,15 @@ router.get(
 
     if (vectorDb) {
       try {
-        // Fetch pre-computed embedding for this product.
+        // Fetch pre-computed embedding for this product. Gate on model_ver exactly
+        // like the search KNN (BUY-76440 + BUY-65476/BUY-52089): the KNN casts
+        // $1::vector and the HNSW index is 512-dim, so a legacy 1024-dim embedding
+        // for this product would throw a dimension-mismatch error and push the
+        // whole handler past the 10s race into a 504. Only a gemini-512 embedding
+        // is usable for the same-model KNN below.
         const embResult = await vectorDb.query<{ embedding: string }>(
           `SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`,
+           WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
           [id]
         );
         if (embResult.rows.length > 0) {
