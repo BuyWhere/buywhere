@@ -621,10 +621,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    // BUY-56185 / BUY-76552: raised from 12s to 30s. Under cold-cache conditions
+    // the GIN bitmap plan on the non-partitioned search_products table (96M rows)
+    // with country_code filter takes ~13s for broad queries like 'laptop' (246K+
+    // global matches rechecked against country filter). The 12s timeout caused
+    // every v2 search to throw upstream_exception → degraded 0 results.
+    // 30s matches REST tier timeout headroom while still failing fast vs
+    // runaway queries.
+    await searchClient.query('SET statement_timeout = 30000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
     // The non-partitioned search_products table with country_code filter produces
