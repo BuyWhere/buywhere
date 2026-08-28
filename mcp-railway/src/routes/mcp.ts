@@ -844,7 +844,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
     const degradedKind = classifyMcpDegradedKind(err);
     recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-    console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    const errMsg = (err as any)?.message || String(err);
+    const errCode = (err as any)?.code || 'none';
+    console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0,120)}`);
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
