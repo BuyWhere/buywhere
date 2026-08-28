@@ -284,36 +284,17 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 }
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
+  // BUY-60872 (governance rule #10): when upstream is degraded with zero results,
+  // we MUST NOT synthesize invented product rows. Instead we return an honest empty
+  // result set with a degraded flag and a suggestion to browse the editorial guide.
   const fallbackUrl = `/${fallback.slug}`;
-  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
-  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
-    const productSlug = slugifyProductName(product.name);
-    const productUrl = `/products/${countryPrefix}/${productSlug}`;
-    return {
-      id: `fallback-${fallback.slug}-${index + 1}`,
-      title: product.name,
-      name: product.name,
-      price: { amount: product.price, currency: fallback.currency },
-      price_amount: product.price,
-      price_currency: fallback.currency,
-      currency: fallback.currency,
-      merchant: product.merchant,
-      merchant_name: product.merchant,
-      source: 'editorial_fallback',
-      url: productUrl,
-      click_url: productUrl,
-      brand: product.brand,
-      category: fallback.category,
-    };
-  });
-
   return {
     ...data,
-    data: items,
-    items,
-    results: items,
-    products: items,
-    total: items.length,
+    data: [],
+    items: [],
+    results: [],
+    products: [],
+    total: 0,
     fallback: {
       type: 'editorial',
       label: fallback.label,
@@ -322,7 +303,7 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     meta: {
       ...(data?.meta ?? {}),
-      total: items.length,
+      total: 0,
       degraded: true,
       fallback: true,
       fallback_url: fallbackUrl,
