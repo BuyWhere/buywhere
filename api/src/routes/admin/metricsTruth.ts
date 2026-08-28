@@ -26,7 +26,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { adminAuth } from './auth';
 import { db, redis } from '../../config';
-import { catalogDb } from '../../config';
+import { catalogDb, replicaDb, vectorDb } from '../../config';
 
 const execFileAsync = promisify(execFile);
 
@@ -79,6 +79,14 @@ interface TruthResponse {
     gross_new_products_per_day: MetricLine;
     catalog_rows_reltuples: MetricLine;
     merchants_with_products: MetricLine;
+  };
+  throughput: {
+    inserts_24h: MetricLine;
+    rows_by_source_24h: MetricLine;
+    merchants_scraped_by_pool_24h: MetricLine;
+    keepa_runs_done_24h: MetricLine;
+    dedupe_done_total: MetricLine;
+    embeddings_24h: MetricLine;
   };
   indexation: {
     index_line: MetricLine;
@@ -427,6 +435,185 @@ async function loadCatalog(): Promise<TruthResponse['catalog']> {
   };
 }
 
+
+// ─── Throughput counters (BUY-76710 quota sentinel) ──────────────────────
+type Queryable = { query: (sql: string, params?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> };
+
+function throughputUnavailable(unit: string, definition: string, source: string, reason: string): MetricLine {
+  return { value: null, unit, definition, source, reason: `n/a — ${reason}` };
+}
+
+async function tableExists(pool: Queryable, tableName: string): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT to_regclass($1) IS NOT NULL AS exists`,
+    [`public.${tableName}`],
+  );
+  return Boolean(r.rows[0]?.exists);
+}
+
+async function columnExists(pool: Queryable, tableName: string, columnName: string): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name=$1 AND column_name=$2
+     ) AS exists`,
+    [tableName, columnName],
+  );
+  return Boolean(r.rows[0]?.exists);
+}
+
+async function loadThroughput(): Promise<TruthResponse['throughput']> {
+  const readPool = replicaDb ?? catalogDb;
+  const replicaReason = replicaDb ? null : 'REPLICA_DATABASE_URL not configured; using catalog read pool';
+
+  const insertsDefinition =
+    'Products inserted in the last 24h from pg_stat_user_tables.n_tup_ins delta. Counter source is the database stats collector; never COUNT(*) on products.';
+  const rowsBySourceDefinition =
+    'Product rows inserted in the last 24h grouped by canonical ingestion_runs.source, using rows_inserted from completed runs. No COUNT(*) on products.';
+  const merchantsByPoolDefinition =
+    'Merchants whose last_scraped_at landed in the last 24h, grouped by merchants.scraped_via pool.';
+  const keepaDefinition =
+    'Ingestion runs for source keepa/keepa-acquire completed in the last 24h.';
+  const dedupeDefinition =
+    'Total completed product dedupe batches from the dedupe job ledger, when that ledger exists.';
+  const embeddingsDefinition =
+    'Product embeddings written in the last 24h from vector-db.product_embeddings.embedded_at.';
+
+  const out: TruthResponse['throughput'] = {
+    inserts_24h: throughputUnavailable('products inserted', insertsDefinition, 'canonical_throughput_hourly.delta_ins_from_stats', 'not loaded'),
+    rows_by_source_24h: throughputUnavailable('json', rowsBySourceDefinition, 'ingestion_runs.source, rows_inserted', 'not loaded'),
+    merchants_scraped_by_pool_24h: throughputUnavailable('json', merchantsByPoolDefinition, 'merchants.last_scraped_at, merchants.scraped_via', 'not loaded'),
+    keepa_runs_done_24h: throughputUnavailable('runs', keepaDefinition, 'ingestion_runs', 'not loaded'),
+    dedupe_done_total: throughputUnavailable('runs', dedupeDefinition, 'dedupe job ledger', 'not loaded'),
+    embeddings_24h: throughputUnavailable('embeddings', embeddingsDefinition, 'vector-db.product_embeddings.embedded_at', 'VECTOR_DB_URL not configured'),
+  };
+
+  try {
+    const hasHourly = await tableExists(readPool, 'canonical_throughput_hourly');
+    if (!hasHourly) {
+      out.inserts_24h.reason = 'n/a — canonical_throughput_hourly snapshot table not found';
+    } else {
+      const ins = await readPool.query(
+        `SELECT COALESCE(SUM(delta_ins_from_stats), 0)::bigint AS inserts_24h
+           FROM canonical_throughput_hourly
+          WHERE hour_start >= date_trunc('hour', NOW() - INTERVAL '24 hours')
+            AND delta_ins_from_stats IS NOT NULL
+            AND stat_reset_detected IS DISTINCT FROM true`,
+      );
+      out.inserts_24h = {
+        value: Number(ins.rows[0]?.inserts_24h ?? 0),
+        unit: 'products inserted',
+        definition: insertsDefinition,
+        source: `canonical_throughput_hourly.delta_ins_from_stats${replicaReason ? ` (${replicaReason})` : ' via replicaDb'}`,
+      };
+    }
+  } catch (err) {
+    out.inserts_24h.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+  }
+
+  try {
+    const r = await readPool.query(
+      `SELECT COALESCE(NULLIF(source, ''), 'unknown') AS source,
+              COALESCE(SUM(rows_inserted), 0)::bigint AS rows
+         FROM ingestion_runs
+        WHERE status IN ('completed','complete','done','success','succeeded')
+          AND COALESCE(finished_at, started_at, created_at) >= NOW() - INTERVAL '24 hours'
+        GROUP BY 1
+        ORDER BY rows DESC
+        LIMIT 50`,
+    );
+    out.rows_by_source_24h = {
+      value: JSON.stringify(r.rows.map((row) => ({ source: String(row.source ?? 'unknown'), rows: Number(row.rows ?? 0) }))),
+      unit: 'json',
+      definition: rowsBySourceDefinition,
+      source: `ingestion_runs.source, rows_inserted, finished_at${replicaReason ? ` (${replicaReason})` : ' via replicaDb'}`,
+    };
+  } catch (err) {
+    out.rows_by_source_24h.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+  }
+
+  try {
+    const hasScrapedVia = await columnExists(readPool, 'merchants', 'scraped_via');
+    const poolExpr = hasScrapedVia ? "COALESCE(NULLIF(scraped_via, ''), 'unknown')" : "'unknown'";
+    const r = await readPool.query(
+      `SELECT ${poolExpr} AS pool, COUNT(*)::bigint AS merchants
+         FROM merchants
+        WHERE last_scraped_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY 1
+        ORDER BY merchants DESC
+        LIMIT 50`,
+    );
+    out.merchants_scraped_by_pool_24h = {
+      value: JSON.stringify(r.rows.map((row) => ({ pool: String(row.pool ?? 'unknown'), merchants: Number(row.merchants ?? 0) }))),
+      unit: 'json',
+      definition: merchantsByPoolDefinition,
+      source: `merchants.last_scraped_at${hasScrapedVia ? ', merchants.scraped_via' : ''}${replicaReason ? ` (${replicaReason})` : ' via replicaDb'}`,
+    };
+  } catch (err) {
+    out.merchants_scraped_by_pool_24h.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+  }
+
+  try {
+    const r = await readPool.query(
+      `SELECT COUNT(*)::bigint AS runs
+         FROM ingestion_runs
+        WHERE source ~* 'keepa'
+          AND status IN ('completed','complete','done','success','succeeded')
+          AND COALESCE(finished_at, started_at, created_at) >= NOW() - INTERVAL '24 hours'`,
+    );
+    out.keepa_runs_done_24h = {
+      value: Number(r.rows[0]?.runs ?? 0),
+      unit: 'runs',
+      definition: keepaDefinition,
+      source: `ingestion_runs source~*keepa status done/success${replicaReason ? ` (${replicaReason})` : ' via replicaDb'}`,
+    };
+  } catch (err) {
+    out.keepa_runs_done_24h.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+  }
+
+  try {
+    const candidates = ['product_dedupe_runs', 'dedupe_runs', 'dedupe_jobs'];
+    const table = (await Promise.all(candidates.map(async (name) => ((await tableExists(readPool, name)) ? name : null)))).find(Boolean);
+    if (!table) {
+      out.dedupe_done_total.reason = 'n/a — no dedupe run ledger table found (product_dedupe_runs/dedupe_runs/dedupe_jobs)';
+    } else {
+      const r = await readPool.query(
+        `SELECT COUNT(*)::bigint AS done
+           FROM ${table}
+          WHERE status IN ('completed','complete','done','success','succeeded')`,
+      );
+      out.dedupe_done_total = {
+        value: Number(r.rows[0]?.done ?? 0),
+        unit: 'runs',
+        definition: dedupeDefinition,
+        source: `${table}.status done/success${replicaReason ? ` (${replicaReason})` : ' via replicaDb'}`,
+      };
+    }
+  } catch (err) {
+    out.dedupe_done_total.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+  }
+
+  if (vectorDb) {
+    try {
+      const r = await vectorDb.query(
+        `SELECT COUNT(*)::bigint AS embeddings
+           FROM product_embeddings
+          WHERE embedded_at >= NOW() - INTERVAL '24 hours'`,
+      );
+      out.embeddings_24h = {
+        value: Number(r.rows[0]?.embeddings ?? 0),
+        unit: 'embeddings',
+        definition: embeddingsDefinition,
+        source: 'vectorDb.product_embeddings.embedded_at >= now()-24h',
+      };
+    } catch (err) {
+      out.embeddings_24h.reason = `n/a — ${(err as Error).message?.slice(0, 200) || 'query failed'}`;
+    }
+  }
+
+  return out;
+}
+
 // ─── Indexation line (4seen findings store) ────────────────────────────
 async function loadIndexation(windowDays: number): Promise<TruthResponse['indexation']> {
   // The findings store DSN is kept in /home/paperclip/.secrets/findings-store-url.
@@ -710,7 +897,7 @@ router.get('/v1/admin/metrics/truth', adminAuth, async (req: Request, res: Respo
   // Run all the loads in parallel. Each is wrapped in try/catch internally so
   // a single failure (e.g. findings store unreachable) yields n/a on that one
   // line, not a 500 for the whole payload.
-  const [clicks, api, catalog, indexation, traffic, growth, deadLinks] = await Promise.all([
+  const [clicks, api, catalog, throughput, indexation, traffic, growth, deadLinks] = await Promise.all([
     loadClicks(windowDays).catch((e) => ({
       human_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       fetcher_clicks: { value: null, unit: 'clicks', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
@@ -729,6 +916,14 @@ router.get('/v1/admin/metrics/truth', adminAuth, async (req: Request, res: Respo
       catalog_rows_reltuples: { value: null, unit: 'rows', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       merchants_with_products: { value: null, unit: 'merchants', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
     } as TruthResponse['catalog'])),
+    loadThroughput().catch((e) => ({
+      inserts_24h: { value: null, unit: 'products inserted', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      rows_by_source_24h: { value: null, unit: 'json', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      merchants_scraped_by_pool_24h: { value: null, unit: 'json', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      keepa_runs_done_24h: { value: null, unit: 'runs', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      dedupe_done_total: { value: null, unit: 'runs', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+      embeddings_24h: { value: null, unit: 'embeddings', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
+    } as TruthResponse['throughput'])),
     loadIndexation(windowDays).catch((e) => ({
       index_line: { value: null, unit: 'index line', definition: '', source: '', reason: `n/a — ${(e as Error).message?.slice(0, 200)}` },
       source: 'findings store',
@@ -758,6 +953,7 @@ router.get('/v1/admin/metrics/truth', adminAuth, async (req: Request, res: Respo
     clicks,
     api,
     catalog,
+    throughput,
     indexation,
     traffic,
     growth,
