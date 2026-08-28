@@ -626,12 +626,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // pool exhaustion. Failing fast prevents cascading connection starvation.
     await searchClient.query('SET statement_timeout = 12000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    // BUY-76535: force the GIN index path. Without this the planner picks a seq
-    // scan on the 96M-row search_products table (or a bare idx_sp_cc_price btree
-    // scan that filters every SG row), pushing the FTS query past the 12s
-    // statement_timeout -> upstream_exception / all-market degraded. Mirrors
-    // get_deals (1036) and find_best_price (1386) which already set this.
-    await searchClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
+    // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
+    // The non-partitioned search_products table with country_code filter produces
+    // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
+    // when seqscan is off, pushing the count query past the 12s statement_timeout
+    // under cold-cache conditions. The planner naturally chooses the GIN index
+    // path when it's optimal; forcing it backfires on the tier table. Keep
+    // enable_seqscan=off for get_deals/find_best_price (different query patterns).
     const COUNT_CAP = 1001;
     if (q) {
       // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
