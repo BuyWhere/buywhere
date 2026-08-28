@@ -11,9 +11,17 @@ env:
   IMAGE_REPO: cloud-run-source-deploy
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Governance rule #10 — no production mock data (BUY-60872)
+        run: bash scripts/guard-production-mock-data.sh
+
   build:
     name: Build and push site image
     runs-on: ubuntu-latest
+    needs: [guard]
     outputs:
       full_image: ${{ steps.tag.outputs.full_image }}
       image_tag: ${{ steps.tag.outputs.image_tag }}

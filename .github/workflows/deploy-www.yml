@@ -43,12 +43,8 @@ jobs:
           exit 1
 
       - uses: actions/checkout@v4
-      - name: No production mock catalog data
-        run: |
-          set -euo pipefail
-          ! grep -RInE 'generateMock|mockProducts|picsum\.photos|url: "#"|merchant: \["Amazon\.com", "Walmart", "Target", "Best Buy"\]' \
-            src/app/compare src/app/products src/app/us/category src/components/ProductComparison.tsx src/components/USPriceComparison.tsx src/components/USProductDetail.tsx src/lib/us-products.ts src/lib/sg-products.ts \
-            --include='*.ts' --include='*.tsx'
+      - name: Governance rule #10 — no production mock data (BUY-60872)
+        run: bash scripts/guard-production-mock-data.sh
 
   deploy:
     runs-on: ubuntu-latest
