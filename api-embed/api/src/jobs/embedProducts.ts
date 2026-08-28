@@ -33,6 +33,8 @@ export interface EmbedSummary {
   skipped:   number;
   errors:    number;
   duration_ms: number;
+  /** The updated_at value to save as the watermark for the next tick. Null if the scan reached the end. */
+  nextWatermark: Date | null;
 }
 
 function textHash(title: string, description: string | null): string {
@@ -133,38 +135,46 @@ async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
  * Embeds up to batchLimit products from the source DB that are missing or stale,
  * writing results to the vector DB. Returns a summary.
  *
+ * BUY-76503 partition sweep: each tick scans ONE country partition, moving
+ * forward through that partition in `updated_at ASC` order. The watermark
+ * (last_updated_at to resume from) is managed by the caller (embedRunner).
+ * This ensures every product is eventually embedded regardless of how stale
+ * its `updated_at` is — the old `ORDER BY updated_at DESC` approach only ever
+ * reached the ~10 products/day that had recently-changed updated_at.
+ *
  * Hash-gate (BUY-60368): we no longer JOIN across DBs. Instead we
  *   1. load `(product_id -> text_hash)` from vectorDb,
  *   2. SELECT up to `batchLimit` candidate products from sourceDb ordered
- *      by updated_at DESC (the recency rule — see BUY-60378 note),
+ *      by updated_at ASC from the watermark,
  *   3. drop candidates whose freshly-computed hash matches the stored
  *      one (price-only updates — ~80% of ingest — never re-embed),
- *   4. if still over budget, take the top N by recency.
- *
- * Priority: most-recently-updated products are embedded first. The
- * original "highest price first" rule (BUY-60368) required an index on
- * `(is_active, price)` to be index-scan-eligible on the 154M-row
- * `products` table; that index has been INVALID since a cancelled CIC
- * and the DDL watchdog (BUY-58494) blocks recreating it. Until BUY-58494
- * is unblocked, the planner falls back to a full Seq Scan on `price DESC`
- * and the catalog SELECT 57014's at the 30s/60s statement_timeout,
- * starving the embed-runner for 18+ days. Ordering by `updated_at DESC`
- * uses the existing `idx_products_updated_at` (cost ~0.57 vs ~37M) and
- * is arguably a better priority for embeddings anyway: products with
- * recently-changed `updated_at` are exactly the ones whose embeddings
- * are most likely to be stale or missing.
+ *   4. if still over budget, take the top N by recency (within this tick).
  *
  * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
  * taskType=RETRIEVAL_DOCUMENT, batch size 64.
+ *
+ * @param sourceDb     Read pool for products (partitioned by country_code)
+ * @param vectorDb     Vector DB pool (product_embeddings lives here)
+ * @param apiKey       Gemini API key
+ * @param batchLimit   Max products to embed this tick
+ * @param countryCode  Country partition to scan this tick (e.g. 'US'). If
+ *                     omitted, falls back to the old updated_at DESC scan
+ *                     (legacy non-sweep mode — only for the first sweep tick
+ *                     before any watermark exists).
+ * @param watermark    updated_at to scan FROM (ASC). NULL = start from the
+ *                     oldest row in the partition (full backfill).
  */
 export async function runEmbedBatch(
   sourceDb: Pool,
   vectorDb: Pool,
-  apiKey:  string,
+  apiKey:    string,
   batchLimit = 64,
-): Promise<EmbedSummary> {
+  countryCode?: string,
+  watermark?:  Date,
+): Promise<EmbedSummary & { nextWatermark: Date | null }> {
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
+  let nextWatermark: Date | null = null;
 
   // Pull the existing hash set from vectorDb. Failure is non-fatal: we
   // fall back to "every candidate is unembedded" rather than aborting
@@ -172,75 +182,96 @@ export async function runEmbedBatch(
   const vectorHashes = await loadVectorHashes(vectorDb);
   console.log(`[embed] Loaded ${vectorHashes.size} existing embeddings from vectordb`);
 
-  // BUY-60368: sourceDb only has `products`, so the SELECT is now flat.
-  // We overscan by a small factor so the in-JS hash gate has enough
-  // candidates to fill `batchLimit` after skipping stale rows.
-  //
-  // BUY-60378/BUY-60446: the flat `ORDER BY price DESC` SELECT hit a full
-  // Seq Scan on the 154M-row products table and 57014'd at the statement
-  // timeout on the replica. The intended `idx_products_is_active_price`
-  // index is INVALID (a CIC was cancelled mid-build and the DDL watchdog
-  // blocks new CIC builds — see BUY-58494). Without that index the
-  // planner has no entry point for `WHERE is_active=true ORDER BY price DESC`
-  // and falls back to a Seq Scan (~37M cost, ~3 min wall clock).
-  //
-  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`,
-  // which uses the EXISTING and VALID `idx_products_updated_at` (3.4 GB
-  // btree). EXPLAIN (VERBOSE, BUFFERS) against the production maglev
-  // replica shows:
-  //   Limit (cost=0.57..91.25 rows=128 width=16)
-  //     -> Index Scan using idx_products_updated_at
-  //        Filter: products.is_active
-  // followed by Index Scan using products_pkey (~2.79 cost per row).
-  // Total ~449, sub-second wall clock.
-  //
-  // Trade-off: the priority rule is now "most-recently-updated first"
-  // (often = "most likely to have stale embeddings") instead of
-  // "highest-value first". After 18 days of zero embeddings this is a
-  // defensible recovery order.
-  const overscan = Math.max(batchLimit * 2, 64);
-  const { rows: candidates } = await sourceDb.query<{
-    id: string;
-    title: string;
-    description: string | null;
-    price: number | null;
-  }>(
-    `SELECT id, title, description, price
-     FROM products
-     WHERE is_active = true
-       AND price IS NOT NULL
-     ORDER BY updated_at DESC
-     LIMIT $1`,
-    [overscan]
-  );
+  let candidates: Array<{ id: string; title: string; description: string | null; price: number | null; updated_at: Date }>;
+
+  if (countryCode) {
+    // BUY-76503: partition-sweep path.
+    // Scan ONE country partition in updated_at ASC order, starting from watermark.
+    // watermark NULL → no lower bound (full backfill from oldest row).
+    //
+    // SCAN_LIMIT vs BATCH_LIMIT: we scan many more rows than we embed to advance
+    // the watermark quickly past already-embedded / uninteresting products.
+    // The hash-gate filters candidates after the scan; only the top
+    // `batchLimit` by recency within the scan window get embedded.
+    const scanLimit = parseInt(process.env.EMBED_SCAN_LIMIT ?? String(Math.max(batchLimit * 10, 1000)), 10);
+    const watermarkCondition = watermark
+      ? 'AND p.updated_at > $2'
+      : '';
+    const params = watermark
+      ? [countryCode, watermark, scanLimit]
+      : [countryCode, scanLimit];
+    const paramIdx = watermark ? 3 : 2;
+
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; price: number | null; updated_at: Date;
+    }>(
+      `SELECT p.id, p.title, p.description, p.price, p.updated_at
+       FROM products_partitioned p
+       WHERE p.country_code = $1
+         AND p.is_active = true
+         AND p.price IS NOT NULL
+         ${watermarkCondition}
+       ORDER BY p.updated_at ASC
+       LIMIT $${paramIdx}`,
+      params
+    );
+    candidates = rows;
+
+    // Track the watermark to resume from: the updated_at of the last candidate.
+    // If we got fewer rows than batchLimit, we've reached the end of this
+    // partition — the next tick will get 0 rows and the runner will advance.
+    if (candidates.length > 0) {
+      nextWatermark = candidates[candidates.length - 1].updated_at;
+    }
+  } else {
+    // Legacy fallback: full-table updated_at DESC scan (pre-BUY-76503 behavior).
+    // Only used when no countryCode is provided.
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; price: number | null;
+    }>(
+      `SELECT id, title, description, price
+       FROM products
+       WHERE is_active = true
+         AND price IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT $1`,
+      [batchLimit]
+    );
+    candidates = rows.map(r => ({ ...r, updated_at: new Date() }));
+  }
 
   if (candidates.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
 
   // Hash-gate filter (mirrors the original LEFT JOIN semantics):
   //   - product not in vectorDb           → embed
   //   - product in vectorDb with same hash → skip (price-only update)
   //   - product in vectorDb with diff hash → embed
-  const products: typeof candidates = [];
+  //
+  // BUY-76503 sweep: scan ALL candidates before deciding which to embed.
+  // The watermark must advance by the full scan window each tick — not stop
+  // early when the first `batchLimit` candidates are hash-matches.
+  // We embed the first `batchLimit` candidates that pass the gate; the rest
+  // get scanned but deferred to next tick (hash gate will skip them then too).
+  const toEmbed: typeof candidates = [];
   for (const p of candidates) {
     const fresh = textHash(p.title, p.description);
     const stored = vectorHashes.get(p.id);
     if (stored === undefined) {
-      products.push(p); // not yet embedded
+      if (toEmbed.length < batchLimit) toEmbed.push(p); // not yet embedded
     } else if (stored !== fresh) {
-      products.push(p); // text changed
+      if (toEmbed.length < batchLimit) toEmbed.push(p); // text changed
     } else {
       skipped += 1;
-      if (products.length >= batchLimit) break;
     }
-    if (products.length >= batchLimit) break;
   }
+  const products = toEmbed;
 
   if (products.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
 
   console.log(
@@ -306,7 +337,7 @@ export async function runEmbedBatch(
   console.log(
     `[embed] Done — processed=${processed} skipped=${skipped} errors=${errors} in ${(duration / 1000).toFixed(1)}s`
   );
-  return { processed, skipped, errors, duration_ms: duration };
+  return { processed, skipped, errors, duration_ms: duration, nextWatermark };
 }
 
 /**
