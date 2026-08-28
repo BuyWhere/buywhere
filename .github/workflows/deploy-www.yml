@@ -59,19 +59,24 @@ jobs:
 
       - name: Trigger Railway deploy of this SHA
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         run: |
+          set -euo pipefail
           RESP=$(curl -sf "$GQL" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
             -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
-          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          DID=$(echo "$RESP" | python3 -c "import sys,json; r=json.load(sys.stdin); errors=r.get('errors'); data=(r.get('data') or {}).get('serviceInstanceDeployV2');
+          print(data if data else '', end='');
+          sys.exit(1 if errors or not data else 0)")
           echo "deployment: $DID"
           for i in $(seq 1 24); do
-            S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            S=$(curl -sf "$GQL" -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
               -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
               -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
-              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+              | python3 -c "import sys,json; r=json.load(sys.stdin); errors=r.get('errors'); status=((r.get('data') or {}).get('deployment') or {}).get('status');
+              print(status if status else '', end='');
+              sys.exit(1 if errors or not status else 0)")
             echo "[$i] $S"
             case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
             sleep 25
@@ -97,11 +102,12 @@ jobs:
       - name: Auto-rollback on failure
         if: failure()
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         run: |
+          set -euo pipefail
           PREV=$(git rev-parse HEAD~1)
           echo "Rolling back to $PREV"
           curl -sf "$GQL" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
             -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}"
