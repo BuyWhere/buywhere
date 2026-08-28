@@ -3,16 +3,11 @@
  *
  * BUY-76503: partition sweep replaces the old `ORDER BY updated_at DESC` scan.
  *
- * The old approach: scan the full products table ordered by updated_at DESC,
- * picking the ~10 products/day that happen to have a recent updated_at. This
- * meant `product_embeddings` grew by ~10 rows/day even though the worker ran
- * every 6h — the same 10 candidates were re-offered every tick forever.
- *
- * The new approach: each tick scans ONE country partition, moving FORWARD
- * through that partition in `updated_at ASC` order. Progress is tracked in the
- * `embed_watermark` table so restarts resume where they left off. When a
- * partition's scan returns 0 candidates the runner advances to the next
- * partition in round-robin order.
+ * BUY-76567: switched from Gemini gemini-embedding-001 (512-dim) to
+ * Flow AI flow-embed-1 (Qwen3-Embedding-4B, 1024-dim).
+ *   - Env var: FLOWAI_EMBED_API_KEY (replaces GEMINI_API_KEY)
+ *   - Writes to embedding_v2 column (never touches 512-dim embedding column)
+ *   - Startup migration: adds embedding_v2 vector(1024) if missing
  *
  * Key properties:
  *   - Bounded per-tick work: scan is capped at batchLimit rows
@@ -21,10 +16,11 @@
  *   - Hash gate still applies: unchanged products are skipped per tick
  *
  * Env vars:
- *   GEMINI_API_KEY       — required; Google API key for gemini-embedding-001
+ *   FLOWAI_EMBED_API_KEY — required; Flow AI API key for flow-embed-1
+ *   FLOWAI_API_BASE      — optional; Flow AI base URL (default: https://api.flowaiapi.com)
  *   VECTOR_DB_URL        — required; PostgreSQL connection for product_embeddings table
  *   REPLICA_DATABASE_URL — required; Replica connection for reading products_partitioned
- *   EMBED_BATCH_LIMIT    — products per tick (default: 64)
+ *   EMBED_BATCH_LIMIT    — products per tick (default: 100)
  *   EMBED_INTERVAL_MS    — tick interval in ms (default: 6h = 21600000)
  */
 
@@ -32,8 +28,9 @@ import { Pool, PoolClient } from 'pg';
 import { db, replicaDb, vectorDb } from '../config';
 import { runEmbedBatch } from './embedProducts';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
-const BATCH_LIMIT    = parseInt(process.env.EMBED_BATCH_LIMIT  ?? '64', 10);
+// BUY-76567: Flow AI key replaces Gemini key
+const FLOWAI_KEY = process.env.FLOWAI_EMBED_API_KEY ?? '';
+const BATCH_LIMIT    = parseInt(process.env.EMBED_BATCH_LIMIT  ?? '100', 10);
 const INTERVAL_MS    = parseInt(process.env.EMBED_INTERVAL_MS  ?? String(6 * 60 * 60 * 1000), 10);
 
 // BUY-76503: partition priority order. High-value markets get scanned more
@@ -55,8 +52,9 @@ const PARTITION_ORDER = [
 // "done" and stop offering it (it will be re-offered after all others cycle).
 const STALE_SKIP_THRESHOLD = 3;
 
-if (!GEMINI_API_KEY) {
-  console.error('[embed-runner] GEMINI_API_KEY is not set — embedding is disabled');
+// BUY-76567: Flow AI key replaces Gemini key
+if (!FLOWAI_KEY) {
+  console.error('[embed-runner] FLOWAI_EMBED_API_KEY is not set — embedding is disabled');
   process.exit(0);
 }
 if (!vectorDb) {
@@ -216,7 +214,7 @@ async function tick(): Promise<void> {
       const summary = await runEmbedBatch(
         liveReplicaDb,
         liveVectorDb,
-        GEMINI_API_KEY,
+        FLOWAI_KEY,
         BATCH_LIMIT,
         partition,
         effectiveWatermark,
@@ -269,10 +267,10 @@ function schedule(): void {
 
 async function main(): Promise<void> {
   console.log(
-    `[embed-runner] Starting (BUY-76503 partition sweep) — ` +
+    `[embed-runner] Starting (BUY-76503 partition sweep, BUY-76567 Flow AI) — ` +
     `interval=${Math.round(INTERVAL_MS / 60000)}m batch=${BATCH_LIMIT}`
   );
-  console.log('[embed-runner] Using Google gemini-embedding-001 (512-dim, taskType=RETRIEVAL_DOCUMENT)');
+  console.log('[embed-runner] Using Flow AI flow-embed-1 (Qwen3-Embedding-4B, 1024-dim)');
   console.log(`[embed-runner] Partition order (${PARTITION_ORDER.length} slots): ${PARTITION_ORDER.join(', ')}`);
 
   const shutdown = async (sig: string) => {
@@ -284,6 +282,34 @@ async function main(): Promise<void> {
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT',  () => void shutdown('SIGINT'));
+
+  // BUY-76567: Ensure embedding_v2 vector(1024) column exists (idempotent).
+  // The old 512-dim `embedding` column is NEVER touched or dropped.
+  try {
+    await liveVectorDb.query(
+      `ALTER TABLE product_embeddings ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)`
+    );
+    console.log('[embed-runner] embedding_v2 column ensured (vector(1024))');
+  } catch (err) {
+    console.warn('[embed-runner] Could not ensure embedding_v2 column (may not exist yet):', err);
+  }
+
+  // BUY-76567: Ensure embed_writer role exists with INSERT + UPDATE only.
+  try {
+    await liveVectorDb.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'embed_writer') THEN
+          CREATE ROLE embed_writer LOGIN;
+        END IF;
+      END $$;
+    `);
+    await liveVectorDb.query(
+      `GRANT INSERT, UPDATE ON product_embeddings TO embed_writer`
+    );
+    console.log('[embed-runner] embed_writer role ensured (INSERT + UPDATE on product_embeddings)');
+  } catch (err) {
+    console.warn('[embed-runner] Could not ensure embed_writer role:', err);
+  }
 
   // Ensure embed_watermark rows exist for all partitions (idempotent insert).
   // This creates the rows if they don't exist yet (e.g. first boot).
