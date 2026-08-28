@@ -569,6 +569,7 @@ async function handleSearchProducts(args) {
         // 30s matches REST tier timeout headroom while still failing fast vs
         // runaway queries.
         // BUY-76553: mirror REST tier settings exactly with transaction
+        console.log(`[search_products] DEBUG: q=${q} country=${country} tierWhere=${tierWhere} tierParams=${JSON.stringify(tierParams)}`);
         await searchClient.query('BEGIN');
         await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
         await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
@@ -762,6 +763,7 @@ async function handleSearchProducts(args) {
         await searchClient.query('COMMIT').catch(() => { });
         // Derive total from search results since we skipped the count query.
         total = rows?.length ?? 0;
+        console.log(`[search_products] DEBUG: SUCCESS total=${total} rows=${rows?.length ?? 0}`);
         recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
     }
     catch (err) {
@@ -772,7 +774,8 @@ async function handleSearchProducts(args) {
         recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
         const errMsg = err?.message || String(err);
         const errCode = err?.code || 'none';
-        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0, 120)}`);
+        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0, 200)}`);
+        console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
         return buildMcpDegradedSearchResponse({
             tool: 'search_products',
             stage: 'catalog_search',
