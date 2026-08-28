@@ -1905,9 +1905,9 @@ export default function SearchResultsClient({
                   <span />
                 )}
                 <span className="text-xs font-medium text-slate-500 md:text-sm">
-                  {sortedFilteredProducts.length === products.length
-                    ? `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} loaded`
-                    : `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} loaded — filters active`}
+                  {sortedFilteredProducts.length === total
+                    ? `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${total.toLocaleString()} loaded`
+                    : `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${total.toLocaleString()} loaded — filters active`}
                 </span>
               </div>
 

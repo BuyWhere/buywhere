@@ -30,12 +30,22 @@ function isCuratedSlotId(id: string): boolean {
  * so the /r/ handler would just 302 to the homepage. Callers fall back to
  * the internal BuyWhere path instead.
  */
+/**
+ * BUY-76340: /r/direct/{id} only resolves for numeric catalog product IDs.
+ * Non-numeric IDs (e.g. "lp1", "ap2", "g3") are fallback-product slugs that
+ * have no entry in affiliate_links or products — the redirect handler returns
+ * the fallback URL (buywhere.ai homepage) instead of the merchant link.
+ * Returning null for non-numeric IDs lets ProductGridCard fall back to
+ * `product.href` (a search-result deep-link) instead of a broken /r/ redirect.
+ */
 export function buildAffiliateRedirectUrl(
   productId: string | number | null | undefined,
 ): string | null {
   if (productId == null) return null;
   const id = String(productId);
-  if (isCuratedSlotId(id)) return null;
+  // Curated slot ids (lp1, g3, etc.) and non-numeric IDs get null
+  // so callers fall back to internal search links
+  if (isCuratedSlotId(id) || !/^\d+$/.test(id)) return null;
   return `/r/direct/${encodeURIComponent(id)}`;
 }
 
