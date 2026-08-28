@@ -1,7 +1,7 @@
 {
   "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
+    "builder": "NIXPACKS",
+    "nixpacksVersion": "1"
   },
   "deploy": {
     "startCommand": "node dist/mcp-server.js",
