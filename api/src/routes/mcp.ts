@@ -903,7 +903,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           // BUY-72082: Embed failed — fall through to tier keyword FTS.
           // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
           // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-          tierParams.push(limit + offset);
+          // BUY-76552: REMOVED tierParams.push(limit+offset) — SQL uses hardcoded LIMIT 1000/200,
+          // not $3. Extra param caused 08P01 on unnamed prepared statement.
           const tierFts = await searchClient.query<{ id: string; rank: number }>(
             `WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
@@ -934,7 +935,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         // BUY-72082: Keyword (FTS) path via search_products tier.
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
         // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-        tierParams.push(limit + offset);
         const tierFts = await searchClient.query<{ id: string; rank: number }>(
           `WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank

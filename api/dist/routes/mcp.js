@@ -805,7 +805,8 @@ async function handleSearchProducts(args, caller) {
                     // BUY-72082: Embed failed — fall through to tier keyword FTS.
                     // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
                     // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-                    tierParams.push(limit + offset);
+                    // BUY-76552: REMOVED tierParams.push(limit+offset) — SQL uses hardcoded LIMIT 1000/200,
+                    // not $3. Extra param caused 08P01 on unnamed prepared statement.
                     const tierFts = await searchClient.query(`WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
@@ -832,7 +833,6 @@ async function handleSearchProducts(args, caller) {
                 // BUY-72082: Keyword (FTS) path via search_products tier.
                 // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
                 // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-                tierParams.push(limit + offset);
                 const tierFts = await searchClient.query(`WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
@@ -1181,7 +1181,6 @@ async function handleGetDeals(args, caller) {
         recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
     }
     catch (e) {
-        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('get_deals', 'offer_aggregation', effectiveCountry || null);
         console.warn(`[get_deals] BUY-74597: offer_aggregation degraded (${degradedKind}) — returning MCP degraded envelope`);
@@ -1532,7 +1531,6 @@ async function handleFindBestPrice(args) {
         recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
     }
     catch (e) {
-        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
         console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
