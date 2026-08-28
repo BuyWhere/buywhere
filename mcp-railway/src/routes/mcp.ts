@@ -615,6 +615,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-76553: must use replica which has search_products table
   const searchClient = await servingReadDbConnect();
 
+  // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
+  // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
+  // and consecutive queries with different param counts cause
+  // "bind message supplies N parameters but prepared statement requires M".
+  // Each query shape gets its own named statement; same shape = same name =
+  // server caches the parse. Different param counts get different names.
+  let _spQueryCounter = 0;
+  function spQuery<T = any>(sql: string, values: unknown[], nameSuffix: string): Promise<import('pg').QueryResult<T>> {
+    return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
+  }
+
   // Diagnostic: check what we're connected to
   try {
     const dbCheck = await searchClient.query<{db: string, has_sp: boolean, sp_count: string}>(`
@@ -684,10 +695,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           async function filterVectorByCountry(vecIds: string[]): Promise<string[]> {
             if (!country || vecIds.length === 0) return vecIds;
             const vph = vecIds.map((_, i) => `$${i + 1}`).join(',');
-            const ccRes = await searchClient.query<{ id: string }>(
+            const ccRes = await spQuery<{ id: string }>(
               `SELECT DISTINCT sp.id FROM search_products sp
                WHERE sp.id IN (${vph}) AND sp.country_code = $${vecIds.length + 1}`,
-              [...vecIds, country]
+              [...vecIds, country],
+              `vecf_${vecIds.length}`
             );
             const inCountry = new Set(ccRes.rows.map(r => r.id));
             return vecIds.filter(id => inCountry.has(id));
@@ -706,9 +718,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // Hybrid: app-level RRF of FTS ranks + vector ranks
             const [ftsResult, vecResult] = await Promise.all([
               // BUY-72082: FTS half of RRF via tier table (GIN-indexed, bounded)
-              searchClient.query<{ id: string }>(
+              spQuery<{ id: string }>(
                 `SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`,
-                tierParams
+                tierParams,
+                `tierh_${tierParams.length}`
               ),
               vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
@@ -743,12 +756,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             rows = [];
           } else {
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await searchClient.query(
+            const detailResult = await spQuery(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       url_last_checked_at, url_status
                FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
+              pageIds,
+              `det_p${pageIds.length}`
             );
             // Preserve ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -759,26 +773,28 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
           // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
           tierParams.push(limit + offset);
-          const tierFts = await searchClient.query<{ id: string; rank: number }>(
+          const tierFts = await spQuery<{ id: string; rank: number }>(
             `WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
                LIMIT 1000
              )
              SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`,
-            tierParams
+            tierParams,
+            `fts_k${tierParams.length}`
           );
           if (tierFts.rows.length === 0) {
             rows = [];
           } else {
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await searchClient.query(
+            const detailResult = await spQuery(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
                FROM products WHERE id IN (${ph}) AND is_active = true`,
-              tierIds
+              tierIds,
+              `det_t${tierIds.length}`
             );
             // Preserve tier ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -790,26 +806,28 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
         // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
         tierParams.push(limit + offset);
-        const tierFts = await searchClient.query<{ id: string; rank: number }>(
+        const tierFts = await spQuery<{ id: string; rank: number }>(
           `WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
              LIMIT 1000
            )
            SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`,
-          tierParams
+          tierParams,
+          `fts_k${tierParams.length}`
         );
         if (tierFts.rows.length === 0) {
           rows = [];
         } else {
           const tierIds = tierFts.rows.map(r => r.id);
           const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-          const detailResult = await searchClient.query(
+          const detailResult = await spQuery(
             `SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code,
                     category, category_path, url_last_checked_at, url_status
              FROM products WHERE id IN (${ph}) AND is_active = true`,
-            tierIds
+            tierIds,
+            `det_t${tierIds.length}`
           );
           // Preserve tier ranking order
           const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -828,7 +846,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
       const needsFilter = !!(country || region);
       const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
-      const rawResult = await searchClient.query(
+      const rawResult = await spQuery(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 url_last_checked_at, url_status,
@@ -836,7 +854,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
          FROM products
          ORDER BY updated_at DESC
          LIMIT $1`,
-        [fetchLimit]
+        [fetchLimit],
+        'browse_raw'
       );
       if (needsFilter) {
         let filtered = rawResult.rows as Record<string, unknown>[];

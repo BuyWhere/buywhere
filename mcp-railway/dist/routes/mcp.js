@@ -556,6 +556,16 @@ async function handleSearchProducts(args) {
     // unreachable while get_deals/find_best_price (primary `db`) continue working.
     // BUY-76553: must use replica which has search_products table
     const searchClient = await (0, readReplica_1.servingReadDbConnect)();
+    // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
+    // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
+    // and consecutive queries with different param counts cause
+    // "bind message supplies N parameters but prepared statement requires M".
+    // Each query shape gets its own named statement; same shape = same name =
+    // server caches the parse. Different param counts get different names.
+    let _spQueryCounter = 0;
+    function spQuery(sql, values, nameSuffix) {
+        return searchClient.query({ text: sql, values, name: `sp_${nameSuffix}` });
+    }
     // Diagnostic: check what we're connected to
     try {
         const dbCheck = await searchClient.query(`
@@ -626,8 +636,8 @@ async function handleSearchProducts(args) {
                         if (!country || vecIds.length === 0)
                             return vecIds;
                         const vph = vecIds.map((_, i) => `$${i + 1}`).join(',');
-                        const ccRes = await searchClient.query(`SELECT DISTINCT sp.id FROM search_products sp
-               WHERE sp.id IN (${vph}) AND sp.country_code = $${vecIds.length + 1}`, [...vecIds, country]);
+                        const ccRes = await spQuery(`SELECT DISTINCT sp.id FROM search_products sp
+               WHERE sp.id IN (${vph}) AND sp.country_code = $${vecIds.length + 1}`, [...vecIds, country], `vecf_${vecIds.length}`);
                         const inCountry = new Set(ccRes.rows.map(r => r.id));
                         return vecIds.filter(id => inCountry.has(id));
                     }
@@ -642,7 +652,7 @@ async function handleSearchProducts(args) {
                         // Hybrid: app-level RRF of FTS ranks + vector ranks
                         const [ftsResult, vecResult] = await Promise.all([
                             // BUY-72082: FTS half of RRF via tier table (GIN-indexed, bounded)
-                            searchClient.query(`SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`, tierParams),
+                            spQuery(`SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`, tierParams, `tierh_${tierParams.length}`),
                             config_1.vectorDb.query(`SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]),
                         ]);
                         const vecCountryFiltered = await filterVectorByCountry(vecResult.rows.map(r => r.product_id));
@@ -670,10 +680,10 @@ async function handleSearchProducts(args) {
                     }
                     else {
                         const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-                        const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                        const detailResult = await spQuery(`SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`, pageIds);
+               FROM products WHERE id IN (${ph}) AND is_active = true`, pageIds, `det_p${pageIds.length}`);
                         // Preserve ranking order
                         const byId = new Map(detailResult.rows.map(r => [r.id, r]));
                         rows = pageIds.map(id => byId.get(id)).filter(Boolean);
@@ -684,22 +694,22 @@ async function handleSearchProducts(args) {
                     // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
                     // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
                     tierParams.push(limit + offset);
-                    const tierFts = await searchClient.query(`WITH cand AS (
+                    const tierFts = await spQuery(`WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
                LIMIT 1000
              )
-             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams);
+             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams, `fts_k${tierParams.length}`);
                     if (tierFts.rows.length === 0) {
                         rows = [];
                     }
                     else {
                         const tierIds = tierFts.rows.map(r => r.id);
                         const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-                        const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                        const detailResult = await spQuery(`SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds);
+               FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds, `det_t${tierIds.length}`);
                         // Preserve tier ranking order
                         const byId = new Map(detailResult.rows.map(r => [r.id, r]));
                         rows = tierIds.map(id => byId.get(id)).filter(Boolean);
@@ -711,22 +721,22 @@ async function handleSearchProducts(args) {
                 // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
                 // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
                 tierParams.push(limit + offset);
-                const tierFts = await searchClient.query(`WITH cand AS (
+                const tierFts = await spQuery(`WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams);
+           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams, `fts_k${tierParams.length}`);
                 if (tierFts.rows.length === 0) {
                     rows = [];
                 }
                 else {
                     const tierIds = tierFts.rows.map(r => r.id);
                     const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-                    const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                    const detailResult = await spQuery(`SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code,
                     category, category_path, url_last_checked_at, url_status
-             FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds);
+             FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds, `det_t${tierIds.length}`);
                     // Preserve tier ranking order
                     const byId = new Map(detailResult.rows.map(r => [r.id, r]));
                     rows = tierIds.map(id => byId.get(id)).filter(Boolean);
@@ -742,13 +752,13 @@ async function handleSearchProducts(args) {
             total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
             const needsFilter = !!(country || region);
             const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
-            const rawResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+            const rawResult = await spQuery(`SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 url_last_checked_at, url_status,
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
-         LIMIT $1`, [fetchLimit]);
+         LIMIT $1`, [fetchLimit], 'browse_raw');
             if (needsFilter) {
                 let filtered = rawResult.rows;
                 if (country) {
