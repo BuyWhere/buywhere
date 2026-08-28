@@ -629,7 +629,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
+      // BUY-76552: empty arrays are truthy in JS — skip cache for zero-result
+      // or degraded responses to prevent cache poisoning that perpetuates
+      // transient 0-result outages (cache → serve 0 → cache 0 → …).
+      if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
         // BUY-75411: record cache-hit wall-clock latency so the admin probe
         // can report p95 over the sliding window.
         await recordCacheHitLatency(redis, Date.now() - t0);
