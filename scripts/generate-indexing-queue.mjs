@@ -168,6 +168,11 @@ async function main() {
   const client = new Client({
     connectionString: dbUrl,
     connectionTimeoutMillis: 30000,
+    // Railway internal Postgres uses self-signed certs; skip cert-chain
+    // validation. Only applies to this connection — process-wide env vars
+    // (NODE_TLS_REJECT_UNAUTHORIZED) are avoided to prevent accidental
+    // exposure of other outbound HTTPS calls.
+    ssl: { rejectUnauthorized: false },
   });
 
   try {

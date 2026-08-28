@@ -45,6 +45,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const billing_1 = __importDefault(require("./routes/billing"));
 const products_1 = __importDefault(require("./routes/products"));
 const categories_1 = __importDefault(require("./routes/categories"));
+const brands_1 = __importDefault(require("./routes/brands"));
 const redirect_1 = __importDefault(require("./routes/redirect"));
 const wellknown_1 = __importStar(require("./routes/wellknown"));
 const docs_1 = __importDefault(require("./routes/docs"));
@@ -265,6 +266,7 @@ function createApp() {
     // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
     app.use('/v2/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
+    app.use('/v1/brand', brands_1.default);
     app.use('/v1/merchants', merchants_1.default);
     app.use('/v1/ingest', ingest_1.default);
     // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.

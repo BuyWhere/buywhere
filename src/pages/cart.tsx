@@ -1,9 +1,9 @@
 import type { GetServerSideProps, Metadata } from "next";
 import Head from "next/head";
 import Link from "next/link";
-import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
-import { toSiteUrl } from "@/lib/site-url";
+import Nav from "../components/Nav";
+import Footer from "../components/Footer";
+import { toSiteUrl } from "../lib/site-url";
 
 const CART_DESCRIPTION =
   "Review the products saved to your BuyWhere cart before comparing prices and checking out with the retailer.";
