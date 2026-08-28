@@ -51,6 +51,14 @@ describe('AffiliateLink', () => {
     expect(link).toHaveAttribute('href', '#');
   });
 
+  it('defaults rel to the affiliate-standard nofollow sponsored (BUY-75417)', () => {
+    render(<AffiliateLink productId="123" platform="shopee_sg" href="/r/direct/123">Test Link</AffiliateLink>);
+
+    const link = screen.getByRole('link', { name: /test link/i });
+    expect(link).toHaveAttribute('rel', expect.stringContaining('nofollow'));
+    expect(link).toHaveAttribute('rel', expect.stringContaining('sponsored'));
+  });
+
   it('allows custom target and rel attributes', () => {
     render(<AffiliateLink productId="123" platform="shopee_sg" href="https://example.com" target="_self" rel="nofollow">Test Link</AffiliateLink>);
     
