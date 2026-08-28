@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { db, redis, vectorDb } from '../config';
-import { servingReadDbConnect } from '../lib/readReplica';
+// BUY-76535: search_products uses the primary `db` pool (see handler); the
+// readReplica servingReadDbConnect() is intentionally no longer referenced here.
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -606,18 +607,19 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
-  // 2026-08-22: search reads go to the replica (REPLICA_DATABASE_URL) — the api
-  // tree moved there long ago; this tree still hit the primary and timed out
-  // under ingest/dedupe pressure.
-  // BUY-76535: route through health-aware readDb() (from readReplica.ts) instead
-  // of the unconditional replicaDb pool. readDb() returns the replica only when
-  // WAL-freshness probe confirms it's streaming with zero LSN gap; otherwise it
-  // transparently falls back to the primary `db` pool. This matches the api tree's
-  // servingReadDbConnect() pattern, which already handles replica degradation.
-  // Without this, search_products fails on ALL markets when the replica is
-  // unreachable while get_deals/find_best_price (primary `db`) continue working.
-  // BUY-76553: must use replica which has search_products table
-  const searchClient = await servingReadDbConnect();
+  // BUY-76535 (SEV-1 2026-08-28, ALL-MARKET): search_products is served from the
+  // PRIMARY `db` pool, NOT the read replica. Previously search reads were routed to
+  // the replica (REPLICA_DATABASE_URL / servingReadDbConnect / readDb) for load
+  // spreading. That routing produced the recurring all-market degraded_envelope
+  // (degraded_kind=upstream_exception, degraded_reason=catalog_search): the replica
+  // passes the WAL-freshness probe yet does not serve the data interactive search
+  // needs — search_products browse returns total=0 (products.reltuples=0) while the
+  // primary holds ~365M rows, and FTS fast-fails with upstream_exception on every
+  // market. get_deals/find_best_price (primary `db`) stayed healthy throughout,
+  // isolating replica routing as the SEV-1 source. The primary search_products tier
+  // + GIN FTS path was verified fast (8-650ms). Revisit replicas only after one is
+  // provisioned with a populated search_products tier (BUY-76552/BUY-76643).
+  const searchClient = await db.connect();
 
   // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
   // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
