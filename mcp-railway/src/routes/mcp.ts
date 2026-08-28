@@ -643,24 +643,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // enable_seqscan=off for get_deals/find_best_price (different query patterns).
     const COUNT_CAP = 1001;
     if (q) {
-      // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM search_products sp ${tierWhere} LIMIT ${COUNT_CAP}) _sub`,
-        tierParams
-      );
-      total = parseInt(countResult.rows[0].count, 10);
-      // BUY-73908: if the lexical catalog tier has zero matches, do not let
-      // hybrid/vector recall resurrect unrelated rows for a must-miss query.
-      // The L2 leak was q=zzzz_no_match returning Google Shopping synthetic
-      // rows via vector-only candidates while REST correctly returned no_match.
-      if (total === 0) {
-        rows = [];
-      } else if (useVector) {
-        // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
-        // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
-        // separately, then merge in application code (two separate PG instances).
-        // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
-        let queryVec: string | null = null;
+      // BUY-76553: SKIP separate count query — run the main FTS search directly.
+      // The COUNT(*) subquery was choosing a slow bitmap plan on the replica (26s+
+      // timeout for broad queries like 'laptop', 'phone') while the main FTS CTE
+      // query using the same WHERE clause returns results in <250ms. The CTE
+      // `WITH cand AS (SELECT ... FROM search_products sp WHERE ... LIMIT 1000)`
+      // naturally bounds the scan to 1000 rows and uses the GIN index; the COUNT
+      // wrapper forced a different plan that scanned more of the table.
+      // We derive total from the search results: if rows.length === COUNT_CAP,
+      // total >= COUNT_CAP (capped).
+      let queryVec: string | null = null;
+      if (useVector) {
         try {
           const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
           queryVec = await redis.get(embedKey).catch(() => null);
@@ -857,6 +850,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       }
     }
     await searchClient.query('COMMIT').catch(() => {});
+    // Derive total from search results since we skipped the count query.
+    total = (rows as Record<string, unknown>[] | null)?.length ?? 0;
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
     await searchClient.query('ROLLBACK').catch(() => {});
