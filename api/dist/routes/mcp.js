@@ -556,7 +556,10 @@ async function handleSearchProducts(args, caller) {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (parsed.results) {
+            // BUY-76552: empty arrays are truthy in JS — skip cache for zero-result
+            // or degraded responses to prevent cache poisoning that perpetuates
+            // transient 0-result outages (cache → serve 0 → cache 0 → …).
+            if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
                 // BUY-75411: record cache-hit wall-clock latency so the admin probe
                 // can report p95 over the sliding window.
                 await (0, cacheStats_1.recordCacheHitLatency)(config_1.redis, Date.now() - t0);
@@ -652,19 +655,32 @@ async function handleSearchProducts(args, caller) {
         throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
-        // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
-        // fast into the BUY-74597 degraded envelope rather than holding a pooled
-        // connection across the full client timeout. The GIN bitmap plan must
-        // complete inside this budget; anything longer signals plan regression
-        // or pool exhaustion.
-        // Reduce timeout to protect against runaway queries and increase work_mem
-        // to encourage bitmap GIN plans. Additionally, disable sequential scans for
-        // this short-lived request to force the planner to use the GIN indexes
-        // (search_vector + region/country). This mitigates the observed ~12s
-        // catalog_search latency on SEA markets.
-        await searchClient.query('SET statement_timeout = 4000');
+        // BUY-56185: statement_timeout bounds catalog_search latency.
+        // BUY-76552: raised from 4s to 30s. Under cold-cache conditions the GIN
+        // bitmap plan on the non-partitioned search_products table (96M rows) with
+        // country_code filter takes ~13s for broad queries like 'laptop' (246K+
+        // global matches rechecked against country filter). The 4s timeout caused
+        // every v2 search to throw upstream_exception → degraded 0 results.
+        // 30s matches REST tier timeout headroom while still failing fast vs
+        // runaway queries. The degraded envelope (BUY-74597) still fires on
+        // genuine timeouts beyond 30s.
+        await searchClient.query('BEGIN');
+        await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+        await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+        await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+        await searchClient.query(`SET LOCAL work_mem = '64MB'`);
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-        await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
+        // BUY-76552+BUY-76553: mirror REST tier settings to fix timeout on MCP.
+        // REST uses these settings and works; MCP was timing out without them.
+        await searchClient.query('SET gin_fuzzy_search_limit = 0'); // fuzzy sampling breaks multi-word AND
+        await searchClient.query('SET max_parallel_workers_per_gather = 0'); // disable parallelism to match REST tier behavior
+        // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
+        // The non-partitioned search_products table with country_code filter produces
+        // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
+        // when seqscan is off, pushing the count query past the 12s statement_timeout
+        // under cold-cache conditions. The planner naturally chooses the GIN index
+        // path when it's optimal; forcing it backfires on the tier table. Keep
+        // enable_seqscan=off for get_deals/find_best_price (different query patterns).
         const COUNT_CAP = 1001;
         if (q) {
             // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
@@ -910,9 +926,11 @@ async function handleSearchProducts(args, caller) {
             }
             catch (_) { /* categoryHasAnyDataProbe stays at default */ }
         }
+        await searchClient.query('COMMIT').catch(() => { });
         recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
     }
     catch (e) {
+        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
         console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
@@ -1163,6 +1181,7 @@ async function handleGetDeals(args, caller) {
         recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
     }
     catch (e) {
+        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('get_deals', 'offer_aggregation', effectiveCountry || null);
         console.warn(`[get_deals] BUY-74597: offer_aggregation degraded (${degradedKind}) — returning MCP degraded envelope`);
@@ -1513,6 +1532,7 @@ async function handleFindBestPrice(args) {
         recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
     }
     catch (e) {
+        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
         console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);

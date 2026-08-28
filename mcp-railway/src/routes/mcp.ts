@@ -628,12 +628,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // every v2 search to throw upstream_exception → degraded 0 results.
     // 30s matches REST tier timeout headroom while still failing fast vs
     // runaway queries.
-    await searchClient.query('SET statement_timeout = 30000');
-    await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    // BUY-76552+BUY-76553: mirror REST tier settings to fix timeout on MCP.
-    // REST uses these settings and works; MCP was timing out without them.
-    await searchClient.query('SET gin_fuzzy_search_limit = 0'); // fuzzy sampling breaks multi-word AND
-    await searchClient.query('SET max_parallel_workers_per_gather = 0'); // disable parallelism to match REST tier behavior
+    // BUY-76553: mirror REST tier settings exactly with transaction
+    await searchClient.query('BEGIN');
+    await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+    await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+    await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    await searchClient.query(`SET LOCAL work_mem = '64MB'`);
     // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
     // The non-partitioned search_products table with country_code filter produces
     // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
@@ -856,8 +856,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+    await searchClient.query('COMMIT').catch(() => {});
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
+    await searchClient.query('ROLLBACK').catch(() => {});
     // BUY-74597: classify and return the canonical degraded envelope. Never throw
     // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
     const degradedKind = classifyMcpDegradedKind(err);

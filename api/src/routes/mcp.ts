@@ -741,7 +741,11 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // 30s matches REST tier timeout headroom while still failing fast vs
     // runaway queries. The degraded envelope (BUY-74597) still fires on
     // genuine timeouts beyond 30s.
-    await searchClient.query('SET statement_timeout = 30000');
+    await searchClient.query('BEGIN');
+    await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+    await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+    await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    await searchClient.query(`SET LOCAL work_mem = '64MB'`);
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     // BUY-76552+BUY-76553: mirror REST tier settings to fix timeout on MCP.
     // REST uses these settings and works; MCP was timing out without them.
@@ -1039,8 +1043,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         categoryHasAnyDataProbe = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
       } catch (_) { /* categoryHasAnyDataProbe stays at default */ }
     }
+    await searchClient.query('COMMIT').catch(() => {});
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (e: any) {
+    await searchClient.query('ROLLBACK').catch(() => {});
     const degradedKind = classifyMcpDegradedKind(e);
     recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
     console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
