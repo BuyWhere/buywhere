@@ -138,19 +138,34 @@ async def get_deals(
         }.get(market)
     currency = currency.upper() if currency else None
 
+    # Hard cap: no single deals query should block for more than 8s (BUY-71334).
+    # SQLAlchemy 2.0 autobegin starts a transaction on the first execute, so
+    # SET LOCAL scopes the timeout to this transaction only.
+    try:
+        await db.execute(text("SET LOCAL statement_timeout = '8000'"))
+    except Exception:
+        pass  # Non-fatal — proceed without timeout if the session state doesn't allow it
+
     # BUY-59774 fix: use the generated discount_pct column which is covered by the
     # existing idx_products_partitioned_deals_partial index (partial on discount_pct
     # IS NOT NULL). This avoids the full-seqscan + JSONB-key-exists-check on all
     # 28M US rows that caused statement_timeout on /v1/deals.
+    # BUY-76907 fix: Apply category filter FIRST before discount_pct filter to ensure
+    # correct results. The idx_products_deals_discount_pct index on (currency, discount_pct)
+    # returns results sorted by discount_pct, so filtering by category AFTER the index scan
+    # causes wrong results (e.g. all categories return Beauty because Beauty/SGD dominates).
+    base_query = select(Product).where(Product.is_active == True)
+
+    # Category filter goes FIRST to ensure correct results
+    if category:
+        base_query = base_query.where(Product.category.ilike(f"%{category}%"))
+
     base_query = (
-        select(Product)
-        .where(Product.is_active == True)
+        base_query
         .where(text("discount_pct IS NOT NULL"))
         .where(text("discount_pct >= :min_pct").bindparams(min_pct=threshold_pct))
     )
 
-    if category:
-        base_query = base_query.where(Product.category.ilike(f"%{category}%"))
     if market:
         base_query = base_query.where(Product.country_code == market)
     if currency:
