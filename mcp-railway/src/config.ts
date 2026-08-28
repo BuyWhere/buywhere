@@ -20,6 +20,10 @@ export const db = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
+// Set statement_timeout on new connections to match Railway Postgres default
+db.on('connect', (client) => {
+  client.query(`SET statement_timeout = '4000'`).catch(() => {});
+});
 
 // Replica DB pool for read-heavy operations (e.g., embedding pipeline).
 // Explicitly gated by REPLICA_DATABASE_URL so callers can enforce replica-only
