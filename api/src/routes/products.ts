@@ -2457,17 +2457,48 @@ router.get(
               }] : [];
             });
           }
+          // If product has embedding but KNN found no similar products, return empty with hint
+          if (similar.length === 0 && !timedOut && !res.headersSent) {
+            res.status(404).json({
+              error: 'No similar products found',
+              meta: {
+                reason: 'no_similar_found',
+                message: 'This product has an embedding but no similar products were found in the vector store. Try searching for similar products using /v1/products/search.',
+                source_id: id,
+                response_time_ms: Date.now() - start,
+              },
+            });
+            return;
+          }
         } else {
-          // No embedding yet — fall through to fallback.
+          // No embedding yet — return fast 404 with hint instead of running slow fallback
+          // queries. The fallback brand+category scan on the huge partitioned table times out.
+          // BUY-76467: this is the fast-fail path for unembedded products.
+          if (!timedOut && !res.headersSent) {
+            res.status(404).json({
+              error: 'Product not embedded for similarity search',
+              meta: {
+                reason: 'embedding_pending',
+                message: 'This product does not have a vector embedding yet. Embeddings are generated for high-value products. Try another product that has been recently updated, or search for similar products using /v1/products/search.',
+                source_id: id,
+                response_time_ms: Date.now() - start,
+              },
+            });
+            return;
+          }
           similarityFallback = true;
         }
       } catch (err) {
         console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
         similarityFallback = true;
       }
+    } else {
+      // vectorDb not configured — fall through to fallback
+      similarityFallback = true;
     }
 
     // Phase 2 (fallback): same brand + category, or FTS on title
+    // Only reached when vectorDb is unavailable (not configured), NOT for missing embeddings
     if (similarityFallback || similar.length === 0) {
       const currency = src.currency || 'SGD';
       const sourceCountry = src.country_code || null;
