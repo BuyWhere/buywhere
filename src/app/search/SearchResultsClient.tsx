@@ -1712,8 +1712,8 @@ export default function SearchResultsClient({
   }
 
   return (
-    // BUY-75930: overflow-x hidden prevents horizontal scroll on mobile
-    <div className="flex min-h-screen flex-col overflow-x bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
+    // BUY-75930: overflow-x-hidden prevents horizontal scroll on mobile
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
       <Header />
 
       <main id="main-content" className="flex-1">

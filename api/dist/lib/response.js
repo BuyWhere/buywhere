@@ -19,7 +19,7 @@ exports.CURRENCY_RATES = {
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
 exports.COUNTRY_CURRENCY = {
-    SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+    SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
     PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
     // Single-currency regions stored under EUR/USD on the catalog:
     FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
