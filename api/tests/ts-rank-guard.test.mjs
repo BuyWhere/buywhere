@@ -225,4 +225,31 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
       'Expected releaseClientSafely to call client.release(true) for poisoned connections'
     );
   });
+
+  it('BUY-76520 hybrid fts_cand CTE carries rank cols + qualifies via fts_cand (no bare products.* 42P01)', () => {
+    // Regression: the hybrid FTS query selected only (id, search_vector) into
+    // fts_cand, but the ORDER BY ts_rank(...) * amazonRankMultiplierSql('products', true)
+    // still referenced products.source/price/category/metadata. fts_top's FROM is
+    // fts_cand (not products), so Postgres raised 42P01 -> HTTP 500 on mode=hybrid.
+    const src = readProductsSource();
+    const idx = src.indexOf('searchMode === \'hybrid\'');
+    assert.ok(idx >= 0, 'Expected the searchMode === \'hybrid\' branch in products.ts');
+    const ftsBlock = src.slice(idx, idx + 900);
+    // fts_cand must project every column the rank multiplier dereferences.
+    assert.ok(
+      /SELECT\s+id, search_vector, source, price, category, metadata, updated_at\s+FROM products/.test(ftsBlock),
+      'fts_cand must select id, search_vector, source, price, category, metadata, updated_at FROM products so the rank cols are in scope'
+    );
+    // The fts_top ORDER BY must qualify the rank multiplier via fts_cand, NOT a
+    // bare `products.` alias (which is absent from fts_top's FROM clause).
+    assert.ok(
+      /amazonRankMultiplierSql\(['"]fts_cand['"][,\s]*true\)/.test(ftsBlock),
+      'amazonRankMultiplierSql must be qualified via the fts_cand alias in the hybrid ORDER BY'
+    );
+    const minusProductsRef = ftsBlock.replace(/products\.id/g, '');
+    assert.ok(
+      !/ORDER BY \(ts_rank\(search_vector[^)]*\) \* [^)]*\bproducts\./.test(ftsBlock),
+      'hybrid fts_top ORDER BY must not reference a bare products.* alias (42P01 missing FROM-clause entry)'
+    );
+  });
 });
