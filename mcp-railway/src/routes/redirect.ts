@@ -1,8 +1,38 @@
 import { Router, Request, Response } from 'express';
+import { classifyUserAgent, hashIp, clientIp } from '../lib/botClass';
 import { generateShopeeSgDeeplink, isAffiliateWrapped } from '../lib/involveAsia';
 import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
+
+async function whoClicked(req: Request, apiKey: string | null) {
+  const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+  const cls = classifyUserAgent(ua);
+  const ip = clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } });
+  const ipHash = hashIp(ip);
+  const pick = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
+  const referrer = (pick(req.query.referrer) || pick(req.query.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
+  const sourcePage = pick(req.query.pathname).slice(0, 300) || null;
+  const keyHash = apiKey
+    ? createHash('sha256').update(apiKey).digest('hex')
+    : (pick(req.query.k) || null);
+  const aidQuery = pick(req.query.aid) || null;
+  let keyId: string | null = aidQuery;
+  if (keyHash && !keyId) {
+    try { const r = await db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]); keyId = r.rows[0]?.id ?? null; } catch { /* best effort */ }
+  }
+  const internalIpHashes = new Set(
+    ['168.144.134.188', ...(process.env.BUYWHERE_INTERNAL_EGRESS_IPS || '').split(',')]
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map((v) => hashIp(v))
+      .filter((v): v is string => Boolean(v)),
+  );
+  const isProbeHeader = String(req.headers['x-buywhere-probe'] || '') === '1';
+  const isInternal = isProbeHeader || (ipHash ? internalIpHashes.has(ipHash) : false);
+  const family = isInternal ? 'internal' : cls.family;
+  return { ua, family, ipHash, referrer, sourcePage, keyHash, keyId, isInternal };
+}
 
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -121,18 +151,22 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   let apiKey: string | null = null;
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
   const source = req.query.source as string || 'api_response';
+  const who = await whoClicked(req, apiKey);
 
   // Log click to DB (before redirect)
   await db.query(
     `INSERT INTO affiliate_clicks
-       (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
+       (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+        user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+     who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal]
   );
 
   // PostHog event (fire-and-forget)
   // Hash API key before sending to third-party analytics
   trackAffiliateClick({
+    apiKeyId: who.keyId,
     apiKey: apiKey ? hashKey(apiKey) : null,
     productId,
     merchantId,

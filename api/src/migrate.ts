@@ -135,6 +135,13 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS agent_framework TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS ip_hash TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
 
 -- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
 CREATE TABLE IF NOT EXISTS url_probe_log (
@@ -153,6 +160,8 @@ CREATE TABLE IF NOT EXISTS url_probe_log (
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
+  ON affiliate_clicks(clicked_at, agent_framework, is_internal);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
@@ -576,6 +585,15 @@ export async function runMigrations() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_dead_at TIMESTAMPTZ;
       ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS user_agent TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS agent_framework TEXT NOT NULL DEFAULT 'unknown';
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS ip_hash TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
+      CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
+        ON affiliate_clicks(clicked_at, agent_framework, is_internal);
       CREATE TABLE IF NOT EXISTS url_probe_log (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         product_id TEXT NOT NULL,
