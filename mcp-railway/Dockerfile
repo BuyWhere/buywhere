@@ -2,11 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY mcp-railway/package.json mcp-railway/package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
-COPY src/ ./src/
+COPY mcp-railway/tsconfig.json ./
+COPY mcp-railway/src/ ./src/
 
 RUN npm run build
 RUN npm prune --production
