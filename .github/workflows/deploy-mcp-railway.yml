@@ -42,14 +42,19 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
+          # Railway project tokens use Project-Access-Token header (not Authorization: Bearer)
+          echo "Token prefix: ${RAILWAY_TOKEN:0:10}..."
+          set -x
           RESP=$(curl -sf "$GQL" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
             -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          set +x
+          echo "Response: $RESP"
           DID=$(echo "$RESP" | python3 -c "import json,sys; resp=json.load(sys.stdin); errors=resp.get('errors') or []; deploy_id=(resp.get('data') or {}).get('serviceInstanceDeployV2'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; (print(deploy_id) if deploy_id else (print('::error::Railway serviceInstanceDeployV2 returned no deployment id', file=sys.stderr), sys.exit(1)))")
           echo "deployment: $DID"
           for i in $(seq 1 25); do
-            S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            S=$(curl -sf "$GQL" -H "Project-Access-Token: $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
               -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
               | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
