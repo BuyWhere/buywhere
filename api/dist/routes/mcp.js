@@ -1389,6 +1389,30 @@ async function handleListCategories(args) {
         categoryListInflight.delete(country);
     }
 }
+// BUY-76206: normalize find_best_price product queries before they reach
+// plainto_tsquery / buildDeviceFilter. Strips trailing price/shipping/store
+// noise and collapses whitespace so ranking is driven by the product noun,
+// not spurious lexemes (mirrors the queryPreprocessor the search_products
+// path uses). Kept inline here to avoid a cross-tree import; the full
+// queryPreprocessor port is tracked under BUY-76206.
+const FBP_NOISE_TERMS = [
+    'price', 'prices', 'cheap', 'cheapest', 'best', 'buy', 'preorder', 'pre-order',
+    'official', 'original', 'genuine', 'sale', 'deal', 'discount', 'ship', 'shipping',
+    'free ship', 'in stock', 'stock', 'new', 'warranty', 'sg', 'singapore', 'store',
+    'shop', 'online', 'fast', 'delivery', 'near me',
+    '$', 's$', 'us$', 'rm', '฿', '₫', 'php', 'idr',
+];
+function normalizeFbpQuery(raw) {
+    let q = raw.toLowerCase()
+        .replace(/\b(?:s|us|rm)?[$฿₫]\s?\d{1,3}(?:,\d{3})*\.?\d*\b/g, ' ')
+        .replace(/[$฿₫]/g, ' ')
+        .replace(/[^\p{L}\p{N}\s-]/gu, ' ');
+    for (const t of FBP_NOISE_TERMS) {
+        q = q.replace(new RegExp(`\\b${t.replace(/[$฿₫]/g, '\\$&')}\\b`, 'g'), ' ');
+    }
+    q = q.split(' ').filter(tok => !/^\d{4,}$/.test(tok)).join(' ');
+    return q.replace(/\s+/g, ' ').trim();
+}
 async function handleFindBestPrice(args) {
     const t0 = Date.now();
     void args.deliver_to;
@@ -1403,8 +1427,11 @@ async function handleFindBestPrice(args) {
     const region = market.rawRegion;
     const category = args.category || '';
     const limit = 10;
+    // BUY-76206: rank on a noise-stripped query; keep the raw productName for the
+    // response envelope and any downstream text matching.
+    const searchName = normalizeFbpQuery(productName) || productName;
     // BUY-67522: infer exact device-family queries and reject accessory results.
-    const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(productName, country);
+    const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(searchName, country);
     const CANDIDATE_POOL = Math.max(limit * 50, 500);
     // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
     if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
@@ -1448,7 +1475,8 @@ async function handleFindBestPrice(args) {
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
         const tierConditions = [];
         const tierParams = [];
-        tierParams.push(productName);
+        // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
+        tierParams.push(searchName);
         tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
         tierParams.push(requestedCountry);
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
@@ -1463,13 +1491,16 @@ async function handleFindBestPrice(args) {
         const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
         tierParams.push(CANDIDATE_POOL, limit);
         result = await bestPriceClient.query(`WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at
+         SELECT sp.id, sp.price, sp.updated_at,
+                ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
          FROM search_products sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
-         SELECT id, price, updated_at
+         SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
+         ORDER BY rk DESC NULLS LAST,
+                  (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
+                  updated_at DESC
          LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
@@ -1561,6 +1592,12 @@ async function handleFindBestPrice(args) {
     let medianUsd = null;
     let minAllowedUsd = null;
     let finalRows = result ? result.rows.filter(r => !isAccessory(r)) : [];
+    // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
+    // rather than returning empty. The SQL found products; returning nothing is
+    // worse than returning accessories (the user can refine the query).
+    if (finalRows.length === 0 && result && result.rows.length > 0) {
+        finalRows = result.rows;
+    }
     if (finalRows.length >= 3) {
         const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
         const mid = Math.floor(sortedUsd.length / 2);

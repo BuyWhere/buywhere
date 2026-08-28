@@ -123,7 +123,7 @@ async function upsertWatermark(
              ELSE embed_watermark.zero_ticks + 1
            END,
            updated_at = NOW()`,
-    [partitionName, nextWatermark, rowsEmbedded]
+    [partitionName, nextWatermark, rowsEmbedded, zeroTicks]
   );
 }
 
