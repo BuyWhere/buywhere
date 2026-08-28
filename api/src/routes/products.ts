@@ -1617,29 +1617,8 @@ router.get(
         const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
         const savedSemVec = res.locals.semVec as string | null;
 
-        // Fire hybrid FTS immediately — independent of embed, no dependencies
-        let ftsResult: { rows: Array<{ id: string }> } = { rows: [] };
-        const ftsPromise = searchMode === 'hybrid'
-          ? client.query<{ id: string }>(
-              `WITH fts_cand AS MATERIALIZED (
-                 SELECT id, search_vector
-                 FROM products
-                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                 LIMIT ${CANDIDATE_CAP}
-               ), fts_top AS (
-                 SELECT id
-                 FROM fts_cand
-                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
-                 LIMIT 200
-               )
-               SELECT id FROM fts_top`,
-              searchParams
-            ).then((r) => { ftsResult = r; }).catch((err) => {
-              console.warn('[search] FTS failed in hybrid path:', (err as Error)?.message || err);
-            })
-          : Promise.resolve();
-
-        // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN
+        // Embed + KNN: may hit Gemini API (100-500ms cold) then vector DB KNN.
+        // Runs on activeVectorDb (vector DB pool) — independent of client.
         let queryVector: string | null = null;
         let semanticCandidates: { rows: Array<{ product_id: string }> } = { rows: [] };
         let embedFailed = false;
@@ -1669,6 +1648,31 @@ router.get(
         // timeout in the hybrid FTS candidate query does not leave the transaction
         // in ABORTED state and break the fail-open FTS fallback.
         await client.query('SAVEPOINT before_vector');
+
+        // BUY-56117: Fire hybrid FTS AFTER savepoint — the FTS query runs on
+        // `client` (same connection as the savepoint), so it must be issued after.
+        let ftsResult: { rows: Array<{ id: string }> } = { rows: [] };
+        const ftsPromise = searchMode === 'hybrid'
+          ? client.query<{ id: string }>(
+              `WITH fts_cand AS MATERIALIZED (
+                 SELECT id, search_vector
+                 FROM products
+                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                 LIMIT ${CANDIDATE_CAP}
+               ), fts_top AS (
+                 SELECT id
+                 FROM fts_cand
+                 ORDER BY (ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * ${amazonRankMultiplierSql('products', true)}) DESC
+                 LIMIT 200
+               )
+               SELECT id FROM fts_top`,
+              searchParams
+            ).then((r) => { ftsResult = r; }).catch((err) => {
+              console.warn('[search] FTS failed in hybrid path:', (err as Error)?.message || err);
+            })
+          : Promise.resolve();
+
+        // Await both in parallel — FTS on client, KNN on vectorDb
         await Promise.all([ftsPromise, knnPromise]);
 
         if (queryVector && !embedFailed) {
