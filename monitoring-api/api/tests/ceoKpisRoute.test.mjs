@@ -1,4 +1,5 @@
 // BUY-75445: route-level smoke tests for GET /api/monitoring/ceo_kpis.
+// BUY-77109: extended to cover the three P6.1 acceptance-gate columns.
 // Run with: node --test api/tests/ceoKpisRoute.test.mjs
 //
 // These tests stub the pg pool so the route can be exercised without a
@@ -69,6 +70,9 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           mcp_v2_external_agent_calls_with_deliver_to_24h: '38',
           mcp_v2_external_agent_calls_with_deliver_to_7d: '275',
           mcp_v2_external_agent_calls_with_deliver_to_30d: '1170',
+          affiliate_click_intent_page_total_24h: '127',
+          intent_page_r_link_density_avg_24h: '6.4000000000000000',
+          affiliate_redirect_success_rate_24h: '0.987654',
         }],
       }),
     };
@@ -92,6 +96,11 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
     assert.equal(k.mcp_v2_external_agent_calls_with_deliver_to_24h, '38');
     assert.equal(k.mcp_v2_external_agent_calls_with_deliver_to_7d, '275');
     assert.equal(k.mcp_v2_external_agent_calls_with_deliver_to_30d, '1170');
+
+    // BUY-77109 P6.1 acceptance-gate fields
+    assert.equal(k.affiliate_click_intent_page_total_24h, '127');
+    assert.equal(k.intent_page_r_link_density_avg_24h, '6.4000000000000000');
+    assert.equal(k.affiliate_redirect_success_rate_24h, '0.987654');
 
     // Pre-existing fields preserved verbatim.
     assert.equal(k.silently_empty_rate_24h, '0.000000');
@@ -118,6 +127,9 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           mcp_v2_external_agent_calls_with_deliver_to_24h: '0',
           mcp_v2_external_agent_calls_with_deliver_to_7d: '0',
           mcp_v2_external_agent_calls_with_deliver_to_30d: '0',
+          affiliate_click_intent_page_total_24h: '0',
+          intent_page_r_link_density_avg_24h: '0',
+          affiliate_redirect_success_rate_24h: null,
         }],
       }),
     };
@@ -157,6 +169,9 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           mcp_v2_external_agent_calls_with_deliver_to_24h: '0',
           mcp_v2_external_agent_calls_with_deliver_to_7d: '0',
           mcp_v2_external_agent_calls_with_deliver_to_30d: '0',
+          affiliate_click_intent_page_total_24h: '0',
+          intent_page_r_link_density_avg_24h: '0',
+          affiliate_redirect_success_rate_24h: null,
         }] };
       },
     };
@@ -168,8 +183,9 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
     await route.handler(req, res);
     assert.equal(res.body.window, '24h');
 
-    // The SQL should still request all six BUY-75445 fields regardless of the
-    // window param (the view itself filters by window length).
+    // The SQL should still request all six BUY-75445 fields + the three
+    // BUY-77109 fields regardless of the window param (the view itself
+    // filters by window length).
     for (const col of [
       'mcp_v2_external_agent_calls_24h',
       'mcp_v2_external_agent_calls_7d',
@@ -177,6 +193,9 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
       'mcp_v2_external_agent_calls_with_deliver_to_24h',
       'mcp_v2_external_agent_calls_with_deliver_to_7d',
       'mcp_v2_external_agent_calls_with_deliver_to_30d',
+      'affiliate_click_intent_page_total_24h',
+      'intent_page_r_link_density_avg_24h',
+      'affiliate_redirect_success_rate_24h',
     ]) {
       assert.ok(capturedSql.includes(col), `SQL missing column ${col}`);
     }

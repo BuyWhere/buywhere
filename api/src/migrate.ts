@@ -142,6 +142,12 @@ ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
 ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
 ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
 ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
+-- BUY-77109: HTTP response status code emitted by the /r/ handler (302/403/410).
+-- Powers the P6.1 acceptance-gate success-rate KPI in monitoring.v_ceo_kpis.
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS redirect_status_code SMALLINT;
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_status_clicked_at
+  ON affiliate_clicks(redirect_status_code, clicked_at DESC)
+  WHERE redirect_status_code IS NOT NULL;
 
 -- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
 CREATE TABLE IF NOT EXISTS url_probe_log (
@@ -592,6 +598,12 @@ export async function runMigrations() {
       ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
       ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
       ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
+      -- BUY-77109: HTTP response status code emitted by the /r/ handler (302/403/410).
+      -- Powers the P6.1 acceptance-gate success-rate KPI in monitoring.v_ceo_kpis.
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS redirect_status_code SMALLINT;
+      CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_status_clicked_at
+        ON affiliate_clicks(redirect_status_code, clicked_at DESC)
+        WHERE redirect_status_code IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
         ON affiliate_clicks(clicked_at, agent_framework, is_internal);
       CREATE TABLE IF NOT EXISTS url_probe_log (
