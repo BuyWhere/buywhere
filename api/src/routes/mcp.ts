@@ -1721,8 +1721,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
     tierParams.push(searchName);
     tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
-    tierParams.push(requestedCountry);
-    tierConditions.push(`sp.country_code = $${tierParams.length}`);
     if (region) {
       tierParams.push(region);
       tierConditions.push(`sp.region = $${tierParams.length}`);
@@ -1733,17 +1731,25 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
-    // BUY-76909: hydrate from the country child table when one exists — PK joins
-    // against the bloated 373M-row products parent time out even with indexes.
+    // BUY-76909: route candidates AND hydration to the country child table when one
+    // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
+    // joins even with indexes, and search_products ids do not overlap child-table ids
+    // for recent ingest (verified live: SG ids up to ~1.15e18 there, ≤37M here), so
+    // cross-tier joins return 0 rows. The child table has a GIN index on search_vector
+    // and (post-BUY-77453 DDL) a btree on (id) — full query answers in ~15ms.
     const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
-    const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
+    const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
+    if (!useChildTable) {
+      tierParams.push(requestedCountry);
+      tierConditions.push(`sp.country_code = $${tierParams.length}`);
+    }
 
     tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
          SELECT sp.id, sp.price, sp.updated_at,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM search_products sp ${tierWhere}
+         FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
@@ -1757,7 +1763,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       JOIN ${tbl} p ON p.id = pi.id
+       JOIN ${tierTable} p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       tierParams

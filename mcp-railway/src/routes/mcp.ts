@@ -1033,7 +1033,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     });
   }
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${category}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${(args.category as string || '').trim()}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1412,10 +1412,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
   tierParams.push(searchName);
   tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
-  if (country) {
-    tierParams.push(country);
-    tierConditions.push(`sp.country_code = $${tierParams.length}`);
-  }
   if (region) {
     tierParams.push(region);
     tierConditions.push(`sp.region = $${tierParams.length}`);
@@ -1429,13 +1425,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     tierParams.push(deviceFilter.minLocal);
     tierConditions.push(`sp.price >= $${tierParams.length}`);
   }
-  const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
-  // BUY-76909: route the hydrating join + ILIKE fallback to the country child
-  // table when one exists — PK joins against the bloated 373M-row parent time out.
+  // BUY-76909: route candidates AND hydration to the country child table when one
+  // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
+  // joins even with indexes, and search_products ids do not overlap child-table ids
+  // for recent ingest (verified live), so cross-tier joins return 0 rows. The child
+  // table has a GIN index on search_vector and (post-BUY-77453 DDL) a btree on (id)
+  // — the full query answers in ~15ms.
   const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+  const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
   const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
+  if (!useChildTable && country) {
+    tierParams.push(country);
+    tierConditions.push(`sp.country_code = $${tierParams.length}`);
+  }
+  const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -1457,7 +1462,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       `WITH cand AS (
          SELECT sp.id, sp.price, sp.updated_at,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM search_products sp ${tierWhere}
+         FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
