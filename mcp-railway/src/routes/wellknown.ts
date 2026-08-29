@@ -63,7 +63,7 @@ const A2A_AGENT_CARD = {
   protocols: {
     mcp: {
       serverUrl: 'https://api.buywhere.ai/mcp',
-      transport: 'sse',
+      transport: 'streamable-http',
     },
   },
   contact: {
