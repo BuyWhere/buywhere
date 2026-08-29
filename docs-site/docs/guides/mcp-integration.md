@@ -170,5 +170,5 @@ BuyWhere exposes standard discovery endpoints for AI agent platforms:
 ## Next Steps
 
 - [Getting Started](/) — get your API key and make your first call
-- [API Reference](/api-reference/search) — full endpoint documentation
-- [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart
+- [API Reference](/docs/api-reference/search) — full endpoint documentation
+- [Build a Price Comparison Tool](/docs/guides/price-comparison) — Python quickstart

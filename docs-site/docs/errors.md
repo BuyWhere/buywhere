@@ -120,7 +120,7 @@ The response includes retry information:
 }
 ```
 
-**How to handle:** Wait `retry_after` seconds before retrying. Use exponential backoff starting at 2 seconds. See [Authentication](/authentication#exceeding-the-limit) for a retry code example.
+**How to handle:** Wait `retry_after` seconds before retrying. Use exponential backoff starting at 2 seconds. See [Authentication](/docs/authentication#exceeding-the-limit) for a retry code example.
 
 ### 422 — Validation Error
 

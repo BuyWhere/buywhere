@@ -13,7 +13,7 @@ This endpoint requires a **Pro** or **Enterprise** tier API key.
 GET /v1/products/compare
 ```
 
-Batch fetch multiple products by their IDs in a single request. Use the [Compare Products](/api-reference/compare) endpoint with a list of IDs.
+Batch fetch multiple products by their IDs in a single request. Use the [Compare Products](/docs/api-reference/compare) endpoint with a list of IDs.
 
 For bulk data use cases, provide up to 10 product UUIDs:
 
@@ -26,7 +26,7 @@ curl -s "https://api.buywhere.ai/v1/products/compare?ids=id1,id2,id3,id4,id5" \
 
 ## Response
 
-Returns the same response format as [Compare Products](/api-reference/compare), with full product details for each ID.
+Returns the same response format as [Compare Products](/docs/api-reference/compare), with full product details for each ID.
 
 ## Error Responses
 

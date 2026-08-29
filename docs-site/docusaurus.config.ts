@@ -30,7 +30,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          routeBasePath: '/',
+          routeBasePath: '/docs/',
         },
         blog: false,
         theme: {
@@ -41,7 +41,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/buywhere-social-card.png',
+    image: 'https://docs.buywhere.ai/img/buywhere-social-card.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -60,6 +60,12 @@ const config: Config = {
           position: 'left',
         },
         {
+          href: 'https://github.com/buywhere/buywhere-api',
+          position: 'right',
+          className: 'header-github-link',
+          'aria-label': 'GitHub repository',
+        },
+        {
           href: 'https://buywhere.ai/api-keys',
           label: 'Get API Key',
           position: 'right',
@@ -72,21 +78,22 @@ const config: Config = {
         {
           title: 'Documentation',
           items: [
-            { label: 'Getting Started', to: '/' },
-            { label: 'API Reference', to: '/api-reference/search' },
-            { label: 'Error Reference', to: '/errors' },
+            { label: 'Getting Started', to: '/docs/getting-started' },
+            { label: 'API Reference', to: '/docs/api-reference/search' },
+            { label: 'Error Reference', to: '/docs/errors' },
           ],
         },
         {
           title: 'Guides',
           items: [
-            { label: 'Price Comparison Tool', to: '/guides/price-comparison' },
-            { label: 'MCP Integration', to: '/guides/mcp-integration' },
+            { label: 'Price Comparison Tool', to: '/docs/guides/price-comparison' },
+            { label: 'MCP Integration', to: '/docs/guides/mcp-integration' },
           ],
         },
         {
           title: 'Links',
           items: [
+            { label: 'GitHub', href: 'https://github.com/buywhere/buywhere-api' },
             { label: 'buywhere.ai', href: 'https://buywhere.ai' },
             { label: 'Pricing', href: 'https://buywhere.ai/pricing' },
             { label: 'Status', href: 'https://status.buywhere.ai' },

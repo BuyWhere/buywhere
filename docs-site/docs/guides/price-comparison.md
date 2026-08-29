@@ -144,6 +144,6 @@ comparison = compare(top_ids)
 
 ## Next Steps
 
-- [API Reference](/api-reference/search) — full search parameter documentation
-- [MCP Integration](/guides/mcp-integration) — connect BuyWhere to AI agents
-- [Error Reference](/errors) — handle errors gracefully
+- [API Reference](/docs/api-reference/search) — full search parameter documentation
+- [MCP Integration](/docs/guides/mcp-integration) — connect BuyWhere to AI agents
+- [Error Reference](/docs/errors) — handle errors gracefully
