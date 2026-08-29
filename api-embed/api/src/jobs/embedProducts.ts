@@ -120,13 +120,11 @@ async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
     // BUY-76567: check embedding_v2 first (new 1024-dim pipeline); fall back
     // to embedding (old 512-dim) for products not yet migrated.
     const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
-      `SELECT product_id, COALESCE(
-        (SELECT text_hash FROM product_embeddings pe2
-         WHERE pe2.product_id = product_embeddings.product_id
-         AND pe2.embedding_v2 IS NOT NULL
-         LIMIT 1),
-        text_hash
-      ) AS text_hash FROM product_embeddings`
+      // BUY-76567 fix (2026-08-29): only rows that already carry a 1024-dim
+      // vector count as up to date. The old COALESCE fell back to the Gemini
+      // row's hash, so all 6.4M legacy products were skipped forever and
+      // semantic search could never gain coverage.
+      `SELECT product_id, text_hash FROM product_embeddings WHERE embedding_v2 IS NOT NULL`
     );
     for (const r of rows) out.set(r.product_id, r.text_hash);
   } catch (err) {
