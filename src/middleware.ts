@@ -620,6 +620,14 @@ export async function middleware(request: NextRequest) {
   // route and remains the sitemap canonical; SG single-segment slugs stay 410'd
   // above because their page is still client-only thin content.
 
+  // BUY-77001: Skip trailing-slash redirect for /r/ and /go/ paths — these are
+  // handled by the Express server (api/src/routes/redirect.ts) and should not
+  // be canonicalized by the Next.js middleware. Without this, /r/?u=... gets
+  // redirected to /r?u=... which returns 404.
+  if (pathname.startsWith("/r/") || pathname.startsWith("/go/")) {
+    return next();
+  }
+
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.
   // GSC flagged 9 URL pairs (BUY-55695) where slash and non-slash variants both
   // returned HTTP 200 and were indexed as duplicates.  The previous rewrite
