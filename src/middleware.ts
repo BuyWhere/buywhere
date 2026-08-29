@@ -806,29 +806,27 @@ export async function middleware(request: NextRequest) {
       );
       if (!apiRes.ok) {
         // Any non-2xx from the upstream brand API (including 500 on non-existent
-        // slugs) means no brand data exists for this slug. Return a hard 404
-        // rather than letting the page render a 200 soft-404 shell.
+        // slugs) means no brand data exists for this slug. Redirect to the branded
+        // not-found page instead of returning a 0-byte 404 (BUY-75133).
         // The upstream /v1/brand/:slug currently returns 500 (not 404) for
         // unknown slugs due to a backend bug — catch all non-OK responses here.
-        return tagAgent(new NextResponse(null, {
-          status: 404,
-          statusText: "Brand Not Found",
-          headers: { "X-Robots-Tag": "noindex, nofollow" },
-        }));
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        url.searchParams.set("type", "brand");
+        url.searchParams.set("slug", slug);
+        return tagAgent(NextResponse.redirect(url, 302));
       }
     } catch {
       // BUY-75133: probe failure OR timeout = no brand data for this slug. The
       // upstream /v1/brand/{slug} hangs ~30s and returns 500 (never a real brand
       // page) for the placeholder slugs that were de-sitemapped in 8d1804055,
-      // so the 3s AbortSignal fires here before the 404/500 arrives. Falling
-      // through lets the page render a 200 "Temporarily Unavailable" soft-404
-      // shell — the anti-pattern this issue fixes. Hard-404 instead. These slugs
-      // are permanently non-existent in the catalog, so a hard 404 is honest.
-      return tagAgent(new NextResponse(null, {
-        status: 404,
-        statusText: "Brand Not Found",
-        headers: { "X-Robots-Tag": "noindex, nofollow" },
-      }));
+      // so the 3s AbortSignal fires here before the 404/500 arrives. Redirect to
+      // the branded not-found page instead of returning a 0-byte 404 (BUY-75133).
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "brand");
+      url.searchParams.set("slug", slug);
+      return tagAgent(NextResponse.redirect(url, 302));
     }
   }
 
