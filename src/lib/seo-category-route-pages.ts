@@ -28,9 +28,20 @@ function routeFallbackProducts(legacyConfig?: SeoLandingPageConfig) {
 }
 
 export function buildBestCategoryRouteConfig(category: string): SeoLandingPageConfig {
+  // BUY-77342: first check if a matching seoLandingPages entry exists directly
+  // (e.g. "laptop-singapore" with country=SG, currency=SGD). If so, use its
+  // country/currency/locale/searchQuery so the page fetches the right products.
+  const knownConfig = seoLandingPages[category];
   const legacyConfig = seoLandingPages[`best-${category}-us`];
   const categoryLabel = sentenceCaseSlug(category);
   const titleLabel = titleCaseSlug(category);
+
+  // Resolved country/currency: prefer a known seoLandingPages entry, fall back
+  // to defaults.  This prevents /best/laptop-singapore from querying "best
+  // laptop-singapore" with country=US and rendering zero affiliate links.
+  const country = knownConfig?.country ?? DEFAULT_COUNTRY;
+  const currency = knownConfig?.currency ?? DEFAULT_CURRENCY;
+  const locale = knownConfig?.locale ?? DEFAULT_LOCALE;
 
   return {
     slug: `best-${category}`,
@@ -40,12 +51,12 @@ export function buildBestCategoryRouteConfig(category: string): SeoLandingPageCo
     heroTitle: `Best ${categoryLabel.toLowerCase()} to compare first`,
     heroBody: `Start with the best ${categoryLabel.toLowerCase()} shortlist, then compare live prices, merchants, and availability before you buy.`,
     canonicalPath: `/best/${category}`,
-    country: DEFAULT_COUNTRY,
-    currency: DEFAULT_CURRENCY,
-    locale: DEFAULT_LOCALE,
-    searchQuery: `best ${category.replace(/-/g, " ")}`,
-    backupQueries: [category.replace(/-/g, " ")],
-    refreshedLabel: legacyConfig?.refreshedLabel ?? "Live prices updated regularly",
+    country,
+    currency,
+    locale,
+    searchQuery: knownConfig?.searchQuery ?? `best ${category.replace(/-/g, " ")}`,
+    backupQueries: knownConfig?.backupQueries ?? [category.replace(/-/g, " ")],
+    refreshedLabel: knownConfig?.refreshedLabel ?? legacyConfig?.refreshedLabel ?? "Live prices updated regularly",
     productSectionTitle: `Live ${categoryLabel.toLowerCase()} to compare`,
     comparisonSectionTitle: `How to compare ${categoryLabel.toLowerCase()}`,
     comparisonColumns: ["Signal", "Why it matters", "What to check"],
