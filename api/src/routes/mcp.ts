@@ -741,6 +741,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // 30s matches REST tier timeout headroom while still failing fast vs
     // runaway queries. The degraded envelope (BUY-74597) still fires on
     // genuine timeouts beyond 30s.
+    // 2026-08-29: a pooled connection can arrive already inside an aborted transaction
+    // (poisoned by a statement_timeout on another route sharing this pool). Clearing it
+    // costs nothing and prevents 25P02 from failing every MCP query.
+    await searchClient.query('ROLLBACK').catch(() => {});
     await searchClient.query('BEGIN');
     await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
     await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
