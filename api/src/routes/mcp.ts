@@ -1013,7 +1013,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           [q]
         );
         unfilteredHasAnyData = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
-      } catch (_) {
+      } catch (probeErr: any) {
+        console.warn(`[search_products] unfiltered probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+        await searchClient.query('ROLLBACK TO SAVEPOINT probe_unfiltered').catch(() => {});
         unfilteredHasAnyData = null;
       }
     }
@@ -1021,15 +1023,27 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // errors so the empty envelope still lands when the DB is healthy but the
     // query is the issue.
     if (country) {
+      // 2026-08-29: these best-effort probes ran bare inside the search transaction and
+      // swallowed their errors. One failing probe left the transaction ABORTED, so every
+      // later statement returned 25P02 and the whole MCP surface answered 0 results with
+      // an opaque "upstream_exception". SAVEPOINT keeps a probe failure local, and the
+      // reason is logged instead of discarded.
+      await searchClient.query('SAVEPOINT probe_region').catch(() => {});
+      await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => {});
       try {
         const probe = await searchClient.query(
           `SELECT EXISTS (SELECT 1 FROM products WHERE is_active = true AND country_code = $1 LIMIT 1) AS any_match`,
           [country.toUpperCase()]
         );
         regionHasAnyDataProbe = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
-      } catch (_) { /* regionHasAnyDataProbe stays at default */ }
+        await searchClient.query('RELEASE SAVEPOINT probe_region').catch(() => {});
+      } catch (probeErr: any) {
+        console.warn(`[search_products] region probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+        await searchClient.query('ROLLBACK TO SAVEPOINT probe_region').catch(() => {});
+      }
     }
     if (category) {
+      await searchClient.query('SAVEPOINT probe_category').catch(() => {});
       try {
         const probe = await searchClient.query(
           `SELECT EXISTS (
@@ -1041,7 +1055,11 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           [`%${category.toLowerCase()}%`]
         );
         categoryHasAnyDataProbe = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
-      } catch (_) { /* categoryHasAnyDataProbe stays at default */ }
+        await searchClient.query('RELEASE SAVEPOINT probe_category').catch(() => {});
+      } catch (probeErr: any) {
+        console.warn(`[search_products] category probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+        await searchClient.query('ROLLBACK TO SAVEPOINT probe_category').catch(() => {});
+      }
     }
     await searchClient.query('COMMIT').catch(() => {});
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
