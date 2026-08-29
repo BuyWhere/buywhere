@@ -13,7 +13,22 @@ import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 const BASE_URL = "https://buywhere.ai";
 
 // Country tokens to strip from searchQuery when building verdict sentences.
-const COUNTRY_TOKENS_TO_STRIP = ["Singapore", "SG", "United States", "US"];
+const COUNTRY_TOKENS_TO_STRIP = ["Singapore", "SG", "United States", "US", "Malaysia", "MY", "Australia", "AU", "UK", "United Kingdom"];
+
+// BUY-74862 Day 2: type-safe country metadata replacing hardcoded US/SG branches.
+// Every place that did `country === "US" ? "US" : "SG"` or similar must use
+// this map so MY/AU/UK are handled correctly without another round of patching.
+const COUNTRY_CONFIG: Record<CountryCode, {
+  readonly geoRegion: string;
+  readonly geoPlacename: string;
+  readonly ogLocaleAlternate: string;
+}> = {
+  US: { geoRegion: "US", geoPlacename: "United States", ogLocaleAlternate: "en_SG" },
+  SG: { geoRegion: "SG", geoPlacename: "Singapore", ogLocaleAlternate: "en_US" },
+  MY: { geoRegion: "MY", geoPlacename: "Malaysia", ogLocaleAlternate: "en_SG" },
+  AU: { geoRegion: "AU", geoPlacename: "Australia", ogLocaleAlternate: "en_GB" },
+  UK: { geoRegion: "GB", geoPlacename: "United Kingdom", ogLocaleAlternate: "en_AU" },
+};
 
 /**
  * Strips country tokens from a searchQuery string.
@@ -1499,8 +1514,7 @@ export function buildSeoLandingMetadata(
     }
   }
 
-  const ogLocaleAlternate =
-    config.country === "US" ? "en_SG" : "en_US";
+  const countryCfg = COUNTRY_CONFIG[config.country];
 
   // BUY-67622 v4: when generateMetadata threads the live products through, use
   // the resolved hero title (the live catalog floor price) for the <title>,
@@ -1518,10 +1532,10 @@ export function buildSeoLandingMetadata(
       languages,
     },
     other: {
-      "geo.region": config.country === "US" ? "US" : "SG",
-      "geo.placename": config.country === "US" ? "United States" : "Singapore",
+      "geo.region": countryCfg.geoRegion,
+      "geo.placename": countryCfg.geoPlacename,
       "content-language": config.locale.replace("_", "-"),
-      "og:locale:alternate": ogLocaleAlternate,
+      "og:locale:alternate": countryCfg.ogLocaleAlternate,
     },
     openGraph: {
       title: seoTitle,

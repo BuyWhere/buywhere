@@ -24,7 +24,7 @@
  * confirmed US- or SG-bound.
  */
 
-export type CountryCode = "US" | "SG";
+export type CountryCode = "US" | "SG" | "MY" | "AU" | "UK";
 
 // BUY-73640: every US storefront slug known to ship in the catalog. The slug
 // field is the raw upstream merchant id (`newegg_us`, `walmart_us`, …) that
@@ -162,9 +162,145 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "takashimaya_sg",
 ]);
 
+// BUY-74862 Day 2: Malaysia storefront slugs. MY pages surface
+// Shopee MY / Lazada MY / Amazon MY / Harvey Norman MY / Courts MY / etc.
+const MY_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "shopee_my",
+  "shopee",
+  "lazada_my",
+  "lazada",
+  "amazon_my",
+  "amazon",
+  "harvey_norman_my",
+  "harvey_norman",
+  "courts_my",
+  "courts",
+  "best_denki_my",
+  "best_denki",
+  "senheng_my",
+  "senheng",
+  "上手价_my",
+  "上手价",
+  "apple_my",
+  "apple",
+  "samsung_my",
+  "samsung",
+  "sony_my",
+  "sony",
+  "dyson_my",
+  "dyson",
+  "logitech_my",
+  "logitech",
+  "asus_my",
+  "asus",
+  "lenovo_my",
+  "lenovo",
+  "hp_my",
+  "hp",
+  "msi_my",
+  "msi",
+  "xiaomi_my",
+  "xiaomi",
+  "philips_my",
+  "philips",
+  "lg_my",
+  "lg",
+]);
+
+// BUY-74862 Day 2: Australia storefront slugs. AU pages surface
+// Amazon AU / JB Hi-Fi / Harvey Norman AU / JB Hi-Fi / The Good Guys / etc.
+const AU_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "amazon_au",
+  "amazon",
+  "jb_hi_fi_au",
+  "jb_hi_fi",
+  "jbhifi",
+  "harvey_norman_au",
+  "harvey_norman",
+  "the_good_guys_au",
+  "the_good_guys",
+  "good_guys",
+  "jb_hi_fi",
+  "harvey_norman",
+  "apple_au",
+  "apple",
+  "samsung_au",
+  "samsung",
+  "sony_au",
+  "sony",
+  "dyson_au",
+  "dyson",
+  "logitech_au",
+  "logitech",
+  "asus_au",
+  "asus",
+  "lenovo_au",
+  "lenovo",
+  "hp_au",
+  "hp",
+  "msi_au",
+  "msi",
+  "bose_au",
+  "bose",
+  "lg_au",
+  "lg",
+  "kogan_au",
+  "kogan",
+  "指定_au",
+  "指定",
+]);
+
+// BUY-74862 Day 2: United Kingdom storefront slugs. UK pages surface
+// Amazon UK / Currys / Argos / John Lewis / AO.com / Very / etc.
+const UK_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "amazon_uk",
+  "amazon",
+  "currys_uk",
+  "currys",
+  "argos_uk",
+  "argos",
+  "john_lewis_uk",
+  "john_lewis",
+  "ao_uk",
+  "ao",
+  "very_uk",
+  "very",
+  "ao_com",
+  "argospc",
+  "apple_uk",
+  "apple",
+  "samsung_uk",
+  "samsung",
+  "sony_uk",
+  "sony",
+  "dyson_uk",
+  "dyson",
+  "logitech_uk",
+  "logitech",
+  "asus_uk",
+  "asus",
+  "lenovo_uk",
+  "lenovo",
+  "hp_uk",
+  "hp",
+  "msi_uk",
+  "msi",
+  "bose_uk",
+  "bose",
+  "lg_uk",
+  "lg",
+  "mediamarkt_uk",
+  "mediamarkt",
+  "curryspc",
+  "ao_com",
+]);
+
 const MERCHANT_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
   US: US_MERCHANT_SLUGS,
   SG: SG_MERCHANT_SLUGS,
+  MY: MY_MERCHANT_SLUGS,
+  AU: AU_MERCHANT_SLUGS,
+  UK: UK_MERCHANT_SLUGS,
 };
 
 /**
@@ -371,9 +507,79 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "best denki",
 ]);
 
+const MY_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "shopee",
+  "lazada",
+  "amazon",
+  "harvey norman",
+  "courts",
+  "best denki",
+  "senheng",
+  "上手价",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "xiaomi",
+  "philips",
+  "lg",
+]);
+
+const AU_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "amazon",
+  "jb hi-fi",
+  "jbhifi",
+  "harvey norman",
+  "the good guys",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "bose",
+  "lg",
+  "kogan",
+  "指定",
+]);
+
+const UK_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "amazon",
+  "currys",
+  "currys pc world",
+  "argos",
+  "john lewis",
+  "ao.com",
+  "ao",
+  "very",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "bose",
+  "lg",
+  "mediamarkt",
+]);
+
 const MERCHANT_LABEL_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
   US: US_ALLOWED_MERCHANT_LABELS,
   SG: SG_ALLOWED_MERCHANT_LABELS,
+  MY: MY_ALLOWED_MERCHANT_LABELS,
+  AU: AU_ALLOWED_MERCHANT_LABELS,
+  UK: UK_ALLOWED_MERCHANT_LABELS,
 };
 
 function labelMatchesCountry(label: string, country: CountryCode): boolean {
