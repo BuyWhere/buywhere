@@ -13,7 +13,7 @@ import { createHash } from 'crypto';
 const FLOWAI_EMBED_URL = (process.env.FLOWAI_API_BASE || 'https://api.flowaiapi.com') + '/v1/embeddings';
 const MODEL_VER        = 'flow-embed-1@1024';
 const EMBED_DIM        = 1024;
-const BATCH_SIZE       = 100;   // Flow AI accepts up to 100 strings per call
+const BATCH_SIZE       = 64;    // measured 2026-08-29: Flow AI 400s above 64 strings per call
 const MAX_TEXT_CHARS    = 8000;
 
 export interface EmbedSummary {
