@@ -228,7 +228,10 @@ async function filterVectorCandidatesByMarket(
   if (!country && !region) return candidateIds;
 
   const params: unknown[] = [candidateIds];
-  const conditions = ['id = ANY($1::uuid[])', 'is_active = true'];
+  // products.id is bigint. The old ::uuid[] cast raised
+  // 'operator does not exist: bigint = uuid', which aborted the enclosing search
+  // transaction and made every hybrid/semantic MCP query return 0 results.
+  const conditions = ['id = ANY($1::bigint[])', 'is_active = true'];
   if (country) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
@@ -246,6 +249,9 @@ async function filterVectorCandidatesByMarket(
     return candidateIds.filter(id => allowed.has(id));
   } catch (err) {
     console.warn('[search] vector candidate market filter failed, using global set:', (err as Error).message);
+    // Roll back to the vector-stage savepoint so a filter failure cannot poison the
+    // caller's transaction (the reason hybrid used to return a degraded envelope).
+    await client.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => {});
     return candidateIds;
   }
 }
