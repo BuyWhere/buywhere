@@ -36,6 +36,12 @@ import { startV2RequestLog, recordV2Request, buildV2RequestRow } from '../monito
 // BUY-73521: start funnel writer on module load (idempotent).
 startShoppingJobFunnel();
 
+// BUY-76909: Countries whose standalone child tables answer FTS in <100ms. The
+// parent `products` table has 373M rows / 297GB with severe bloat (11M dead
+// tuples), so the hydrating PK-join against it times out. Route the FBP final
+// join to products_partitioned_{cc} for these countries.
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','MY','TH','VN','PH','ID','GB','CA','AU','IN','IT','ES','MX','ZA','BR','NZ','NL','PL','SE','CH','DK','JP','DE','FR','IE','NO','BE','AT','PT']);
+
 // BUY-72550: start v2 request log writer on module load (idempotent).
 startV2RequestLog();
 
@@ -1727,6 +1733,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
+    // BUY-76909: hydrate from the country child table when one exists — PK joins
+    // against the bloated 373M-row products parent time out even with indexes.
+    const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+    const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
+
     tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
@@ -1746,7 +1757,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       JOIN products p ON p.id = pi.id
+       JOIN ${tbl} p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       tierParams

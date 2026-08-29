@@ -42,6 +42,16 @@ const V2_BUYER_TOOLS = new Set([
   'get_deals_v2',
 ]);
 
+// BUY-76909: Countries whose standalone child tables answer FTS in <100ms. The
+// parent `products` table has 373M rows / 297GB with severe bloat (11M dead
+// tuples), so PK-joins and fallback scans against it time out. Route the FBP
+// final join + ILIKE fallback to products_partitioned_{cc} for these countries.
+const FAST_CHILD_TABLE_COUNTRIES = new Set([
+  'SG','US','MY','TH','VN','PH','ID','GB','CA','AU','IN','IT','ES','MX',
+  'ZA','BR','NZ','NL','PL','SE','CH','DK','JP','DE','FR','IE','NO',
+  'BE','AT','PT',
+]);
+
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
@@ -1421,6 +1431,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
   const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
+  // BUY-76909: route the hydrating join + ILIKE fallback to the country child
+  // table when one exists — PK joins against the bloated 373M-row parent time out.
+  const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+  const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
+
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
@@ -1455,7 +1471,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       JOIN products p ON p.id = pi.id
+       JOIN ${tbl} p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       tierParams
@@ -1464,13 +1480,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
       const titlePattern = `%${productName}%`;
-      const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+      // requestedCountry already declared above for BUY-76909 child-table routing
       const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
       result = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at, category, category_path, metadata
-           FROM products
+           FROM ${tbl}
            WHERE is_active = true AND price > 0
              AND country_code = $1
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
