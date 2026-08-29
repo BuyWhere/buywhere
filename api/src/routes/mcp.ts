@@ -2271,8 +2271,30 @@ function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string 
   return { apiKeyId: rec.id, keyHash: createHash('sha256').update(rec.key).digest('hex') };
 }
 
+
+// 2026-08-29: agents chain tools using whatever key the previous tool returned, and our
+// own tools disagree: search takes `query`/`q`, get_product takes `id`, find_similar takes
+// `product_id`, compare takes `ids` in v2 but `product_ids` in v1, and find_best_price
+// accepted `q`/`product_name` but NOT `query` — so the natural call
+// find_best_price_v2({query}) failed with -32602 while search_products_v2({query}) worked.
+// Normalise the common aliases once, at dispatch, so every tool accepts every spelling.
+function normalizeToolArgAliases(args: Record<string, unknown>) {
+  const alias = (from: string, to: string) => {
+    if (args[to] === undefined && args[from] !== undefined) args[to] = args[from];
+  };
+  alias('query', 'q');
+  alias('q', 'query');
+  alias('q', 'product_name');
+  alias('product_name', 'q');
+  alias('product_id', 'id');
+  alias('id', 'product_id');
+  alias('product_ids', 'ids');
+  alias('ids', 'product_ids');
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>, caller?: ReturnType<typeof callerContextForUrl>) {
   normalizeMarketArg(args);
+  normalizeToolArgAliases(args);
   switch (name) {
     case 'search_products':  return handleSearchProducts(args, caller);
     case 'get_product':      return handleGetProduct(args, caller);
