@@ -3,7 +3,7 @@
   "title": "Best gaming laptops in the US (2026) — live prices, GPU tiers and what to buy",
   "description": "The best gaming laptops to buy in the US right now: live prices from Amazon, Best Buy and Newegg, with expert guidance on GPU tier, thermals, screen quality and which RTX generation is worth the premium in 2026.",
   "heroEyebrow": "US gaming laptop buying guide",
-  "heroTitle": "Best gaming laptops in the US — 2026 live price comparison",
+  "heroTitle": "Best gaming laptops in the US (2026) — 2026 live price comparison",
   "heroTitleTemplate": "Best gaming laptops in the US — RTX options from {floorPrice}",
   "heroBody": "Choosing a gaming laptop in 2026 is more complicated than it looks. The GPU is still the most important component — an RTX 5070 laptop handles current games at high settings comfortably, an RTX 5080 or 5090 pushes 4K and high-refresh on the most demanding titles — but thermal design, screen quality and keyboard feel vary enormously between models at the same GPU tier, and a poorly cooled RTX 5080 laptop can feel slower than a well-designed RTX 5070. This page pulls live US prices from BuyWhere's catalog so you can see what is actually in stock and how prices move at major retailers.",
   "canonicalPath": "/best-gaming-laptops-us",
@@ -11,27 +11,82 @@
   "currency": "USD",
   "locale": "en_US",
   "searchQuery": "gaming laptop",
-  "backupQueries": ["RTX gaming laptop", "NVIDIA gaming laptop", "gaming notebook"],
+  "backupQueries": [
+    "RTX gaming laptop",
+    "NVIDIA gaming laptop",
+    "gaming notebook"
+  ],
   "minPrice": 500,
-  "requiredProductTerms": ["gaming", "laptop", "rtx"],
+  "requiredProductTerms": [
+    "gaming",
+    "laptop",
+    "rtx"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 29, 2026",
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-29",
   "productSectionTitle": "Live gaming laptop prices in the US",
   "comparisonSectionTitle": "Gaming laptop GPU tiers — what you get at each level",
-  "comparisonColumns": ["GPU tier", "1080p gaming", "1440p gaming", "4K gaming", "Best value at"],
+  "comparisonColumns": [
+    "GPU tier",
+    "1080p gaming",
+    "1440p gaming",
+    "4K gaming",
+    "Best value at"
+  ],
   "comparisonRows": [
-    { "label": "RTX 5060 / RTX 4060", "values": ["High/ultra 60+ fps", "Medium/high 60 fps", "Not recommended", "Best value — entry-level"] },
-    { "label": "RTX 5070 / RTX 4070", "values": ["Ultra 120+ fps", "High/ultra 120 fps", "Medium/high 60 fps", "Sweet spot — mid-tier"] },
-    { "label": "RTX 5080 / RTX 4080", "values": ["Ultra 165+ fps", "Ultra 144 fps", "High/ultra 120 fps", "Enthusiast — upper mid"] },
-    { "label": "RTX 5090 / RTX 4090", "values": ["Ultra 240 fps", "Ultra 240 fps", "Ultra 144 fps", "No-compromise — flagship"] }
+    {
+      "label": "RTX 5060 / RTX 4060",
+      "values": [
+        "High/ultra 60+ fps",
+        "Medium/high 60 fps",
+        "Not recommended",
+        "Best value — entry-level"
+      ]
+    },
+    {
+      "label": "RTX 5070 / RTX 4070",
+      "values": [
+        "Ultra 120+ fps",
+        "High/ultra 120 fps",
+        "Medium/high 60 fps",
+        "Sweet spot — mid-tier"
+      ]
+    },
+    {
+      "label": "RTX 5080 / RTX 4080",
+      "values": [
+        "Ultra 165+ fps",
+        "Ultra 144 fps",
+        "High/ultra 120 fps",
+        "Enthusiast — upper mid"
+      ]
+    },
+    {
+      "label": "RTX 5090 / RTX 4090",
+      "values": [
+        "Ultra 240 fps",
+        "Ultra 240 fps",
+        "Ultra 144 fps",
+        "No-compromise — flagship"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed with gaming laptops in 2026",
   "highlights": [
-    { "title": "RTX 50-series laptops are now the mainstream pick", "body": "The RTX 5070 laptop is the new sweet spot for 1440p gaming in 2026 — it matches or beats the RTX 4080 laptop of two years ago at a significantly lower price and thermals. If you are buying a gaming laptop now and budget allows, the RTX 5070 tier is where to aim. Older RTX 40-series stock is still available at discounts but is running out." },
-    { "title": "240 Hz screens are now standard on mid-range models", "body": "A 240 Hz IPS panel — once a premium feature on flagship RTX 50-series machines — is now common on mid-range RTX 5070 laptops. If you play competitive shooters or fast-twitch games, 240 Hz at 1080p or 1440p is worth prioritising over a 165 Hz OLED panel that costs more but runs at 60 Hz in HDR." },
-    { "title": "Battery life has improved — but gaming still drains fast", "body": "Newer RTX 50-series laptops use more efficient power states that extend battery life in productivity mode significantly. Most can now manage 6–8 hours of office work with the dGPU off. But gaming mode on any gaming laptop will drain a battery in under two hours; always game near a power outlet." }
+    {
+      "title": "RTX 50-series laptops are now the mainstream pick",
+      "body": "The RTX 5070 laptop is the new sweet spot for 1440p gaming in 2026 — it matches or beats the RTX 4080 laptop of two years ago at a significantly lower price and thermals. If you are buying a gaming laptop now and budget allows, the RTX 5070 tier is where to aim. Older RTX 40-series stock is still available at discounts but is running out."
+    },
+    {
+      "title": "240 Hz screens are now standard on mid-range models",
+      "body": "A 240 Hz IPS panel — once a premium feature on flagship RTX 50-series machines — is now common on mid-range RTX 5070 laptops. If you play competitive shooters or fast-twitch games, 240 Hz at 1080p or 1440p is worth prioritising over a 165 Hz OLED panel that costs more but runs at 60 Hz in HDR."
+    },
+    {
+      "title": "Battery life has improved — but gaming still drains fast",
+      "body": "Newer RTX 50-series laptops use more efficient power states that extend battery life in productivity mode significantly. Most can now manage 6–8 hours of office work with the dGPU off. But gaming mode on any gaming laptop will drain a battery in under two hours; always game near a power outlet."
+    }
   ],
   "adviceSectionTitle": "How to buy a gaming laptop in the US without regret",
   "advicePoints": [
@@ -44,16 +99,38 @@
   ],
   "faqSectionTitle": "Gaming laptops in the US — common questions",
   "faqs": [
-    { "question": "Should I buy an RTX 5080 laptop or wait for prices to drop?", "answer": "If you need a machine now, RTX 5080 laptops are at their retail price. The RTX 5090 launch drove some RTX 5080 prices down slightly, but significant discounts will not appear until the RTX 60-series launch in 2027. The RTX 5070 remains the better value for most buyers." },
-    { "question": "Is a gaming laptop better than a gaming desktop?", "answer": "For portability and the ability to game anywhere, yes. For pure performance per dollar, a desktop with the same GPU tier will outperform a laptop by 15–30% because of thermals and power limits. If you only game at a desk, build or buy a desktop." },
-    { "question": "Do gaming laptops overheat?", "answer": "All gaming laptops run hot under sustained load — 80–95°C on the GPU is normal and within spec. What matters is whether the CPU and GPU can maintain their rated clock speeds under load (thermal throttling). Good thermal design keeps both components at or near their boost clocks. Check reviews for throttling tests before buying." },
-    { "question": "What screen size is best for a gaming laptop?", "answer": "15.6-inch is the most common and balances portability with immersion; 16-inch is the sweet spot if you want a numpad or slightly larger display without sacrificing too much portability; 17.3-inch is for buyers who prioritise screen size and rarely move the machine." }
+    {
+      "question": "Should I buy an RTX 5080 laptop or wait for prices to drop?",
+      "answer": "If you need a machine now, RTX 5080 laptops are at their retail price. The RTX 5090 launch drove some RTX 5080 prices down slightly, but significant discounts will not appear until the RTX 60-series launch in 2027. The RTX 5070 remains the better value for most buyers."
+    },
+    {
+      "question": "Is a gaming laptop better than a gaming desktop?",
+      "answer": "For portability and the ability to game anywhere, yes. For pure performance per dollar, a desktop with the same GPU tier will outperform a laptop by 15–30% because of thermals and power limits. If you only game at a desk, build or buy a desktop."
+    },
+    {
+      "question": "Do gaming laptops overheat?",
+      "answer": "All gaming laptops run hot under sustained load — 80–95°C on the GPU is normal and within spec. What matters is whether the CPU and GPU can maintain their rated clock speeds under load (thermal throttling). Good thermal design keeps both components at or near their boost clocks. Check reviews for throttling tests before buying."
+    },
+    {
+      "question": "What screen size is best for a gaming laptop?",
+      "answer": "15.6-inch is the most common and balances portability with immersion; 16-inch is the sweet spot if you want a numpad or slightly larger display without sacrificing too much portability; 17.3-inch is for buyers who prioritise screen size and rarely move the machine."
+    }
   ],
   "searchCategory": "gaming_laptops",
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-SG": "/best-gaming-laptops-singapore" },
-  "inboundLinks": ["/", "/categories", "/compare", "/search"],
-  "categoryIntro": { "heading": "Why 2026 is a good year to buy a gaming laptop", "body": "The GPU shortage that defined the early 2020s is over. RTX 50-series laptops are widely available at or near list price, RTX 40-series stock is clearing at discounts, and OLED screens have become common enough that the premium over IPS is shrinking. Whether you are buying an entry-level RTX 5070 for 1080p competitive gaming or an RTX 5090 for 4K at max settings, the market has good options at every tier — which makes it worth comparing live prices rather than relying on a review written months ago." },
+  "hreflangAlternates": {
+    "en-SG": "/best-gaming-laptops-singapore"
+  },
+  "inboundLinks": [
+    "/",
+    "/categories",
+    "/compare",
+    "/search"
+  ],
+  "categoryIntro": {
+    "heading": "Why 2026 is a good year to buy a gaming laptop",
+    "body": "The GPU shortage that defined the early 2020s is over. RTX 50-series laptops are widely available at or near list price, RTX 40-series stock is clearing at discounts, and OLED screens have become common enough that the premium over IPS is shrinking. Whether you are buying an entry-level RTX 5070 for 1080p competitive gaming or an RTX 5090 for 4K at max settings, the market has good options at every tier — which makes it worth comparing live prices rather than relying on a review written months ago."
+  },
   "owner": "Venture",
   "reviewer": "Hue",
   "queueRow": 20
