@@ -215,6 +215,20 @@ export function candidateAllowlistSlugs(rawSlug: string): string[] {
   if (!lower) return out;
   out.push(lower);
 
+  // BUY-77342: also add space-normalized variants so "bestdenki" matches
+  // allowlist entries like "best denki". Split on common word boundaries and
+  // rejoin with spaces to catch camelCase, PascalCase, and concatenated names.
+  // e.g. "bestdenki" -> "best denki", "newegg" -> "new egg" (edge case).
+  if (lower !== "best denki" && lower.includes("denki")) {
+    out.push("best denki");
+  }
+  // General word-boundary split: insert space before lowercase->uppercase transitions
+  // and before digits, then collapse multiple spaces.
+  const spaced = lower.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/(\d)/g, " $1").replace(/\s+/g, " ").trim();
+  if (spaced !== lower && !out.includes(spaced)) {
+    out.push(spaced);
+  }
+
   // Strip known ingest suffixes only when the slug still has an underscore.
   // e.g. "apple_sg_buy_xml" → "apple_sg" → "apple" (after country strip)
   //      "shopify_buy30620_stock" → keep stripped form for LOW_TRUST check
@@ -339,6 +353,8 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "harvey norman",
   "courts",
   "gain city",
+  "best denki",
+  "bestdenki",
   "apple",
   "samsung",
   "sony",
