@@ -69,11 +69,7 @@ const AGENT_JSON = {
       serverUrl: 'https://api.buywhere.ai/mcp',
       transport: 'streamable-http',
       notes:
-        'Canonical MCP endpoint for JSON-RPC over HTTP POST.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
+        'Canonical MCP endpoint: JSON-RPC over HTTP POST (Streamable HTTP).',
     },
     rest: {
       serverUrl: 'https://api.buywhere.ai/v1',
