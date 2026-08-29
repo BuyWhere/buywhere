@@ -23,9 +23,9 @@
     "apple"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Prices checked August 29, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live iPhone 17 prices in the US",
   "comparisonSectionTitle": "Where the iPhone 17 is cheapest — at a glance",
   "comparisonColumns": [
@@ -106,10 +106,50 @@
     }
   ],
   "fallbackProducts": [
-    { "id": "f1", "name": "Apple iPhone 17 Pro", "price": 999, "currency": "USD", "merchant": "Apple Store", "imageUrl": null, "href": "/search?q=iPhone+17+Pro&country=us", "brand": "Apple", "category": "Smartphone" },
-    { "id": "f2", "name": "Apple iPhone 17 Pro Max", "price": 1199, "currency": "USD", "merchant": "Apple Store", "imageUrl": null, "href": "/search?q=iPhone+17+Pro+Max&country=us", "brand": "Apple", "category": "Smartphone" },
-    { "id": "f3", "name": "Apple iPhone 17", "price": 799, "currency": "USD", "merchant": "Apple Store", "imageUrl": null, "href": "/search?q=iPhone+17&country=us", "brand": "Apple", "category": "Smartphone" },
-    { "id": "f4", "name": "Apple iPhone 17 Plus", "price": 899, "currency": "USD", "merchant": "Best Buy", "imageUrl": null, "href": "/search?q=iPhone+17+Plus&country=us", "brand": "Apple", "category": "Smartphone" }
+    {
+      "id": "f1",
+      "name": "Apple iPhone 17 Pro",
+      "price": 999,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=iPhone+17+Pro&country=us",
+      "brand": "Apple",
+      "category": "Smartphone"
+    },
+    {
+      "id": "f2",
+      "name": "Apple iPhone 17 Pro Max",
+      "price": 1199,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=iPhone+17+Pro+Max&country=us",
+      "brand": "Apple",
+      "category": "Smartphone"
+    },
+    {
+      "id": "f3",
+      "name": "Apple iPhone 17",
+      "price": 799,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=iPhone+17&country=us",
+      "brand": "Apple",
+      "category": "Smartphone"
+    },
+    {
+      "id": "f4",
+      "name": "Apple iPhone 17 Plus",
+      "price": 899,
+      "currency": "USD",
+      "merchant": "Best Buy",
+      "imageUrl": null,
+      "href": "/search?q=iPhone+17+Plus&country=us",
+      "brand": "Apple",
+      "category": "Smartphone"
+    }
   ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-iphone-17-singapore"
