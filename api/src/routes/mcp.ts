@@ -2563,14 +2563,17 @@ function parseUuidBytes(uuid: string): Uint8Array {
 
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result, request_id: randomUUID(), timestamp: new Date().toISOString() };
+  // BUY-benchmark 2026-08-29: JSON-RPC 2.0 permits only jsonrpc/id/result|error at the top
+  // level. request_id/timestamp here made the official MCP Inspector exit 1 and any strict
+  // client reject the response. Diagnostics belong in headers, not the envelope.
+  return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) }, request_id: randomUUID(), timestamp: new Date().toISOString() };
+  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).

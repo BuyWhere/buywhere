@@ -9,8 +9,7 @@ const AI_AGENT_DESCRIPTOR = {
   description: 'Agent-native product catalog API — 300M+ products, 900,000+ direct merchants worldwide, location-aware deliver_to ranking',
   version: '1.0',
   protocols: {
-    mcp: 'https://api.buywhere.ai/mcp/sse',
-    a2a: 'https://api.buywhere.ai/.well-known/agent.json',
+    mcp: 'https://api.buywhere.ai/mcp',
     rest: 'https://api.buywhere.ai/v1',
   },
   auth: {
@@ -96,11 +95,7 @@ const A2A_AGENT_CARD = {
       serverUrl: 'https://api.buywhere.ai/mcp',
       transport: 'streamable-http',
       notes:
-        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
+        'Canonical MCP endpoint: JSON-RPC over HTTP POST (Streamable HTTP).',
     },
     rest: {
       serverUrl: 'https://api.buywhere.ai/v1',
@@ -528,8 +523,8 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
     servers: [
       {
         url: 'https://api.buywhere.ai/mcp',
-        description: 'Production MCP endpoint (Streamable HTTP + SSE)',
-        transport: ['streamable-http', 'sse'],
+        description: 'Production MCP endpoint (Streamable HTTP)',
+        transport: ['streamable-http'],
       },
     ],
     tools: [
