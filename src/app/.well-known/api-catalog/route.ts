@@ -29,7 +29,6 @@ const apiCatalog = {
       mcp: {
         endpoint: "https://api.buywhere.ai/mcp",
         transport: "streamable-http",
-        legacySseEndpoint: "https://api.buywhere.ai/mcp/sse",
         tools: [
           {
             name: "search_products",
