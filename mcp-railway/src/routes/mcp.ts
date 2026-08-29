@@ -628,7 +628,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Each query shape gets its own named statement; same shape = same name =
   // server caches the parse. Different param counts get different names.
   let _spQueryCounter = 0;
-  function spQuery<T = any>(sql: string, values: unknown[], nameSuffix: string): Promise<import('pg').QueryResult<T>> {
+  function spQuery<T extends import('pg').QueryResultRow = any>(sql: string, values: unknown[], nameSuffix: string): Promise<import('pg').QueryResult<T>> {
     return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
   }
 
