@@ -542,7 +542,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${category}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -584,6 +584,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
+  // BUY-77178: category filter
+  const category = (args.category as string || '').trim();
+  if (category) {
+    params.push(category.toLowerCase());
+    conditions.push(`LOWER(category) = $${params.length}`);
+  }
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'

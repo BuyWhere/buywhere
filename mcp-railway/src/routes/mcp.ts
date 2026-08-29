@@ -1023,7 +1023,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     });
   }
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${category}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1062,6 +1062,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
   if (country) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
+  }
+
+  // BUY-77178: category filter
+  const category = (args.category as string || '').trim();
+  if (category) {
+    params.push(category.toLowerCase());
+    conditions.push(`LOWER(category) = $${params.length}`);
   }
 
   const discountSelect = useDiscountCol

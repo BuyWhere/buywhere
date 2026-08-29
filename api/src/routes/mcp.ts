@@ -1224,7 +1224,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     });
   }
 
-  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${category}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1263,6 +1263,13 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   if (effectiveCountry) {
     params.push(effectiveCountry);
     conditions.push(`country_code = $${params.length}`);
+  }
+
+  // BUY-77178: category filter
+  const category = (args.category as string || '').trim();
+  if (category) {
+    params.push(category.toLowerCase());
+    conditions.push(`LOWER(category) = $${params.length}`);
   }
 
   const whereClause = conditions.join(' AND ');
