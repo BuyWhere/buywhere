@@ -24,9 +24,9 @@ type DocsFrontmatter = {
 };
 
 type DocRouteParams = {
-  params: {
+  params: Promise<{
     slug: string[];
-  };
+  }>;
 };
 
 type DocRecord = {
@@ -156,7 +156,8 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: DocRouteParams): Promise<Metadata> {
-  const doc = getDocBySlug(params.slug);
+  const { slug } = await params;
+  const doc = getDocBySlug(slug);
 
   if (!doc) {
     return {
@@ -201,8 +202,9 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
   };
 }
 
-export default function DocPage({ params }: DocRouteParams) {
-  const doc = getDocBySlug(params.slug);
+export default async function DocPage({ params }: DocRouteParams) {
+  const { slug } = await params;
+  const doc = getDocBySlug(slug);
   const allDocs = getAllDocs();
 
   if (!doc) {
