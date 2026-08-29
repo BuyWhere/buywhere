@@ -1049,7 +1049,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     await searchClient.query('ROLLBACK').catch(() => {});
     const degradedKind = classifyMcpDegradedKind(e);
     recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-    console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    // 2026-08-29: log the actual error. Without it every failure looked like an
+    // opaque "upstream_exception" and the agent surface returned 0 results silently.
+    console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
     return buildSearchResponse(
       [], 0, limit, offset, Date.now() - t0, false,
       true, undefined, country || null,
@@ -1708,6 +1710,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
   } catch (e: any) {
     const degradedKind = classifyMcpDegradedKind(e);
+    console.warn(`[find_best_price] catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
     return buildMcpDegradedBestPriceResponse({
