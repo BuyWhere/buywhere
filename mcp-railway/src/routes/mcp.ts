@@ -2248,7 +2248,9 @@ function jsonrpcRequestId(_id: unknown): string {
   return randomUUID();
 }
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
+  // JSON-RPC 2.0 allows only jsonrpc/id/result|error at the top level; extra keys make
+  // the official MCP Inspector and strict clients reject the response (2026-08-29).
+  return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
@@ -2258,8 +2260,6 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, 
   return {
     jsonrpc: '2.0',
     id,
-    request_id: jsonrpcRequestId(id),
-    timestamp: new Date().toISOString(),
     error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
   };
 }

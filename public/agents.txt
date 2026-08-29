@@ -8,7 +8,6 @@ Description: Cross-border product discovery with market matching and affiliate a
 
 Protocols: MCP, A2A, HTTP/REST
 MCP-Endpoint: https://api.buywhere.ai/mcp
-A2A-Endpoint: https://api.buywhere.ai/a2a
 REST-Endpoint: https://api.buywhere.ai/v1
 
 Capabilities: product-search, cross-border-match, price-history, merchant-discovery, affiliate-attribution
