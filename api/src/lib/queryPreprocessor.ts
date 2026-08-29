@@ -107,8 +107,8 @@ export function preprocessSearchQuery(
     /(?:between|from)\s+\$?\s*(\d+[.,]?\d*)\s*(?:and|to|-)\s*\$?\s*(\d+[.,]?\d*)/i
   );
   if (rangeMatch) {
-    const a = parseFloat(rangeMatch[1].replace(/,/g, '');
-    const b = parseFloat(rangeMatch[2].replace(/,/g, '');
+    const a = parseFloat(rangeMatch[1].replace(/,/g, ''));
+    const b = parseFloat(rangeMatch[2].replace(/,/g, ''));
     if (!isNaN(a) && !isNaN(b) && a > 0 && b > 0 && b >= a) {
       if (existingMinPrice === undefined) result.extractedMinPrice = a;
       if (existingMaxPrice === undefined) result.extractedMaxPrice = b;
@@ -121,7 +121,7 @@ export function preprocessSearchQuery(
     /(?:under|below|less\s+than|cheaper\s+than|at\s+most|budget|max(?:imum)?)\s+\$?\s*(\d+[.,]?\d*)/i
   );
   if (maxMatch && existingMaxPrice === undefined) {
-    const val = parseFloat(maxMatch[1].replace(/,/g, '');
+    const val = parseFloat(maxMatch[1].replace(/,/g, ''));
     if (!isNaN(val) && val > 0) {
       result.extractedMaxPrice = val;
       workingQuery = workingQuery.replace(maxMatch[0], '').trim();
@@ -133,7 +133,7 @@ export function preprocessSearchQuery(
     /(?:above|over|more\s+than|at\s+least|min(?:imum)?)\s+\$?\s*(\d+[.,]?\d*)/i
   );
   if (minMatch && existingMinPrice === undefined) {
-    const val = parseFloat(minMatch[1].replace(/,/g, '');
+    const val = parseFloat(minMatch[1].replace(/,/g, ''));
     if (!isNaN(val) && val > 0) {
       result.extractedMinPrice = val;
       workingQuery = workingQuery.replace(minMatch[0], '').trim();
