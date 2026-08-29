@@ -1269,7 +1269,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     });
   }
 
-  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${category}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${(args.category as string || '').trim()}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
