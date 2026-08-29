@@ -131,7 +131,7 @@ ext_agent_30d AS (
 -- and the is_internal probe filter so QA traffic doesn't poison the metric.
 affiliate_intent_clicks_24h AS (
   SELECT
-    count(*) FILTER (WHERE redirect_status_code BETWEEN 200 AND 299) AS ok_clicks,
+    count(*) FILTER (WHERE redirect_status_code BETWEEN 200 AND 399) AS ok_clicks,
     count(*)                                                        AS total_clicks
   FROM affiliate_clicks
   WHERE clicked_at >= NOW() - INTERVAL '24 hours'
@@ -158,7 +158,7 @@ intent_page_r_density_24h AS (
 ),
 redirect_success_24h AS (
   SELECT
-    count(*) FILTER (WHERE redirect_status_code BETWEEN 200 AND 299) AS ok_redirects,
+    count(*) FILTER (WHERE redirect_status_code BETWEEN 200 AND 399) AS ok_redirects,
     count(*)                                                        AS total_redirects
   FROM affiliate_clicks
   WHERE clicked_at >= NOW() - INTERVAL '24 hours'
