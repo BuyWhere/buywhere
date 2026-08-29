@@ -63,7 +63,7 @@
     "mcp": {
       "serverUrl": "https://api.buywhere.ai/mcp",
       "transport": "streamable-http",
-      "notes": "Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it."
+      "notes": "Canonical MCP endpoint for JSON-RPC over HTTP POST.buywhere.ai/mcp for SSE clients that explicitly require it."
     },
     "a2a": {
       "serverUrl": "https://api.buywhere.ai/a2a",
