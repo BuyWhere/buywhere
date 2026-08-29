@@ -1,57 +1,130 @@
 {
   "slug": "cheapest-nintendo-switch-2-singapore",
-  "title": "Cheapest Nintendo Switch 2 in Singapore (2026) — Live Prices Compared",
+  "title": "Cheapest Nintendo Switch 2 in Singapore (2026) \u2014 Live Prices Compared",
   "description": "Where the Nintendo Switch 2 console is cheapest in Singapore right now: live prices from Courts, Harvey Norman, Challenger, Shopee Mall and LazMall, with advice on local sets, parallel imports and pre-order timing.",
   "heroEyebrow": "Singapore Nintendo Switch 2 price guide",
-  "heroTitle": "Cheapest Nintendo Switch 2 in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest Nintendo Switch 2 in Singapore — from {floorPrice} today",
+  "heroTitle": "Cheapest Nintendo Switch 2 in Singapore \u2014 2026 live price comparison",
+  "heroTitleTemplate": "2026 Cheapest Nintendo Switch 2 in Singapore \u2014 from {floorPrice} today",
   "heroBody": "The Nintendo Switch 2 launched in Singapore at a higher price point than the original Switch and the pricing has not softened the way many shoppers expected. In 2026, the cheapest Nintendo Switch 2 listing in Singapore tends to come from a marketplace Mall store or a parallel importer rather than from Nintendo's authorised retailers, but the gap between cheapest and safest is wider than it looks. A local set from Courts, Harvey Norman or Challenger carries a Nintendo Singapore warranty; a parallel import relies on the seller's own service. This page pulls live Singapore Nintendo Switch 2 console listings from BuyWhere's catalog every few minutes so you can see the current S$ floor and decide whether the saving is worth the warranty trade-off.",
   "canonicalPath": "/cheapest-nintendo-switch-2-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "Nintendo Switch 2",
-  "backupQueries": ["Nintendo Switch 2 console", "Nintendo Switch 2 Singapore", "Nintendo Switch 2 set", "Switch 2 Singapore", "Nintendo Switch 2 edition"],
+  "backupQueries": [
+    "Nintendo Switch 2 console",
+    "Nintendo Switch 2 Singapore",
+    "Nintendo Switch 2 set",
+    "Switch 2 Singapore",
+    "Nintendo Switch 2 edition"
+  ],
   "minPrice": 300,
-  "requiredProductTerms": ["nintendo", "switch", "console"],
+  "requiredProductTerms": [
+    "nintendo",
+    "switch",
+    "console"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 26, 2026",
   "datePublished": "2026-08-26",
   "dateModified": "2026-08-26",
   "productSectionTitle": "Live Nintendo Switch 2 console prices in Singapore",
-  "comparisonSectionTitle": "Where the Nintendo Switch 2 is cheapest — at a glance",
-  "comparisonColumns": ["Seller type", "Typical price vs list", "Warranty", "Best for"],
+  "comparisonSectionTitle": "Where the Nintendo Switch 2 is cheapest \u2014 at a glance",
+  "comparisonColumns": [
+    "Seller type",
+    "Typical price vs list",
+    "Warranty",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Nintendo / authorised retailers (Courts, Harvey Norman, Challenger)", "values": ["List price, occasional bundle", "1-year Nintendo Singapore", "Safe local-set purchase with warranty"] },
-    { "label": "Shopee Mall / LazMall Nintendo stores", "values": ["Slightly below list on campaign days", "Local warranty if official store", "Voucher stacking and bank promo days"] },
-    { "label": "Amazon.sg", "values": ["Opportunistic discounts", "Check seller and region", "Fast delivery and easy returns"] },
-    { "label": "Parallel importers / smaller marketplace sellers", "values": ["Lowest sticker price", "Shop warranty only", "Buyers who accept no Nintendo service"] }
+    {
+      "label": "Nintendo / authorised retailers (Courts, Harvey Norman, Challenger)",
+      "values": [
+        "List price, occasional bundle",
+        "1-year Nintendo Singapore",
+        "Safe local-set purchase with warranty"
+      ]
+    },
+    {
+      "label": "Shopee Mall / LazMall Nintendo stores",
+      "values": [
+        "Slightly below list on campaign days",
+        "Local warranty if official store",
+        "Voucher stacking and bank promo days"
+      ]
+    },
+    {
+      "label": "Amazon.sg",
+      "values": [
+        "Opportunistic discounts",
+        "Check seller and region",
+        "Fast delivery and easy returns"
+      ]
+    },
+    {
+      "label": "Parallel importers / smaller marketplace sellers",
+      "values": [
+        "Lowest sticker price",
+        "Shop warranty only",
+        "Buyers who accept no Nintendo service"
+      ]
+    }
   ],
   "highlightSectionTitle": "What to know before buying a Nintendo Switch 2 in Singapore",
   "highlights": [
-    { "title": "Console-only vs bundle changes the comparison", "body": "The cheapest Switch 2 listing is often a console-only deal during a Shopee or Lazada campaign day. Bundles that include a game, a case, or an extra Joy-Con are more expensive but are sometimes a better deal for a household that was going to buy those items anyway. Before picking the lowest sticker, check whether the console-only price reflects the bundled listing's value." },
-    { "title": "Warranty and region matter for service", "body": "A Singapore set from Courts, Harvey Norman, Challenger or an authorised Nintendo retailer can be taken to the local Nintendo service centre for hardware faults. A parallel import has no such path — you rely entirely on the marketplace shop. For a console you expect to keep for years, the warranty clarity is usually worth a modest premium over the lowest sticker price." },
-    { "title": "Game and accessory pricing is a separate problem", "body": "The Nintendo Switch 2 game and accessory market in Singapore is still settling, and prices can swing quickly around a major launch. Budget for one or two first-party titles at full retail if you want them at launch — buying a console at the cheapest listing with no game is rarely the best long-term value." }
+    {
+      "title": "Console-only vs bundle changes the comparison",
+      "body": "The cheapest Switch 2 listing is often a console-only deal during a Shopee or Lazada campaign day. Bundles that include a game, a case, or an extra Joy-Con are more expensive but are sometimes a better deal for a household that was going to buy those items anyway. Before picking the lowest sticker, check whether the console-only price reflects the bundled listing's value."
+    },
+    {
+      "title": "Warranty and region matter for service",
+      "body": "A Singapore set from Courts, Harvey Norman, Challenger or an authorised Nintendo retailer can be taken to the local Nintendo service centre for hardware faults. A parallel import has no such path \u2014 you rely entirely on the marketplace shop. For a console you expect to keep for years, the warranty clarity is usually worth a modest premium over the lowest sticker price."
+    },
+    {
+      "title": "Game and accessory pricing is a separate problem",
+      "body": "The Nintendo Switch 2 game and accessory market in Singapore is still settling, and prices can swing quickly around a major launch. Budget for one or two first-party titles at full retail if you want them at launch \u2014 buying a console at the cheapest listing with no game is rarely the best long-term value."
+    }
   ],
   "adviceSectionTitle": "How to pay the least for a Nintendo Switch 2 in Singapore without losing the warranty",
   "advicePoints": [
     "Decide whether you need a warranty before chasing the cheapest price. A Singapore set from a major retailer is the safest path; a parallel import is the cheapest sticker but relies on the seller's own service.",
     "Time the purchase around Shopee 9.9, 10.10, 11.11 and 12.12 if you can wait. Mall stores on those platforms usually price-match the marketplaces within a day or two.",
-    "Compare Amazon.sg carefully — third-party sellers can undercut the Mall stores but shipping, region language and warranty all need checking before checkout.",
+    "Compare Amazon.sg carefully \u2014 third-party sellers can undercut the Mall stores but shipping, region language and warranty all need checking before checkout.",
     "Avoid listings that bundle accessories you would not have bought. A higher sticker that includes a game or a Pro Controller you wanted can be the better deal once you subtract the bundle value.",
     "If you already own the original Switch and want the new console mostly for docked play, weigh whether the Switch 2 OLED or a larger-storage Switch is actually a better fit before spending."
   ],
-  "faqSectionTitle": "Nintendo Switch 2 in Singapore — common questions",
+  "faqSectionTitle": "Nintendo Switch 2 in Singapore \u2014 common questions",
   "faqs": [
-    { "question": "How much is the Nintendo Switch 2 in Singapore right now?", "answer": "In 2026 the list price at authorised retailers is steady, while marketplace and parallel-import listings move with campaigns. Live Singapore console-only listings on this page show the current S$ floor; expect small short-term swings during Shopee and Lazada sales." },
-    { "question": "Does a parallel-import Nintendo Switch 2 come with Nintendo Singapore warranty?", "answer": "No. Parallel imports rely on the marketplace shop's own service policy. If you want the Nintendo Singapore service-centre path, buy from Courts, Harvey Norman, Challenger, the Nintendo SG store or a recognised authorised reseller." },
-    { "question": "When is the Nintendo Switch 2 cheapest in Singapore?", "answer": "Historically around Shopee and Lazada campaign days (9.9, 10.10, 11.11, 12.12) and during major platform sales. Outside those events, the live listings on this page show the current S$ floor." },
-    { "question": "Should I buy a Nintendo Switch 2 bundle or console only?", "answer": "Buy the bundle only if the included game or Pro Controller is something you would have bought anyway. The console-only live price is the right comparison point for an honest deal check." }
+    {
+      "question": "How much is the Nintendo Switch 2 in Singapore right now?",
+      "answer": "In 2026 the list price at authorised retailers is steady, while marketplace and parallel-import listings move with campaigns. Live Singapore console-only listings on this page show the current S$ floor; expect small short-term swings during Shopee and Lazada sales."
+    },
+    {
+      "question": "Does a parallel-import Nintendo Switch 2 come with Nintendo Singapore warranty?",
+      "answer": "No. Parallel imports rely on the marketplace shop's own service policy. If you want the Nintendo Singapore service-centre path, buy from Courts, Harvey Norman, Challenger, the Nintendo SG store or a recognised authorised reseller."
+    },
+    {
+      "question": "When is the Nintendo Switch 2 cheapest in Singapore?",
+      "answer": "Historically around Shopee and Lazada campaign days (9.9, 10.10, 11.11, 12.12) and during major platform sales. Outside those events, the live listings on this page show the current S$ floor."
+    },
+    {
+      "question": "Should I buy a Nintendo Switch 2 bundle or console only?",
+      "answer": "Buy the bundle only if the included game or Pro Controller is something you would have bought anyway. The console-only live price is the right comparison point for an honest deal check."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/cheapest-nintendo-switch-2-us" },
-  "inboundLinks": ["/ps5-price-singapore", "/cheapest-ps5-singapore", "/blog/best-laptop-deals-singapore"],
-  "categoryIntro": { "heading": "Why Nintendo Switch 2 prices in Singapore vary by retailer", "body": "Singapore Nintendo Switch 2 pricing is shaped by the small number of authorised retailers and the much larger number of marketplace and parallel-import sellers. Authorised retailers — Courts, Harvey Norman, Challenger, the Nintendo SG store — keep the list price visible and offer the official warranty. Marketplace Mall stores usually price-match closely and add bank-promo and voucher pathways. Parallel importers and smaller sellers go lowest on sticker and rely on the buyer's tolerance for shop-only warranty and slower service. This page compares live Singapore listings so you can see the real floor and decide which Switch 2 deal is the right one to take." },
+  "hreflangAlternates": {
+    "en-US": "/cheapest-nintendo-switch-2-us"
+  },
+  "inboundLinks": [
+    "/ps5-price-singapore",
+    "/cheapest-ps5-singapore",
+    "/blog/best-laptop-deals-singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why Nintendo Switch 2 prices in Singapore vary by retailer",
+    "body": "Singapore Nintendo Switch 2 pricing is shaped by the small number of authorised retailers and the much larger number of marketplace and parallel-import sellers. Authorised retailers \u2014 Courts, Harvey Norman, Challenger, the Nintendo SG store \u2014 keep the list price visible and offer the official warranty. Marketplace Mall stores usually price-match closely and add bank-promo and voucher pathways. Parallel importers and smaller sellers go lowest on sticker and rely on the buyer's tolerance for shop-only warranty and slower service. This page compares live Singapore listings so you can see the real floor and decide which Switch 2 deal is the right one to take."
+  },
   "owner": "Wave",
   "reviewer": "Fetch",
   "queueRow": 61

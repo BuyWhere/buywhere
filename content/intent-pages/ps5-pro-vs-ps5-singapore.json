@@ -1,42 +1,116 @@
 {
   "slug": "ps5-pro-vs-ps5-singapore",
-  "title": "PS5 Pro vs PS5 in Singapore (2026) — which PlayStation should you buy",
+  "title": "PS5 Pro vs PS5 in Singapore (2026) \u2014 which PlayStation should you buy",
   "description": "PS5 Pro vs the standard PS5 compared for Singapore shoppers: live S$ prices, game performance, 8K/ray-tracing differences, retailer patterns and buying advice for casual, 4K and enthusiast PlayStation owners.",
   "heroEyebrow": "Singapore PlayStation comparison",
-  "heroTitle": "PS5 Pro vs PS5 in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "PS5 Pro vs PS5 in Singapore — from {floorPrice} for the Pro today",
-  "heroBody": "In 2026 the PS5 Pro and the standard PS5 sit in two different value zones in Singapore. The PS5 Pro delivers meaningfully better 4K ray tracing, AI-upscaled image quality and sustained performance in heavier games, which matters to enthusiasts playing on 4K TVs. The standard PS5 is the better value for everyone else, especially anyone still on a 1080p display or a mid-tier 4K set where the Pro's extra GPU headroom is harder to see. In Singapore pricing is split between Sony authorised retailers, telco bundles and marketplace Mall stores — Shopee and Lazada campaigns occasionally beat the standard channels on the standard PS5, while the Pro tends to stay closer to list. This page pulls live PS5 Pro and PS5 console listings from BuyWhere's catalog so you can compare current S$ prices side by side.",
+  "heroTitle": "PS5 Pro vs PS5 in Singapore \u2014 2026 live price comparison",
+  "heroTitleTemplate": "2026 PS5 Pro vs PS5 in Singapore \u2014 from {floorPrice} for the Pro today",
+  "heroBody": "In 2026 the PS5 Pro and the standard PS5 sit in two different value zones in Singapore. The PS5 Pro delivers meaningfully better 4K ray tracing, AI-upscaled image quality and sustained performance in heavier games, which matters to enthusiasts playing on 4K TVs. The standard PS5 is the better value for everyone else, especially anyone still on a 1080p display or a mid-tier 4K set where the Pro's extra GPU headroom is harder to see. In Singapore pricing is split between Sony authorised retailers, telco bundles and marketplace Mall stores \u2014 Shopee and Lazada campaigns occasionally beat the standard channels on the standard PS5, while the Pro tends to stay closer to list. This page pulls live PS5 Pro and PS5 console listings from BuyWhere's catalog so you can compare current S$ prices side by side.",
   "canonicalPath": "/ps5-pro-vs-ps5-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "Sony PlayStation 5 Pro",
-  "backupQueries": ["PS5 Pro Singapore", "PlayStation 5 Pro", "PS5 Pro SG", "PlayStation 5", "Sony PS5"],
+  "backupQueries": [
+    "PS5 Pro Singapore",
+    "PlayStation 5 Pro",
+    "PS5 Pro SG",
+    "PlayStation 5",
+    "Sony PS5"
+  ],
   "minPrice": 400,
-  "requiredProductTerms": ["playstation", "ps5", "console"],
+  "requiredProductTerms": [
+    "playstation",
+    "ps5",
+    "console"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 26, 2026",
   "datePublished": "2026-08-26",
   "dateModified": "2026-08-26",
   "productSectionTitle": "Live PS5 Pro and PS5 prices in Singapore",
-  "comparisonSectionTitle": "PS5 Pro vs PS5 — at a glance",
-  "comparisonColumns": ["Spec / feature", "PS5 Pro", "PS5 (standard)"],
+  "comparisonSectionTitle": "PS5 Pro vs PS5 \u2014 at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "PS5 Pro",
+    "PS5 (standard)"
+  ],
   "comparisonRows": [
-    { "label": "Target resolution", "values": ["4K with AI upscaling, 8K output supported", "4K with dynamic resolution scaling"] },
-    { "label": "Ray tracing", "values": ["Hardware-accelerated RT in more titles at higher fidelity", "Hardware RT in supported titles at lower fidelity"] },
-    { "label": "Storage", "values": ["2 TB SSD standard", "1 TB SSD on the Slim revision; older models ship with 825 GB"] },
-    { "label": "Disc drive", "values": ["Available with disc drive SKU; digital-edition SKUs exist", "Disc and digital editions both sold in Singapore"] },
-    { "label": "Game performance", "values": ["Sustained higher frame rates and 'Performance Pro' modes in patched titles", "Native performance of base PS5 releases; mid-tier fidelity"] },
-    { "label": "Backwards compatibility", "values": ["Plays the full PS5 and supported PS4 library", "Plays the full PS5 and supported PS4 library"] },
-    { "label": "Singapore warranty", "values": ["1-year Sony Singapore via authorised retailer; parallel imports rely on shop warranty", "Same — local set gives Sony Singapore; parallel imports use shop warranty"] },
-    { "label": "Best for", "values": ["Enthusiasts with a 4K TV, gamers chasing Performance Pro modes, owners who keep a console for 5+ years", "Casual and 4K-mid-tier buyers, households adding a second console, anyone valuing price over graphics"] }
+    {
+      "label": "Target resolution",
+      "values": [
+        "4K with AI upscaling, 8K output supported",
+        "4K with dynamic resolution scaling"
+      ]
+    },
+    {
+      "label": "Ray tracing",
+      "values": [
+        "Hardware-accelerated RT in more titles at higher fidelity",
+        "Hardware RT in supported titles at lower fidelity"
+      ]
+    },
+    {
+      "label": "Storage",
+      "values": [
+        "2 TB SSD standard",
+        "1 TB SSD on the Slim revision; older models ship with 825 GB"
+      ]
+    },
+    {
+      "label": "Disc drive",
+      "values": [
+        "Available with disc drive SKU; digital-edition SKUs exist",
+        "Disc and digital editions both sold in Singapore"
+      ]
+    },
+    {
+      "label": "Game performance",
+      "values": [
+        "Sustained higher frame rates and 'Performance Pro' modes in patched titles",
+        "Native performance of base PS5 releases; mid-tier fidelity"
+      ]
+    },
+    {
+      "label": "Backwards compatibility",
+      "values": [
+        "Plays the full PS5 and supported PS4 library",
+        "Plays the full PS5 and supported PS4 library"
+      ]
+    },
+    {
+      "label": "Singapore warranty",
+      "values": [
+        "1-year Sony Singapore via authorised retailer; parallel imports rely on shop warranty",
+        "Same \u2014 local set gives Sony Singapore; parallel imports use shop warranty"
+      ]
+    },
+    {
+      "label": "Best for",
+      "values": [
+        "Enthusiasts with a 4K TV, gamers chasing Performance Pro modes, owners who keep a console for 5+ years",
+        "Casual and 4K-mid-tier buyers, households adding a second console, anyone valuing price over graphics"
+      ]
+    }
   ],
   "highlightSectionTitle": "What actually separates the PS5 Pro from the standard PS5",
   "highlights": [
-    { "title": "The 4K uplift only matters if your TV can show it", "body": "The PS5 Pro is built around pushing 4K with sharper ray tracing and AI-upscaled image quality. If your display is a mid-tier 4K TV or older 1080p set, you will not see most of the Pro advantage. Owners of recent LG OLED, Samsung QLED or Sony Bravia sets with VRR and HDMI 2.1 are the ones who actually benefit from the extra GPU headroom." },
-    { "title": "Storage size solves the biggest everyday annoyance", "body": "The PS5 Pro ships with 2 TB of SSD storage, which is double the 1 TB Slim. Modern PS5 games regularly cross 80 GB, so the extra space matters more than the spec sheet implies — fewer forced uninstalls and less juggling between a tiny library of installed titles." },
-    { "title": "Performance Pro modes are growing but not universal", "body": "Sony and developers have shipped 'PS5 Pro Enhanced' patches for a meaningful share of major 2025–2026 releases, but a lot of indie and older titles run identically on the standard PS5. If your library is heavy on smaller games, the Pro's value drops; if you play mostly first-party Sony and big third-party releases, the Pro pulls ahead clearly." },
-    { "title": "Where you buy changes the warranty, not the console", "body": "Sony authorised retailers in Singapore — the Sony Store, major electronics chains and authorised mall stores — sell the local-set SKUs with a clean 1-year Sony Singapore warranty. Marketplace parallel-import sellers can undercut on sticker, but the warranty relies on the shop. For a console you expect to keep for years, that difference is usually worth a modest premium." }
+    {
+      "title": "The 4K uplift only matters if your TV can show it",
+      "body": "The PS5 Pro is built around pushing 4K with sharper ray tracing and AI-upscaled image quality. If your display is a mid-tier 4K TV or older 1080p set, you will not see most of the Pro advantage. Owners of recent LG OLED, Samsung QLED or Sony Bravia sets with VRR and HDMI 2.1 are the ones who actually benefit from the extra GPU headroom."
+    },
+    {
+      "title": "Storage size solves the biggest everyday annoyance",
+      "body": "The PS5 Pro ships with 2 TB of SSD storage, which is double the 1 TB Slim. Modern PS5 games regularly cross 80 GB, so the extra space matters more than the spec sheet implies \u2014 fewer forced uninstalls and less juggling between a tiny library of installed titles."
+    },
+    {
+      "title": "Performance Pro modes are growing but not universal",
+      "body": "Sony and developers have shipped 'PS5 Pro Enhanced' patches for a meaningful share of major 2025\u20132026 releases, but a lot of indie and older titles run identically on the standard PS5. If your library is heavy on smaller games, the Pro's value drops; if you play mostly first-party Sony and big third-party releases, the Pro pulls ahead clearly."
+    },
+    {
+      "title": "Where you buy changes the warranty, not the console",
+      "body": "Sony authorised retailers in Singapore \u2014 the Sony Store, major electronics chains and authorised mall stores \u2014 sell the local-set SKUs with a clean 1-year Sony Singapore warranty. Marketplace parallel-import sellers can undercut on sticker, but the warranty relies on the shop. For a console you expect to keep for years, that difference is usually worth a modest premium."
+    }
   ],
   "adviceSectionTitle": "How to choose between PS5 Pro and PS5 in Singapore",
   "advicePoints": [
@@ -47,18 +121,42 @@
     "Compare the Pro's value on the games you actually play. Open the PS Store Enhanced list, count how many of your owned or planned titles carry a Pro patch, and decide whether that share is high enough to justify the price gap.",
     "Factor the storage ceiling into the decision. The standard PS5 Slim's 1 TB fills faster than you expect once you add PS Plus downloads and a handful of recent releases; the Pro's 2 TB removes the daily juggling."
   ],
-  "faqSectionTitle": "PS5 Pro vs PS5 in Singapore — common questions",
+  "faqSectionTitle": "PS5 Pro vs PS5 in Singapore \u2014 common questions",
   "faqs": [
-    { "question": "Is the PS5 Pro worth the extra money over the PS5 in Singapore?", "answer": "Only if you own a 4K TV with HDMI 2.1 and play mostly first-party or big third-party titles that have shipped PS5 Pro Enhanced patches. For casual gamers on a 1080p display or mid-tier 4K set, the standard PS5 is the better value." },
-    { "question": "Which PS5 has more storage, the Pro or the standard?", "answer": "The PS5 Pro ships with 2 TB of SSD storage. The PS5 Slim revision has 1 TB; older launch models had 825 GB. If you own a lot of PS Plus downloads or large modern releases, the Pro's extra space is a real everyday benefit." },
-    { "question": "Do all PS5 games run better on the PS5 Pro?", "answer": "No — only titles that have shipped a PS5 Pro Enhanced patch get the higher fidelity, ray-tracing and Performance Pro modes. A lot of indie and smaller games run identically on the standard PS5. Check the PS Store Enhanced list for the games you actually play." },
-    { "question": "Does a parallel-import PS5 Pro carry Sony Singapore warranty?", "answer": "No. Parallel imports rely on the marketplace shop's own service policy. If you want Sony Singapore's 1-year warranty and service-centre path, buy from the Sony Store, an authorised retailer or an official marketplace Mall store." },
-    { "question": "Can I use my existing PS5 accessories and games on the Pro?", "answer": "Yes. PS5 Pro plays the full PS5 library and accepts the same DualSense controllers, PS VR2, PlayStation Portal and licensed accessories. Your saved games, trophies and PSN account carry over without any transfer step." }
+    {
+      "question": "Is the PS5 Pro worth the extra money over the PS5 in Singapore?",
+      "answer": "Only if you own a 4K TV with HDMI 2.1 and play mostly first-party or big third-party titles that have shipped PS5 Pro Enhanced patches. For casual gamers on a 1080p display or mid-tier 4K set, the standard PS5 is the better value."
+    },
+    {
+      "question": "Which PS5 has more storage, the Pro or the standard?",
+      "answer": "The PS5 Pro ships with 2 TB of SSD storage. The PS5 Slim revision has 1 TB; older launch models had 825 GB. If you own a lot of PS Plus downloads or large modern releases, the Pro's extra space is a real everyday benefit."
+    },
+    {
+      "question": "Do all PS5 games run better on the PS5 Pro?",
+      "answer": "No \u2014 only titles that have shipped a PS5 Pro Enhanced patch get the higher fidelity, ray-tracing and Performance Pro modes. A lot of indie and smaller games run identically on the standard PS5. Check the PS Store Enhanced list for the games you actually play."
+    },
+    {
+      "question": "Does a parallel-import PS5 Pro carry Sony Singapore warranty?",
+      "answer": "No. Parallel imports rely on the marketplace shop's own service policy. If you want Sony Singapore's 1-year warranty and service-centre path, buy from the Sony Store, an authorised retailer or an official marketplace Mall store."
+    },
+    {
+      "question": "Can I use my existing PS5 accessories and games on the Pro?",
+      "answer": "Yes. PS5 Pro plays the full PS5 library and accepts the same DualSense controllers, PS VR2, PlayStation Portal and licensed accessories. Your saved games, trophies and PSN account carry over without any transfer step."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/ps5-pro-vs-ps5-us" },
-  "inboundLinks": ["/ps5-price-singapore", "/cheapest-ps5-singapore", "/blog/best-laptop-deals-singapore"],
-  "categoryIntro": { "heading": "Why Singapore PS5 Pro vs PS5 prices move differently", "body": "In Singapore, the standard PS5 is sold through the Sony Store, authorised electronics retailers, telco bundles and a wide marketplace of Mall stores on Shopee and Lazada, which is why its price drops visibly during platform campaigns. The PS5 Pro has a much smaller seller universe — most buyers find it at authorised retailers or at Sony's own channels — so its price moves less and rarely sees the same campaign depth. That asymmetry is the single biggest reason a side-by-side price comparison matters when choosing between them, and why this page reads live BuyWhere listings rather than naming a fixed winner." },
+  "hreflangAlternates": {
+    "en-US": "/ps5-pro-vs-ps5-us"
+  },
+  "inboundLinks": [
+    "/ps5-price-singapore",
+    "/cheapest-ps5-singapore",
+    "/blog/best-laptop-deals-singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why Singapore PS5 Pro vs PS5 prices move differently",
+    "body": "In Singapore, the standard PS5 is sold through the Sony Store, authorised electronics retailers, telco bundles and a wide marketplace of Mall stores on Shopee and Lazada, which is why its price drops visibly during platform campaigns. The PS5 Pro has a much smaller seller universe \u2014 most buyers find it at authorised retailers or at Sony's own channels \u2014 so its price moves less and rarely sees the same campaign depth. That asymmetry is the single biggest reason a side-by-side price comparison matters when choosing between them, and why this page reads live BuyWhere listings rather than naming a fixed winner."
+  },
   "owner": "Wave",
   "reviewer": "Fetch",
   "queueRow": 101
