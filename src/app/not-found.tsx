@@ -39,16 +39,16 @@ export default function NotFound() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-16">
+      <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12">
         <div className="max-w-2xl w-full text-center">
-          <div className="mb-10">
+          <div className="mb-6 sm:mb-8">
             <svg
-              width="120"
-              height="120"
+              width="96"
+              height="96"
               viewBox="0 0 120 120"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className="mx-auto"
+              className="mx-auto h-20 w-20 sm:h-24 sm:w-24"
               aria-hidden="true"
             >
               <circle cx="60" cy="60" r="56" fill="#EEF2FF" />
@@ -60,15 +60,15 @@ export default function NotFound() {
             </svg>
           </div>
 
-          <p className="text-lg font-semibold text-indigo-600 mb-3">404</p>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <p className="text-base sm:text-lg font-semibold text-indigo-600 mb-2">404</p>
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">
             Lost in the aisles?
           </h1>
-          <p className="text-gray-500 mb-8 leading-relaxed text-lg">
+          <p className="text-gray-500 mb-4 sm:mb-6 leading-relaxed sm:text-lg">
             Looks like this product wandered off. Even the best deal hunters need a map sometimes.
           </p>
 
-          <form onSubmit={handleSearch} className="max-w-md mx-auto mb-10">
+          <form onSubmit={handleSearch} className="max-w-md mx-auto mb-5 sm:mb-8">
             <div className="relative">
               <Search
                 className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
@@ -85,8 +85,8 @@ export default function NotFound() {
             </div>
           </form>
 
-          <div className="grid gap-6 sm:grid-cols-2 mb-10 text-left">
-            <div className="bg-indigo-50 rounded-xl p-5">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 mb-5 sm:mb-8 text-left">
+            <div className="bg-indigo-50 rounded-xl p-4">
               <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" />
@@ -94,7 +94,7 @@ export default function NotFound() {
                 </svg>
                 Browse categories
               </h2>
-              <ul className="space-y-2">
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 sm:block sm:space-y-2">
                 {categoryLinks.map((link) => (
                   <li key={link.href}>
                     <Link href={link.href} className="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
@@ -105,14 +105,14 @@ export default function NotFound() {
               </ul>
             </div>
 
-            <div className="bg-amber-50 rounded-xl p-5">
+            <div className="bg-amber-50 rounded-xl p-4">
               <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
                   <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                 </svg>
                 Popular searches
               </h2>
-              <ul className="space-y-2">
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 sm:block sm:space-y-2">
                 {popularLinks.map((link) => (
                   <li key={link.href}>
                     <Link href={link.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
@@ -124,7 +124,7 @@ export default function NotFound() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-12">
             <Button href="/">Go home</Button>
             <Button href="/deals/us" variant="secondary">View today&apos;s deals</Button>
           </div>
