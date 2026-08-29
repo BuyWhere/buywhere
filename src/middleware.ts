@@ -625,7 +625,7 @@ export async function middleware(request: NextRequest) {
   // be canonicalized by the Next.js middleware. Without this, /r/?u=... gets
   // redirected to /r?u=... which returns 404.
   if (pathname.startsWith("/r/") || pathname.startsWith("/go/")) {
-    return next();
+    return NextResponse.next();
   }
 
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.

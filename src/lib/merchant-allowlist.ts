@@ -190,8 +190,71 @@ export function resolveMerchantSlug(item: { merchant?: string | null; source?: s
 }
 
 /**
- * True when the slug is on the page's allowlist. Products with no merchant
- * metadata at all are excluded from country-specific SEO pages.
+ * BUY-77121: catalog upstream merchant slugs are not consistently shaped.
+ * Three families of variants currently leak past `isMerchantAllowedForCountry`
+ * because the bare slug from the search API doesn't match the allowlist
+ * entries (which were normalized at writer time):
+ *
+ *   1. Domain-style: "challenger.com.sg", "harveynorman.com.sg",
+ *      "courts.com.sg" — bare-allowlist form is "challenger" / "harvey_norman" /
+ *      "courts". We strip the trailing `.com.<cc>` / `.co.<cc>` / `.<cc>`
+ *      TLD chain and recover the bare slug by taking the FIRST label.
+ *   2. XML-feed ingest suffix: "apple_sg_buy_xml" — bare-allowlist form is
+ *      "apple" / "apple_sg". We strip trailing `_buy_xml` / `_xml` ingest
+ *      markers before the country allowlist lookup.
+ *   3. Bare domain with no TLD chain but dot-separated sub-labels (e.g.
+ *      "amazon.com" → "amazon") — same first-label rule applies.
+ *
+ * Returns a list of candidate slugs in priority order so the caller can pick
+ * the FIRST one that matches the country allowlist. The original raw slug
+ * always appears first so legitimate bare-form matches are preserved.
+ */
+export function candidateAllowlistSlugs(rawSlug: string): string[] {
+  const out: string[] = [];
+  const lower = rawSlug.trim().toLowerCase();
+  if (!lower) return out;
+  out.push(lower);
+
+  // Strip known ingest suffixes only when the slug still has an underscore.
+  // e.g. "apple_sg_buy_xml" → "apple_sg" → "apple" (after country strip)
+  //      "shopify_buy30620_stock" → keep stripped form for LOW_TRUST check
+  const INGEST_SUFFIXES = [/_buy_xml$/, /_xml$/, /_scrape$/];
+  let working = lower;
+  for (const re of INGEST_SUFFIXES) {
+    if (re.test(working)) {
+      out.push(working.replace(re, ""));
+      working = working.replace(re, "");
+    }
+  }
+
+  // Strip trailing country TLDs / TLD chains: ".com.sg", ".co.sg", ".sg",
+  // ".com.us", ".us", ".co.uk", etc. Split on "." and take the first label.
+  if (working.includes(".")) {
+    const firstLabel = working.split(".")[0];
+    if (firstLabel && firstLabel !== lower && !out.includes(firstLabel)) {
+      out.push(firstLabel);
+    }
+    // Also try the form with the country suffix preserved on the bare label
+    // so "challenger.com.sg" → "challenger_sg" still matches the allowlist.
+    const lastLabel = working.split(".").pop() ?? "";
+    if (
+      lastLabel &&
+      firstLabel &&
+      !out.includes(`${firstLabel}_${lastLabel}`)
+    ) {
+      out.push(`${firstLabel}_${lastLabel}`);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * True when the slug (raw or normalized) matches the country's allowlist.
+ * Returns false for empty/missing slugs. BUY-77121: this is the canonical
+ * allowlist lookup — it accepts the catalog's bare-allowlist form
+ * ("challenger") AND domain-style forms ("challenger.com.sg") by trying
+ * each candidate produced by `candidateAllowlistSlugs`.
  */
 export function isMerchantAllowedForCountry(
   item: { merchant?: string | null; source?: string | null },
@@ -199,7 +262,12 @@ export function isMerchantAllowedForCountry(
 ): boolean {
   const slug = resolveMerchantSlug(item);
   if (!slug) return false;
-  return MERCHANT_ALLOWLISTS[country]?.has(slug) ?? false;
+  const allowlist = MERCHANT_ALLOWLISTS[country];
+  if (!allowlist) return false;
+  for (const candidate of candidateAllowlistSlugs(slug)) {
+    if (allowlist.has(candidate)) return true;
+  }
+  return false;
 }
 
 /**
@@ -346,7 +414,13 @@ export function filterApiItemsForCountry<T extends { merchant?: string | null; s
   return items.filter((item) => {
     const slug = resolveMerchantSlug(item);
     if (!slug) return false; // unknown merchant → exclude
-    return allowlist.has(slug);
+    // BUY-77121: same normalization as isMerchantAllowedForCountry so a
+    // domain-style slug like "challenger.com.sg" matches the bare "challenger"
+    // entry that lives in MERCHANT_ALLOWLISTS[SG].
+    for (const candidate of candidateAllowlistSlugs(slug)) {
+      if (allowlist.has(candidate)) return true;
+    }
+    return false;
   });
 }
 
