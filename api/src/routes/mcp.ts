@@ -1002,6 +1002,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // AND the keyword is set — that's the only path where the unfiltered signal
     // changes the reason. LIMIT 1 keeps this off the GIN hot path.
     if (q && !deliverToPresent) {
+      await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => {});
       try {
         const probe = await searchClient.query(
           `SELECT EXISTS (
@@ -1013,6 +1014,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           [q]
         );
         unfilteredHasAnyData = (probe.rows[0] as { any_match: boolean } | undefined)?.any_match === true;
+        await searchClient.query('RELEASE SAVEPOINT probe_unfiltered').catch(() => {});
       } catch (probeErr: any) {
         console.warn(`[search_products] unfiltered probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
         await searchClient.query('ROLLBACK TO SAVEPOINT probe_unfiltered').catch(() => {});
@@ -1029,7 +1031,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       // an opaque "upstream_exception". SAVEPOINT keeps a probe failure local, and the
       // reason is logged instead of discarded.
       await searchClient.query('SAVEPOINT probe_region').catch(() => {});
-      await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => {});
       try {
         const probe = await searchClient.query(
           `SELECT EXISTS (SELECT 1 FROM products WHERE is_active = true AND country_code = $1 LIMIT 1) AS any_match`,
