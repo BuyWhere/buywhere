@@ -301,13 +301,16 @@ export function createApp() {
   app.use('/v1', clicksRouter);
   // OAuth 2.1 M1 scaffold (docs/oauth-design.md)
   app.use('/v1/oauth', oauthRouter);
-  // RFC 8414 requires root-level discovery; reuse the router's handler path
-  app.use('/', oauthRouter);
-  app.use('/admin', clicksRouter);
 
-  // Affiliate redirect (no /v1 prefix — short URLs)
+  // Affiliate redirect (no /v1 prefix — short URLs). MUST be mounted BEFORE
+  // the root-level catch-all oauth router to avoid intercepting /r/* requests.
   app.use('/r', redirectRouter);
   app.use('/go', redirectRouter);
+
+  // RFC 8414 requires root-level discovery; reuse the router's handler path.
+  // Mounted after /r to avoid catching affiliate redirect requests.
+  app.use('/', oauthRouter);
+  app.use('/admin', clicksRouter);
 
   // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page
