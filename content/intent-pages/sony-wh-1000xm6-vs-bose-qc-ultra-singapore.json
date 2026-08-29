@@ -3,37 +3,96 @@
   "title": "Sony WH-1000XM6 vs Bose QuietComfort Ultra in Singapore (2026) — Live Prices",
   "description": "Sony WH-1000XM6 vs Bose QuietComfort Ultra in Singapore: live prices from local retailers and marketplace stores, noise cancellation, comfort, battery and warranty compared, with advice on which to buy for MRT commutes, flights and home use.",
   "heroEyebrow": "Singapore XM6 vs QC Ultra comparison",
-  "heroTitle": "Sony WH-1000XM6 vs Bose QuietComfort Ultra in Singapore — 2026 live price and spec comparison",
-  "heroTitleTemplate": "Sony WH-1000XM6 vs Bose QC Ultra in Singapore — from {floorPrice} today",
+  "heroTitle": "Sony WH-1000XM6 vs Bose QuietComfort Ultra in Singapore (2026) — 2026 live price and spec comparison",
+  "heroTitleTemplate": "2026 Sony WH-1000XM6 vs Bose QC Ultra in Singapore — from {floorPrice} today",
   "heroBody": "The Sony WH-1000XM6 and the Bose QuietComfort Ultra Headphones are the two flagship noise-cancelling headphones Singapore shoppers actually cross-shop, and in Singapore they are priced close enough that the decision comes down to fit and use case rather than sticker price. Both are sold in S$ locally by stereo specialists, Challenger and FairPrice alongside marketplace stores, and both drop measurably during 9.9, 11.11 and 12.12 platform sales. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so you can compare today's real floor price for each, and see which retailer currently holds it.",
   "canonicalPath": "/sony-wh-1000xm6-vs-bose-qc-ultra-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "sony wh1000xm6",
-  "backupQueries": ["sony wh-1000xm6", "bose quietcomfort ultra headphones", "quietcomfort ultra"],
+  "backupQueries": [
+    "sony wh-1000xm6",
+    "bose quietcomfort ultra headphones",
+    "quietcomfort ultra"
+  ],
   "minPrice": 250,
-  "requiredProductTerms": ["wh1000xm6", "wh-1000xm6", "quietcomfort ultra", "sony", "bose"],
+  "requiredProductTerms": [
+    "wh1000xm6",
+    "wh-1000xm6",
+    "quietcomfort ultra",
+    "sony",
+    "bose"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Prices checked August 26, 2026",
   "datePublished": "2026-08-26",
-  "dateModified": "2026-08-26",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live Sony WH-1000XM6 and Bose QC Ultra prices in Singapore",
   "comparisonSectionTitle": "XM6 vs QC Ultra — at a glance",
-  "comparisonColumns": ["Dimension", "Sony WH-1000XM6", "Bose QuietComfort Ultra Headphones"],
+  "comparisonColumns": [
+    "Dimension",
+    "Sony WH-1000XM6",
+    "Bose QuietComfort Ultra Headphones"
+  ],
   "comparisonRows": [
-    { "label": "Noise cancellation", "values": ["Class-leading on low-frequency drone; folds flat", "Slightly stronger voices and midrange; immersive audio"] },
-    { "label": "Comfort over long sessions", "values": ["Lighter folding redesign; even clamp", "Softer cushions; lighter on the head for glasses wearers"] },
-    { "label": "Battery life (ANC on)", "values": ["Up to ~30 hours; quick charge for hours in minutes", "Up to ~24 hours; slightly shorter per charge"] },
-    { "label": "Multipoint and calls", "values": ["Two-device Bluetooth multipoint; good mics", "Multipoint; widely rated best-in-class call quality"] },
-    { "label": "Codecs and app", "values": ["LDAC, Hi-Res via Sony Headphones Connect, EQ", "aptX Adaptive, SimpleSync, CustomTune calibration"] },
-    { "label": "Typical Singapore street price", "values": ["See live listings below", "See live listings below"] }
+    {
+      "label": "Noise cancellation",
+      "values": [
+        "Class-leading on low-frequency drone; folds flat",
+        "Slightly stronger voices and midrange; immersive audio"
+      ]
+    },
+    {
+      "label": "Comfort over long sessions",
+      "values": [
+        "Lighter folding redesign; even clamp",
+        "Softer cushions; lighter on the head for glasses wearers"
+      ]
+    },
+    {
+      "label": "Battery life (ANC on)",
+      "values": [
+        "Up to ~30 hours; quick charge for hours in minutes",
+        "Up to ~24 hours; slightly shorter per charge"
+      ]
+    },
+    {
+      "label": "Multipoint and calls",
+      "values": [
+        "Two-device Bluetooth multipoint; good mics",
+        "Multipoint; widely rated best-in-class call quality"
+      ]
+    },
+    {
+      "label": "Codecs and app",
+      "values": [
+        "LDAC, Hi-Res via Sony Headphones Connect, EQ",
+        "aptX Adaptive, SimpleSync, CustomTune calibration"
+      ]
+    },
+    {
+      "label": "Typical Singapore street price",
+      "values": [
+        "See live listings below",
+        "See live listings below"
+      ]
+    }
   ],
   "highlightSectionTitle": "What actually differs in 2026",
   "highlights": [
-    { "title": "The XM6 finally folds", "body": "Sony's biggest change over the XM5 is the return of a folding hinge, which matters more than it sounds if you carry the headphones in a bag on the MRT. The XM5's fixed shape forced a large flat case; the XM6 packs smaller while keeping the wider ear cups and softer cushions that fixed the XM5's clamp complaints." },
-    { "title": "Bose still wins the commute, Sony wins the flight", "body": "The QC Ultra's noise cancellation leans harder on voices and cabin midrange, which makes hawker centres and open offices feel quieter; the XM6's low-frequency damping is at its best against MRT rumble and airplane drone. Both are excellent — the honest difference is smaller than forum arguments suggest, and fit decides more of it than the DSP does." },
-    { "title": "Local warranty matters at this price", "body": "Both headphones carry a one-year local warranty when bought from an authorised Singapore retailer (Challenger, stereo specialists, FairPrice listings of local sets). Parallel imports appear cheaper on marketplaces, but neither Sony nor Bose Singapore services grey sets under warranty, and XM6 hinge repairs are not cheap out of pocket." }
+    {
+      "title": "The XM6 finally folds",
+      "body": "Sony's biggest change over the XM5 is the return of a folding hinge, which matters more than it sounds if you carry the headphones in a bag on the MRT. The XM5's fixed shape forced a large flat case; the XM6 packs smaller while keeping the wider ear cups and softer cushions that fixed the XM5's clamp complaints."
+    },
+    {
+      "title": "Bose still wins the commute, Sony wins the flight",
+      "body": "The QC Ultra's noise cancellation leans harder on voices and cabin midrange, which makes hawker centres and open offices feel quieter; the XM6's low-frequency damping is at its best against MRT rumble and airplane drone. Both are excellent — the honest difference is smaller than forum arguments suggest, and fit decides more of it than the DSP does."
+    },
+    {
+      "title": "Local warranty matters at this price",
+      "body": "Both headphones carry a one-year local warranty when bought from an authorised Singapore retailer (Challenger, stereo specialists, FairPrice listings of local sets). Parallel imports appear cheaper on marketplaces, but neither Sony nor Bose Singapore services grey sets under warranty, and XM6 hinge repairs are not cheap out of pocket."
+    }
   ],
   "adviceSectionTitle": "How to choose and pay the least in Singapore",
   "advicePoints": [
@@ -45,15 +104,33 @@
   ],
   "faqSectionTitle": "Sony WH-1000XM6 vs Bose QC Ultra in Singapore — common questions",
   "faqs": [
-    { "question": "Is the Sony WH-1000XM6 or Bose QuietComfort Ultra better for MRT commutes in Singapore?", "answer": "Both mute MRT rumble well. The XM6's low-frequency cancellation has a slight edge against track drone, while the QC Ultra dampens cabin chatter and hawker-centre noise better. If your commute is crowded and talkative, Bose; if it is long and droning, Sony." },
-    { "question": "Which is cheaper in Singapore right now?", "answer": "Street prices move weekly and cross during sales; check the live price table above for today's floor on each model from Singapore retailers. Historically the two land in the same mid-flagship band in S$, with sale-day gaps of tens of dollars rather than hundreds." },
-    { "question": "Do parallel-import XM6 or QC Ultra headphones get local warranty in Singapore?", "answer": "No. Sony Singapore and Bose Singapore honour the one-year warranty only on local sets from authorised retailers. Grey-market listings are cheaper precisely because warranty claims go back to the shop that sold them." },
-    { "question": "Can I use the WH-1000XM6 or QC Ultra with an iPhone?", "answer": "Yes. Both pair as standard Bluetooth headphones with any iPhone, and Bose supports Apple's find-my style tracking via SimpleSync ecosystems, but Sony's LDAC hi-res codec is Android-only. iPhone owners lose nothing important on either; Android owners get a small audio edge with the Sony." }
+    {
+      "question": "Is the Sony WH-1000XM6 or Bose QuietComfort Ultra better for MRT commutes in Singapore?",
+      "answer": "Both mute MRT rumble well. The XM6's low-frequency cancellation has a slight edge against track drone, while the QC Ultra dampens cabin chatter and hawker-centre noise better. If your commute is crowded and talkative, Bose; if it is long and droning, Sony."
+    },
+    {
+      "question": "Which is cheaper in Singapore right now?",
+      "answer": "Street prices move weekly and cross during sales; check the live price table above for today's floor on each model from Singapore retailers. Historically the two land in the same mid-flagship band in S$, with sale-day gaps of tens of dollars rather than hundreds."
+    },
+    {
+      "question": "Do parallel-import XM6 or QC Ultra headphones get local warranty in Singapore?",
+      "answer": "No. Sony Singapore and Bose Singapore honour the one-year warranty only on local sets from authorised retailers. Grey-market listings are cheaper precisely because warranty claims go back to the shop that sold them."
+    },
+    {
+      "question": "Can I use the WH-1000XM6 or QC Ultra with an iPhone?",
+      "answer": "Yes. Both pair as standard Bluetooth headphones with any iPhone, and Bose supports Apple's find-my style tracking via SimpleSync ecosystems, but Sony's LDAC hi-res codec is Android-only. iPhone owners lose nothing important on either; Android owners get a small audio edge with the Sony."
+    }
   ],
   "fallbackProducts": [],
   "hreflangAlternates": {},
-  "inboundLinks": ["/best-noise-cancelling-headphones-singapore", "/cheapest-sony-wh-1000xm6-singapore"],
-  "categoryIntro": { "heading": "Why this comparison matters in Singapore", "body": "Singapore buyers pay a premium for flagship headphones but also get one of the densest competitive retail markets in the region: authorised chains, stereo specialists, Fairprice and marketplace official stores all stock both models, and prices diverge by tens of dollars within the same week. That density makes a fixed 'winner' article useless within days, which is why this page reads live listings for both models side by side and leaves the verdict to fit, use case and today's price." },
+  "inboundLinks": [
+    "/best-noise-cancelling-headphones-singapore",
+    "/cheapest-sony-wh-1000xm6-singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why this comparison matters in Singapore",
+    "body": "Singapore buyers pay a premium for flagship headphones but also get one of the densest competitive retail markets in the region: authorised chains, stereo specialists, Fairprice and marketplace official stores all stock both models, and prices diverge by tens of dollars within the same week. That density makes a fixed 'winner' article useless within days, which is why this page reads live listings for both models side by side and leaves the verdict to fit, use case and today's price."
+  },
   "owner": "Sol",
   "reviewer": "Fetch",
   "queueRow": 105

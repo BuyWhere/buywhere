@@ -3,30 +3,75 @@
   "title": "Cheapest iPad Air in Singapore (2026) — Live Prices Compared",
   "description": "Where the iPad Air is cheapest in Singapore right now: live prices from Amazon.sg, Shopee, Lazada, Apple authorised resellers and local retailers, with buying advice on storage, warranty, M2 vs M3 and sale timing.",
   "heroEyebrow": "Singapore iPad Air price guide",
-  "heroTitle": "Cheapest iPad Air in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest iPad Air in Singapore — from {floorPrice} today",
+  "heroTitle": "Cheapest iPad Air in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Cheapest iPad Air in Singapore — from {floorPrice} today",
   "heroBody": "The iPad Air sits in the sweet spot of Apple's tablet line-up for most Singapore buyers: a large laminated display, M-series performance and full Pencil and keyboard support without the Pro price premium. In 2026 shoppers are choosing between the latest M3 iPad Air and remaining M2 stock, deciding whether 128 GB is enough and working out whether a Shopee voucher or Lazada bank promo beats the Apple Store's trade-in value. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so you can see the current iPad Air floor price in S$ and whether the cheapest listing is a local set with Apple Singapore warranty.",
-  "inboundLinks": ["/best-ipads-singapore", "/best-android-tablets-singapore", "/search?q=iPad+Air+Singapore"],
+  "inboundLinks": [
+    "/best-ipads-singapore",
+    "/best-android-tablets-singapore",
+    "/search?q=iPad+Air+Singapore"
+  ],
   "canonicalPath": "/cheapest-ipad-air-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "iPad Air",
-  "backupQueries": ["Apple iPad Air", "iPad Air M3", "iPad Air M2"],
+  "backupQueries": [
+    "Apple iPad Air",
+    "iPad Air M3",
+    "iPad Air M2"
+  ],
   "minPrice": 500,
-  "requiredProductTerms": ["ipad", "air", "apple"],
+  "requiredProductTerms": [
+    "ipad",
+    "air",
+    "apple"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live iPad Air prices in Singapore",
   "comparisonSectionTitle": "Where the iPad Air is cheapest — at a glance",
-  "comparisonColumns": ["Seller type", "Typical price vs list", "Warranty", "Best for"],
+  "comparisonColumns": [
+    "Seller type",
+    "Typical price vs list",
+    "Warranty",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Apple Store / authorised resellers", "values": ["List price or education/trade-in", "Apple Singapore warranty", "Buyers who want engraving, trade-in or easy returns"] },
-    { "label": "Amazon.sg (sold by Amazon)", "values": ["Often below list during promos", "Local set if sold by Amazon", "Fast delivery and easy returns"] },
-    { "label": "Shopee Mall / LazMall official stores", "values": ["Lowest during 9.9 / 11.11 / payday sales", "Local warranty if official or authorised", "Voucher and cashback stacking"] },
-    { "label": "Parallel importers", "values": ["Lowest sticker price", "Shop warranty only", "Buyers who accept no Apple warranty"] }
+    {
+      "label": "Apple Store / authorised resellers",
+      "values": [
+        "List price or education/trade-in",
+        "Apple Singapore warranty",
+        "Buyers who want engraving, trade-in or easy returns"
+      ]
+    },
+    {
+      "label": "Amazon.sg (sold by Amazon)",
+      "values": [
+        "Often below list during promos",
+        "Local set if sold by Amazon",
+        "Fast delivery and easy returns"
+      ]
+    },
+    {
+      "label": "Shopee Mall / LazMall official stores",
+      "values": [
+        "Lowest during 9.9 / 11.11 / payday sales",
+        "Local warranty if official or authorised",
+        "Voucher and cashback stacking"
+      ]
+    },
+    {
+      "label": "Parallel importers",
+      "values": [
+        "Lowest sticker price",
+        "Shop warranty only",
+        "Buyers who accept no Apple warranty"
+      ]
+    }
   ],
   "highlightSectionTitle": "What to know before buying an iPad Air in Singapore",
   "highlights": [
@@ -80,7 +125,9 @@
     }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/cheapest-ipad-air-us" },
+  "hreflangAlternates": {
+    "en-US": "/cheapest-ipad-air-us"
+  },
   "categoryIntro": {
     "heading": "Why Singapore iPad Air prices vary so much",
     "body": "Singapore has no single dominant electronics retailer, so the same iPad Air is sold by the Apple Store, authorised resellers like Challenger and Courts, marketplace official stores and dozens of parallel importers at the same time. Prices move with platform campaigns rather than with Apple's list price, and bundles or storage configurations can make one listing look much cheaper than another. This page reads live listings so the floor price stays current."

@@ -3,35 +3,85 @@
   "title": "Best budget TVs in Singapore (2026) — live prices, screen sizes and what to buy",
   "description": "The best budget TVs to buy in Singapore right now: live prices across Amazon.sg, Shopee Mall, LazMall and local retailers, with expert guidance on screen size, panel type, smart TV platforms and what changed in 2026.",
   "heroEyebrow": "Singapore budget TV buying guide",
-  "heroTitle": "Best budget TVs in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Best budget TVs in Singapore — options from {floorPrice}",
+  "heroTitle": "Best budget TVs in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Best budget TVs in Singapore — options from {floorPrice}",
   "heroBody": "A budget TV in Singapore in 2026 is no longer a compromise purchase: sub-SGD 600 gets you a perfectly usable 43-inch 4K smart TV with HDR, and the price gap between a budget Hisense, TCL or Toshiba and a flagship Samsung has narrowed on features if not on panel quality. The harder question is no longer 'is budget good enough' but which 43-inch, 50-inch, 55-inch or 65-inch panel matches the room, the viewing distance and how much you care about HDR brightness. This page pulls live Singapore listings from BuyWhere's catalog — Amazon.sg, Shopee Mall, LazMall sellers and authorised local retailers like Harvey Norman and Courts — so you can see the current floor price for the size you actually need.",
   "canonicalPath": "/best-budget-tvs-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "television",
-  "backupQueries": ["Hisense television", "Smart television", "UHD TV"],
+  "backupQueries": [
+    "Hisense television",
+    "Smart television",
+    "UHD TV"
+  ],
   "minPrice": 200,
-  "requiredProductTerms": ["tv", "television", "inch"],
+  "requiredProductTerms": [
+    "tv",
+    "television",
+    "inch"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live budget TV prices in Singapore",
   "comparisonSectionTitle": "Budget TV tiers — at a glance",
-  "comparisonColumns": ["Tier", "Screen size", "Panel", "Best for"],
+  "comparisonColumns": [
+    "Tier",
+    "Screen size",
+    "Panel",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Under SGD 500", "values": ["32–43 inch, HD or FHD", "Edge-lit LED", "Bedroom, kids, kitchen, casual viewing"] },
-    { "label": "SGD 500–900", "values": ["43–55 inch, 4K UHD, basic HDR", "Direct-lit VA or IPS", "Main living room, streaming, casual gaming"] },
-    { "label": "SGD 900–1,500", "values": ["55–65 inch, 4K UHD, QLED or better HDR", "Direct-lit VA with local dimming", "Family viewing, brighter rooms, longer-lasting"] },
-    { "label": "65 inch+ on a budget (parallel import)", "values": ["65–75 inch, 4K, basic HDR", "Edge-lit LED, no local dimming", "Big screen at minimum cost, accept HDR compromise"] }
+    {
+      "label": "Under SGD 500",
+      "values": [
+        "32–43 inch, HD or FHD",
+        "Edge-lit LED",
+        "Bedroom, kids, kitchen, casual viewing"
+      ]
+    },
+    {
+      "label": "SGD 500–900",
+      "values": [
+        "43–55 inch, 4K UHD, basic HDR",
+        "Direct-lit VA or IPS",
+        "Main living room, streaming, casual gaming"
+      ]
+    },
+    {
+      "label": "SGD 900–1,500",
+      "values": [
+        "55–65 inch, 4K UHD, QLED or better HDR",
+        "Direct-lit VA with local dimming",
+        "Family viewing, brighter rooms, longer-lasting"
+      ]
+    },
+    {
+      "label": "65 inch+ on a budget (parallel import)",
+      "values": [
+        "65–75 inch, 4K, basic HDR",
+        "Edge-lit LED, no local dimming",
+        "Big screen at minimum cost, accept HDR compromise"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed with budget TVs in Singapore in 2026",
   "highlights": [
-    { "title": "4K is now the default at 43 inch and above", "body": "Two years ago you had to choose between a 43-inch Full HD budget set and a 50-inch 4K at a premium. In 2026 every credible 43-inch budget TV sold in Singapore is 4K, and 50-inch 4K sets from Hisense and TCL sit comfortably under SGD 700 during platform sales. The remaining Full HD stock is mostly 32-inch bedroom sets where the resolution difference does not matter at viewing distance." },
-    { "title": "Smart TV platforms have consolidated around Google TV and Roku TV", "body": "Hisense and TCL ship Google TV, onn and a handful of other brands ship Roku TV, and Samsung and LG keep their own platforms. Netflix, Disney+, YouTube and the local streaming apps run on all of them, but app updates, voice search quality and Chromecast/AirPlay support vary. If you already use a Chromecast or Apple TV, the smart platform matters less — but if the TV is your only streaming box, pick a platform with the apps you actually use and check that it is still being updated." },
-    { "title": "HDR is still mostly marketing on budget panels", "body": "Almost every budget TV in Singapore in 2026 claims HDR support. The honest version: HDR 10 input is decoded, but peak brightness on a budget panel is rarely above 350 nits, so the HDR effect is barely visible. For real HDR impact you need a panel that sustains 600+ nits or an OLED/Mini-LED, which sit above the budget tier. Treat any 'HDR' badge under SGD 1,000 as a bonus, not a reason to upgrade." }
+    {
+      "title": "4K is now the default at 43 inch and above",
+      "body": "Two years ago you had to choose between a 43-inch Full HD budget set and a 50-inch 4K at a premium. In 2026 every credible 43-inch budget TV sold in Singapore is 4K, and 50-inch 4K sets from Hisense and TCL sit comfortably under SGD 700 during platform sales. The remaining Full HD stock is mostly 32-inch bedroom sets where the resolution difference does not matter at viewing distance."
+    },
+    {
+      "title": "Smart TV platforms have consolidated around Google TV and Roku TV",
+      "body": "Hisense and TCL ship Google TV, onn and a handful of other brands ship Roku TV, and Samsung and LG keep their own platforms. Netflix, Disney+, YouTube and the local streaming apps run on all of them, but app updates, voice search quality and Chromecast/AirPlay support vary. If you already use a Chromecast or Apple TV, the smart platform matters less — but if the TV is your only streaming box, pick a platform with the apps you actually use and check that it is still being updated."
+    },
+    {
+      "title": "HDR is still mostly marketing on budget panels",
+      "body": "Almost every budget TV in Singapore in 2026 claims HDR support. The honest version: HDR 10 input is decoded, but peak brightness on a budget panel is rarely above 350 nits, so the HDR effect is barely visible. For real HDR impact you need a panel that sustains 600+ nits or an OLED/Mini-LED, which sit above the budget tier. Treat any 'HDR' badge under SGD 1,000 as a bonus, not a reason to upgrade."
+    }
   ],
   "adviceSectionTitle": "How to choose a budget TV in Singapore without overpaying",
   "advicePoints": [
@@ -44,15 +94,39 @@
   ],
   "faqSectionTitle": "Budget TVs in Singapore — common questions",
   "faqs": [
-    { "question": "What size budget TV should I buy for a HDB living room?", "answer": "Most HDB living rooms seat the sofa about 2.5 to 3.5 metres from the TV wall. A 50-inch or 55-inch 4K is the sweet spot for that distance — large enough to feel cinematic, small enough that text and UI elements stay legible without squinting. Going to 65 inches at HDB viewing distance usually feels too big unless the room is a 5-room or executive flat." },
-    { "question": "Are Hisense, TCL and Toshiba reliable as budget TV brands in Singapore?", "answer": "Yes. Hisense, TCL and Toshiba (now owned by Hisense) are the three brands that dominate the budget TV segment in Singapore, with established local service centres and warranty support through authorised retailers. Samsung and LG have budget options too but they typically cost more for comparable specs." },
-    { "question": "Is it worth paying more for a QLED budget TV in Singapore?", "answer": "QLED at the budget tier mostly means a wider colour gamut and slightly higher peak brightness — useful if you watch a lot of HDR content on Netflix or Disney+, but the improvement is incremental. If the price difference between a QLED and non-QLED budget set is small, take the QLED; if it is significant, the non-QLED set is the better value." },
-    { "question": "When is a budget TV cheapest in Singapore?", "answer": "Historically during platform sale days (9.9, 10.10, 11.11, 12.12) on Shopee and Lazada, and during the IT Show, PC Show and Challenger fair periods. Outside those windows the live listings on this page show the current floor across Amazon.sg, Shopee Mall, LazMall and local retailers." }
+    {
+      "question": "What size budget TV should I buy for a HDB living room?",
+      "answer": "Most HDB living rooms seat the sofa about 2.5 to 3.5 metres from the TV wall. A 50-inch or 55-inch 4K is the sweet spot for that distance — large enough to feel cinematic, small enough that text and UI elements stay legible without squinting. Going to 65 inches at HDB viewing distance usually feels too big unless the room is a 5-room or executive flat."
+    },
+    {
+      "question": "Are Hisense, TCL and Toshiba reliable as budget TV brands in Singapore?",
+      "answer": "Yes. Hisense, TCL and Toshiba (now owned by Hisense) are the three brands that dominate the budget TV segment in Singapore, with established local service centres and warranty support through authorised retailers. Samsung and LG have budget options too but they typically cost more for comparable specs."
+    },
+    {
+      "question": "Is it worth paying more for a QLED budget TV in Singapore?",
+      "answer": "QLED at the budget tier mostly means a wider colour gamut and slightly higher peak brightness — useful if you watch a lot of HDR content on Netflix or Disney+, but the improvement is incremental. If the price difference between a QLED and non-QLED budget set is small, take the QLED; if it is significant, the non-QLED set is the better value."
+    },
+    {
+      "question": "When is a budget TV cheapest in Singapore?",
+      "answer": "Historically during platform sale days (9.9, 10.10, 11.11, 12.12) on Shopee and Lazada, and during the IT Show, PC Show and Challenger fair periods. Outside those windows the live listings on this page show the current floor across Amazon.sg, Shopee Mall, LazMall and local retailers."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/best-budget-tvs-us" },
-  "inboundLinks": ["/", "/categories", "/compare", "/search", "/blog/best-time-to-buy-electronics", "/blog/best-time-to-buy-back-to-school-laptops-2026"],
-  "categoryIntro": { "heading": "Why Singapore budget TV prices move with sale days, not brands", "body": "Singapore does not have a single dominant TV retailer. The same Hisense, TCL or Samsung panel is sold by authorised distributors like Harvey Norman and Courts, marketplace official stores on Shopee and Lazada, Amazon.sg and parallel importers at once, and prices move with platform sale calendars rather than with the TV maker. That is why a static 'best budget TV' article goes stale within weeks and why this page reads live listings instead." },
+  "hreflangAlternates": {
+    "en-US": "/best-budget-tvs-us"
+  },
+  "inboundLinks": [
+    "/",
+    "/categories",
+    "/compare",
+    "/search",
+    "/blog/best-time-to-buy-electronics",
+    "/blog/best-time-to-buy-back-to-school-laptops-2026"
+  ],
+  "categoryIntro": {
+    "heading": "Why Singapore budget TV prices move with sale days, not brands",
+    "body": "Singapore does not have a single dominant TV retailer. The same Hisense, TCL or Samsung panel is sold by authorised distributors like Harvey Norman and Courts, marketplace official stores on Shopee and Lazada, Amazon.sg and parallel importers at once, and prices move with platform sale calendars rather than with the TV maker. That is why a static 'best budget TV' article goes stale within weeks and why this page reads live listings instead."
+  },
   "owner": "Sol",
   "reviewer": "Fetch",
   "queueRow": 15

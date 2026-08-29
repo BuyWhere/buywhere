@@ -3,7 +3,7 @@
   "title": "Cheapest iPad Air in the US (2026) — Live Prices Compared",
   "description": "Where the iPad Air is cheapest in the United States right now: live prices from Apple, Amazon, Best Buy, B&H, Walmart and Target compared daily, with buying advice on storage, Pencil support, education pricing and open-box deals.",
   "heroEyebrow": "US iPad Air price guide",
-  "heroTitle": "Cheapest iPad Air in the US — 2026 live price comparison",
+  "heroTitle": "Cheapest iPad Air in the US (2026) — 2026 live price comparison",
   "heroTitleTemplate": "Cheapest iPad Air in the US — from {floorPrice} today",
   "heroBody": "The iPad Air remains the safest Apple tablet recommendation in the United States in 2026 because it gives students, families and mobile workers the modern iPad experience without forcing them into iPad Pro pricing. In USD, the real buying decision is rarely Apple Store versus everyone else: Apple holds a predictable list price, while Amazon, Best Buy, B&H, Walmart and Target rotate discounts by color, storage size and whether the listing is new, open-box or renewed. This page pulls live US iPad Air listings from BuyWhere's catalog every few minutes so you can see the current floor price, which retailer is undercutting today, and whether the cheapest option is a sealed Apple-warranty unit or a condition-specific deal that needs extra scrutiny.",
   "canonicalPath": "/cheapest-ipad-air-us",
@@ -11,27 +11,77 @@
   "currency": "USD",
   "locale": "en_US",
   "searchQuery": "iPad Air",
-  "backupQueries": ["Apple iPad Air M2", "Apple iPad Air M3", "iPad Air 11 inch"],
+  "backupQueries": [
+    "Apple iPad Air M2",
+    "Apple iPad Air M3",
+    "iPad Air 11 inch"
+  ],
   "minPrice": 350,
-  "requiredProductTerms": ["ipad air", "ipad", "apple"],
+  "requiredProductTerms": [
+    "ipad air",
+    "ipad",
+    "apple"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live iPad Air prices in the US",
   "comparisonSectionTitle": "Where iPad Air is cheapest — at a glance",
-  "comparisonColumns": ["Seller type", "Typical discount pattern", "Warranty", "Best for"],
+  "comparisonColumns": [
+    "Seller type",
+    "Typical discount pattern",
+    "Warranty",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Apple Store / Education Store", "values": ["List price, education discount if eligible", "1-year Apple limited", "Custom configurations, AppleCare, trade-in"] },
-    { "label": "Amazon and Best Buy", "values": ["Fastest sale matching on popular colors", "1-year Apple if new and authorized", "Most buyers who want a sealed unit quickly"] },
-    { "label": "B&H / Adorama", "values": ["Often strong on specific storage or cellular SKUs", "Apple authorized reseller coverage", "Creators and buyers avoiding marketplace listings"] },
-    { "label": "Walmart / Target / open-box", "values": ["Lowest sticker when condition varies", "Check seller and return terms", "Deal hunters who read condition notes carefully"] }
+    {
+      "label": "Apple Store / Education Store",
+      "values": [
+        "List price, education discount if eligible",
+        "1-year Apple limited",
+        "Custom configurations, AppleCare, trade-in"
+      ]
+    },
+    {
+      "label": "Amazon and Best Buy",
+      "values": [
+        "Fastest sale matching on popular colors",
+        "1-year Apple if new and authorized",
+        "Most buyers who want a sealed unit quickly"
+      ]
+    },
+    {
+      "label": "B&H / Adorama",
+      "values": [
+        "Often strong on specific storage or cellular SKUs",
+        "Apple authorized reseller coverage",
+        "Creators and buyers avoiding marketplace listings"
+      ]
+    },
+    {
+      "label": "Walmart / Target / open-box",
+      "values": [
+        "Lowest sticker when condition varies",
+        "Check seller and return terms",
+        "Deal hunters who read condition notes carefully"
+      ]
+    }
   ],
   "highlightSectionTitle": "What matters before choosing an iPad Air deal",
   "highlights": [
-    { "title": "The Air is the value iPad for serious use", "body": "The iPad Air is the point where Apple's tablet line stops feeling like a consumption device and starts feeling like a long-term work machine. It supports modern Pencil workflows, laptop-style keyboards, split-screen multitasking and enough performance for note-taking, editing photos, drawing, coding tutorials and everyday travel work. The Pro still wins on display smoothness and specialist creative workflows, but most US buyers will keep more money by choosing the Air and spending deliberately on storage and accessories." },
-    { "title": "Storage and screen size change the deal", "body": "The lowest visible iPad Air listing is often a small-storage, Wi-Fi-only model in a less popular color. That can be perfect for streaming, school notes and web work, but it is a trap for buyers who keep large offline video libraries, manage RAW photos or use the tablet as their main travel computer. Before you chase the lowest card, decide whether the larger screen, cellular model or bigger storage tier is part of the actual purchase you need." },
-    { "title": "Open-box can be good, renewed is different", "body": "Best Buy open-box iPad Air units can be excellent when the condition is clearly described and the return window is intact. Marketplace renewed listings are a different category: battery history, accessories and warranty status can vary. The cheapest renewed listing is not automatically a better buy than a sealed unit from an authorized seller, especially if the iPad will be used by a student or family member for several years." }
+    {
+      "title": "The Air is the value iPad for serious use",
+      "body": "The iPad Air is the point where Apple's tablet line stops feeling like a consumption device and starts feeling like a long-term work machine. It supports modern Pencil workflows, laptop-style keyboards, split-screen multitasking and enough performance for note-taking, editing photos, drawing, coding tutorials and everyday travel work. The Pro still wins on display smoothness and specialist creative workflows, but most US buyers will keep more money by choosing the Air and spending deliberately on storage and accessories."
+    },
+    {
+      "title": "Storage and screen size change the deal",
+      "body": "The lowest visible iPad Air listing is often a small-storage, Wi-Fi-only model in a less popular color. That can be perfect for streaming, school notes and web work, but it is a trap for buyers who keep large offline video libraries, manage RAW photos or use the tablet as their main travel computer. Before you chase the lowest card, decide whether the larger screen, cellular model or bigger storage tier is part of the actual purchase you need."
+    },
+    {
+      "title": "Open-box can be good, renewed is different",
+      "body": "Best Buy open-box iPad Air units can be excellent when the condition is clearly described and the return window is intact. Marketplace renewed listings are a different category: battery history, accessories and warranty status can vary. The cheapest renewed listing is not automatically a better buy than a sealed unit from an authorized seller, especially if the iPad will be used by a student or family member for several years."
+    }
   ],
   "adviceSectionTitle": "How to pay the least without buying the wrong iPad Air",
   "advicePoints": [
@@ -44,15 +94,36 @@
   ],
   "faqSectionTitle": "iPad Air in the US — common questions",
   "faqs": [
-    { "question": "Where is the cheapest place to buy an iPad Air in the US?", "answer": "It changes by configuration. Apple is best when you qualify for Education pricing or want a custom setup, while Amazon and Best Buy usually move first on sealed mainstream models. B&H and Adorama can be better for specific storage or cellular variants. The live cards on this page show the current floor instead of relying on a static retailer ranking." },
-    { "question": "Is a renewed iPad Air worth it in the US?", "answer": "Sometimes, but treat renewed and open-box differently. Open-box from a major retailer with clear condition notes and an easy return window can be sensible. Marketplace renewed listings need more caution because battery history, accessories and warranty status may be less predictable." },
-    { "question": "Should I buy the cheapest iPad Air storage size?", "answer": "Only if the iPad is mainly for browsing, streaming, notes and cloud documents. If it will hold offline video, large creative files or years of photos, the lowest storage tier can feel cramped long before the processor is obsolete." },
-    { "question": "Is iPad Air better value than iPad Pro in 2026?", "answer": "For most US buyers, yes. The Pro is worth it for artists who need the best display, editors with demanding media workflows and people who know they need ProMotion. Everyone else gets the core iPad experience from the Air for less." }
+    {
+      "question": "Where is the cheapest place to buy an iPad Air in the US?",
+      "answer": "It changes by configuration. Apple is best when you qualify for Education pricing or want a custom setup, while Amazon and Best Buy usually move first on sealed mainstream models. B&H and Adorama can be better for specific storage or cellular variants. The live cards on this page show the current floor instead of relying on a static retailer ranking."
+    },
+    {
+      "question": "Is a renewed iPad Air worth it in the US?",
+      "answer": "Sometimes, but treat renewed and open-box differently. Open-box from a major retailer with clear condition notes and an easy return window can be sensible. Marketplace renewed listings need more caution because battery history, accessories and warranty status may be less predictable."
+    },
+    {
+      "question": "Should I buy the cheapest iPad Air storage size?",
+      "answer": "Only if the iPad is mainly for browsing, streaming, notes and cloud documents. If it will hold offline video, large creative files or years of photos, the lowest storage tier can feel cramped long before the processor is obsolete."
+    },
+    {
+      "question": "Is iPad Air better value than iPad Pro in 2026?",
+      "answer": "For most US buyers, yes. The Pro is worth it for artists who need the best display, editors with demanding media workflows and people who know they need ProMotion. Everyone else gets the core iPad experience from the Air for less."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-SG": "/best-ipads-singapore" },
-  "inboundLinks": ["/search?q=iPad%20Air&country=US", "/compare", "/best-ipads-singapore"],
-  "categoryIntro": { "heading": "Why US iPad Air prices move unevenly", "body": "US iPad Air pricing is fragmented because Apple controls the anchor price while retailers compete through short windows, color-specific inventory, member offers, open-box stock and back-to-school bundles. A shopper who only checks Apple sees the cleanest purchase path; a shopper who only checks marketplaces may see a lower number but miss the condition, seller and return differences. BuyWhere keeps the live table focused on real iPad Air listings so the comparison reflects today's market rather than a sale that ended last week." },
+  "hreflangAlternates": {
+    "en-SG": "/best-ipads-singapore"
+  },
+  "inboundLinks": [
+    "/search?q=iPad%20Air&country=US",
+    "/compare",
+    "/best-ipads-singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why US iPad Air prices move unevenly",
+    "body": "US iPad Air pricing is fragmented because Apple controls the anchor price while retailers compete through short windows, color-specific inventory, member offers, open-box stock and back-to-school bundles. A shopper who only checks Apple sees the cleanest purchase path; a shopper who only checks marketplaces may see a lower number but miss the condition, seller and return differences. BuyWhere keeps the live table focused on real iPad Air listings so the comparison reflects today's market rather than a sale that ended last week."
+  },
   "owner": "Sol",
   "reviewer": "Hue",
   "queueRow": 50

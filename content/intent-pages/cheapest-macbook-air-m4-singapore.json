@@ -3,35 +3,85 @@
   "title": "Cheapest MacBook Air M4 in Singapore (2026) — Live Prices Compared",
   "description": "Where the MacBook Air M4 is cheapest in Singapore right now: live prices from Apple Singapore, authorised resellers, Amazon.sg, Shopee and Lazada, compared daily, with advice on configuration, warranty, and education pricing.",
   "heroEyebrow": "Singapore MacBook Air M4 price guide",
-  "heroTitle": "Cheapest MacBook Air M4 in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest MacBook Air M4 in Singapore — from {floorPrice} today",
+  "heroTitle": "Cheapest MacBook Air M4 in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Cheapest MacBook Air M4 in Singapore — from {floorPrice} today",
   "heroBody": "The MacBook Air M4 is the default Apple laptop in 2026 — the M4 chip brings hardware ray tracing and on‑device Apple Intelligence, the fan‑less chassis is unchanged, and the 16GB RAM floor that hurt the M2 base model is now standard. Singapore pricing has stayed close to the MSRP since launch, except during Shopee and Lazada campaign weeks, on the Apple education store for students, and on parallel‑import listings that drop the price meaningfully at the cost of the Apple Singapore warranty. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so you can see the current floor for the 13‑inch 16GB / 256GB base, what the 15‑inch costs at the same config, and which retailer is undercutting today.",
   "canonicalPath": "/cheapest-macbook-air-m4-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "MacBook Air M4 Singapore",
-  "backupQueries": ["Apple MacBook Air M4 13 Singapore", "MacBook Air M4 15 Singapore", "MacBook Air 13 M4 Apple Singapore"],
+  "backupQueries": [
+    "Apple MacBook Air M4 13 Singapore",
+    "MacBook Air M4 15 Singapore",
+    "MacBook Air 13 M4 Apple Singapore"
+  ],
   "minPrice": 1000,
-  "requiredProductTerms": ["macbook air", "m4", "apple"],
+  "requiredProductTerms": [
+    "macbook air",
+    "m4",
+    "apple"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live MacBook Air M4 prices in Singapore",
   "comparisonSectionTitle": "Where the MacBook Air M4 is cheapest — at a glance",
-  "comparisonColumns": ["Seller type", "Typical price vs MSRP", "Warranty", "Best for"],
+  "comparisonColumns": [
+    "Seller type",
+    "Typical price vs MSRP",
+    "Warranty",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Apple Singapore / authorised resellers", "values": ["List price, occasional bundle promo", "1‑year Apple Singapore + AppleCare+ optional", "Latest stock, education pricing, full returns"] },
-    { "label": "Amazon.sg (sold by Amazon)", "values": ["Often below list on promo", "1‑year Apple if sold by Apple, shop warranty if third‑party", "Fast delivery, easy returns"] },
-    { "label": "Shopee Mall / LazMall official stores", "values": ["Lowest during 9.9 / 11.11 / payday sales", "1‑year local (check listing)", "Voucher stacking"] },
-    { "label": "Parallel importers", "values": ["Lowest sticker price", "Shop warranty only", "Buyers who accept no Apple Singapore warranty"] }
+    {
+      "label": "Apple Singapore / authorised resellers",
+      "values": [
+        "List price, occasional bundle promo",
+        "1‑year Apple Singapore + AppleCare+ optional",
+        "Latest stock, education pricing, full returns"
+      ]
+    },
+    {
+      "label": "Amazon.sg (sold by Amazon)",
+      "values": [
+        "Often below list on promo",
+        "1‑year Apple if sold by Apple, shop warranty if third‑party",
+        "Fast delivery, easy returns"
+      ]
+    },
+    {
+      "label": "Shopee Mall / LazMall official stores",
+      "values": [
+        "Lowest during 9.9 / 11.11 / payday sales",
+        "1‑year local (check listing)",
+        "Voucher stacking"
+      ]
+    },
+    {
+      "label": "Parallel importers",
+      "values": [
+        "Lowest sticker price",
+        "Shop warranty only",
+        "Buyers who accept no Apple Singapore warranty"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed with the MacBook Air M4",
   "highlights": [
-    { "title": "M4 vs M3 performance", "body": "The M4 brings hardware ray tracing and a noticeably faster Neural Engine. For everyday productivity the M3 is still excellent and a discounted M3 is the smarter buy if you do not need Apple Intelligence or ray‑traced games. For sustained workloads — video, code, large Photoshop files — the M4 is worth the step up." },
-    { "title": "16GB RAM is now the floor", "body": "Apple finally standardised 16GB of RAM across the MacBook Air M4 lineup, fixing the M2/M3 base model's biggest complaint. The 256GB storage tier is still the entry point and is fine for most shoppers, but anyone editing video on the device should move up to 512GB at configure‑to‑order." },
-    { "title": "13‑inch vs 15‑inch", "body": "The 15‑inch MacBook Air M4 is meaningfully larger and heavier but offers the same chip and the same battery life. The 13‑inch is the right default for portability; the 15‑inch is for anyone who edits video or has aging eyes and does not want to plug into a monitor." }
+    {
+      "title": "M4 vs M3 performance",
+      "body": "The M4 brings hardware ray tracing and a noticeably faster Neural Engine. For everyday productivity the M3 is still excellent and a discounted M3 is the smarter buy if you do not need Apple Intelligence or ray‑traced games. For sustained workloads — video, code, large Photoshop files — the M4 is worth the step up."
+    },
+    {
+      "title": "16GB RAM is now the floor",
+      "body": "Apple finally standardised 16GB of RAM across the MacBook Air M4 lineup, fixing the M2/M3 base model's biggest complaint. The 256GB storage tier is still the entry point and is fine for most shoppers, but anyone editing video on the device should move up to 512GB at configure‑to‑order."
+    },
+    {
+      "title": "13‑inch vs 15‑inch",
+      "body": "The 15‑inch MacBook Air M4 is meaningfully larger and heavier but offers the same chip and the same battery life. The 13‑inch is the right default for portability; the 15‑inch is for anyone who edits video or has aging eyes and does not want to plug into a monitor."
+    }
   ],
   "adviceSectionTitle": "How to pay the least without getting burned",
   "advicePoints": [
@@ -43,14 +93,33 @@
   ],
   "faqSectionTitle": "MacBook Air M4 in Singapore — common questions",
   "faqs": [
-    { "question": "Is the MacBook Air M4 worth it over the M3 in Singapore?", "answer": "Yes if you need on‑device Apple Intelligence, hardware ray tracing or you keep the laptop for four plus years. If you only browse, write and edit documents, a discounted M3 Air is the smarter buy and the savings are meaningful." },
-    { "question": "Do parallel‑import MacBook Air M4 units come with warranty in Singapore?", "answer": "No. Apple Singapore honours warranty for local sets only. Parallel‑import listings carry the shop's own warranty, which is why they are cheaper — for a laptop that costs this much, the warranty gap usually is not worth the small discount." },
-    { "question": "When is the MacBook Air M4 cheapest in Singapore?", "answer": "Historically during platform sale days (9.9, 11.11, 12.12) and Apple's mid‑year education promotion. Outside those windows the live prices on this page show the current floor." },
-    { "question": "Should I get the 13‑inch or 15‑inch MacBook Air M4?", "answer": "13‑inch for portability and most shoppers; 15‑inch only if you regularly edit video, want a larger canvas for split‑screen work, or do not want to plug into a monitor at home. The chip and battery are the same on both." }
+    {
+      "question": "Is the MacBook Air M4 worth it over the M3 in Singapore?",
+      "answer": "Yes if you need on‑device Apple Intelligence, hardware ray tracing or you keep the laptop for four plus years. If you only browse, write and edit documents, a discounted M3 Air is the smarter buy and the savings are meaningful."
+    },
+    {
+      "question": "Do parallel‑import MacBook Air M4 units come with warranty in Singapore?",
+      "answer": "No. Apple Singapore honours warranty for local sets only. Parallel‑import listings carry the shop's own warranty, which is why they are cheaper — for a laptop that costs this much, the warranty gap usually is not worth the small discount."
+    },
+    {
+      "question": "When is the MacBook Air M4 cheapest in Singapore?",
+      "answer": "Historically during platform sale days (9.9, 11.11, 12.12) and Apple's mid‑year education promotion. Outside those windows the live prices on this page show the current floor."
+    },
+    {
+      "question": "Should I get the 13‑inch or 15‑inch MacBook Air M4?",
+      "answer": "13‑inch for portability and most shoppers; 15‑inch only if you regularly edit video, want a larger canvas for split‑screen work, or do not want to plug into a monitor at home. The chip and battery are the same on both."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/cheapest-macbook-air-m4-us" },
-  "inboundLinks": ["/best-macbooks-singapore", "/macbook-air-m4-vs-macbook-air-m3-singapore", "/cheapest-macbook-pro-singapore", "/laptop-singapore"],
+  "hreflangAlternates": {
+    "en-US": "/cheapest-macbook-air-m4-us"
+  },
+  "inboundLinks": [
+    "/best-macbooks-singapore",
+    "/macbook-air-m4-vs-macbook-air-m3-singapore",
+    "/cheapest-macbook-pro-singapore",
+    "/laptop-singapore"
+  ],
   "owner": "Buzz",
   "reviewer": "Fetch",
   "queueRow": 57

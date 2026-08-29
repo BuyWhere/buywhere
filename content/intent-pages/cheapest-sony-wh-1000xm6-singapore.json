@@ -3,36 +3,94 @@
   "title": "Cheapest Sony WH-1000XM6 in Singapore (2026) — Live Prices Compared",
   "description": "Where the Sony WH-1000XM6 is cheapest in Singapore right now: live prices from Sony Singapore, Challenger, Courts, Shopee Mall, LazMall and telco bundles, compared daily, with buying advice on warranty, parallel imports and what changed from the XM5.",
   "heroEyebrow": "Singapore Sony WH-1000XM6 price guide",
-  "heroTitle": "Cheapest Sony WH-1000XM6 in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest Sony WH-1000XM6 in Singapore — from {floorPrice} today",
+  "heroTitle": "Cheapest Sony WH-1000XM6 in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Cheapest Sony WH-1000XM6 in Singapore — from {floorPrice} today",
   "heroBody": "Sony launched the WH-1000XM6 in mid-2025 with a meaningfully better ANC chip and the return of the foldable hinge, and Singapore pricing has settled into a familiar pattern: Sony Singapore and authorised resellers hold the list price, while Shopee Mall and LazMall official stores undercut during platform sales, and parallel importers price below everyone. This page pulls the live Singapore listings from BuyWhere's catalog every few minutes so you can see the current floor, who is offering it, and whether the cheapest listing is a local set with Sony Singapore warranty or a parallel import.",
   "canonicalPath": "/cheapest-sony-wh-1000xm6-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "Sony WH-1000XM6",
-  "backupQueries": ["Sony WH-1000XM6 headphones", "Sony WH1000XM6", "Sony XM6 wireless headphones"],
+  "backupQueries": [
+    "Sony WH-1000XM6 headphones",
+    "Sony WH1000XM6",
+    "Sony XM6 wireless headphones"
+  ],
   "minPrice": 350,
-  "requiredProductTerms": ["wh-1000xm6", "sony", "1000xm6", "wireless headphones"],
+  "requiredProductTerms": [
+    "wh-1000xm6",
+    "sony",
+    "1000xm6",
+    "wireless headphones"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live Sony WH-1000XM6 prices in Singapore",
   "comparisonSectionTitle": "Where the Sony WH-1000XM6 is cheapest — at a glance",
-  "comparisonColumns": ["Seller type", "Typical price vs list", "Warranty", "Best for"],
+  "comparisonColumns": [
+    "Seller type",
+    "Typical price vs list",
+    "Warranty",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Sony Singapore / authorised resellers", "values": ["List price", "1-year Sony Singapore", "Peace of mind, in-store support, trade-in"] },
-    { "label": "Challenger / Courts / Harvey Norman", "values": ["Usually match Sony, small voucher during sales", "1-year Sony Singapore", "In-store pickup, point rewards, 0% instalment"] },
-    { "label": "Shopee Mall / LazMall official stores", "values": ["Lowest during 9.9 / 11.11 / payday sales", "1-year local (check listing)", "Voucher stacking, free shipping promos"] },
-    { "label": "Singtel / StarHub / M1 contract bundles", "values": ["Upfront subsidy with 24-month plan", "Sony Singapore (carrier-sold)", "Mobile data users who would sign anyway"] },
-    { "label": "Parallel importers", "values": ["Lowest sticker price", "Shop warranty only", "Buyers who accept no Sony Singapore warranty"] }
+    {
+      "label": "Sony Singapore / authorised resellers",
+      "values": [
+        "List price",
+        "1-year Sony Singapore",
+        "Peace of mind, in-store support, trade-in"
+      ]
+    },
+    {
+      "label": "Challenger / Courts / Harvey Norman",
+      "values": [
+        "Usually match Sony, small voucher during sales",
+        "1-year Sony Singapore",
+        "In-store pickup, point rewards, 0% instalment"
+      ]
+    },
+    {
+      "label": "Shopee Mall / LazMall official stores",
+      "values": [
+        "Lowest during 9.9 / 11.11 / payday sales",
+        "1-year local (check listing)",
+        "Voucher stacking, free shipping promos"
+      ]
+    },
+    {
+      "label": "Singtel / StarHub / M1 contract bundles",
+      "values": [
+        "Upfront subsidy with 24-month plan",
+        "Sony Singapore (carrier-sold)",
+        "Mobile data users who would sign anyway"
+      ]
+    },
+    {
+      "label": "Parallel importers",
+      "values": [
+        "Lowest sticker price",
+        "Shop warranty only",
+        "Buyers who accept no Sony Singapore warranty"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed with the Sony WH-1000XM6",
   "highlights": [
-    { "title": "Best-in-class ANC again", "body": "The XM6 widens the noise-cancellation gap on the Bose QuietComfort Ultra, especially on voices and plane rumble. If you fly often or work in a noisy office, the ANC alone is the reason to upgrade from the XM5." },
-    { "title": "The hinge is back", "body": "Sony dropped the folding hinge on the XM4 and XM5 and the travel case was awkward as a result. The XM6 brings back the swivel-and-fold hinge and a flatter hard case that actually fits a laptop backpack pocket. Small thing, but a meaningful quality-of-life win for daily commuters." },
-    { "title": "Better call quality with AI beamforming", "body": "The XM6 uses on-device AI beamforming with eight microphones and noticeably clearer voice pickup on Zoom and Teams calls. If you take calls on headphones all day, this is the most underrated upgrade." }
+    {
+      "title": "Best-in-class ANC again",
+      "body": "The XM6 widens the noise-cancellation gap on the Bose QuietComfort Ultra, especially on voices and plane rumble. If you fly often or work in a noisy office, the ANC alone is the reason to upgrade from the XM5."
+    },
+    {
+      "title": "The hinge is back",
+      "body": "Sony dropped the folding hinge on the XM4 and XM5 and the travel case was awkward as a result. The XM6 brings back the swivel-and-fold hinge and a flatter hard case that actually fits a laptop backpack pocket. Small thing, but a meaningful quality-of-life win for daily commuters."
+    },
+    {
+      "title": "Better call quality with AI beamforming",
+      "body": "The XM6 uses on-device AI beamforming with eight microphones and noticeably clearer voice pickup on Zoom and Teams calls. If you take calls on headphones all day, this is the most underrated upgrade."
+    }
   ],
   "adviceSectionTitle": "How to pay the least without getting burned",
   "advicePoints": [
@@ -44,16 +102,39 @@
   ],
   "faqSectionTitle": "Sony WH-1000XM6 in Singapore — common questions",
   "faqs": [
-    { "question": "Is the WH-1000XM6 worth it over the WH-1000XM5 in Singapore?", "answer": "Yes if you fly often, take calls on headphones all day, or travel with the headphones in a backpack. The folding hinge, the wider ANC lead and the AI beamforming microphones are all clear wins. If you listen at home and never travel, the XM5 is still very good and you can usually find it on sale." },
-    { "question": "Do parallel-import WH-1000XM6 come with Sony warranty in Singapore?", "answer": "No. Sony Singapore honours warranty for local sets only. Parallel-import listings carry the shop's own warranty, which is why they are cheaper, and Sony's extended cover cannot be purchased for them in Singapore." },
-    { "question": "When is the WH-1000XM6 cheapest in Singapore?", "answer": "Historically during platform sale days (9.9, 11.11, 12.12) and payday campaigns on Shopee and Lazada, with Challenger and Courts matching within days. Outside those windows the live prices on this page show the current floor." },
-    { "question": "Sony WH-1000XM6 vs Bose QuietComfort Ultra — which should I buy?", "answer": "The Sony wins on ANC, call quality and battery life (roughly 36 hours vs Bose's 24). The Bose wins on spatial audio and a slightly more comfortable clamp for larger heads. If you fly often or take calls on headphones, get the Sony. If you mostly listen to music at home and want the best spatial mode, the Bose earns the price gap." },
-    { "question": "Can I use a parallel-import WH-1000XM6 with Singtel or StarHub in Singapore?", "answer": "Yes for Bluetooth — these are wireless headphones, not network-locked. The catch is warranty: parallel imports are not serviceable by Sony Singapore and you cannot add Sony's local extended cover." }
+    {
+      "question": "Is the WH-1000XM6 worth it over the WH-1000XM5 in Singapore?",
+      "answer": "Yes if you fly often, take calls on headphones all day, or travel with the headphones in a backpack. The folding hinge, the wider ANC lead and the AI beamforming microphones are all clear wins. If you listen at home and never travel, the XM5 is still very good and you can usually find it on sale."
+    },
+    {
+      "question": "Do parallel-import WH-1000XM6 come with Sony warranty in Singapore?",
+      "answer": "No. Sony Singapore honours warranty for local sets only. Parallel-import listings carry the shop's own warranty, which is why they are cheaper, and Sony's extended cover cannot be purchased for them in Singapore."
+    },
+    {
+      "question": "When is the WH-1000XM6 cheapest in Singapore?",
+      "answer": "Historically during platform sale days (9.9, 11.11, 12.12) and payday campaigns on Shopee and Lazada, with Challenger and Courts matching within days. Outside those windows the live prices on this page show the current floor."
+    },
+    {
+      "question": "Sony WH-1000XM6 vs Bose QuietComfort Ultra — which should I buy?",
+      "answer": "The Sony wins on ANC, call quality and battery life (roughly 36 hours vs Bose's 24). The Bose wins on spatial audio and a slightly more comfortable clamp for larger heads. If you fly often or take calls on headphones, get the Sony. If you mostly listen to music at home and want the best spatial mode, the Bose earns the price gap."
+    },
+    {
+      "question": "Can I use a parallel-import WH-1000XM6 with Singtel or StarHub in Singapore?",
+      "answer": "Yes for Bluetooth — these are wireless headphones, not network-locked. The catch is warranty: parallel imports are not serviceable by Sony Singapore and you cannot add Sony's local extended cover."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/cheapest-sony-wh-1000xm6-us" },
-  "inboundLinks": ["/airpods-singapore", "/best-robot-vacuums-singapore"],
-  "categoryIntro": { "heading": "Why Singapore headphone prices vary so much", "body": "Singapore has no single dominant electronics retailer, so the same Sony product is sold by the Sony Singapore store, authorised resellers like Challenger and Courts, marketplace official stores and dozens of parallel importers at once. Prices move with platform campaigns rather than with Sony, which is why a static 'best price' article goes stale within days and why this page reads live listings instead." },
+  "hreflangAlternates": {
+    "en-US": "/cheapest-sony-wh-1000xm6-us"
+  },
+  "inboundLinks": [
+    "/airpods-singapore",
+    "/best-robot-vacuums-singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why Singapore headphone prices vary so much",
+    "body": "Singapore has no single dominant electronics retailer, so the same Sony product is sold by the Sony Singapore store, authorised resellers like Challenger and Courts, marketplace official stores and dozens of parallel importers at once. Prices move with platform campaigns rather than with Sony, which is why a static 'best price' article goes stale within days and why this page reads live listings instead."
+  },
   "owner": "Surf",
   "reviewer": "Fetch",
   "queueRow": 73

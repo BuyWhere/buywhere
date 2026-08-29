@@ -107,8 +107,8 @@ export function preprocessSearchQuery(
     /(?:between|from)\s+\$?\s*(\d+[.,]?\d*)\s*(?:and|to|-)\s*\$?\s*(\d+[.,]?\d*)/i
   );
   if (rangeMatch) {
-    const a = parseFloat(rangeMatch[1].replace(/,/g, ''));
-    const b = parseFloat(rangeMatch[2].replace(/,/g, ''));
+    const a = parseFloat(rangeMatch[1].replace(/,/g, '');
+    const b = parseFloat(rangeMatch[2].replace(/,/g, '');
     if (!isNaN(a) && !isNaN(b) && a > 0 && b > 0 && b >= a) {
       if (existingMinPrice === undefined) result.extractedMinPrice = a;
       if (existingMaxPrice === undefined) result.extractedMaxPrice = b;
@@ -121,7 +121,7 @@ export function preprocessSearchQuery(
     /(?:under|below|less\s+than|cheaper\s+than|at\s+most|budget|max(?:imum)?)\s+\$?\s*(\d+[.,]?\d*)/i
   );
   if (maxMatch && existingMaxPrice === undefined) {
-    const val = parseFloat(maxMatch[1].replace(/,/g, ''));
+    const val = parseFloat(maxMatch[1].replace(/,/g, '');
     if (!isNaN(val) && val > 0) {
       result.extractedMaxPrice = val;
       workingQuery = workingQuery.replace(maxMatch[0], '').trim();
@@ -133,7 +133,7 @@ export function preprocessSearchQuery(
     /(?:above|over|more\s+than|at\s+least|min(?:imum)?)\s+\$?\s*(\d+[.,]?\d*)/i
   );
   if (minMatch && existingMinPrice === undefined) {
-    const val = parseFloat(minMatch[1].replace(/,/g, ''));
+    const val = parseFloat(minMatch[1].replace(/,/g, '');
     if (!isNaN(val) && val > 0) {
       result.extractedMinPrice = val;
       workingQuery = workingQuery.replace(minMatch[0], '').trim();
@@ -177,4 +177,63 @@ function cleanQueryText(text: string): string {
   cleaned = cleaned.replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 
   return cleaned;
+}
+
+/**
+ * Country token patterns to strip from queries.
+ * Order matters: longer patterns first to avoid partial matches.
+ */
+const COUNTRY_TOKEN_PATTERNS = [
+  // Full country names (case-insensitive)
+  /\b(singapore|singapore's)\b/gi,
+  /\b(united\s*states|united\s*states['\s]*|usa\s*|america['\s]*)\b/gi,
+  /\b(america)\b/gi,
+  // ISO codes (case-insensitive)
+  /\b(SG|SG['\s]*)\b/gi,
+  /\b(US|USA|USA['\s]*)\b/gi,
+];
+
+/**
+ * Full country names for display.
+ */
+const COUNTRY_DISPLAY_NAMES: Record<string, string> = {
+  'sg': 'Singapore',
+  'us': 'United States',
+  'usa': 'United States',
+};
+
+/**
+ * BUY-76486: Strip country tokens from search query for verdict template generation.
+ * When the query already contains "Singapore" and the verdict says "in SG today",
+ * the result is redundant: "air purifier Singapore in SG today".
+ *
+ * Also converts country codes to full names for better readability:
+ * "in SG" -> "in Singapore", "in US" -> "in United States"
+ *
+ * @param query - The original search query (may contain country tokens)
+ * @param countryCode - The ISO country code (e.g., "SG", "US")
+ * @returns The cleaned query with country tokens removed
+ */
+export function stripCountryTokens(query: string, countryCode: string): string {
+  let cleaned = query;
+
+  // Strip country tokens from the query
+  for (const pattern of COUNTRY_TOKEN_PATTERNS) {
+    cleaned = cleaned.replace(pattern, ' ');
+  }
+
+  // Collapse multiple spaces and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+}
+
+/**
+ * Get the full country name for display in verdict templates.
+ *
+ * @param countryCode - The ISO country code (e.g., "SG", "US")
+ * @returns The full country name (e.g., "Singapore", "United States")
+ */
+export function getCountryDisplayName(countryCode: string): string {
+  return COUNTRY_DISPLAY_NAMES[countryCode.toLowerCase()] ?? countryCode;
 }

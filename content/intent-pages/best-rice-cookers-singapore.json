@@ -3,8 +3,8 @@
   "title": "Best Rice Cookers in Singapore (2026) — Live Prices From Every Retailer",
   "description": "The best rice cookers you can buy in Singapore right now: live prices from Amazon.sg, Shopee, Lazada, Harvey Norman, Courts and Challenger, ranked daily, with expert advice on Tiger vs Zojirushi, fuzzy logic vs induction, and whether to skip the 100V parallel imports.",
   "heroEyebrow": "Singapore rice cooker buying guide",
-  "heroTitle": "Best Rice Cookers in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Best Rice Cookers in Singapore — from {floorPrice} today",
+  "heroTitle": "Best Rice Cookers in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Best Rice Cookers in Singapore — from {floorPrice} today",
   "heroBody": "Singapore is one of the most rice-cooker-saturated markets in the world: nearly every HDB kitchen has one and most families replace them only every decade. The local market in 2026 is dominated by Tiger and Zojirushi (with a strong presence from Panasonic, Cuckoo and Tefal), and the meaningful choice is between a basic on/off cooker that handles white rice adequately, a fuzzy-logic (micom) model that does brown rice, sushi rice and congee with more nuance, and an induction-heating (IH) cooker that matches what a Japanese domestic buyer gets at the same price tier. The other decision is voltage — Japan-domestic-market rice cookers run on 100V, Singapore runs on 230V, and a 100V unit on a Singapore socket cooks unevenly and slowly. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so the price on each card is what local retailers and marketplace sellers are actually charging right now, in S$, with local warranty and 230V compatibility called out.",
   "canonicalPath": "/best-rice-cookers-singapore",
   "country": "SG",
@@ -26,7 +26,7 @@
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live rice cooker prices in Singapore",
   "comparisonSectionTitle": "Which rice cooker should you buy in Singapore? At a glance",
   "comparisonColumns": [
@@ -36,16 +36,57 @@
     "Best for"
   ],
   "comparisonRows": [
-    { "label": "Basic rice cooker (entry tier)", "values": ["Entry tier", "On/off heating", "3-5 cup uncooked", "White rice only, small household, occasional use"] },
-    { "label": "Fuzzy logic / micom (mainstream)", "values": ["Mainstream tier", "Microcomputer + temperature sensor", "5-10 cup uncooked", "Brown rice, sushi rice, mixed grains, daily use"] },
-    { "label": "Induction heating (premium)", "values": ["Premium tier", "IH + micom", "5-10 cup uncooked", "Best rice texture, congee, porridge, mixed grains"] },
-    { "label": "Premium IH / pressure IH (top tier)", "values": ["Top tier", "IH + pressure + multiple programmes", "5-10 cup uncooked", "Connoisseur cooks, large families, Japanese-spec cooking"] }
+    {
+      "label": "Basic rice cooker (entry tier)",
+      "values": [
+        "Entry tier",
+        "On/off heating",
+        "3-5 cup uncooked",
+        "White rice only, small household, occasional use"
+      ]
+    },
+    {
+      "label": "Fuzzy logic / micom (mainstream)",
+      "values": [
+        "Mainstream tier",
+        "Microcomputer + temperature sensor",
+        "5-10 cup uncooked",
+        "Brown rice, sushi rice, mixed grains, daily use"
+      ]
+    },
+    {
+      "label": "Induction heating (premium)",
+      "values": [
+        "Premium tier",
+        "IH + micom",
+        "5-10 cup uncooked",
+        "Best rice texture, congee, porridge, mixed grains"
+      ]
+    },
+    {
+      "label": "Premium IH / pressure IH (top tier)",
+      "values": [
+        "Top tier",
+        "IH + pressure + multiple programmes",
+        "5-10 cup uncooked",
+        "Connoisseur cooks, large families, Japanese-spec cooking"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed with rice cookers in Singapore in 2026",
   "highlights": [
-    { "title": "Tiger and Zojirushi hold the local market", "body": "Tiger (Japan) and Zojirushi (Japan) together account for the majority of mid-range and premium rice cookers sold in Singapore at Harvey Norman, Courts, Challenger and the major marketplaces. Both brands make Singapore-spec (230V) units with local warranty and a JP-domestic-spec (100V) line that importers bring in. The Singapore-spec line is the right choice for almost every HDB and condo kitchen; the JP-domestic line cooks slightly better but requires a step-down transformer and forfeits the local warranty path." },
-    { "title": "Induction heating is the connoisseur choice", "body": "Induction-heating (IH) rice cookers generate heat inside the pot with a magnetic field rather than from a heating plate below, giving finer temperature control and producing noticeably better rice at the top of the range. For plain white rice the difference between a fuzzy-logic and an IH model is small; for brown rice, mixed grains and congee the IH difference is large. If you cook rice every day and want the best result, IH is the tier to buy; if you cook rice a few times a week, a fuzzy-logic model delivers 90% of the result for meaningfully less." },
-    { "title": "Cuckoo has become a credible third option", "body": "Korean brand Cuckoo has built meaningful shelf space in Singapore at the IH and pressure-IH tiers. Cuckoo's flagship models add pressure cooking to the induction-heating platform, which produces rice that is visibly glossier than a Tiger or Zojirushi IH at the same tier. Pricing is competitive with the Japanese brands and the local warranty path is now well-established through major retailers. Worth comparing against Tiger and Zojirushi at the top tier." }
+    {
+      "title": "Tiger and Zojirushi hold the local market",
+      "body": "Tiger (Japan) and Zojirushi (Japan) together account for the majority of mid-range and premium rice cookers sold in Singapore at Harvey Norman, Courts, Challenger and the major marketplaces. Both brands make Singapore-spec (230V) units with local warranty and a JP-domestic-spec (100V) line that importers bring in. The Singapore-spec line is the right choice for almost every HDB and condo kitchen; the JP-domestic line cooks slightly better but requires a step-down transformer and forfeits the local warranty path."
+    },
+    {
+      "title": "Induction heating is the connoisseur choice",
+      "body": "Induction-heating (IH) rice cookers generate heat inside the pot with a magnetic field rather than from a heating plate below, giving finer temperature control and producing noticeably better rice at the top of the range. For plain white rice the difference between a fuzzy-logic and an IH model is small; for brown rice, mixed grains and congee the IH difference is large. If you cook rice every day and want the best result, IH is the tier to buy; if you cook rice a few times a week, a fuzzy-logic model delivers 90% of the result for meaningfully less."
+    },
+    {
+      "title": "Cuckoo has become a credible third option",
+      "body": "Korean brand Cuckoo has built meaningful shelf space in Singapore at the IH and pressure-IH tiers. Cuckoo's flagship models add pressure cooking to the induction-heating platform, which produces rice that is visibly glossier than a Tiger or Zojirushi IH at the same tier. Pricing is competitive with the Japanese brands and the local warranty path is now well-established through major retailers. Worth comparing against Tiger and Zojirushi at the top tier."
+    }
   ],
   "adviceSectionTitle": "How to pick a rice cooker in Singapore without overpaying",
   "advicePoints": [
@@ -58,15 +99,35 @@
   ],
   "faqSectionTitle": "Rice cookers in Singapore — common questions",
   "faqs": [
-    { "question": "Is Tiger or Zojirushi better for a Singapore kitchen?", "answer": "Both are excellent and the choice is largely personal preference. Tiger is the long-standing incumbent in Singapore and many families have owned multiple generations of Tiger cookers; the brand's local warranty path and parts availability are well-established. Zojirushi leans slightly more toward fine-grained cooking settings and a wider range of programmes; the brand's higher-end IH models are also widely stocked. At the fuzzy-logic tier the two are essentially interchangeable; at the IH tier preferences diverge." },
-    { "question": "Should I buy a Japan-domestic rice cooker in Singapore?", "answer": "Japan-domestic rice cookers from Tiger and Zojirushi are technically more advanced than the Singapore-spec models at the same price tier, with more programmes and sometimes pressure cooking. They run on 100V and Singapore runs on 230V, so you need a step-down transformer to use one — adding cost, bulk and an extra point of failure. Most Singapore households are better served by the Singapore-spec line at the equivalent price tier." },
-    { "question": "What size rice cooker do I need for a Singapore family?", "answer": "A 5-cup-uncooked (about 1.0L) model is right for 2-4 people, a 10-cup (about 1.8L) is the sweet spot for families of 4-6 and is also what most zi char stalls and small-cooking channels use for recipe development. Going larger than 10-cup-uncooked just means longer preheat cycles and more standby power for most HDB kitchens." },
-    { "question": "When is the cheapest time to buy a rice cooker in Singapore?", "answer": "The deepest rice-cooker discounts in Singapore land during the major platform sale days on Shopee and Lazada (9.9, 10.10, 11.11, 12.12), with Amazon.sg matching within days. Harvey Norman and Courts run their own housewares-and-small-appliance sales around Chinese New Year and the June school-holiday period. Outside those windows the live prices on this page show the current floor." },
-    { "question": "Are parallel-imported rice cookers worth it in Singapore?", "answer": "Parallel-imported rice cookers are often meaningfully cheaper than the local authorised-reseller price but ship without the brand's Singapore warranty. If you are buying a basic entry-tier unit the savings are small and the local-warranty path does not matter much; if you are buying a premium IH or pressure-IH model the local warranty path is worth paying for. The live cards on this page indicate which listings are local authorised versus parallel-imported where the listing data makes that distinction clear." }
+    {
+      "question": "Is Tiger or Zojirushi better for a Singapore kitchen?",
+      "answer": "Both are excellent and the choice is largely personal preference. Tiger is the long-standing incumbent in Singapore and many families have owned multiple generations of Tiger cookers; the brand's local warranty path and parts availability are well-established. Zojirushi leans slightly more toward fine-grained cooking settings and a wider range of programmes; the brand's higher-end IH models are also widely stocked. At the fuzzy-logic tier the two are essentially interchangeable; at the IH tier preferences diverge."
+    },
+    {
+      "question": "Should I buy a Japan-domestic rice cooker in Singapore?",
+      "answer": "Japan-domestic rice cookers from Tiger and Zojirushi are technically more advanced than the Singapore-spec models at the same price tier, with more programmes and sometimes pressure cooking. They run on 100V and Singapore runs on 230V, so you need a step-down transformer to use one — adding cost, bulk and an extra point of failure. Most Singapore households are better served by the Singapore-spec line at the equivalent price tier."
+    },
+    {
+      "question": "What size rice cooker do I need for a Singapore family?",
+      "answer": "A 5-cup-uncooked (about 1.0L) model is right for 2-4 people, a 10-cup (about 1.8L) is the sweet spot for families of 4-6 and is also what most zi char stalls and small-cooking channels use for recipe development. Going larger than 10-cup-uncooked just means longer preheat cycles and more standby power for most HDB kitchens."
+    },
+    {
+      "question": "When is the cheapest time to buy a rice cooker in Singapore?",
+      "answer": "The deepest rice-cooker discounts in Singapore land during the major platform sale days on Shopee and Lazada (9.9, 10.10, 11.11, 12.12), with Amazon.sg matching within days. Harvey Norman and Courts run their own housewares-and-small-appliance sales around Chinese New Year and the June school-holiday period. Outside those windows the live prices on this page show the current floor."
+    },
+    {
+      "question": "Are parallel-imported rice cookers worth it in Singapore?",
+      "answer": "Parallel-imported rice cookers are often meaningfully cheaper than the local authorised-reseller price but ship without the brand's Singapore warranty. If you are buying a basic entry-tier unit the savings are small and the local-warranty path does not matter much; if you are buying a premium IH or pressure-IH model the local warranty path is worth paying for. The live cards on this page indicate which listings are local authorised versus parallel-imported where the listing data makes that distinction clear."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/best-rice-cookers-us" },
-  "inboundLinks": ["/best-multi-cookers-singapore", "/air-purifier-singapore"],
+  "hreflangAlternates": {
+    "en-US": "/best-rice-cookers-us"
+  },
+  "inboundLinks": [
+    "/best-multi-cookers-singapore",
+    "/air-purifier-singapore"
+  ],
   "categoryIntro": {
     "heading": "Why Singapore rice cooker prices swing so widely",
     "body": "Three forces drive the spread between the cheapest and most expensive rice cooker listings on any given day in Singapore. First, the brand and tier: Tiger, Zojirushi, Panasonic and Cuckoo sit at the IH and premium tier; Cornell and Russell Hobbs anchor the entry tier. Second, retailer competition: Harvey Norman, Courts and Challenger hold price for longer, while Shopee Mall, LazMall and Amazon.sg run frequent flash sales and voucher stacks. Third, parallel imports from Japan-domestic sources are routinely available at a meaningful discount but ship without local warranty. The live cards on this page read current Singapore listings rather than a stale 'best price' article so you can compare what is actually available right now, in S$, with 230V compatibility implicit in the country filter."

@@ -3,35 +3,85 @@
   "title": "Best Budget Laptops in Singapore (2026) — Live Prices Compared",
   "description": "Which budget laptop is worth your money in Singapore this year: live prices from Amazon.sg, Shopee, Lazada and authorised PC stores compared daily, with guidance on specs, warranty, student deals and what to skip at the bottom of the range.",
   "heroEyebrow": "Singapore budget laptop guide 2026",
-  "heroTitle": "Best budget laptops in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Best budget laptops in Singapore — from {floorPrice} today",
+  "heroTitle": "Best budget laptops in Singapore (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "2026 Best budget laptops in Singapore — from {floorPrice} today",
   "heroBody": "In 2026 the Singapore budget laptop market is mostly a choice between three classes: Chromebooks for school and travel, slim Windows notebooks with 8 GB RAM and 256 GB storage for everyday work, and slightly older-generation mainstream ultrabooks that retailers clear at a steep discount when new stock lands. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so you can see the current floor price at Amazon.sg, Shopee Mall, Lazada LazMall, and the local PC chains, and decide whether the cheapest listing is actually a Singapore set with local warranty or a parallel import you should avoid.",
   "canonicalPath": "/best-budget-laptops-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "budget laptop",
-  "backupQueries": ["cheap laptop", "student laptop", "laptop under 800"],
+  "backupQueries": [
+    "cheap laptop",
+    "student laptop",
+    "laptop under 800"
+  ],
   "minPrice": 300,
-  "requiredProductTerms": ["laptop", "notebook", "chromebook"],
+  "requiredProductTerms": [
+    "laptop",
+    "notebook",
+    "chromebook"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live budget laptop prices in Singapore",
   "comparisonSectionTitle": "Which budget laptop class fits you — at a glance",
-  "comparisonColumns": ["Class", "Typical spec", "Typical SG price", "Best for"],
+  "comparisonColumns": [
+    "Class",
+    "Typical spec",
+    "Typical SG price",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "Chromebook (ChromeOS)", "values": ["4–8 GB RAM, 64–256 GB storage", "Low entry", "Primary / secondary school, travel, cloud-first users"] },
-    { "label": "Windows entry notebook", "values": ["8 GB RAM, 256 GB SSD, 14\"", "Mid-low", "Office work, university, general browsing"] },
-    { "label": "Mainstream ultrabook (older gen)", "values": ["16 GB RAM, 512 GB SSD, 13–14\"", "Mid", "Anyone who wants a thin-and-light without paying the latest-generation price"] },
-    { "label": "Apple MacBook (older / refurbished)", "values": ["8–16 GB unified memory, Apple silicon", "Mid-high", "macOS users, students on the Apple education discount"] }
+    {
+      "label": "Chromebook (ChromeOS)",
+      "values": [
+        "4–8 GB RAM, 64–256 GB storage",
+        "Low entry",
+        "Primary / secondary school, travel, cloud-first users"
+      ]
+    },
+    {
+      "label": "Windows entry notebook",
+      "values": [
+        "8 GB RAM, 256 GB SSD, 14\"",
+        "Mid-low",
+        "Office work, university, general browsing"
+      ]
+    },
+    {
+      "label": "Mainstream ultrabook (older gen)",
+      "values": [
+        "16 GB RAM, 512 GB SSD, 13–14\"",
+        "Mid",
+        "Anyone who wants a thin-and-light without paying the latest-generation price"
+      ]
+    },
+    {
+      "label": "Apple MacBook (older / refurbished)",
+      "values": [
+        "8–16 GB unified memory, Apple silicon",
+        "Mid-high",
+        "macOS users, students on the Apple education discount"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed in budget laptops in 2026",
   "highlights": [
-    { "title": "8 GB is the floor, 16 GB is the sweet spot", "body": "Windows 11 in S-mode and ChromeOS handle 8 GB cleanly, but full Windows 11 with Edge, Office and Teams open in the background pushes 8 GB to its limit. If you can stretch to 16 GB, you skip the slow-down that hits 8 GB machines 18 months in. For a budget laptop meant to last three to four years, 16 GB is the only durable answer." },
-    { "title": "Storage: SSD size matters more than brand", "body": "A 256 GB SSD is the floor in 2026. Anything claiming '128 GB storage' is almost certainly eMMC, which feels slow the day you open it. Make sure the listing actually says SSD, and budget for an external NVMe if you work with photos or video." },
-    { "title": "Display quality varies wildly at the budget tier", "body": "At the lower end of the market you find a mix of 1080p IPS, 768p TN, and glossy low-nit panels. IPS 1080p is the lowest acceptable; everything else is a daily frustration. Touchscreen is a luxury, not a need." }
+    {
+      "title": "8 GB is the floor, 16 GB is the sweet spot",
+      "body": "Windows 11 in S-mode and ChromeOS handle 8 GB cleanly, but full Windows 11 with Edge, Office and Teams open in the background pushes 8 GB to its limit. If you can stretch to 16 GB, you skip the slow-down that hits 8 GB machines 18 months in. For a budget laptop meant to last three to four years, 16 GB is the only durable answer."
+    },
+    {
+      "title": "Storage: SSD size matters more than brand",
+      "body": "A 256 GB SSD is the floor in 2026. Anything claiming '128 GB storage' is almost certainly eMMC, which feels slow the day you open it. Make sure the listing actually says SSD, and budget for an external NVMe if you work with photos or video."
+    },
+    {
+      "title": "Display quality varies wildly at the budget tier",
+      "body": "At the lower end of the market you find a mix of 1080p IPS, 768p TN, and glossy low-nit panels. IPS 1080p is the lowest acceptable; everything else is a daily frustration. Touchscreen is a luxury, not a need."
+    }
   ],
   "adviceSectionTitle": "How to buy a budget laptop in Singapore without regret",
   "advicePoints": [
@@ -45,16 +95,39 @@
   ],
   "faqSectionTitle": "Budget laptops in Singapore — common questions",
   "faqs": [
-    { "question": "What is a good budget laptop for university in Singapore?", "answer": "For most university courses, a 14-inch Windows notebook with 16 GB RAM and a 512 GB SSD covers note-taking, research and light creative work for three to four years. A Chromebook is enough if your course is browser-only; a MacBook Air with the education discount is worth it if you already rely on macOS." },
-    { "question": "Are parallel-import laptops worth it in Singapore?", "answer": "Parallel imports are usually 10–20% cheaper, but they ship without local warranty. Service has to go back to the seller, not the brand's Singapore service centre. For a budget laptop where something is likely to fail, the warranty gap usually costs more than it saves." },
-    { "question": "How much should I spend on a budget laptop in Singapore?", "answer": "At the very low end of the budget range you trade away the things that matter (RAM, SSD, display) for a price that looks good on paper. The sweet spot for a durable Singapore-set budget laptop sits in the mid-budget band; below that, expect to replace it within two years." },
-    { "question": "Is a Chromebook enough for work in Singapore?", "answer": "If your work is email, documents, spreadsheets, video calls and SaaS apps, yes — a mid-range Chromebook covers it, and Google adds enterprise device management if you need it. If your job requires any local Windows software or heavy creative apps, get a Windows machine instead." },
-    { "question": "When is the cheapest time to buy a laptop in Singapore?", "answer": "Platform sales (6.6, 7.7, 9.9, 11.11, 12.12) reliably drop prices 15–25% on Shopee and Lazada official stores, and back-to-school bundles in late July / August often include free Microsoft 365. Outside those windows, the live listings on this page show the current floor." }
+    {
+      "question": "What is a good budget laptop for university in Singapore?",
+      "answer": "For most university courses, a 14-inch Windows notebook with 16 GB RAM and a 512 GB SSD covers note-taking, research and light creative work for three to four years. A Chromebook is enough if your course is browser-only; a MacBook Air with the education discount is worth it if you already rely on macOS."
+    },
+    {
+      "question": "Are parallel-import laptops worth it in Singapore?",
+      "answer": "Parallel imports are usually 10–20% cheaper, but they ship without local warranty. Service has to go back to the seller, not the brand's Singapore service centre. For a budget laptop where something is likely to fail, the warranty gap usually costs more than it saves."
+    },
+    {
+      "question": "How much should I spend on a budget laptop in Singapore?",
+      "answer": "At the very low end of the budget range you trade away the things that matter (RAM, SSD, display) for a price that looks good on paper. The sweet spot for a durable Singapore-set budget laptop sits in the mid-budget band; below that, expect to replace it within two years."
+    },
+    {
+      "question": "Is a Chromebook enough for work in Singapore?",
+      "answer": "If your work is email, documents, spreadsheets, video calls and SaaS apps, yes — a mid-range Chromebook covers it, and Google adds enterprise device management if you need it. If your job requires any local Windows software or heavy creative apps, get a Windows machine instead."
+    },
+    {
+      "question": "When is the cheapest time to buy a laptop in Singapore?",
+      "answer": "Platform sales (6.6, 7.7, 9.9, 11.11, 12.12) reliably drop prices 15–25% on Shopee and Lazada official stores, and back-to-school bundles in late July / August often include free Microsoft 365. Outside those windows, the live listings on this page show the current floor."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/best-budget-laptops-us" },
-  "inboundLinks": ["/search?q=budget%20laptop&country=SG", "/compare"],
-  "categoryIntro": { "heading": "Why Singapore budget laptop prices vary so much", "body": "The same spec sells at Amazon.sg, Shopee Mall, Lazada LazMall, Challenger, Courts and a long tail of authorised retailers and parallel importers, often at very different prices. Brands' own MSRP rarely holds past the first month, and platform sales move prices more than the brands' own promotions. A static 'best price under a thousand dollars' article goes stale within days, which is why this page reads live listings instead." },
+  "hreflangAlternates": {
+    "en-US": "/best-budget-laptops-us"
+  },
+  "inboundLinks": [
+    "/search?q=budget%20laptop&country=SG",
+    "/compare"
+  ],
+  "categoryIntro": {
+    "heading": "Why Singapore budget laptop prices vary so much",
+    "body": "The same spec sells at Amazon.sg, Shopee Mall, Lazada LazMall, Challenger, Courts and a long tail of authorised retailers and parallel importers, often at very different prices. Brands' own MSRP rarely holds past the first month, and platform sales move prices more than the brands' own promotions. A static 'best price under a thousand dollars' article goes stale within days, which is why this page reads live listings instead."
+  },
   "owner": "Surf",
   "reviewer": "Fetch",
   "queueRow": 13

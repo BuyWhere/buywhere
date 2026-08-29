@@ -3,7 +3,7 @@
   "title": "Best gaming laptops in the US (2026) — live prices, GPU tiers and what to buy",
   "description": "The best gaming laptops to buy in the US right now: live prices from Amazon, Best Buy and Newegg, with expert guidance on GPU tier, thermals, screen quality and which RTX generation is worth the premium in 2026.",
   "heroEyebrow": "US gaming laptop buying guide",
-  "heroTitle": "Best gaming laptops in the US — 2026 live price comparison",
+  "heroTitle": "Best gaming laptops in the US (2026) — 2026 live price comparison",
   "heroTitleTemplate": "Best gaming laptops in the US — RTX options from {floorPrice}",
   "heroBody": "Choosing a gaming laptop in 2026 is more complicated than it looks. The GPU is still the most important component — an RTX 5070 laptop handles current games at high settings comfortably, an RTX 5080 or 5090 pushes 4K and high-refresh on the most demanding titles — but thermal design, screen quality and keyboard feel vary enormously between models at the same GPU tier, and a poorly cooled RTX 5080 laptop can feel slower than a well-designed RTX 5070. This page pulls live US prices from BuyWhere's catalog so you can see what is actually in stock and how prices move at major retailers.",
   "canonicalPath": "/best-gaming-laptops-us",
@@ -117,74 +117,7 @@
     }
   ],
   "searchCategory": "gaming_laptops",
-  "fallbackProducts": [
-    {
-      "id": "f1",
-      "name": "ASUS ROG Strix G16 Gaming Laptop, 16\" 165Hz, Intel Core i7, RTX 4060, 16GB RAM, 512GB SSD",
-      "price": 1299,
-      "currency": "USD",
-      "merchant": "Best Buy",
-      "imageUrl": null,
-      "href": "/search?q=ASUS+ROG+Strix+G16&country=us",
-      "brand": "ASUS",
-      "category": "Gaming Laptop"
-    },
-    {
-      "id": "f2",
-      "name": "Lenovo Legion Pro 5 16\" QHD 165Hz Gaming Laptop, AMD Ryzen 7, RTX 4070, 16GB RAM, 512GB SSD",
-      "price": 1449,
-      "currency": "USD",
-      "merchant": "Best Buy",
-      "imageUrl": null,
-      "href": "/search?q=Lenovo+Legion+Pro+5&country=us",
-      "brand": "Lenovo",
-      "category": "Gaming Laptop"
-    },
-    {
-      "id": "f3",
-      "name": "MSI Katana 15 15.6\" 144Hz Gaming Laptop, Intel Core i7, RTX 4060, 16GB RAM, 512GB SSD",
-      "price": 1099,
-      "currency": "USD",
-      "merchant": "Newegg",
-      "imageUrl": null,
-      "href": "/search?q=MSI+Katana+15&country=us",
-      "brand": "MSI",
-      "category": "Gaming Laptop"
-    },
-    {
-      "id": "f4",
-      "name": "Razer Blade 15 Advanced Gaming Laptop, 15.6\" QHD 240Hz, Intel Core i7, RTX 4070, 16GB RAM, 1TB SSD",
-      "price": 1999,
-      "currency": "USD",
-      "merchant": "Razer",
-      "imageUrl": null,
-      "href": "/search?q=Razer+Blade+15&country=us",
-      "brand": "Razer",
-      "category": "Gaming Laptop"
-    },
-    {
-      "id": "f5",
-      "name": "ASUS TUF Gaming A17 17.3\" 144Hz Laptop, AMD Ryzen 7, RTX 4060, 16GB RAM, 512GB SSD",
-      "price": 999,
-      "currency": "USD",
-      "merchant": "Amazon",
-      "imageUrl": null,
-      "href": "/search?q=ASUS+TUF+Gaming+A17&country=us",
-      "brand": "ASUS",
-      "category": "Gaming Laptop"
-    },
-    {
-      "id": "f6",
-      "name": "HP Victus 15.6\" 144Hz Gaming Laptop, Intel Core i5, RTX 4050, 8GB RAM, 512GB SSD",
-      "price": 899,
-      "currency": "USD",
-      "merchant": "HP",
-      "imageUrl": null,
-      "href": "/search?q=HP+Victus+gaming&country=us",
-      "brand": "HP",
-      "category": "Gaming Laptop"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/best-gaming-laptops-singapore"
   },
@@ -198,7 +131,7 @@
     "heading": "Why 2026 is a good year to buy a gaming laptop",
     "body": "The GPU shortage that defined the early 2020s is over. RTX 50-series laptops are widely available at or near list price, RTX 40-series stock is clearing at discounts, and OLED screens have become common enough that the premium over IPS is shrinking. Whether you are buying an entry-level RTX 5070 for 1080p competitive gaming or an RTX 5090 for 4K at max settings, the market has good options at every tier — which makes it worth comparing live prices rather than relying on a review written months ago."
   },
-  "owner": "Sol",
+  "owner": "Venture",
   "reviewer": "Hue",
   "queueRow": 20
 }
