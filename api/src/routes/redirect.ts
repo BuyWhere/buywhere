@@ -46,6 +46,7 @@ async function whoClicked(req: Request, apiKey: string | null) {
 async function insertAffiliateClickWithTruth(
   values: unknown[],
   isDeadClick: boolean,
+  statusCode: number,
 ): Promise<void> {
   const deadColumns = isDeadClick ? ', was_dead_at_click' : '';
   const deadValues = isDeadClick ? ', true' : '';
@@ -53,12 +54,17 @@ async function insertAffiliateClickWithTruth(
     await db.query(
       `INSERT INTO affiliate_clicks
          (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
-          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal)
-       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13,$14)`,
-      values,
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal, redirect_status_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [...values, statusCode],
     );
   } catch (err) {
     if ((err as { code?: string }).code !== '42703') throw err;
+    // Legacy schema (pre-BUY-77109) without redirect_status_code — drop the
+    // extra column from the INSERT. Existing rows in the table will simply
+    // lack the field; the v_ceo_kpis view treats NULL as "unknown" (excluded
+    // from the success numerator), which is the safe default during the
+    // rolling deploy window.
     await db.query(
       `INSERT INTO affiliate_clicks
          (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
@@ -281,6 +287,10 @@ const redirectHandler = async (req: Request, res: Response) => {
     if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
     const source = firstQueryValue(req.query.source) || 'api_response';
     const who = await whoClicked(req, apiKey);
+    // BUY-77109: capture the response status code so the P6.1 acceptance-gate
+    // success-rate KPI can distinguish merchant-domain 302s from 4xx/5xx
+    // outcomes. 410 is the dead-link path so it is recorded here.
+    const statusCode = 410;
     (async () => {
       try {
         await withTimeout(
@@ -288,12 +298,34 @@ const redirectHandler = async (req: Request, res: Response) => {
             [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
              who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
             true,
+            statusCode,
           ),
           REDIRECT_TIMEOUT_MS,
           'affiliate_clicks insert (dead)'
         );
       } catch (err) {
-        console.warn('[redirect] dead-click logging failed:', (err as Error).message);
+        // Legacy schema without redirect_status_code — retry without the
+        // extra column (BUY-77109 deploy ordering: schema first, then code).
+        if ((err as { code?: string }).code !== '42703') {
+          console.warn('[redirect] dead-click logging failed:', (err as Error).message);
+        } else {
+          try {
+            await withTimeout(
+              db.query(
+                `INSERT INTO affiliate_clicks
+                   (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
+                    user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`,
+                [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+                 who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+              ),
+              REDIRECT_TIMEOUT_MS,
+              'affiliate_clicks insert (dead, legacy schema)'
+            );
+          } catch (err2) {
+            console.warn('[redirect] dead-click logging failed (legacy):', (err2 as Error).message);
+          }
+        }
       }
     })();
     res.status(410).json({
@@ -350,8 +382,27 @@ const redirectHandler = async (req: Request, res: Response) => {
   const referrer = firstQueryValue(req.query.referrer) || firstQueryValue(req.query.$referrer);
   const sessionId = firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id);
 
-  // Log click to DB best-effort (do not block the redirect on a slow write)
+  // BUY-77109: the click insert carries redirect_status_code. We must decide
+  // the outcome BEFORE the DB write so the row reflects what the user
+  // actually got. Resolve the finalUrl + status first, then write the click.
   const who = await whoClicked(req, apiKey);
+
+  // Rewrite to Awin tracking URL when publisher + advertiser IDs are configured
+  let finalUrl = destinationUrl;
+  let responseStatus = 302; // default: success
+  let blockedHostname: string | null = null;
+  if (awinPublisherId && affiliateLinkId && awinAdvertiserIds.has(affiliateLinkId)) {
+    const clickRef = `${productId.slice(0, 12)}-${Date.now().toString(36)}`;
+    finalUrl = buildAwinUrl(affiliateLinkId, destinationUrl, clickRef);
+  } else {
+    if (!isAllowedDestination(destinationUrl)) {
+      blockedHostname = (() => { try { return new URL(destinationUrl).hostname; } catch { return destinationUrl; } })();
+      responseStatus = 403;
+    }
+  }
+
+  // Log click to DB best-effort (do not block the redirect on a slow write).
+  // The redirect_status_code column captures what the user is about to receive.
   (async () => {
     try {
       await withTimeout(
@@ -359,12 +410,34 @@ const redirectHandler = async (req: Request, res: Response) => {
           [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
            who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
           false,
+          responseStatus,
         ),
         REDIRECT_TIMEOUT_MS,
         'affiliate_clicks insert'
       );
     } catch (err) {
-      console.warn('[redirect] click logging failed:', (err as Error).message);
+      // Legacy schema without redirect_status_code — retry without the extra
+      // column (BUY-77109 deploy ordering: schema first, then code).
+      if ((err as { code?: string }).code !== '42703') {
+        console.warn('[redirect] click logging failed:', (err as Error).message);
+      } else {
+        try {
+          await withTimeout(
+            db.query(
+              `INSERT INTO affiliate_clicks
+                 (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+                  user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+              [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+               who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+            ),
+            REDIRECT_TIMEOUT_MS,
+            'affiliate_clicks insert (legacy schema)'
+          );
+        } catch (err2) {
+          console.warn('[redirect] click logging failed (legacy):', (err2 as Error).message);
+        }
+      }
     }
   })();
 
@@ -384,18 +457,10 @@ const redirectHandler = async (req: Request, res: Response) => {
     sessionId,
   });
 
-  // Rewrite to Awin tracking URL when publisher + advertiser IDs are configured
-  let finalUrl = destinationUrl;
-  if (awinPublisherId && affiliateLinkId && awinAdvertiserIds.has(affiliateLinkId)) {
-    const clickRef = `${productId.slice(0, 12)}-${Date.now().toString(36)}`;
-    finalUrl = buildAwinUrl(affiliateLinkId, destinationUrl, clickRef);
-  } else {
-    if (!isAllowedDestination(destinationUrl)) {
-      const { hostname } = (() => { try { return new URL(destinationUrl); } catch { return { hostname: destinationUrl }; } })();
-      console.warn(`[redirect] blocked: hostname "${hostname}" not in allowlist`);
-      res.status(403).json({ error: 'Destination not permitted' });
-      return;
-    }
+  if (blockedHostname !== null) {
+    console.warn(`[redirect] blocked: hostname "${blockedHostname}" not in allowlist`);
+    res.status(403).json({ error: 'Destination not permitted' });
+    return;
   }
 
   res.redirect(302, finalUrl);
