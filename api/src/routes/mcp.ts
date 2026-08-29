@@ -777,6 +777,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       if (total === 0) {
         rows = [];
       } else if (useVector) {
+        // 2026-08-29: the vector stage runs catalog queries on searchClient INSIDE the
+        // search transaction and its catch blocks "fall back to FTS". A failure there
+        // left the transaction aborted, so the main FTS query then died with 25P02 and
+        // every hybrid/semantic MCP call returned 0 results (keyword mode was fine).
+        // The savepoint makes the advertised fallback actually work.
+        await searchClient.query('SAVEPOINT vector_stage').catch(() => {});
         // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
         // Hybrid and semantic paths embed the query via Flow AI, query the vector DB
         // separately, then merge in application code (two separate PG instances).
@@ -819,6 +825,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               )).slice(0, limit + offset);
             } catch (vecErr) {
               console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
+              await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => {});
               vectorCandidateIds = null;
             }
           } else {
@@ -837,6 +844,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               vecRows = vecResult.rows;
             } catch (vecErr) {
               console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
+              await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => {});
             }
             // BUY-74181: filter global vector candidates to the requested market
             // before RRF so hybrid ranking cannot be dominated by out-of-market rows.
