@@ -276,8 +276,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
+  const category = (args.category as string) || '';
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${category}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -304,6 +305,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
   if (country) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
+  }
+  if (category) {
+    params.push(`%${category}%`);
+    conditions.push(`category_path::text ILIKE $${params.length}`);
   }
 
   const whereClause = conditions.join(' AND ');
