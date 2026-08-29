@@ -388,6 +388,27 @@ export function sendOpenApiSpec(res: Response) {
           },
         },
       },
+      // BUY-77195: documented as /v1/featured for backward compat (also reachable at /v1/products/featured)
+      '/featured': {
+        get: {
+          summary: 'Get featured products (newest active products)',
+          operationId: 'getFeatured',
+          security: [{ BearerAuth: [] }],
+          description: 'Returns the most recently added active products, ordered by product ID descending. Alias: /v1/products/featured.',
+          parameters: [
+            { name: 'country', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter (alias: country_code). Default: SG.' },
+            { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter. Default: SG.' },
+            { name: 'currency', in: 'query', schema: { type: 'string' }, description: 'Currency filter. Inferred from country_code if omitted.' },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 12, maximum: 50 } },
+            { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+            { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents.' },
+          ],
+          responses: {
+            '200': { description: 'Featured product list' },
+            '401': { description: 'Missing or invalid API key' },
+          },
+        },
+      },
       '/products/compare': {
         get: {
           summary: 'Compare multiple products side-by-side',

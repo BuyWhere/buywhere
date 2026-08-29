@@ -244,6 +244,8 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
+  // BUY-77195: backward-compat alias — callers probe /v1/featured instead of /v1/products/featured
+  app.use('/v1/featured', productsRouter);
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
