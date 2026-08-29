@@ -7,7 +7,6 @@
   "protocols": ["MCP", "A2A", "HTTP/REST"],
   "endpoints": {
     "mcp": "https://api.buywhere.ai/mcp",
-    "mcp_sse": "https://api.buywhere.ai/mcp/sse",
     "a2a": "https://api.buywhere.ai/a2a",
     "rest": "https://api.buywhere.ai/v1"
   },

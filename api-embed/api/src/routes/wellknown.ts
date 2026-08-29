@@ -9,7 +9,7 @@ const AI_AGENT_DESCRIPTOR = {
   description: 'Cross-border product price comparison API — SG, US, and SEA markets',
   version: '1.0',
   protocols: {
-    mcp: 'https://api.buywhere.ai/mcp/sse',
+    mcp: 'https://api.buywhere.ai/mcp',
     a2a: 'https://api.buywhere.ai/.well-known/agent.json',
     rest: 'https://api.buywhere.ai/v1',
   },
@@ -62,12 +62,8 @@ const A2A_AGENT_CARD = {
   ],
   protocols: {
     mcp: {
-      serverUrl: 'https://api.buywhere.ai/mcp/sse',
+      serverUrl: 'https://api.buywhere.ai/mcp',
       transport: 'sse',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
     },
   },
   contact: {

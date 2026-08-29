@@ -65,10 +65,6 @@
       "transport": "streamable-http",
       "notes": "Canonical MCP endpoint for JSON-RPC over HTTP POST.buywhere.ai/mcp for SSE clients that explicitly require it."
     },
-    "a2a": {
-      "serverUrl": "https://api.buywhere.ai/a2a",
-      "transport": "json"
-    },
     "rest": {
       "serverUrl": "https://api.buywhere.ai/v1",
       "transport": "https"
