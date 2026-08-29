@@ -1,8 +1,9 @@
-# Docs-Site Design Audit — BUY-XXXXX
+# Docs-Site Design Audit — Surf BUY-77347
 **Auditor:** Sketch
 **Date:** 2026-08-29
-**URL:** https://docs.buywhere.ai (not yet live)
+**URL:** https://docs.buywhere.ai (Surf issue e5ed3516-027a-42f6-8d89-ff6b8315072b)
 **Source:** `/home/paperclip/buywhere/docs-site/`
+**Status:** Landing page DONE | Deploy BLOCKED (GitHub Actions secrets missing)
 
 ---
 
@@ -93,63 +94,40 @@ Cloudflare currently returns 301 for `docs.buywhere.ai/*` → `buywhere.ai/*`, w
 
 ## Recommended Actions
 
-### Priority 1 — Deploy the site (Flux/Surf)
+### ✅ Priority 1 — Landing page hero (DESIGN DONE, committed 0a73a544c)
 
-File a Surf issue to manually dispatch the `deploy-docs.yml` workflow OR push a trivial change (e.g. update a comment in `docs-site/docusaurus.config.ts`) to trigger the push-to-main deploy.
+- Terminal hero with live curl example ✓
+- Feature grid ✓
+- Quickstart section with Python code card ✓
+- MCP integration banner ✓
+- GitHub navbar icon ✓
+- Footer GitHub link ✓
 
-Then remove the Cloudflare redirect rule for `docs.buywhere.ai` so the subdomain resolves directly to the nginx server.
+### Priority 2 — Deploy the site (Flux/Surf)
 
-### Priority 2 — Landing page hero (Design)
+Workflow exists but GitHub Actions secrets are missing:
+- `PRODUCTION_DEPLOY_SSH_KEY`
+- `PRODUCTION_DEPLOY_HOST`
+- `PRODUCTION_DEPLOY_USER`
 
-Replace the default Docusaurus root with a custom landing page. Design direction:
+These must be configured in GitHub repo Settings → Secrets → Actions. Flux task.
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  BUYWHERE API                        [Docs] [Pricing] [Get Key] │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│  The product catalog API for AI agents                   │
-│                                                          │
-│  Search 5M+ products across 40+ retailers.               │
-│  Get an API key in 3 seconds — no signup.               │
-│                                                          │
-│  ┌──────────────────────────────────────┐               │
-│  │ $ curl -X POST api.buywhere.ai/v1/   │ ← animated   │
-│  │   auth/register -d '{"agent_name"}' │   terminal   │
-│  │ { "api_key": "bw_xxxxx" }           │               │
-│  └──────────────────────────────────────┘               │
-│                                                          │
-│  [Get API Key →]        [View Docs →]                   │
-│                                                          │
-│  ─────────────────────────────────────────               │
-│  5M+ products  ·  40+ retailers  ·  7 countries        │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
+Additionally, Cloudflare is redirecting `docs.buywhere.ai/*` → `buywhere.ai/*`. This redirect must be removed (DNS-only proxy) so requests hit the nginx server.
 
-Design decisions:
-- **Terminal hero** — live curl example showing instant key registration. Animated typing effect.
-- **Color** — same `#2563eb` blue, consistent with main site
-- **Dark mode** — Docusaurus handles automatically
-- **Social card** — verify `buywhere-social-card.png` renders correctly at 1200×630px
-
-### Priority 3 — Footer polish
-
-Add community links:
-```ts
-{ label: 'GitHub', href: 'https://github.com/buywhere/buywhere-api' },
-{ label: 'Discord', href: 'https://discord.gg/buywhere' },  // or placeholder
-```
+Deploy workflow ran once (commit 0a73a544c) but failed at SSH setup step — secrets not configured.
 
 ---
 
 ## Verification Checklist
 
-- [ ] `deploy-docs.yml` dispatch succeeds and `/var/www/docs.buywhere.ai/` is populated
-- [ ] `curl https://docs.buywhere.ai/` returns HTTP 200 with Docusaurus HTML
-- [ ] Cloudflare redirect for `docs.buywhere.ai` is removed
-- [ ] Custom landing page renders on `/` (not default docs shell)
-- [ ] `buywhere-social-card.png` renders correctly in Twitter card validator
-- [ ] Dark mode toggle works correctly
-- [ ] Mobile viewport: hamburger nav works, code blocks scroll horizontally
-- [ ] `npm run build` completes without warnings (Docusaurus v3.10.1 → v3.10.2 upgrade available)
+- [x] `npx docusaurus build` completes clean (Docusaurus v3.10.1)
+- [x] Landing page hero renders correctly (served locally, verified)
+- [x] All doc routes accessible (`/docs/`, `/docs/getting-started/`, etc.)
+- [x] All internal links resolved
+- [ ] GitHub Actions secrets configured → Flux
+- [ ] Cloudflare redirect removed → Richmond/ops
+- [ ] `curl https://docs.buywhere.ai/` returns HTTP 200
+- [ ] `buywhere-social-card.png` renders in Twitter card validator
+- [ ] Dark mode toggle works
+- [ ] Mobile viewport: hamburger nav + code scroll
+- [ ] Docusaurus v3.10.1 → v3.10.2 upgrade (optional, low priority)
