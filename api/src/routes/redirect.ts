@@ -211,8 +211,8 @@ function normalizeQuerySlug(slug: string): string {
   }
 }
 
-// GET /r/:query — public shortcut used by intent pages and human-facing links.
-// Resolve a real priced product, then reuse the canonical product redirect path.
+// GET /r/:query — public shortcut used by legacy human-facing links.
+// Do not require API auth and do not run broad catalog scans on the redirect path.
 const queryRedirectHandler = async (req: Request, res: Response) => {
   const query = normalizeQuerySlug(req.params.query || '');
   if (!query) {
@@ -220,34 +220,7 @@ const queryRedirectHandler = async (req: Request, res: Response) => {
     return;
   }
 
-  try {
-    const result = await withTimeout(
-      db.query(
-        `SELECT id
-           FROM products
-          WHERE url IS NOT NULL
-            AND price IS NOT NULL
-            AND price > 0
-            AND search_vector @@ websearch_to_tsquery('english', $1)
-          ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', $1)) DESC, updated_at DESC NULLS LAST
-          LIMIT 1`,
-        [query]
-      ),
-      LOOKUP_TIMEOUT_MS,
-      'query redirect product lookup'
-    );
-
-    const productId = result.rows[0]?.id;
-    if (productId) {
-      req.params.affiliateSlug = 'direct';
-      req.params.productId = String(productId);
-      return redirectHandler(req, res);
-    }
-  } catch (err) {
-    console.warn('[redirect] query lookup failed:', (err as Error).message);
-  }
-
-  res.redirect(302, FALLBACK_URL);
+  res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
 };
 
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
