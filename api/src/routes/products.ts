@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/resp
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { detectIdentifier, identifierMatchPredicate, identifierForcesKeywordMode, IdentifierDetection } from '../lib/identifierDetector';
@@ -287,13 +287,18 @@ async function tryTierSearch(
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
-  // BUY-63738: add laptop accessory demotion and boost to tier search results.
-  // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
-  // Also boost products that contain "laptop" in title/category.
+  // BUY-63738 + BUY-77675: add laptop accessory demotion and boost to tier
+  // search results. Accessories (backpacks, skins, cases, sleeves, mics,
+  // IEMs, headphones, desks, portable monitors, privacy screens, screen
+  // cleaners, keyboards) should rank lower for laptop queries. The
+  // `LAPTOP_ACCESSORY_PG_RE_SOURCE` alternation is the canonical Postgres
+  // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
+  // exported from searchRelevanceTaxonomy so the API tier and the SEO page
+  // both demote the same accessory set.
   const laptopAccessoryPenalty = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1.0
     END`;
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -361,13 +366,18 @@ async function tryTierSearch(
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
-  // BUY-63738: add accessory penalty to title fallback queries so accessories don't
-  // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+  // BUY-63738 + BUY-77675: add accessory penalty to title fallback queries so
+  // accessories don't dominate results when FTS returns no matches. Uses
+  // 0.25x multiplier like mkQuery. Shared regex source from
+  // LAPTOP_ACCESSORY_PG_RE_SOURCE keeps the API tier and the SEO page in
+  // sync — when widening the accessory list, update both
+  // `LAPTOP_ACCESSORY_SOFT_TOKENS` (searchRelevanceTaxonomy.ts) and
+  // `LAPTOP_ACCESSORY_RE` (seo-landing-pages.ts).
   const laptopAccessoryPenaltyTitle = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-      THEN 0 ELSE 1
+      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.25 ELSE 1
     END`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
   // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
@@ -1232,9 +1242,9 @@ router.get(
                    THEN 2.0 ELSE 1.0
                  END *
                  CASE
-                   WHEN rh.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR rh.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR array_to_string(rh.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   WHEN rh.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+                     OR rh.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+                     OR array_to_string(rh.category_path, ' ') ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                    THEN 0.25 ELSE 1.0
                  END AS rank
           FROM recent_hits rh

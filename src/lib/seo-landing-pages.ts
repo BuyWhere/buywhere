@@ -976,29 +976,34 @@ const PRODUCT_ACCESSORY_RE =
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
 const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
 
-// BUY-63381: laptop accessory regex. The previous "laptop" keyword match in
-// `requiredProductTerms` let unrelated accessories pass whenever the
-// accessory name happened to contain "laptop" — e.g. "CARBONADO 30 L Backpack
-// Gaming Backpack For Laptop" or "Robotic Doodle Laptop Ideapad Gaming 3
-// Laptop Skin". The QA re-verification at 2026-07-29T18:17Z still saw those
-// items in the live deals section for /best-gaming-laptops-us. Match the
+// BUY-63381 + BUY-77675: laptop accessory regex. The previous "laptop"
+// keyword match in `requiredProductTerms` let unrelated accessories pass
+// whenever the accessory name happened to contain "laptop" — e.g. "CARBONADO
+// 30 L Backpack Gaming Backpack For Laptop", "Robotic Doodle Laptop Ideapad
+// Gaming 3 Laptop Skin", "BOYA Dual Wireless Lavalier Lapel Microphone for
+// Android Smartphone Laptop", "Laptop Screen Extender Portable Triple
+// Monitor", "WEICON Screen Cleaner for Laptop Tablet Phone". Match the
 // accessory-style keywords explicitly so we never let skins, sleeves,
-// backpacks, stands, decals, stickers, covers, or laptop coolers reach the
-// product cards regardless of how the upstream search API classifies them.
+// backpacks, stands, decals, stickers, covers, coolers, microphones, audio
+// accessories (headphones/earbuds/IEMs), desks, portable monitors, privacy
+// screens, or screen cleaners reach the product cards regardless of how the
+// upstream search API classifies them.
 const LAPTOP_ACCESSORY_RE =
-  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop))/i;
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries|fan|fans|mat|mats|mouse|keyboard|keyboards|speaker|speakers|monitor|monitors|screen|desk|privacy)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop)|\bmicrophone(?:s)?|\bmic(?:s)?\s+(?:for|stand|cable|kit|set|set-up|setup|holder|clip|adapter|adapter|system|windscreen|boom|arm|boom-arm)|\blavalier|\blapel\s+mic|\bwireless\s+mic|\bboya\b|\bheadphone(?:s)?(?:\s+(?:for|stand|holder|case|adapter))?|\bearbud(?:s)?(?:\s+(?:for|holder|case|stand|adapter))?|\bheadset(?:s)?(?:\s+(?:for|stand|holder))?|\bearphone(?:s)?(?:\s+(?:for|holder|case))?|\bairpod(?:s)?\b|\biem(?:s)?\b|\bin[- ]ear\s+monitor(?:s)?|\bstanding\s+desk(?:\s+(?:for|with|adjustable))?|\blap\s+desk|\bbed\s+desk|\bbed\s+table|\bbed\s+tray|\bfolding\s+table|\bportable\s+monitor(?:\s+(?:for|with))?|\bexternal\s+monitor(?:\s+(?:for|with))?|\bscreen\s+extender|\bexternal\s+display(?:\s+(?:for|with))?|\btravel\s+monitor|\bsecond\s+screen(?:\s+(?:for|with))?|\btriple\s+monitor|\bprivacy\s+screen(?:\s+(?:for|with))?|\bprivacy\s+filter(?:\s+(?:for|with))?|\bscreen\s+cleaner|\bcleaning\s+spray|\bscreen\s+wipe(?:s)?|\bcleaning\s+wipe(?:s)?|\bscreen\s+cleaning|\bwireless\s+keyboard(?:\s+(?:for|with))?|\bbluetooth\s+keyboard(?:\s+(?:for|with))?|\bfoldable\s+keyboard(?:\s+(?:for|with))?|\bfolding\s+keyboard(?:\s+(?:for|with))?)/i;
 // Require at least one "true laptop" signal in the product text so we never
 // accept a generic accessory that mentions a laptop model name in passing.
 // Tokens here are intentionally NOT bare "laptop" — that single word is too
-// weak (a backpack or sleeve can include it as a noun, not a product type).
-// Require at least one "true laptop" signal in the product text so we never
-// accept a generic accessory that mentions a laptop model name in passing.
-// "laptop" is included as a fallback — the LAPTOP_ACCESSORY_RE check runs
-// first and excludes anything whose text looks like a skin/sleeve/backpack,
-// so the bare "laptop" token here is safe: products that survive that
-// check are real laptops, not accessories that happen to mention laptops.
-const LAPTOP_REQUIRED_TOKENS = [
-  "laptop",
+// weak (a backpack, sleeve, microphone, headphone, or screen cleaner can
+// include it as a noun, not a product type).
+// BUY-77675: split into strict model tokens and a loose set. A product
+// passes when EITHER:
+//   - it matches at least one strict token (model/series family), OR
+//   - it matches the bare "laptop" token AND at least one loose signal
+//     (a laptop-series word in its text, e.g. "ultrabook", "notebook").
+// The LAPTOP_ACCESSORY_RE check runs first and excludes anything whose text
+// looks like an accessory, so a real laptop that only contains "laptop"
+// without a model word still passes via the loose path.
+const LAPTOP_REQUIRED_STRICT_TOKENS = [
   "notebook",
   "ultrabook",
   "chromebook",
@@ -1013,6 +1018,7 @@ const LAPTOP_REQUIRED_TOKENS = [
   "legion",
   "ideapad",
   "thinkpad",
+  "thinkbook",
   "yoga",
   "swift ",
   "aspire",
@@ -1026,6 +1032,42 @@ const LAPTOP_REQUIRED_TOKENS = [
   "rtx 30",
   "rtx 40",
   "rtx 50",
+  "inspiron",
+  "latitude",
+  "pavilion",
+  "envy ",
+  "elitebook",
+  "probook",
+  "spectre",
+  "gram ",
+  "magicbook",
+];
+// BUY-77675: kept for backward compatibility. Now treated as the loose
+// laptop-signal list — see isExcludedAccessory.
+const LAPTOP_REQUIRED_TOKENS = [
+  "laptop",
+  ...LAPTOP_REQUIRED_STRICT_TOKENS,
+];
+// Loose laptop-series signals. A product that ONLY contains the bare
+// "laptop" word AND none of these is still an accessory. (A real laptop
+// that omits all model/brand names will at least say "ultrabook",
+// "notebook", "chromebook", etc. somewhere — accessories rarely do.)
+const LAPTOP_REQUIRED_LOOSE_SIGNALS = [
+  "ultrabook",
+  "notebook",
+  "chromebook",
+  "macbook",
+  "gaming laptop",
+  "business laptop",
+  "student laptop",
+  "student-laptop",
+  // Generic "laptop" descriptors — bare "Laptop Computer" / "Laptop PC"
+  // titles in the QA live capture (e.g. "2025 AMD Laptop Computer with
+  // Ryzen 7") match these. Accessories that contain "laptop" rarely use
+  // these as a structured noun phrase.
+  "laptop computer",
+  "laptop pc",
+  "laptop notebook",
 ];
 // Gaming-laptop specific tokens: require a strong gaming signal so the page
 // never degrades to a generic laptop catalog (which would itself start
@@ -1070,11 +1112,19 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
     return !matchesAnyToken(text, GAMING_LAPTOP_REQUIRED_TOKENS);
   }
   if (config.searchCategory === "laptops") {
-    // Generic laptop landing pages should still exclude obvious accessories
-    // (skins, sleeves, backpacks, decals) so /laptop-singapore and /laptop-us
-    // don't drift into the same accessory noise.
+    // BUY-63381 + BUY-77675: generic laptop landing pages should exclude
+    // obvious accessories (skins, sleeves, backpacks, decals, mics, audio,
+    // desks, portable monitors, privacy screens, screen cleaners) so
+    // /laptop-singapore and /laptop-us don't drift into the same accessory
+    // noise. Also enforce a strict laptop-model token OR (loose "laptop"
+    // AND a laptop-series word in the same text) floor so an accessory that
+    // just mentions "for laptop" still gets excluded.
     if (LAPTOP_ACCESSORY_RE.test(text)) return true;
-    return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
+    if (matchesAnyToken(text, LAPTOP_REQUIRED_STRICT_TOKENS)) return false;
+    const lower = text.toLowerCase();
+    const hasLaptop = lower.includes("laptop");
+    const hasLooseSignal = LAPTOP_REQUIRED_LOOSE_SIGNALS.some((s) => lower.includes(s));
+    return !(hasLaptop && hasLooseSignal);
   }
   return PRODUCT_ACCESSORY_RE.test(text);
 }

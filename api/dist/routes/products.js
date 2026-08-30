@@ -319,13 +319,18 @@ async function tryTierSearch(req, res, p) {
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
-    // BUY-63738: add laptop accessory demotion and boost to tier search results.
-    // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
-    // Also boost products that contain "laptop" in title/category.
+    // BUY-63738 + BUY-77675: add laptop accessory demotion and boost to tier
+    // search results. Accessories (backpacks, skins, cases, sleeves, mics,
+    // IEMs, headphones, desks, portable monitors, privacy screens, screen
+    // cleaners, keyboards) should rank lower for laptop queries. The
+    // `LAPTOP_ACCESSORY_PG_RE_SOURCE` alternation is the canonical Postgres
+    // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
+    // exported from searchRelevanceTaxonomy so the API tier and the SEO page
+    // both demote the same accessory set.
     const laptopAccessoryPenalty = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      WHEN sp.title ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR sp.category ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1.0
     END`;
     // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -391,13 +396,18 @@ async function tryTierSearch(req, res, p) {
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
     const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
-    // BUY-63738: add accessory penalty to title fallback queries so accessories don't
-    // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+    // BUY-63738 + BUY-77675: add accessory penalty to title fallback queries so
+    // accessories don't dominate results when FTS returns no matches. Uses
+    // 0.25x multiplier like mkQuery. Shared regex source from
+    // LAPTOP_ACCESSORY_PG_RE_SOURCE keeps the API tier and the SEO page in
+    // sync — when widening the accessory list, update both
+    // `LAPTOP_ACCESSORY_SOFT_TOKENS` (searchRelevanceTaxonomy.ts) and
+    // `LAPTOP_ACCESSORY_RE` (seo-landing-pages.ts).
     const laptopAccessoryPenaltyTitle = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-      THEN 0 ELSE 1
+      WHEN sp.title ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR sp.category ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.25 ELSE 1
     END`;
     // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
     // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
@@ -707,17 +717,29 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
-    const [countResult, dataResult] = await Promise.all([
-        // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
-        // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
-        // for pagination totals. Exact counts would hit the 30s statement_timeout.
-        config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
-        config_1.db.query(`SELECT ${SELECT_COLUMNS}
-         FROM products
+    // BUY-77664/77677 REVERTED (BUY-77664 emergency): products_partitioned is empty
+    // for most countries (Rex pre-load stalled), and under sakura IO saturation the
+    // partitioned table scans time out even with LIMIT 1. Revert to 'products' parent
+    // table which has idx_products_active_country partial index.
+    const LIST_TABLE = 'products';
+    // pg_class reltuples is instant (system catalog, cached).
+    const countResult = await config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`);
+    // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
+    // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
+    // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
+    let dataResult;
+    const listClient = await config_1.db.connect();
+    try {
+        await listClient.query(`SET statement_timeout = '15s'`);
+        dataResult = await listClient.query(`SELECT ${SELECT_COLUMNS}
+         FROM ${LIST_TABLE}
          ${whereClause}
          ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]),
-    ]);
+         LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]);
+    }
+    finally {
+        listClient.release(true); // release back to pool, rolling back any open transaction
+    }
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
     const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
@@ -1186,9 +1208,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // and was timing out at the 15s edge. Bound first by the partition-pruned id
         // index, then rank that small slice for response relevance.
         const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
+        // BUY-77644: project rank columns (search_vector/title/category/category_path)
+        // into recent_hits so the top_ids CTE can rank against the bounded candidate
+        // set without a second join to products. The old plan joined products in
+        // top_ids (5000 PK lookups per query) and was timing out at ~39s for samsung
+        // because the access penalty's ~12-regex match costs compound on every join.
+        // Selecting the needed columns in the CTE keeps the same ranking semantics
+        // and runs in ~227ms for the same query.
         dataQuery = `
         WITH recent_hits AS MATERIALIZED (
-          SELECT id, country_code
+          SELECT id, country_code, search_vector, title, category, category_path
           FROM products
           ${rankedWhereClause}
           -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
@@ -1197,22 +1226,21 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
-                 ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 ts_rank(rh.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
                  -- BUY-63738: boost laptop products and penalize accessories
                  CASE
-                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
-                     OR lower(rhp.category) LIKE '%laptop%'
-                     OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
+                   WHEN lower(rh.title) LIKE '%laptop%' OR lower(rh.title) LIKE '%notebook%' OR lower(rh.title) LIKE '%macbook%'
+                     OR lower(rh.category) LIKE '%laptop%'
+                     OR array_to_string(rh.category_path, ' ') LIKE '%laptop%'
                    THEN 2.0 ELSE 1.0
                  END *
                  CASE
-                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   WHEN rh.title ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+                     OR rh.category ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+                     OR array_to_string(rh.category_path, ' ') ~* '${searchRelevanceTaxonomy_1.LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                    THEN 0.25 ELSE 1.0
                  END AS rank
           FROM recent_hits rh
-          JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
@@ -1310,18 +1338,20 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 // then sort+limit the small result set. This mirrors the single-word
                 // dataQuery pattern that already works in <100ms for SG.
                 const runBoundedSgMatch = async (matchExpr, params = dataParams, sliceWhereClause = recentSliceWhereClause) => {
+                    // BUY-77644: project search_vector into the bounded CTE so top_ids can
+                    // rank directly without a per-row PK join back to products. Mirrors the
+                    // recent_hits fix above; same 227ms-vs-39s speedup.
                     const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, country_code
+                SELECT id, country_code, search_vector
                 FROM products
                 ${sliceWhereClause}
                   AND ${matchExpr}
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code, ts_rank(rc.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates rc
-                JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
@@ -1624,6 +1654,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     const responseTimeMs = Date.now() - requestStart;
     const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    // BUY-52290: pre-compute before field-selection so IDs are never stripped.
+    // Use the full products array (not filteredProducts) so no IDs are lost.
+    res.locals.returnedProductIds = products.map((p) => p.id).filter(Boolean).slice(0, 100);
+    res.locals.resultCount = products.length;
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;
     if (fields && fields.length > 0) {
