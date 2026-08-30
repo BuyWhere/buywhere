@@ -7,11 +7,16 @@ const { promisify } = require('util');
 const path = require('path');
 
 let Client;
-try {
-  ({ Client } = require('pg'));
-} catch (error) {
-  if (error?.code !== 'MODULE_NOT_FOUND') throw error;
-  ({ Client } = require(path.join(__dirname, '..', 'api', 'node_modules', 'pg')));
+
+function loadPgClient() {
+  if (Client) return Client;
+  try {
+    ({ Client } = require('pg'));
+  } catch (error) {
+    if (error?.code !== 'MODULE_NOT_FOUND') throw error;
+    ({ Client } = require(path.join(__dirname, '..', 'api', 'node_modules', 'pg')));
+  }
+  return Client;
 }
 
 const TARGET_INSERTS_PER_HOUR = 150_000;
@@ -217,7 +222,8 @@ function buildConnectionString() {
 }
 
 function buildClient() {
-  return new Client({
+  const PgClient = loadPgClient();
+  return new PgClient({
     connectionString: buildConnectionString(),
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || DEFAULT_CONNECTION_TIMEOUT_MS),
     statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS),
