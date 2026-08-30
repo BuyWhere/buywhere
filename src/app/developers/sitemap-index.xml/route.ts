@@ -1,5 +1,10 @@
-// Proxy to root sitemap-index.xml for /developers/sitemap-index.xml route.
-// Developer/agent crawlers probe this legacy path as a sitemap-index entry point,
-// so keep it as a semantic alias of the canonical sitemap index.
-export { GET } from "@/app/sitemap-index.xml/route";
-export { dynamic, revalidate, runtime } from "@/app/sitemap-index.xml/route";
+// BUY-71599: /developers/sitemap-index.xml is an intended legacy discovery
+// entry point, but /sitemap-index.xml is the canonical public sitemap index.
+// Keep crawler probes off a 404 while documenting canonical intent via 301.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+
+export async function GET(request: Request): Promise<Response> {
+  return Response.redirect(new URL("/sitemap-index.xml", request.url), 301);
+}

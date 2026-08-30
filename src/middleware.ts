@@ -536,7 +536,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return tagAgent(NextResponse.rewrite(url));
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
 
@@ -883,7 +883,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return tagAgent(NextResponse.rewrite(url));
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
   // Content negotiation: rewrite to dedicated markdown route handlers.
