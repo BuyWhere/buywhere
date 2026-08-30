@@ -17,7 +17,7 @@ from app.auth import ApiKeyContextMiddleware
 from app.rate_limit import limiter, TierRateLimitMiddleware, RedisPerMinuteRateLimitMiddleware
 from app.request_logging import RequestLoggingMiddleware
 from app.usage_metering import UsageMeteringMiddleware
-from app.routers import products, categories, keys, deals, ingestion, ingest, search, status, catalog, agents, analytics, admin, developers, webhooks, metrics, alerts, images, changelog, feed, merchants, trending, export, enrichment, health, brands, watchlist, dedup, compare, billing, countries, sitemap, v2, merchant_analytics, affiliate, preferences, import_csv, saved_searches, usage, referrals, coupons, linkless_attribution, scraper_assignments, scraper_alerts, scraper_refresh, agent_native, newsletter, user_watchlist, user_alerts, users, referral_landing, push_notifications, user_notification_preferences, price_drops, growth, feature_flags, signup, stats, public_alerts, alertmanager_webhooks, auth_compat, demo, queries, mcp, monitoring
+from app.routers import products, categories, keys, deals, ingestion, ingest, search, status, catalog, agents, analytics, admin, developers, webhooks, metrics, alerts, images, changelog, feed, merchants, trending, export, enrichment, health, brands, watchlist, dedup, compare, billing, countries, sitemap, v2, merchant_analytics, affiliate, preferences, import_csv, saved_searches, usage, referrals, coupons, linkless_attribution, scraper_assignments, scraper_alerts, scraper_refresh, agent_native, newsletter, user_watchlist, user_alerts, users, referral_landing, push_notifications, user_notification_preferences, price_drops, growth, feature_flags, signup, stats, public_alerts, alertmanager_webhooks, auth_compat, demo, queries, mcp, monitoring, seo_pages
 from app import clickthrough
 from app.graphql import graphql_router
 from app.versioning import VersionRoutingMiddleware
@@ -295,6 +295,7 @@ app.include_router(ingestion.router, prefix="/v1")
 app.include_router(ingest.router, prefix="/v1")
 app.include_router(status.router, prefix="/v1")
 app.include_router(catalog.router, prefix="/v1")
+app.include_router(seo_pages.router, prefix="/v1")
 app.include_router(merchants.router, prefix="/v1")
 app.include_router(merchant_analytics.router, prefix="/v1")
 app.include_router(brands.router, prefix="/v1")
