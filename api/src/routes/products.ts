@@ -675,13 +675,22 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
 
+    // BUY-77664: sakura proxy I/O saturation causes the PostgreSQL planner to
+    // misestimate seq scan cost vs. index scan cost on the 377M-row products table.
+    // During I/O pressure (concurrent ingest jobs reading data files), the planner
+    // inflates costs equally and picks seq scan (45M cost, reads 377M rows from disk,
+    // times out at 30s) over idx_products_active_country (52M cost, <2ms from cache).
+    // Disabling seq scan for this specific query forces the planner to use the
+    // partial index. Session-scoped SET — does not affect other connections.
+    const SEQ_SCAN_GUARD = 'SET enable_seqscan = off; ';
+
     const [countResult, dataResult] = await Promise.all([
       // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
       // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
       // for pagination totals. Exact counts would hit the 30s statement_timeout.
       db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
       db.query(
-        `SELECT ${SELECT_COLUMNS}
+        `${SEQ_SCAN_GUARD}SELECT ${SELECT_COLUMNS}
          FROM products
          ${whereClause}
          ${orderBy}
