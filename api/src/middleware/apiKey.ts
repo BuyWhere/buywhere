@@ -597,10 +597,17 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
   let rpmCount: number;
 
   try {
-    rpmCount = await redis.incr(rpmKey);
+    // BUY-77920: wrap Redis incr in a 500ms timeout so a slow/ unreachable Redis
+    // does not block the entire request chain. On timeout the rate-limit check is
+    // skipped (lenient — better to serve the request than 500 a valid caller).
+    const incrResult = await Promise.race([
+      redis.incr(rpmKey),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('redis-timeout')), 500)),
+    ]);
+    rpmCount = incrResult;
     if (rpmCount === 1) redis.expire(rpmKey, 120).catch(() => {});
   } catch (_err) {
-    console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
+    console.warn('[rate-limit] Redis unavailable or timed out, skipping rate limit check:', (_err as Error).message);
     next();
     return;
   }
