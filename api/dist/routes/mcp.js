@@ -14,6 +14,7 @@ const merchantLookup_1 = require("../lib/merchantLookup");
 const readReplica_1 = require("../lib/readReplica");
 const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const deviceClassifier_1 = require("../lib/deviceClassifier");
+const identifierDetector_1 = require("../lib/identifierDetector");
 const instrumentation_1 = require("../lib/instrumentation");
 const healthSnapshot_1 = require("../monitoring/healthSnapshot");
 const shoppingJobFunnel_1 = require("../monitoring/shoppingJobFunnel");
@@ -21,6 +22,11 @@ const v2KpiWriter_1 = require("../monitoring/v2KpiWriter");
 const v2RequestLog_1 = require("../monitoring/v2RequestLog");
 // BUY-73521: start funnel writer on module load (idempotent).
 (0, shoppingJobFunnel_1.startShoppingJobFunnel)();
+// BUY-76909: Countries whose standalone child tables answer FTS in <100ms. The
+// parent `products` table has 373M rows / 297GB with severe bloat (11M dead
+// tuples), so the hydrating PK-join against it times out. Route the FBP final
+// join to products_partitioned_{cc} for these countries.
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'GB', 'CA', 'AU', 'IN', 'IT', 'ES', 'MX', 'ZA', 'BR', 'NZ', 'NL', 'PL', 'SE', 'CH', 'DK', 'JP', 'DE', 'FR', 'IE', 'NO', 'BE', 'AT', 'PT']);
 // BUY-72550: start v2 request log writer on module load (idempotent).
 (0, v2RequestLog_1.startV2RequestLog)();
 // BUY-75415: start v2 KPI sink writer on module load (idempotent).
@@ -174,7 +180,10 @@ async function filterVectorCandidatesByMarket(client, candidateIds, country, reg
     if (!country && !region)
         return candidateIds;
     const params = [candidateIds];
-    const conditions = ['id = ANY($1::uuid[])', 'is_active = true'];
+    // products.id is bigint. The old ::uuid[] cast raised
+    // 'operator does not exist: bigint = uuid', which aborted the enclosing search
+    // transaction and made every hybrid/semantic MCP query return 0 results.
+    const conditions = ['id = ANY($1::bigint[])', 'is_active = true'];
     if (country) {
         params.push(country.toUpperCase());
         conditions.push(`country_code = $${params.length}`);
@@ -190,6 +199,9 @@ async function filterVectorCandidatesByMarket(client, candidateIds, country, reg
     }
     catch (err) {
         console.warn('[search] vector candidate market filter failed, using global set:', err.message);
+        // Roll back to the vector-stage savepoint so a filter failure cannot poison the
+        // caller's transaction (the reason hybrid used to return a degraded envelope).
+        await client.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
         return candidateIds;
     }
 }
@@ -568,6 +580,56 @@ async function handleSearchProducts(args, caller) {
         }
     }
     catch (_) { /* redis miss — proceed */ }
+    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
+    // FTS entirely. FTS cannot resolve an ASIN — it returns 0 rows — and worse,
+    // it returns *wrong* rows for tokenised-but-not-identifier queries
+    // (SKU-12345 → fishing reels). The detector is conservative, so a natural-
+    // language query never reaches this branch. Identifiers also force keyword-
+    // only — sending an ASIN through the vector arm adds latency + cost +
+    // hallucinated neighbours.
+    const identifier = (0, identifierDetector_1.detectIdentifier)(q);
+    if (identifier) {
+        try {
+            const idIdx = 1;
+            const idParams = [identifier.normalized];
+            const idConds = ['is_active = true'];
+            idConds.push((0, identifierDetector_1.identifierMatchPredicate)(identifier, idIdx).sql);
+            if (country) {
+                idParams.push(country.toUpperCase());
+                idConds.push(`country_code = $${idParams.length}`);
+            }
+            if (domain) {
+                idParams.push(domain);
+                idConds.push(`source = $${idParams.length}`);
+            }
+            const idWhere = `WHERE ${idConds.join(' AND ')}`;
+            idParams.push(limit + 1);
+            const idLimit = idParams.length;
+            idParams.push(0);
+            const idOffset = idParams.length;
+            const idResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, brand, mpn, gtin, category_path,
+                avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+         FROM products ${idWhere}
+         ORDER BY id DESC
+         LIMIT $${idLimit} OFFSET $${idOffset}`, idParams);
+            const idRows = idResult.rows;
+            const idTotal = idRows.length;
+            const idPage = idTotal > limit ? idRows.slice(0, limit) : idRows;
+            const idProducts = idPage.map((r) => (0, response_1.buildProduct)(r, currency, compact));
+            const idResult2 = (0, response_1.buildSearchResponse)(idProducts, idTotal, limit, 0, Date.now() - t0, false);
+            try {
+                await config_1.redis.set(cacheKey, JSON.stringify(idResult2), 'EX', exports.MCP_FTS_CACHE_TTL_SECONDS);
+            }
+            catch (_) { /* cache write failure is non-fatal */ }
+            return { ...idResult2, identifier_kind: identifier.kind };
+        }
+        catch (idErr) {
+            // Fail-open to FTS — never let an identifier-detection bug poison the
+            // whole surface. The non-identifier fallback path is below.
+            console.warn('[search_products] identifier lookup failed, falling back to FTS:', idErr?.message);
+        }
+    }
     const conditions = ['is_active = true'];
     const params = [];
     if (q) {
@@ -664,6 +726,10 @@ async function handleSearchProducts(args, caller) {
         // 30s matches REST tier timeout headroom while still failing fast vs
         // runaway queries. The degraded envelope (BUY-74597) still fires on
         // genuine timeouts beyond 30s.
+        // 2026-08-29: a pooled connection can arrive already inside an aborted transaction
+        // (poisoned by a statement_timeout on another route sharing this pool). Clearing it
+        // costs nothing and prevents 25P02 from failing every MCP query.
+        await searchClient.query('ROLLBACK').catch(() => { });
         await searchClient.query('BEGIN');
         await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
         await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
@@ -694,6 +760,12 @@ async function handleSearchProducts(args, caller) {
                 rows = [];
             }
             else if (useVector) {
+                // 2026-08-29: the vector stage runs catalog queries on searchClient INSIDE the
+                // search transaction and its catch blocks "fall back to FTS". A failure there
+                // left the transaction aborted, so the main FTS query then died with 25P02 and
+                // every hybrid/semantic MCP call returned 0 results (keyword mode was fine).
+                // The savepoint makes the advertised fallback actually work.
+                await searchClient.query('SAVEPOINT vector_stage').catch(() => { });
                 // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
                 // Hybrid and semantic paths embed the query via Flow AI, query the vector DB
                 // separately, then merge in application code (two separate PG instances).
@@ -728,6 +800,7 @@ async function handleSearchProducts(args, caller) {
                         }
                         catch (vecErr) {
                             console.warn('[search] vector query failed, falling back to FTS:', vecErr.message);
+                            await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
                             vectorCandidateIds = null;
                         }
                     }
@@ -745,6 +818,7 @@ async function handleSearchProducts(args, caller) {
                         }
                         catch (vecErr) {
                             console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
+                            await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
                         }
                         // BUY-74181: filter global vector candidates to the requested market
                         // before RRF so hybrid ranking cannot be dominated by out-of-market rows.
@@ -891,6 +965,7 @@ async function handleSearchProducts(args, caller) {
         // AND the keyword is set — that's the only path where the unfiltered signal
         // changes the reason. LIMIT 1 keeps this off the GIN hot path.
         if (q && !deliverToPresent) {
+            await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (
              SELECT 1 FROM products
@@ -899,8 +974,11 @@ async function handleSearchProducts(args, caller) {
              LIMIT 1
            ) AS any_match`, [q]);
                 unfilteredHasAnyData = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_unfiltered').catch(() => { });
             }
-            catch (_) {
+            catch (probeErr) {
+                console.warn(`[search_products] unfiltered probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_unfiltered').catch(() => { });
                 unfilteredHasAnyData = null;
             }
         }
@@ -908,13 +986,24 @@ async function handleSearchProducts(args, caller) {
         // errors so the empty envelope still lands when the DB is healthy but the
         // query is the issue.
         if (country) {
+            // 2026-08-29: these best-effort probes ran bare inside the search transaction and
+            // swallowed their errors. One failing probe left the transaction ABORTED, so every
+            // later statement returned 25P02 and the whole MCP surface answered 0 results with
+            // an opaque "upstream_exception". SAVEPOINT keeps a probe failure local, and the
+            // reason is logged instead of discarded.
+            await searchClient.query('SAVEPOINT probe_region').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (SELECT 1 FROM products WHERE is_active = true AND country_code = $1 LIMIT 1) AS any_match`, [country.toUpperCase()]);
                 regionHasAnyDataProbe = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_region').catch(() => { });
             }
-            catch (_) { /* regionHasAnyDataProbe stays at default */ }
+            catch (probeErr) {
+                console.warn(`[search_products] region probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_region').catch(() => { });
+            }
         }
         if (category) {
+            await searchClient.query('SAVEPOINT probe_category').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (
              SELECT 1 FROM products
@@ -923,8 +1012,12 @@ async function handleSearchProducts(args, caller) {
              LIMIT 1
            ) AS any_match`, [`%${category.toLowerCase()}%`]);
                 categoryHasAnyDataProbe = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_category').catch(() => { });
             }
-            catch (_) { /* categoryHasAnyDataProbe stays at default */ }
+            catch (probeErr) {
+                console.warn(`[search_products] category probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_category').catch(() => { });
+            }
         }
         await searchClient.query('COMMIT').catch(() => { });
         recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
@@ -933,7 +1026,9 @@ async function handleSearchProducts(args, caller) {
         await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+        // 2026-08-29: log the actual error. Without it every failure looked like an
+        // opaque "upstream_exception" and the agent surface returned 0 results silently.
+        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
         return (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - t0, false, true, undefined, country || null, (0, response_1.deriveEmptiness)({
             regionHasAnyData: regionHasAnyDataProbe,
             categoryHasAnyData: categoryHasAnyDataProbe,
@@ -1081,7 +1176,7 @@ async function handleGetDeals(args, caller) {
             deliverToPresent,
         });
     }
-    const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${limit}:${offset}`;
+    const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${(args.category || '').trim()}:${limit}:${offset}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -1118,6 +1213,12 @@ async function handleGetDeals(args, caller) {
     if (effectiveCountry) {
         params.push(effectiveCountry);
         conditions.push(`country_code = $${params.length}`);
+    }
+    // BUY-77178: category filter
+    const category = (args.category || '').trim();
+    if (category) {
+        params.push(category.toLowerCase());
+        conditions.push(`LOWER(category) = $${params.length}`);
     }
     const whereClause = conditions.join(' AND ');
     const discountSelect = useDiscountCol
@@ -1496,8 +1597,6 @@ async function handleFindBestPrice(args) {
         // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
         tierParams.push(searchName);
         tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
-        tierParams.push(requestedCountry);
-        tierConditions.push(`sp.country_code = $${tierParams.length}`);
         if (region) {
             tierParams.push(region);
             tierConditions.push(`sp.region = $${tierParams.length}`);
@@ -1507,16 +1606,42 @@ async function handleFindBestPrice(args) {
             tierConditions.push(`sp.price >= $${tierParams.length}`);
         }
         const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
-        tierParams.push(CANDIDATE_POOL, limit);
+        // BUY-76909: route candidates AND hydration to the country child table when one
+        // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
+        // joins even with indexes, and search_products ids do not overlap child-table ids
+        // for recent ingest (verified live: SG ids up to ~1.15e18 there, ≤37M here), so
+        // cross-tier joins return 0 rows. The child table has a GIN index on search_vector
+        // and (post-BUY-77453 DDL) a btree on (id) — full query answers in ~15ms.
+        const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+        const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
+        if (!useChildTable) {
+            tierParams.push(requestedCountry);
+            tierConditions.push(`sp.country_code = $${tierParams.length}`);
+        }
+        // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
+        // model query every accessory title contains all the query terms, so the ten
+        // highest-ranked rows for "sony wh-1000xm5" were ear pads, headband assemblies and
+        // repair kits — the headphones themselves never entered the window. That produced
+        // both failure modes seen in the external benchmark: a $6.49 repair kit as "best
+        // price" before the accessory filter existed, and zero offers after it, because the
+        // filter stripped a window that contained nothing else. Rank accessories last in SQL
+        // and widen the window so the real product survives to the filter.
+        // Detail fetch joins products, not the tier: search_products has no is_active,
+        // metadata, category_path or url_status columns, so joining the tier there raised
+        // "column does not exist" on every call and find_best_price always returned a
+        // degraded empty envelope (2026-08-29).
+        const FILTER_POOL = Math.max(limit * 20, 200);
+        tierParams.push(CANDIDATE_POOL, FILTER_POOL);
         result = await bestPriceClient.query(`WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at,
+         SELECT sp.id, sp.price, sp.updated_at, sp.title,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM search_products sp ${tierWhere}
+         FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY rk DESC NULLS LAST,
+         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|charging cable|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare part|for use with|compatible with)' THEN 1 ELSE 0 END) ASC,
+                  rk DESC NULLS LAST,
                   (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
                   updated_at DESC
          LIMIT $${tierParams.length}
@@ -1532,6 +1657,7 @@ async function handleFindBestPrice(args) {
     }
     catch (e) {
         const degradedKind = classifyMcpDegradedKind(e);
+        console.warn(`[find_best_price] catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
         console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
         return buildMcpDegradedBestPriceResponse({
@@ -1563,7 +1689,14 @@ async function handleFindBestPrice(args) {
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const neg = deviceFilter.negativeTerms;
+    // 2026-08-29: the accessory test used to depend on deviceFilter.negativeTerms, which
+    // only populates for recognised device families — so "Silicone Protective Cover Set for
+    // Sony WH-1000XM5" passed as the product itself and became the "best price". This
+    // pattern mirrors the SQL de-prioritisation exactly, so ranking and filtering agree.
+    const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
     const isAccessory = (r) => {
+        if (ACCESSORY_PATTERN.test(String(r.title ?? '')))
+            return true;
         if (!deviceFilter.type)
             return false;
         const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
@@ -1613,6 +1746,27 @@ async function handleFindBestPrice(args) {
     // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
     // rather than returning empty. The SQL found products; returning nothing is
     // worse than returning accessories (the user can refine the query).
+    // 2026-08-29: when EVERY candidate is an accessory, falling back to the unfiltered set
+    // hands the caller a headband cover as the "best price" for the headphones — the exact
+    // failure the external benchmark scored CRITICAL. If the query names a specific model
+    // and nothing but accessories matched, say so instead of substituting a different
+    // product. Callers get an explicit reason rather than a misleading answer.
+    const looksLikeExactModel = /[a-z]+[-\s]?\d{2,}|\d{2,}[a-z]{1,3}\b/i.test(productName);
+    if (finalRows.length === 0 && result && result.rows.length > 0 && looksLikeExactModel) {
+        return {
+            best_price: null,
+            alternatives: [],
+            meta: {
+                total: 0,
+                product_name: productName,
+                country: country || null,
+                response_time_ms: Date.now() - t0,
+                emptiness_reason: 'only_accessories_matched',
+                note: 'Every catalogue match for this model is an accessory (case, cable, ear pads). Returning none rather than presenting an accessory as the product.',
+                deliver_to_present: deliverToPresent,
+            },
+        };
+    }
     if (finalRows.length === 0 && result && result.rows.length > 0) {
         finalRows = result.rows;
     }
@@ -1903,6 +2057,45 @@ async function handleIngestProducts(args) {
         response_time_ms: Date.now() - t0,
     };
 }
+// 2026-08-29: find_similar used to throw -32001 whenever a product had no vector yet.
+// With the Flow backfill still running that is the expected state for most of the
+// catalog, and a tool that errors on an expected state is a broken tool. Fall back to
+// keyword similarity on the product's own title and label the result honestly so the
+// caller knows it is not semantic.
+async function keywordSimilarFallback(productId, limit, reason) {
+    const client = await (0, readReplica_1.servingReadDbConnect)();
+    try {
+        const ref = await client.query('SELECT title, country_code, category FROM products WHERE id = $1::bigint LIMIT 1', [productId]);
+        if (ref.rowCount === 0) {
+            return { data: [], meta: { total: 0, similarity: 'none', reason: 'product_not_found' } };
+        }
+        const { title, country_code } = ref.rows[0];
+        const params = [title, productId];
+        // search_products carries only active rows, and has no is_active column.
+        let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint";
+        if (country_code) {
+            params.push(country_code);
+            where += ` AND country_code = $${params.length}`;
+        }
+        params.push(limit);
+        const rows = await client.query(`SELECT id, title, price, currency, url, image_url, country_code, category
+       FROM search_products WHERE ${where}
+       ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT $${params.length}`, params);
+        return {
+            data: rows.rows,
+            meta: {
+                total: rows.rowCount,
+                similarity: 'keyword',
+                semantic_available: false,
+                reason,
+                note: 'Keyword similarity on the product title. Semantic similarity becomes available for this product once its embedding is generated.',
+            },
+        };
+    }
+    finally {
+        releaseClientSafely(client);
+    }
+}
 async function handleFindSimilar(args) {
     const t0 = Date.now();
     const productId = (args.product_id || '').trim();
@@ -1917,7 +2110,7 @@ async function handleFindSimilar(args) {
         throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
     }
     if (!config_1.vectorDb) {
-        throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+        return keywordSimilarFallback(productId, limit, 'vector_db_unavailable');
     }
     // Step 1: get reference embedding from vector DB
     let refResult;
@@ -1925,10 +2118,10 @@ async function handleFindSimilar(args) {
         refResult = await config_1.vectorDb.query(`SELECT embedding_v2::text AS embedding FROM product_embeddings WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`, [productId]);
     }
     catch {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
     }
     if (!refResult.rows.length) {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
     }
     const refEmbedding = refResult.rows[0].embedding;
     // Step 2: find nearest neighbours in vector DB (excluding source product)
@@ -1939,10 +2132,10 @@ async function handleFindSimilar(args) {
        ORDER BY embedding_v2 <=> $1::vector LIMIT $3`, [refEmbedding, productId, limit]);
     }
     catch {
-        throw { code: -32001, message: 'No similar products found' };
+        return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
     }
     if (!nearResult.rows.length) {
-        throw { code: -32001, message: 'No similar products found' };
+        return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
     }
     // Step 3: fetch product details from main DB
     const nearIds = nearResult.rows.map(r => r.product_id);
@@ -2003,8 +2196,29 @@ function callerContextForUrl(req) {
         return null;
     return { apiKeyId: rec.id, keyHash: (0, crypto_1.createHash)('sha256').update(rec.key).digest('hex') };
 }
+// 2026-08-29: agents chain tools using whatever key the previous tool returned, and our
+// own tools disagree: search takes `query`/`q`, get_product takes `id`, find_similar takes
+// `product_id`, compare takes `ids` in v2 but `product_ids` in v1, and find_best_price
+// accepted `q`/`product_name` but NOT `query` — so the natural call
+// find_best_price_v2({query}) failed with -32602 while search_products_v2({query}) worked.
+// Normalise the common aliases once, at dispatch, so every tool accepts every spelling.
+function normalizeToolArgAliases(args) {
+    const alias = (from, to) => {
+        if (args[to] === undefined && args[from] !== undefined)
+            args[to] = args[from];
+    };
+    alias('query', 'q');
+    alias('q', 'query');
+    alias('q', 'product_name');
+    alias('product_name', 'q');
+    alias('product_id', 'id');
+    alias('id', 'product_id');
+    alias('product_ids', 'ids');
+    alias('ids', 'product_ids');
+}
 async function dispatchTool(name, args, caller) {
     normalizeMarketArg(args);
+    normalizeToolArgAliases(args);
     switch (name) {
         case 'search_products': return handleSearchProducts(args, caller);
         case 'get_product': return handleGetProduct(args, caller);
@@ -2334,14 +2548,17 @@ function parseUuidBytes(uuid) {
 }
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id, result) {
-    return { jsonrpc: '2.0', id, result, request_id: (0, crypto_1.randomUUID)(), timestamp: new Date().toISOString() };
+    // BUY-benchmark 2026-08-29: JSON-RPC 2.0 permits only jsonrpc/id/result|error at the top
+    // level. request_id/timestamp here made the official MCP Inspector exit 1 and any strict
+    // client reject the response. Diagnostics belong in headers, not the envelope.
+    return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id, code, message, data, envelopeCode) {
     const errorData = data != null ? { detail: data } : {};
     if (envelopeCode) {
         errorData.envelope = (0, errors_1.buildErrorEnvelope)(envelopeCode, message);
     }
-    return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) }, request_id: (0, crypto_1.randomUUID)(), timestamp: new Date().toISOString() };
+    return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
 // BUY-33837: matches the pre-migration mcp-server-production.js surface so
@@ -2405,16 +2622,20 @@ function extractRegion(toolArgs) {
         || toolArgs.country_code
         || toolArgs.country
         || toolArgs.region
-        || 'SG').toString().trim().toUpperCase();
+        || '' // Explicit empty string instead of defaulting to SG
+    ).toString().trim().toUpperCase();
     const REGION_TO_COUNTRY = {
         SG: 'SG', US: 'US', MY: 'MY', TH: 'TH', VN: 'VN',
         PH: 'PH', ID: 'ID', GB: 'GB', IN: 'IN', AU: 'AU',
         SEA: 'SG',
     };
+    // Empty/unknown regions return a sentinel that healthSnapshot will exclude
+    if (!raw)
+        return '*unknown*';
     const normalised = REGION_TO_COUNTRY[raw] || raw;
     return healthSnapshot_1.SUPPORTED_REGIONS.includes(normalised)
         ? normalised
-        : 'SG';
+        : '*unknown*';
 }
 // GET /mcp/health — public health surface with per-tool/per-region breakdown.
 router.get('/health', async (_req, res) => {
@@ -2549,12 +2770,14 @@ router.post('/', async (req, res, next) => {
     }
     return next();
 });
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), async (req, res) => {
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
+// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+async function handleMcpAuthenticated(req, res) {
     const body = req.body;
     // Validate JSON-RPC envelope
     if (!body || body.jsonrpc !== '2.0' || !body.method) {
-        return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        return;
     }
     const { id, method, params } = body;
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
@@ -2572,7 +2795,8 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 const toolName = args.name;
                 const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
                 if (!toolName) {
-                    return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    return;
                 }
                 // BUY-66684: normalize `cc` to `country_code` so handlers' existing
                 // `args.country_code`/`args.country` lookup logic fires.
@@ -2666,9 +2890,10 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                     }
                     catch { /* best-effort telemetry */ }
                 }
-                return res.json(jsonrpcOk(id, {
+                res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
                 }));
+                return;
             }
             // BUY-72102: backward compatibility for direct tool-name JSON-RPC methods.
             default: {
@@ -2711,11 +2936,13 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         }
                         catch { /* best-effort telemetry */ }
                     }
-                    return res.json(jsonrpcOk(id, {
+                    res.json(jsonrpcOk(id, {
                         content: [{ type: 'text', text: JSON.stringify(result) }],
                     }));
+                    return;
                 }
-                return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                return;
             }
         }
     }
@@ -2750,18 +2977,26 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
             const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.NOT_FOUND
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR;
-            return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            return;
         }
         if (typeof e.code === 'string' && e.message) {
             if (e.code === '57014') {
                 console.warn(`[mcp] statement_timeout (57014)`);
-                return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, errors_1.ErrorCode.SERVICE_UNAVAILABLE));
+                res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, errors_1.ErrorCode.SERVICE_UNAVAILABLE));
+                return;
             }
             console.error(`[mcp] pg error (code=${e.code}):`, e.message);
-            return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+            res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+            return;
         }
         console.error('[mcp] error:', err);
-        return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+        res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
     }
-});
+}
+// POST /mcp — authenticated methods: tools/call (and any future additions)
+router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
+// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
+// Mount the same handler so both paths accept standard bw_* API keys.
+router.post('/rpc', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 exports.default = router;

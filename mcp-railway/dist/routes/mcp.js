@@ -3,7 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
-const readReplica_1 = require("../lib/readReplica");
+// BUY-76535: search_products uses the primary `db` pool (see handler); the
+// readReplica servingReadDbConnect() is intentionally no longer referenced here.
 const embedProducts_1 = require("../jobs/embedProducts");
 const apiKey_1 = require("../middleware/apiKey");
 const queryLog_1 = require("../middleware/queryLog");
@@ -24,6 +25,15 @@ const V2_BUYER_TOOLS = new Set([
     'get_product_v2',
     'compare_products_v2',
     'get_deals_v2',
+]);
+// BUY-76909: Countries whose standalone child tables answer FTS in <100ms. The
+// parent `products` table has 373M rows / 297GB with severe bloat (11M dead
+// tuples), so PK-joins and fallback scans against it time out. Route the FBP
+// final join + ILIKE fallback to products_partitioned_{cc} for these countries.
+const FAST_CHILD_TABLE_COUNTRIES = new Set([
+    'SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'GB', 'CA', 'AU', 'IN', 'IT', 'ES', 'MX',
+    'ZA', 'BR', 'NZ', 'NL', 'PL', 'SE', 'CH', 'DK', 'JP', 'DE', 'FR', 'IE', 'NO',
+    'BE', 'AT', 'PT',
 ]);
 const router = (0, express_1.Router)();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -548,18 +558,19 @@ async function handleSearchProducts(args) {
     // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
     // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
     // any 8-12s MCP latency is pool-acquisition contention, not query execution.
-    // 2026-08-22: search reads go to the replica (REPLICA_DATABASE_URL) — the api
-    // tree moved there long ago; this tree still hit the primary and timed out
-    // under ingest/dedupe pressure.
-    // BUY-76535: route through health-aware readDb() (from readReplica.ts) instead
-    // of the unconditional replicaDb pool. readDb() returns the replica only when
-    // WAL-freshness probe confirms it's streaming with zero LSN gap; otherwise it
-    // transparently falls back to the primary `db` pool. This matches the api tree's
-    // servingReadDbConnect() pattern, which already handles replica degradation.
-    // Without this, search_products fails on ALL markets when the replica is
-    // unreachable while get_deals/find_best_price (primary `db`) continue working.
-    // BUY-76553: must use replica which has search_products table
-    const searchClient = await (0, readReplica_1.servingReadDbConnect)();
+    // BUY-76535 (SEV-1 2026-08-28, ALL-MARKET): search_products is served from the
+    // PRIMARY `db` pool, NOT the read replica. Previously search reads were routed to
+    // the replica (REPLICA_DATABASE_URL / servingReadDbConnect / readDb) for load
+    // spreading. That routing produced the recurring all-market degraded_envelope
+    // (degraded_kind=upstream_exception, degraded_reason=catalog_search): the replica
+    // passes the WAL-freshness probe yet does not serve the data interactive search
+    // needs — search_products browse returns total=0 (products.reltuples=0) while the
+    // primary holds ~365M rows, and FTS fast-fails with upstream_exception on every
+    // market. get_deals/find_best_price (primary `db`) stayed healthy throughout,
+    // isolating replica routing as the SEV-1 source. The primary search_products tier
+    // + GIN FTS path was verified fast (8-650ms). Revisit replicas only after one is
+    // provisioned with a populated search_products tier (BUY-76552/BUY-76643).
+    const searchClient = await config_1.db.connect();
     // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
     // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
     // and consecutive queries with different param counts cause
@@ -908,7 +919,7 @@ async function handleGetDeals(args) {
             deliverToPresent,
         });
     }
-    const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+    const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${(args.category || '').trim()}:${limit}:${offset}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -945,6 +956,12 @@ async function handleGetDeals(args) {
     if (country) {
         params.push(country.toUpperCase());
         conditions.push(`country_code = $${params.length}`);
+    }
+    // BUY-77178: category filter
+    const category = (args.category || '').trim();
+    if (category) {
+        params.push(category.toLowerCase());
+        conditions.push(`LOWER(category) = $${params.length}`);
     }
     const discountSelect = useDiscountCol
         ? 'discount_pct'
@@ -1253,10 +1270,6 @@ async function handleFindBestPrice(args) {
     // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
     tierParams.push(searchName);
     tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
-    if (country) {
-        tierParams.push(country);
-        tierConditions.push(`sp.country_code = $${tierParams.length}`);
-    }
     if (region) {
         tierParams.push(region);
         tierConditions.push(`sp.region = $${tierParams.length}`);
@@ -1269,6 +1282,20 @@ async function handleFindBestPrice(args) {
     if (deviceFilter.minLocal > 0) {
         tierParams.push(deviceFilter.minLocal);
         tierConditions.push(`sp.price >= $${tierParams.length}`);
+    }
+    // BUY-76909: route candidates AND hydration to the country child table when one
+    // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
+    // joins even with indexes, and search_products ids do not overlap child-table ids
+    // for recent ingest (verified live), so cross-tier joins return 0 rows. The child
+    // table has a GIN index on search_vector and (post-BUY-77453 DDL) a btree on (id)
+    // — the full query answers in ~15ms.
+    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+    const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
+    const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
+    if (!useChildTable && country) {
+        tierParams.push(country);
+        tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
     // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -1288,14 +1315,15 @@ async function handleFindBestPrice(args) {
         await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan; without this, planner picks seq scan on SG partition (largest) and times out at 25s
         tierParams.push(CANDIDATE_POOL, limit);
         result = await bestPriceClient.query(`WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at,
+         SELECT sp.id, sp.price, sp.updated_at, sp.title,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM search_products sp ${tierWhere}
+         FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY rk DESC NULLS LAST,
+         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)' THEN 1 ELSE 0 END) ASC,
+                  rk DESC NULLS LAST,
                   (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
                   updated_at DESC
          LIMIT $${tierParams.length}
@@ -1304,19 +1332,19 @@ async function handleFindBestPrice(args) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       JOIN products p ON p.id = pi.id
+       JOIN ${tbl} p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`, tierParams);
         // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
         if (result.rows.length === 0) {
             await bestPriceClient.query('SET statement_timeout = 4500');
             const titlePattern = `%${productName}%`;
-            const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+            // requestedCountry already declared above for BUY-76909 child-table routing
             const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
             result = await bestPriceClient.query(`SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at, category, category_path, metadata
-           FROM products
+           FROM ${tbl}
            WHERE is_active = true AND price > 0
              AND country_code = $1
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
@@ -1352,7 +1380,10 @@ async function handleFindBestPrice(args) {
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const toUsd = response_1.CURRENCY_RATES[currency] ?? 1;
     const neg = deviceFilter.negativeTerms;
+    const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
     const isAccessory = (r) => {
+        if (ACCESSORY_PATTERN.test(String(r.title ?? '')))
+            return true;
         if (!deviceFilter.type)
             return false;
         const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
@@ -1744,8 +1775,25 @@ function validateCountryCode(toolName, args) {
         throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
     }
 }
+// 2026-08-30: same alias normalisation as the api tree, so both hosts accept the same
+// argument spellings (query/q/product_name, id/product_id, ids/product_ids).
+function normalizeToolArgAliases(args) {
+    const alias = (from, to) => {
+        if (args[to] === undefined && args[from] !== undefined)
+            args[to] = args[from];
+    };
+    alias('query', 'q');
+    alias('q', 'query');
+    alias('q', 'product_name');
+    alias('product_name', 'q');
+    alias('product_id', 'id');
+    alias('id', 'product_id');
+    alias('product_ids', 'ids');
+    alias('ids', 'product_ids');
+}
 async function dispatchTool(name, args) {
     normalizeMarketArg(args);
+    normalizeToolArgAliases(args);
     validateCountryCode(name, args);
     switch (name) {
         case 'search_products': return handleSearchProducts(args);
@@ -2047,7 +2095,9 @@ function jsonrpcRequestId(_id) {
     return (0, crypto_1.randomUUID)();
 }
 function jsonrpcOk(id, result) {
-    return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
+    // JSON-RPC 2.0 allows only jsonrpc/id/result|error at the top level; extra keys make
+    // the official MCP Inspector and strict clients reject the response (2026-08-29).
+    return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id, code, message, data, envelopeCode) {
     const errorData = data != null ? { detail: data } : {};
@@ -2057,8 +2107,6 @@ function jsonrpcErr(id, code, message, data, envelopeCode) {
     return {
         jsonrpc: '2.0',
         id,
-        request_id: jsonrpcRequestId(id),
-        timestamp: new Date().toISOString(),
         error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
     };
 }
@@ -2152,12 +2200,29 @@ router.get('/health', async (_req, res) => {
         try {
             snapshot = (0, healthSnapshot_1.computeSnapshot)();
         }
-        catch (snapErr) {
+        catch (_snapErr) {
             // Failure-open — return stale snapshot, never 5xx.
             snapshot = { status: 'ok', server: 'mcp', ts: new Date().toISOString(), tools: {}, regions: {}, catalog: { total_products: catalogTotal } };
         }
+        // BUY-69817: X-BuyWhere-Degraded-Regions header so in-flight tool calls
+        // can self-correct before hitting a timeout.
+        const degradedRegions = (0, healthSnapshot_1.getDegradedRegions)();
+        if (degradedRegions.length > 0) {
+            res.set('X-BuyWhere-Degraded-Regions', degradedRegions.join(','));
+        }
+        // BUY-69817: slo section — p95_current_ms is the max across all tools.
+        // availability_* (30d aggregate) requires query_log data; tracked separately.
+        const toolP95s = Object.values(snapshot.tools)
+            .map(t => t.p95_ms)
+            .filter((p) => p !== null);
+        const p95CurrentMs = toolP95s.length > 0 ? Math.max(...toolP95s) : null;
         res.json({
             ...snapshot,
+            slo: {
+                window: '5m',
+                p95_target_ms: healthSnapshot_1.P95_TARGET_MS,
+                p95_current_ms: p95CurrentMs,
+            },
             catalog: { total_products: catalogTotal },
             db: 'ok',
             redis: pong === 'PONG' ? 'ok' : 'degraded',
@@ -2307,12 +2372,15 @@ router.post('/', async (req, res, next) => {
     }
     return next();
 });
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), async (req, res) => {
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
+// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+// POST /mcp/rpc is a backward-compatible alias for callers that used the older path.
+async function handleMcpAuthenticated(req, res) {
     const body = req.body;
     // Validate JSON-RPC envelope
     if (!body || body.jsonrpc !== '2.0' || !body.method) {
-        return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        return;
     }
     const { id, method, params } = body;
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
@@ -2334,7 +2402,8 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 const toolName = args.name;
                 const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
                 if (!toolName) {
-                    return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    return;
                 }
                 // BUY-22733: surface tool name to queryLog middleware so the finish
                 // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
@@ -2400,9 +2469,10 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 if (funnelJobId && result && typeof result === 'object') {
                     result.shopping_job_id = funnelJobId;
                 }
-                return res.json(jsonrpcOk(id, {
+                res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
                 }));
+                return;
             }
             // BUY-68192: backward compatibility for direct tool-name JSON-RPC methods
             // (e.g., "search_products", "list_categories"). Some MCP clients and
@@ -2425,11 +2495,13 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         });
                     }
                     catch { }
-                    return res.json(jsonrpcOk(id, {
+                    res.json(jsonrpcOk(id, {
                         content: [{ type: 'text', text: JSON.stringify(result) }],
                     }));
+                    return;
                 }
-                return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                return;
             }
         }
     }
@@ -2451,10 +2523,19 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR);
             const status = envelopeCode === errors_1.ErrorCode.MARKET_UNSUPPORTED ? 400 : 200;
-            return res.status(status).json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            res.status(status).json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            return;
         }
         console.error('[mcp] error:', err);
-        return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+        res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
     }
-});
+}
+// POST /mcp — authenticated methods: tools/call (and any future additions)
+router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
+// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
+// Mount the same handler so both paths accept standard bw_* API keys.
+// Previously this path returned 401 "Invalid admin key" because it was gated
+// by an admin-only middleware that no longer exists in the deployed code.
+// Keeping it as an alias ensures any callers using /mcp/rpc continue working.
+router.post('/rpc', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 exports.default = router;

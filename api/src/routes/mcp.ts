@@ -3015,13 +3015,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
+// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+async function handleMcpAuthenticated(req: Request, res: Response): Promise<void> {
   const body = req.body;
 
   // Validate JSON-RPC envelope
   if (!body || body.jsonrpc !== '2.0' || !body.method) {
-    return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_JSON));
+    res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_JSON));
+    return;
   }
 
   const { id, method, params } = body;
@@ -3043,7 +3045,8 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         const toolName = args.name as string;
         const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
         if (!toolName) {
-          return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+          res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+          return;
         }
         // BUY-66684: normalize `cc` to `country_code` so handlers' existing
         // `args.country_code`/`args.country` lookup logic fires.
@@ -3067,7 +3070,6 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           const resolved = resolveShoppingJobId(clientJobId, toolArgs);
           funnelJobId = resolved.jobId;
           funnelIsReplay = resolved.isReplay;
-          // BUY-73521: record job_created stage.
           recordJobCreated({
             shoppingJobId: funnelJobId,
             isReplay: funnelIsReplay,
@@ -3086,15 +3088,12 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           const productIds = extractProductIds(result);
           const offerUrlPresent = hasOutboundUrl(result);
           try {
-            // product_resolved: at least one product id in response
             if (productIds.length > 0) {
               recordProductResolved({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
             }
-            // executable_offer_found: merchant + (price available or offer url)
             if (productIds.length > 0 && offerUrlPresent) {
               recordExecutableOfferFound({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
             }
-            // outbound_link_returned: outbound_url present
             if (offerUrlPresent) {
               recordOutboundLinkReturned({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
             }
@@ -3102,8 +3101,6 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
             console.warn('[mcp][funnel] record error:', e);
           }
         }
-        // BUY-73521: inject shopping_job_id into the response JSON so callers can
-        // continue the session without re-supplying it.
         if (funnelJobId && result && typeof result === 'object') {
           (result as Record<string, unknown>).shopping_job_id = funnelJobId;
         }
@@ -3111,13 +3108,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
         // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
         try {
-          recordV2KpiSink({
-            toolName,
-            args: toolArgs,
-            apiKey: rawApiKey,
-            result,
-            statusCode: 200,
-          });
+          recordV2KpiSink({ toolName, args: toolArgs, apiKey: rawApiKey, result, statusCode: 200 });
         } catch { /* swallowed inside recordV2KpiSink */ }
         // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
         if (toolName.endsWith('_v2')) {
@@ -3127,15 +3118,14 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
               toolName,
               args: toolArgs,
               apiKey: rawApiKey,
-              gatePassed: true, // we reached dispatchTool, so gate didn't reject
+              gatePassed: true,
               outcome: 'success',
             });
             recordV2Request(v2Row);
           } catch { /* best-effort telemetry */ }
         }
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+        res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
+        return;
       }
 
       // BUY-72102: backward compatibility for direct tool-name JSON-RPC methods.
@@ -3150,8 +3140,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
             recordToolCall({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
           } catch {}
           // BUY-75415: same forward-direction write as tools/call (v2 tools may
-          // also be invoked via direct method name; the gate metric must reflect
-          // both surfaces).
+          // also be invoked via direct method name; the gate metric must reflect both surfaces).
           try {
             recordV2KpiSink({
               toolName: method,
@@ -3170,17 +3159,17 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
                 toolName: method,
                 args,
                 apiKey: rawApiKey,
-                gatePassed: true, // we reached dispatchTool, so gate didn't reject
+                gatePassed: true,
                 outcome: 'success',
               });
               recordV2Request(v2Row);
             } catch { /* best-effort telemetry */ }
           }
-          return res.json(jsonrpcOk(id, {
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-          }));
+          res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
+          return;
         }
-        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+        res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+        return;
       }
     }
   } catch (err: unknown) {
@@ -3212,19 +3201,31 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
         : ErrorCode.INTERNAL_ERROR;
-      return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+      res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+      return;
     }
     if (typeof e.code === 'string' && e.message) {
       if (e.code === '57014') {
         console.warn(`[mcp] statement_timeout (57014)`);
-        return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, ErrorCode.SERVICE_UNAVAILABLE));
+        res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, ErrorCode.SERVICE_UNAVAILABLE));
+        return;
       }
       console.error(`[mcp] pg error (code=${e.code}):`, e.message);
-      return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
+      res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
+      return;
     }
     console.error('[mcp] error:', err);
-    return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
+    res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
   }
-});
+}
+
+// POST /mcp — authenticated methods: tools/call (and any future additions)
+router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
+
+// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
+// Mount the same handler so both paths accept standard bw_* API keys.
+// Previously this path returned 401 "Invalid admin key" from a stale admin-gated
+// middleware. Keeping it as an alias ensures callers using /mcp/rpc continue working.
+router.post('/rpc', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
 
 export default router;

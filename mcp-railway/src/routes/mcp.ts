@@ -2583,13 +2583,16 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
+// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+// POST /mcp/rpc is a backward-compatible alias for callers that used the older path.
+async function handleMcpAuthenticated(req: Request, res: Response): Promise<void> {
   const body = req.body;
 
   // Validate JSON-RPC envelope
   if (!body || body.jsonrpc !== '2.0' || !body.method) {
-    return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_JSON));
+    res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, ErrorCode.INVALID_JSON));
+    return;
   }
 
   const { id, method, params } = body;
@@ -2615,7 +2618,8 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         const toolName = args.name as string;
         const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
         if (!toolName) {
-          return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+          res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+          return;
         }
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
@@ -2679,9 +2683,10 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (funnelJobId && result && typeof result === 'object') {
           (result as Record<string, unknown>).shopping_job_id = funnelJobId;
         }
-        return res.json(jsonrpcOk(id, {
+        res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
+        return;
       }
 
       // BUY-68192: backward compatibility for direct tool-name JSON-RPC methods
@@ -2704,11 +2709,13 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
               error: false,
             });
           } catch {}
-          return res.json(jsonrpcOk(id, {
+          res.json(jsonrpcOk(id, {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           }));
+          return;
         }
-        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+        res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+        return;
       }
     }
   } catch (err: unknown) {
@@ -2728,11 +2735,22 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
         : ErrorCode.INTERNAL_ERROR);
       const status = envelopeCode === ErrorCode.MARKET_UNSUPPORTED ? 400 : 200;
-      return res.status(status).json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+      res.status(status).json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+      return;
     }
     console.error('[mcp] error:', err);
-    return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
+    res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
   }
-});
+}
+
+// POST /mcp — authenticated methods: tools/call (and any future additions)
+router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
+
+// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
+// Mount the same handler so both paths accept standard bw_* API keys.
+// Previously this path returned 401 "Invalid admin key" because it was gated
+// by an admin-only middleware that no longer exists in the deployed code.
+// Keeping it as an alias ensures any callers using /mcp/rpc continue working.
+router.post('/rpc', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
 
 export default router;
