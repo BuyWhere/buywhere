@@ -891,6 +891,11 @@ export async function runMigrations() {
     await db.query(`
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean;
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS returned_product_ids text[];
+      -- BUY-74597 shipped the queryLog INSERT with job_id + degraded_kind but never
+      -- added the columns: every api-side query_log INSERT has failed silently since
+      -- 2026-08-25 (mcp-railway's INSERT omits degraded_kind, so its rows still landed).
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS job_id TEXT;
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS degraded_kind TEXT;
     `);
     console.log('[migration] query_log telemetry columns ensured (BUY-62708/BUY-74173).');
   } catch (err: any) {
