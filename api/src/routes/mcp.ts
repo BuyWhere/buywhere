@@ -2722,23 +2722,25 @@ router.get('/metrics', (_req: Request, res: Response) => {
 });
 
 // BUY-69817: Helper to extract a normalised region from tool args. Falls back to SG.
-function extractRegion(toolArgs: Record<string, unknown>): SupportedRegion {
+function extractRegion(toolArgs: Record<string, unknown>): SupportedRegion | '*unknown*' {
   const raw = (
     (toolArgs.deliver_to as string)
     || (toolArgs.country_code as string)
     || (toolArgs.country as string)
     || (toolArgs.region as string)
-    || 'SG'
+    || ''  // Explicit empty string instead of defaulting to SG
   ).toString().trim().toUpperCase();
   const REGION_TO_COUNTRY: Record<string, string> = {
     SG: 'SG', US: 'US', MY: 'MY', TH: 'TH', VN: 'VN',
     PH: 'PH', ID: 'ID', GB: 'GB', IN: 'IN', AU: 'AU',
     SEA: 'SG',
   };
+  // Empty/unknown regions return a sentinel that healthSnapshot will exclude
+  if (!raw) return '*unknown*' as const;
   const normalised = REGION_TO_COUNTRY[raw] || raw;
   return (SUPPORTED_REGIONS as readonly string[]).includes(normalised)
     ? (normalised as SupportedRegion)
-    : 'SG';
+    : '*unknown*' as const;
 }
 
 // GET /mcp/health — public health surface with per-tool/per-region breakdown.

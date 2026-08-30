@@ -143,11 +143,11 @@ export function computeSnapshot(): McpHealthSnapshot {
   const now = Date.now();
   const cutoff = now - ROLLING_WINDOW_MS;
 
-  // Collect all (tool, region) keys
+  // Collect all (tool, region) keys, excluding unknown/invalid regions
   const toolRegionKeys = new Map<string, Set<string>>();
   for (const key of Array.from(buffers.keys())) {
     const [tool, region] = key.split('\x00');
-    if (!tool || !region) continue;
+    if (!tool || !region || region === '*unknown*') continue;
     if (!toolRegionKeys.has(tool)) toolRegionKeys.set(tool, new Set());
     toolRegionKeys.get(tool)!.add(region);
   }
@@ -243,7 +243,7 @@ export type SupportedRegion = typeof SUPPORTED_REGIONS[number];
 
 export interface RecordOptions {
   tool: string;
-  region: SupportedRegion;
+  region: SupportedRegion | '*unknown*';
   latency_ms: number;
   error: boolean;
 }
