@@ -855,7 +855,20 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
         ? Number(priceValue)
         : null;
   const specs = item.structured_specs || item.metadata || null;
-  const specBrand = typeof specs?.brand === 'string' ? specs.brand : null;
+  // BUY-77666: validate specBrand with isLikelyBrandToken so category terms,
+  // common words, model numbers, and other garbage values stored in
+  // metadata.brand (e.g. "Laptop", "Mobile", "Gaming", "Portable", "2025",
+  // "in", "Rechargeable") do NOT leak into the brand facet. The blocklist
+  // check happens inside deriveBrandFromTitle for title-derived brands
+  // already; specBrand needs the same gate.
+  const rawSpecBrand = typeof specs?.brand === 'string' ? specs.brand : null;
+  const specBrand =
+    rawSpecBrand && isLikelyBrandToken(rawSpecBrand) ? rawSpecBrand : null;
+  // BUY-77666: top-level `item.brand` from upstream may also be a category
+  // noun in scrapers that do not run the blocklist. Validate it too.
+  const rawItemBrand = typeof item.brand === 'string' ? item.brand : null;
+  const validatedItemBrand =
+    rawItemBrand && isLikelyBrandToken(rawItemBrand) ? rawItemBrand : null;
   const specCategory = typeof specs?.category === 'string' ? specs.category : null;
   const imageUrl = hasUsableProductImage(item.image_url)
     ? item.image_url || null
@@ -925,7 +938,13 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // one, so the meta slot renders a consistent brand line across all cards
     // in a grid row (rather than only the rare rows where the ingest lane
     // populated `metadata.brand`).
-    brand: item.brand || specBrand || deriveBrandFromTitle(name),
+    // BUY-77666: use the validated brand values so scrapers that wrote
+    // category terms ("Laptop", "Mobile", "Gaming", "Portable", "2025",
+    // "in", "Rechargeable") into metadata.brand do not leak into the facet.
+    brand:
+      validatedItemBrand ||
+      specBrand ||
+      deriveBrandFromTitle(name),
     category,
   };
 }
