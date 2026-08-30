@@ -248,8 +248,9 @@ export function queryLogMiddleware(endpoint: string) {
           extractJobId(req),
           res.locals.degradedKind ?? null,
         ]
-      ).catch(() => {
+      ).catch((err) => {
         // Fire-and-forget — don't crash on log failure
+        console.error('[queryLog] INSERT failed:', err.message);
       });
 
       // BUY-22733: source-of-truth usage telemetry to PostHog.
