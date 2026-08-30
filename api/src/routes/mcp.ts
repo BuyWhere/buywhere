@@ -1363,12 +1363,18 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     conditions.push(`country_code = $${params.length}`);
   }
 
-  // BUY-77178: category filter
+  // BUY-77178: category filter — BUY-77834 fix
+  // The prior `LOWER(category) = $N` exact-match against the single text column
+  // never matched slug-style input like "home_and_kitchen" / "sports_and_outdoors"
+  // / "video_games" — those names don't exist verbatim in `category`. The index
+  // walk then burned the full 30s statement_timeout returning 0 rows and surfaced
+  // category_recognized:false to agents. Mirroring search_products: keep the SQL
+  // WHERE untouched (so the deals index walk is bounded), and apply the category
+  // filter as a post-fetch ILIKE on the bounded candidate set against both
+  // `category` text AND `category_path[1]`. LIKE wildcards make slug input
+  // ("home_and_kitchen") still match real names like "home & kitchen".
   const category = (args.category as string || '').trim();
-  if (category) {
-    params.push(category.toLowerCase());
-    conditions.push(`LOWER(category) = $${params.length}`);
-  }
+  const categoryLower = category.toLowerCase();
 
   const whereClause = conditions.join(' AND ');
 
@@ -1433,9 +1439,24 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
       candidateParams
     );
     total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false, undefined, caller)
-    );
+    // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
+    // WHERE was kept category-free so the (currency, discount_pct DESC) index
+    // walk stays bounded. Match caller input against `category` text AND
+    // `category_path[1]` so slug-style names ("home_and_kitchen") still match
+    // real names ("Home & Kitchen" via category_path[1] — list_categories feeds
+    // from this column on SG). LIKE wildcard gives a forgiving match.
+    if (categoryLower) {
+      const rawRows = dataResult.rows as Record<string, unknown>[];
+      const matched = rawRows.filter((r) => {
+        const catText = ((r.category as string) || '').toLowerCase();
+        const catPath = ((r.category_path as unknown[]) || [])
+          .map((v) => String(v).toLowerCase())
+          .join(' ');
+        return catText.includes(categoryLower) || catPath.includes(categoryLower);
+      });
+      products = matched.map((r) => buildProduct(r, currency, false, undefined, caller));
+      total = matched.length;
+    }
     recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
   } catch (e: any) {
     const degradedKind = classifyMcpDegradedKind(e);
@@ -1462,6 +1483,18 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   // so callers can distinguish "no live deals" from "server bug".
   if ((region || effectiveCountry) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
+  }
+  // BUY-77834: surface the category_recognized signal when the caller passed
+  // a category filter. The post-fetch filter is now bounded (no more 30s walks),
+  // so we can reliably report whether the category had ANY rows.
+  if (categoryLower && products.length === 0) {
+    const resultMeta = result.meta as unknown as Record<string, unknown>;
+    resultMeta.emptiness_reason = 'category_unsupported';
+    resultMeta.confidence = 'low';
+    resultMeta.diagnostic = {
+      category_recognized: false,
+      timed_out_stage: null,
+    };
   }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
