@@ -1885,8 +1885,6 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     description:
       "Compare the best laptops in Singapore with live BuyWhere listings, retailer price checks, and quick buying advice across Apple, ASUS, Lenovo, HP, Acer, and Dell.",
     heroEyebrow: "Singapore Laptop Guide",
-    // BUY-77662: title field already ends with "2026", so "Best Laptops in Singapore"
-    // avoids the H1 duplication "Best laptops in Singapore (2026) — 2026 live price comparison"
     heroTitle: "Best Laptops in Singapore",
     heroBody:
       "Laptop buyers in Singapore usually want one page that answers both product fit and price comparison. This landing page combines practical buying guidance with live BuyWhere results across marketplace and electronics-retail channels.",
