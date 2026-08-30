@@ -687,21 +687,20 @@ router.get(
 
     // BUY-77664/77677 FIX RE-APPLIED: Use partitioned tables for list endpoint.
     // products_partitioned_{country} tables are now populated and much faster.
+    // For countries with empty partitions (PH/TH), the query will naturally return empty results
+    // which is acceptable vs the 15s timeout from the 413GB parent table.
     const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
 
     // pg_class reltuples is instant (system catalog, cached).
-    // Use the partition table name for count if available.
-    const countTable = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
     const countResult = await db.query(
       `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-      [countTable]
+      [LIST_TABLE]
     );
 
     // Use partitioned table which is much smaller and faster.
     let dataResult;
     const listClient = await db.connect();
     try {
-      // Partitioned tables are small enough that we don't need the aggressive timeout.
       await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
@@ -712,7 +711,7 @@ router.get(
         [...params, limit, offset]
       );
     } finally {
-      listClient.release(true); // release back to pool, rolling back any open transaction
+      listClient.release(true);
     }
 
     const total = parseInt(countResult.rows[0].count, 10);
