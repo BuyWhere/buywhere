@@ -1832,7 +1832,10 @@ router.get(
 
     // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
     // computation if the column doesn't exist yet (migration may not have run).
-    const dealConditions: string[] = ['currency = $1', 'price > 0'];
+    // BUY-77748: price > 0 already enforced; also require price >= 5 so the deals
+    // endpoint does not return items that buildProduct will nullify (PRICE_MIN=5).
+    // A deal without a usable price is not a deal.
+    const dealConditions: string[] = ['currency = $1', 'price > 0', 'price >= 5'];
     const dealParams: unknown[] = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
