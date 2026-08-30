@@ -188,6 +188,10 @@ function isAllowedDestination(url: string): boolean {
 }
 
 const REDIRECT_TIMEOUT_MS = 4000;
+// BUY-77881: simple product ID lookups (by PK or indexed product_id) should have more
+// lenient timeout than complex joins. DB saturation from convoy queries can cause
+// 4s timeouts on otherwise fast index lookups; bump to 8s for these critical paths.
+const LOOKUP_TIMEOUT_MS = 8000;
 const FALLBACK_URL = 'https://buywhere.ai';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
@@ -219,6 +223,10 @@ const redirectHandler = async (req: Request, res: Response) => {
   // product search JOINs); if none exists, fall through to the product lookup.
   // BUY-60824: also select affiliate_url and prefer it over destination_url,
   // which is empty for many rows. affiliate_url is the actual affiliate deeplink.
+  // BUY-77881: use longer timeout for simple index lookups. DB saturation from convoy
+  // queries (SELECT COUNT(*), DISTINCT sku, etc.) can block the connection pool,
+  // causing 4s timeouts on fast PK lookups. The index lookup itself is <10ms;
+  // the timeout is purely for queue time.
   try {
     const linkResult = await withTimeout(
       db.query(
@@ -233,7 +241,7 @@ const redirectHandler = async (req: Request, res: Response) => {
               ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`,
         [productId]
       ),
-      REDIRECT_TIMEOUT_MS,
+      LOOKUP_TIMEOUT_MS,
       'affiliate_links lookup'
     );
 
@@ -252,6 +260,7 @@ const redirectHandler = async (req: Request, res: Response) => {
   // Product fallback runs in its own try/catch so an affiliate_links failure
   // (or a missing link) still resolves the real merchant URL.
   // BUY-67318: select url_status so we can return 410 on confirmed dead links.
+  // BUY-77881: use longer timeout for simple PK lookup.
   if (!destinationUrl) {
     try {
       const productResult = await withTimeout(
@@ -261,7 +270,7 @@ const redirectHandler = async (req: Request, res: Response) => {
             : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`,
           [productId]
         ),
-        REDIRECT_TIMEOUT_MS,
+        LOOKUP_TIMEOUT_MS,
         'products lookup'
       );
       if (productResult.rows.length > 0) {
