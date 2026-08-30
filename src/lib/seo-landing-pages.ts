@@ -303,6 +303,39 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
   return "#";
 }
 
+/**
+ * BUY-74871: append the landing page's own pathname to internal BuyWhere
+ * affiliate redirect URLs (/r/direct/..., /api/click?...) so the /r and /api/click
+ * handlers record WHICH page produced each product-card click. The upstream
+ * search API already emits source=product_card on these URLs but not the page.
+ * We append pathname server-side (not just in the browser) so non-JS answer-engine
+ * crawlers (ChatGPT-User / ClaudeBot / PerplexityBot — the program's core
+ * distribution) also carry page attribution into affiliate_clicks.source_page.
+ * External merchant URLs are left untouched; this is attribution metadata only.
+ */
+function withLandingPageAttribution(href: string, sourcePathname: string | undefined): string {
+  if (!sourcePathname || href === "#" || href === "") return href;
+  const path = sourcePathname.replace(/^\/+/, "");
+  try {
+    // Internal affiliate URLs may be relative (/r/direct/... or /api/click?...)
+    // or absolute against the site origin. Only annotate internal ones.
+    let url: URL;
+    if (/^https?:\/\//.test(href)) {
+      url = new URL(href);
+      if (url.origin !== new URL(INTERNAL_ORIGIN).origin) return href;
+    } else {
+      url = new URL(href, "https://buywhere.ai");
+    }
+    if (!/^\/(r\/|api\/click)/.test(url.pathname)) return href;
+    if (!url.searchParams.has("pathname")) {
+      url.searchParams.set("pathname", `/${path}`);
+    }
+    return url.toString();
+  } catch {
+    return href;
+  }
+}
+
 // BUY-67622: redirect hosts whose products routinely leak dev-store fixtures,
 // non-US fulfilment domains, or refurb/clearance resellers into SEO guide
 // live cards. Filtered at the normalizeProduct boundary so the offending rows
@@ -351,7 +384,7 @@ function isLowTrustRedirectHost(href: string | null | undefined): boolean {
   }
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number, sourcePathname?: string): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -444,13 +477,16 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
           item.name || null,
           item.category || null,
         ),
-    href: normalizeExternalHref(
-      item.affiliate_redirect_url,
-      item.click_url,
-      item.affiliate_url,
-      item.buy_url,
-      item.product_url,
-      item.url,
+    href: withLandingPageAttribution(
+      normalizeExternalHref(
+        item.affiliate_redirect_url,
+        item.click_url,
+        item.affiliate_url,
+        item.buy_url,
+        item.product_url,
+        item.url,
+      ),
+      sourcePathname,
     ),
     // BUY-76340: add affiliateUrl for ProductGridCard to use as primary link
     affiliateUrl: normalizeExternalHref(item.affiliate_redirect_url),
@@ -1329,7 +1365,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // merchant rows never enter the live card set or downstream JSON-LD.
         if (!isMerchantAllowedForCountry(item, allowlistCountry)) continue;
 
-        const product = normalizeProduct(item, config.currency, config.minPrice);
+        const product = normalizeProduct(item, config.currency, config.minPrice, config.slug);
         if (!product) continue;
         // BUY-72906: defense-in-depth against backend/filter drift — if the
         // upstream row declares a country that differs from this landing page,
