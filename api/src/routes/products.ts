@@ -675,29 +675,35 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
 
-    // BUY-77664/77677: sakura proxy I/O saturation makes enable_seqscan=off on the
-    // 391M-row products table insufficient — even index scans on 391M rows read too
-    // many buffer pages under I/O pressure and time out. Switch to products_partitioned
-    // (country-partitioned); country_code='SG' hits products_partitioned_sg (~133 rows)
-    // and any scan type (index or seq) is sub-millisecond regardless of cache state.
-    // Partition pruning is automatic; the table is identical in schema.
-    // Note: pg_class reltuples for 'products' is still the global count (not useful
-    // per-country); the EXPLAIN row-estimate path would be correct but falls back to this.
-    const LIST_TABLE = 'products_partitioned';
+    // BUY-77664/77677 REVERTED (BUY-77664 emergency): products_partitioned is empty
+    // for most countries (Rex pre-load stalled), and under sakura IO saturation the
+    // partitioned table scans time out even with LIMIT 1. Revert to 'products' parent
+    // table which has idx_products_active_country partial index.
+    const LIST_TABLE = 'products';
 
-    const [countResult, dataResult] = await Promise.all([
-      // Fast statistical estimate — same pg_class reltuples (global, not useful per-country
-      // but sufficient as an upper-bound pagination estimate).
-      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
-      db.query(
+    // pg_class reltuples is instant (system catalog, cached).
+    const countResult = await db.query(
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`
+    );
+
+    // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
+    // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
+    // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
+    let dataResult;
+    const listClient = await db.connect();
+    try {
+      await listClient.query(`SET statement_timeout = '15s'`);
+      dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE}
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, limit, offset]
-      ),
-    ]);
+      );
+    } finally {
+      listClient.release(true); // release back to pool, rolling back any open transaction
+    }
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
