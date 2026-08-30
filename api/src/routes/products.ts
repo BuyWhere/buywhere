@@ -623,7 +623,8 @@ router.get(
 
     // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
     const category = req.query.category as string | undefined;
-    const countryCode = (req.query.country_code as string | undefined)?.toUpperCase() || 'SG';
+    // BUY-77897: accept both `country_code` (canonical) and `country` (alias used by most callers)
+    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc
