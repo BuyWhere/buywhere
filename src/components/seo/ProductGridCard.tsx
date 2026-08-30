@@ -36,9 +36,19 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   // NOTE: only use buildAffiliateRedirectUrl when affiliateUrl exists (meaning
   // the product HAS a DB record); static fallback products (lp* IDs) have no
   // DB record, so /r/direct/lp* redirects to homepage.
+  //
+  // BUY-78023: when affiliateUrl is absent (fallback product), prefer
+  // `product.productUrl` (the canonical /products/{region}/{slug}/{id} PDP
+  // route) over `product.href` (a /search?q=... loopback). Both US and SG
+  // fallback products now point every card anchor at the same canonical PDP
+  // instead of leaking /search?q= hrefs into SSR HTML. `isMerchantOffer`
+  // still evaluates to false for fallbacks (productUrl starts with /products/,
+  // not /r/ or http://), so the CTA renders the passive "Compare prices"
+  // span and the "View details" Next.js Link uses the same PDP — no fake
+  // merchant button is shown, and there is no /search?q= loopback anywhere.
   const affiliateHref = product.affiliateUrl
     ? (buildAffiliateRedirectUrl(product.id) || product.href || "#")
-    : (product.href || "#");
+    : (product.productUrl || product.href || "#");
 
   // A card is a "merchant offer" when it has a real external/affiliate target
   // to send the shopper to (as opposed to a passive compare-only row whose
