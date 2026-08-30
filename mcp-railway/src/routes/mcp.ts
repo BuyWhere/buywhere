@@ -1142,9 +1142,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
       candidateParams
     );
     total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
     // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
     // WHERE was kept category-free so the (currency, discount_pct DESC) index
     // walk stays bounded. Match caller input against `category` text AND
@@ -1162,6 +1159,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
       });
       products = matched.map((r) => buildProduct(r, currency, false));
       total = matched.length;
+    } else {
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
     }
     recordMcpCircuitSuccess('get_deals', 'offer_aggregation', country || null);
   } catch (err: any) {

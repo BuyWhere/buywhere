@@ -1456,6 +1456,10 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
       });
       products = matched.map((r) => buildProduct(r, currency, false, undefined, caller));
       total = matched.length;
+    } else {
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false, undefined, caller)
+      );
     }
     recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
   } catch (e: any) {

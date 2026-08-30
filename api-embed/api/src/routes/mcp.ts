@@ -636,9 +636,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
       [...params, limit, offset]
     );
     total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
     // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
     // WHERE was kept category-free so the deals index walk stays bounded. Match
     // caller input against `category` text AND `category_path[1]` so slug-style
@@ -656,6 +653,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
       });
       products = matched.map((r) => buildProduct(r, currency, false));
       total = matched.length;
+    } else {
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
     }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
