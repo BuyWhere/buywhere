@@ -1826,7 +1826,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       JOIN ${tierTable} p ON p.id = pi.id
+       -- 2026-08-29: detail fetch joins `products`, not the tier. search_products has no
+       -- is_active / metadata / category_path / url_status columns, so joining the tier
+       -- here raised "column does not exist" on every call and find_best_price always
+       -- returned a degraded empty envelope.
+       JOIN products p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       tierParams
@@ -2259,7 +2263,8 @@ async function keywordSimilarFallback(productId: string, limit: number, reason: 
     }
     const { title, country_code } = ref.rows[0];
     const params: unknown[] = [title, productId];
-    let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint AND is_active = true";
+    // search_products carries only active rows, and has no is_active column.
+    let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint";
     if (country_code) { params.push(country_code); where += ` AND country_code = $${params.length}`; }
     params.push(limit);
     const rows = await client.query(
