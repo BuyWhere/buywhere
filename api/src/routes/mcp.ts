@@ -1925,14 +1925,19 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // product. Callers get an explicit reason rather than a misleading answer.
   const looksLikeExactModel = /[a-z]+[-\s]?\d{2,}|\d{2,}[a-z]{1,3}\b/i.test(productName);
   if (finalRows.length === 0 && result && result.rows.length > 0 && looksLikeExactModel) {
-    return buildBestPriceResponse({
-      productName,
-      country,
-      rows: [],
-      responseTimeMs: Date.now() - t0,
-      emptinessReason: 'only_accessories_matched',
-      deliverToPresent,
-    });
+    return {
+      best_price: null,
+      alternatives: [],
+      meta: {
+        total: 0,
+        product_name: productName,
+        country: country || null,
+        response_time_ms: Date.now() - t0,
+        emptiness_reason: 'only_accessories_matched',
+        note: 'Every catalogue match for this model is an accessory (case, cable, ear pads). Returning none rather than presenting an accessory as the product.',
+        deliver_to_present: deliverToPresent,
+      },
+    };
   }
   if (finalRows.length === 0 && result && result.rows.length > 0) {
     finalRows = result.rows;
