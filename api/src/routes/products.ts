@@ -15,6 +15,8 @@ import { shipScopeForUrl } from '../lib/shipsTo';
 import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
+import { detectIdentifier, identifierMatchPredicate, identifierForcesKeywordMode, IdentifierDetection } from '../lib/identifierDetector';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -100,6 +102,120 @@ function dedupeProductRows(rows: Array<Record<string, unknown>>): Array<Record<s
 
 function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+}
+
+// ── Identifier lookup (BUY-72362). Runs BEFORE tier/keyword/archive/vector.
+// Detects ASIN/EAN/GTIN/UPC/Apple-part/model-number queries and resolves them
+// to an exact match against `gtin` / `mpn` / `sku`. FTS cannot resolve these
+// shapes — ASINs share no meaningful tokens with product titles — and the
+// tokenised fallback for generic SKUs (`SKU-12345` → fishing reels) is a
+// confident wrong answer. Returns true if it handled the request (including
+// the deliberate "no exact match" 0-result case); returns false if the query
+// is not identifier-shaped, so the caller falls through to the FTS path
+// unchanged. Errors also return false to preserve the existing fail-open
+// contract. Cached alongside the FTS path under `search:...` keys.
+async function tryIdentifierLookup(
+  req: Request,
+  res: Response,
+  p: {
+    id: IdentifierDetection; countryCode?: string; currency: string; limit: number; offset: number;
+    minPrice?: number; maxPrice?: number; brand?: string; domain?: string;
+    compact: boolean; requestStart: number; cacheKey: string;
+    deliverTo?: string; includeUnshippable?: boolean;
+  },
+): Promise<boolean> {
+  let client: PoolClient;
+  try { client = await servingReadDbConnect(); } catch { return false; }
+  try {
+    const conds: string[] = [];
+    const params: unknown[] = [];
+    let i = 1;
+    const idIdx = i; params.push(p.id.normalized); i++;
+    conds.push(identifierMatchPredicate(p.id, idIdx).sql);
+    if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+    if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
+    if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+    conds.push(`sp.is_active = true`);
+    conds.push(`sp.price > 0`);
+    const whereSql = `WHERE ${conds.join(' AND ')}`;
+    const limitIdx = i; params.push(p.limit + 1); i++;
+    const offsetIdx = i; params.push(p.offset); i++;
+
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL statement_timeout = '2000'`);
+    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+      sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+      sp.sku AS source_id, sp.brand, sp.mpn, sp.gtin, sp.category_path, sp.category, sp.merchant_id,
+      sp.avg_rating, sp.review_count, sp.created_at, sp.description, sp.metadata,
+      jsonb_build_object('brand', sp.brand, 'category', sp.category,
+        'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+
+    let rows: Array<Record<string, unknown>> = [];
+    let source = 'identifier_tier';
+    try {
+      const r = await client.query(
+        `SELECT ${cols} FROM products sp
+         LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+         ${whereSql}
+         ORDER BY sp.id DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params,
+      );
+      rows = r.rows;
+    } catch (tierErr) {
+      await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
+      source = 'identifier_archive';
+      try {
+        await client.query('SAVEPOINT before_archive');
+        const r = await client.query(
+          `SELECT ${cols.replace(/sp\./g, 'products.')} FROM products
+           LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+           ${whereSql.replace(/sp\./g, 'products.')}
+           ORDER BY products.id DESC
+           LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+          params,
+        );
+        rows = r.rows;
+      } catch (archiveErr) {
+        await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
+        throw archiveErr;
+      }
+    }
+    await client.query('COMMIT');
+    client.release();
+
+    if (rows.length === 0) {
+      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+      emptyBody.source = source;
+      emptyBody.identifier_kind = p.id.kind;
+      annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
+      redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+      res.set('X-Identifier-Lookup', p.id.kind);
+      res.set('X-Identifier-Resolved', '0');
+      res.json(emptyBody);
+      return true;
+    }
+
+    const hasMore = rows.length > p.limit;
+    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const total = p.offset + rows.length;
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    responseBody.source = source;
+    responseBody.identifier_kind = p.id.kind;
+    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
+    redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    res.set('X-Identifier-Lookup', p.id.kind);
+    res.set('X-Identifier-Resolved', String(rows.length));
+    res.json(responseBody);
+    return true;
+  } catch (e) {
+    try { await client.query('ROLLBACK').catch(() => {}); } catch { /* ignore */ }
+    try { client.release(); } catch { /* ignore */ }
+    console.warn('[identifier] fell back:', (e as Error)?.message);
+    return false;
+  }
 }
 
 // ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
@@ -758,6 +874,24 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
+    // FTS entirely. The detector is conservative — it only matches short,
+    // whitespace-free inputs against known global identifier formats, so a
+    // natural-language query never reaches this branch. When it does fire, we
+    // route to an exact-match lookup against `gtin`/`mpn`/`sku` and cache the
+    // zero-result envelope (so `SKU-12345`-style non-matches cannot leak the
+    // FTS fishing-reel noise). The vector arm is gated to `keyword` for the
+    // same reason — ASIN/EAN lookup is a mechanical equality, not a similarity
+    // search.
+    const identifier = detectIdentifier(rawQuery);
+    if (identifier && !sortRequested) {
+      const handled = await tryIdentifierLookup(req, res, {
+        id: identifier, countryCode, currency, limit, offset, minPrice, maxPrice,
+        brand, domain, compact, requestStart, cacheKey,
+        deliverTo, includeUnshippable,
+      });
+      if (handled) return;
+    }
     // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
     // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
     // tier so the archive path (which honors buildSortOrder) serves it ordered.
