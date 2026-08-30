@@ -153,7 +153,7 @@ router.get('/:id', async (req, res) => {
     <div class="merchant">Sold by: ${escHtml(p.domain || 'merchant')}</div>
     ${p.availability === 'out_of_stock' ? '<div style="color:#e53e3e;font-weight:600">Out of stock</div>' : '<div style="color:#0a7c59">In stock</div>'}
     ${p.description ? `<p style="margin-top:12px">${escHtml(p.description.slice(0, 500))}</p>` : ''}
-    ${p.url ? `<a href="/r/buywhere/${p.id}" rel="sponsored" style="display:inline-block;margin-top:12px;padding:10px 20px;background:#0a7c59;color:#fff;border-radius:6px;text-decoration:none">View on ${escHtml(p.domain || 'merchant')}</a>` : ''}
+    ${p.url ? `<a href="/r/direct/${p.id}" rel="sponsored" style="display:inline-block;margin-top:12px;padding:10px 20px;background:#0a7c59;color:#fff;border-radius:6px;text-decoration:none">View on ${escHtml(p.domain || 'merchant')}</a>` : ''}
   </div>
 </div>
 <script type="application/ld+json">${JSON.stringify(breadcrumb)}</script>`;

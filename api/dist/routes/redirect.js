@@ -173,6 +173,10 @@ function isAllowedDestination(url) {
     }
 }
 const REDIRECT_TIMEOUT_MS = 4000;
+// BUY-77881: simple product ID lookups (by PK or indexed product_id) should have more
+// lenient timeout than complex joins. DB saturation from convoy queries can cause
+// 4s timeouts on otherwise fast index lookups; bump to 8s for these critical paths.
+const LOOKUP_TIMEOUT_MS = 8000;
 const FALLBACK_URL = 'https://buywhere.ai';
 function withTimeout(promise, ms, context) {
     return Promise.race([
@@ -180,6 +184,24 @@ function withTimeout(promise, ms, context) {
         new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms (${context})`)), ms)),
     ]);
 }
+function normalizeQuerySlug(slug) {
+    try {
+        return decodeURIComponent(slug).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    catch {
+        return slug.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+}
+// GET /r/:query — public shortcut used by legacy human-facing links.
+// Do not require API auth and do not run broad catalog scans on the redirect path.
+const queryRedirectHandler = async (req, res) => {
+    const query = normalizeQuerySlug(req.params.query || '');
+    if (!query) {
+        res.redirect(302, FALLBACK_URL);
+        return;
+    }
+    res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
+};
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
 // Log the affiliate click then redirect to destination
 const redirectHandler = async (req, res) => {
@@ -198,6 +220,10 @@ const redirectHandler = async (req, res) => {
     // product search JOINs); if none exists, fall through to the product lookup.
     // BUY-60824: also select affiliate_url and prefer it over destination_url,
     // which is empty for many rows. affiliate_url is the actual affiliate deeplink.
+    // BUY-77881: use longer timeout for simple index lookups. DB saturation from convoy
+    // queries (SELECT COUNT(*), DISTINCT sku, etc.) can block the connection pool,
+    // causing 4s timeouts on fast PK lookups. The index lookup itself is <10ms;
+    // the timeout is purely for queue time.
     try {
         const linkResult = await withTimeout(config_1.db.query(probeEnabled
             ? `SELECT al.id, al.merchant_id, al.affiliate_url, al.destination_url, p.url_status
@@ -207,7 +233,7 @@ const redirectHandler = async (req, res) => {
               ORDER BY al.affiliate_url NULLS LAST, al.destination_url LIMIT 1`
             : `SELECT id, merchant_id, affiliate_url, destination_url, NULL::text AS url_status
                FROM affiliate_links WHERE product_id = $1
-              ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`, [productId]), REDIRECT_TIMEOUT_MS, 'affiliate_links lookup');
+              ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`, [productId]), LOOKUP_TIMEOUT_MS, 'affiliate_links lookup');
         if (linkResult.rows.length > 0) {
             const link = linkResult.rows[0];
             merchantId = link.merchant_id || affiliateSlug;
@@ -223,11 +249,12 @@ const redirectHandler = async (req, res) => {
     // Product fallback runs in its own try/catch so an affiliate_links failure
     // (or a missing link) still resolves the real merchant URL.
     // BUY-67318: select url_status so we can return 410 on confirmed dead links.
+    // BUY-77881: use longer timeout for simple PK lookup.
     if (!destinationUrl) {
         try {
             const productResult = await withTimeout(config_1.db.query(probeEnabled
                 ? `SELECT url, merchant_id, url_status FROM products WHERE id = $1`
-                : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`, [productId]), REDIRECT_TIMEOUT_MS, 'products lookup');
+                : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`, [productId]), LOOKUP_TIMEOUT_MS, 'products lookup');
             if (productResult.rows.length > 0) {
                 destinationUrl = productResult.rows[0].url;
                 merchantId = productResult.rows[0].merchant_id || 'unknown';
@@ -405,4 +432,5 @@ const redirectHandler = async (req, res) => {
 };
 router.get('/direct/:merchantId/:productId', redirectHandler);
 router.get('/:affiliateSlug/:productId', redirectHandler);
+router.get('/:query', queryRedirectHandler);
 exports.default = router;

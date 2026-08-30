@@ -656,9 +656,15 @@ router.get(
       // Redis miss or error — fall through to DB
     }
 
-    const conditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
-    const params: unknown[] = [currency];
-    let idx = 2;
+    // BUY-77920: do NOT filter currency/price in the same scan as ORDER BY id DESC.
+    // products_partitioned_sg_id_idx + is_active/country_code is ~0.1ms; adding
+    // currency = SGD AND price > 0 forces a backward id scan that skips until
+    // those predicates match and hits statement_timeout (30s LB 500).
+    // Over-fetch on the indexed predicates, then apply currency/price in the
+    // outer query (or in-process if the inner already returns LIMIT).
+    const conditions: string[] = ['is_active = true'];
+    const params: unknown[] = [];
+    let idx = 1;
 
     if (countryCode) {
       conditions.push(`country_code = $${idx}`);
@@ -730,11 +736,17 @@ router.get(
       listClient = await listDb.connect();
     }
     try {
-      await listClient.query(`SET statement_timeout = '30s'`);
+      await listClient.query(`SET statement_timeout = '4s'`);
+      // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
+      // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
+      // the id index looking for SGD and hits the 30s LB timeout. List by
+      // indexed is_active/country_code + id DESC, then drop rows with no price.
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE} products
          ${whereClause}
+           AND products.price IS NOT NULL
+           AND products.price > 0
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, limit, offset]
@@ -2417,40 +2429,28 @@ router.get(
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
       ? `products_partitioned_${countryCode.toLowerCase()}`
       : 'products';
+    // BUY-77920: do not AND currency into ORDER BY id DESC — newest SG rows are
+    // USD and the planner walks the id index for 30s. Featured is "recent
+    // in-market listings", not "recent listings in the viewer's currency".
+    const featuredSql = `
+         SELECT id, sku AS source_id, source AS domain, url,
+                NULL::text AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM ${FEATURED_TABLE}
+         WHERE is_active = true
+           AND country_code = $1
+           AND price IS NOT NULL
+         ORDER BY id DESC
+         LIMIT $2 OFFSET $3`;
     let featuredDb = readDb();
     let result;
     try {
-      result = await featuredDb.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                NULL::text AS affiliate_url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code
-         FROM ${FEATURED_TABLE}
-         WHERE is_active = true
-           AND country_code = $1
-           AND currency = $2
-           AND price IS NOT NULL
-         ORDER BY id DESC
-         LIMIT $3 OFFSET $4`,
-        [countryCode, currency, limit, offset]
-      );
+      result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
     } catch (err) {
       console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
       featuredDb = db;
-      result = await featuredDb.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                NULL::text AS affiliate_url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code
-         FROM ${FEATURED_TABLE}
-         WHERE is_active = true
-           AND country_code = $1
-           AND currency = $2
-           AND price IS NOT NULL
-         ORDER BY id DESC
-         LIMIT $3 OFFSET $4`,
-        [countryCode, currency, limit, offset]
-      );
+      result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
     }
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));

@@ -82,7 +82,7 @@ const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
-MCP: https://api.buywhere.ai/mcp/sse
+MCP: https://api.buywhere.ai/mcp
 A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
@@ -263,6 +263,8 @@ function createApp() {
     app.use('/v1/auth', auth_1.default);
     app.use('/v1/developers', auth_1.default);
     app.use('/v1/products', products_1.default);
+    // BUY-77195: backward-compat alias — callers probe /v1/featured instead of /v1/products/featured
+    app.use('/v1/featured', products_1.default);
     // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
     app.use('/v2/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
@@ -314,12 +316,14 @@ function createApp() {
     app.use('/v1', clicks_1.default);
     // OAuth 2.1 M1 scaffold (docs/oauth-design.md)
     app.use('/v1/oauth', oauth_1.default);
-    // RFC 8414 requires root-level discovery; reuse the router's handler path
-    app.use('/', oauth_1.default);
-    app.use('/admin', clicks_1.default);
-    // Affiliate redirect (no /v1 prefix — short URLs)
+    // Affiliate redirect (no /v1 prefix — short URLs). MUST be mounted BEFORE
+    // the root-level catch-all oauth router to avoid intercepting /r/* requests.
     app.use('/r', redirect_1.default);
     app.use('/go', redirect_1.default);
+    // RFC 8414 requires root-level discovery; reuse the router's handler path.
+    // Mounted after /r to avoid catching affiliate redirect requests.
+    app.use('/', oauth_1.default);
+    app.use('/admin', clicks_1.default);
     // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
     app.use('/p', aiCrawlerHeaders, pages_1.default); // /p/:id — product page
     app.use('/c', aiCrawlerHeaders, publicCategories_1.default); // /c/:slug — category page

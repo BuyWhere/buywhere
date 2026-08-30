@@ -14,7 +14,7 @@ const crypto_1 = require("crypto");
 const FLOWAI_EMBED_URL = (process.env.FLOWAI_API_BASE || 'https://api.flowaiapi.com') + '/v1/embeddings';
 const MODEL_VER = 'flow-embed-1@1024';
 const EMBED_DIM = 1024;
-const BATCH_SIZE = 100; // Flow AI accepts up to 100 strings per call
+const BATCH_SIZE = 64; // measured 2026-08-29: Flow AI 400s above 64 strings per call
 const MAX_TEXT_CHARS = 8000;
 function textHash(title, description) {
     const text = `${title} ${description ?? ''}`;
@@ -100,13 +100,12 @@ async function loadVectorHashes(vectorDb) {
     try {
         // BUY-76567: check embedding_v2 first (new 1024-dim pipeline); fall back
         // to embedding (old 512-dim) for products not yet migrated.
-        const { rows } = await vectorDb.query(`SELECT product_id, COALESCE(
-        (SELECT text_hash FROM product_embeddings pe2
-         WHERE pe2.product_id = product_embeddings.product_id
-         AND pe2.embedding_v2 IS NOT NULL
-         LIMIT 1),
-        text_hash
-      ) AS text_hash FROM product_embeddings`);
+        const { rows } = await vectorDb.query(
+        // BUY-76567 fix (2026-08-29): only rows that already carry a 1024-dim
+        // vector count as up to date. The old COALESCE fell back to the Gemini
+        // row's hash, so all 6.4M legacy products were skipped forever and
+        // semantic search could never gain coverage.
+        `SELECT product_id, text_hash FROM product_embeddings WHERE embedding_v2 IS NOT NULL`);
         for (const r of rows)
             out.set(r.product_id, r.text_hash);
     }
