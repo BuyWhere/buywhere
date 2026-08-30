@@ -223,6 +223,41 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             intent={`${config.searchQuery} in ${config.country}`}
           />
         )}
+
+        {/* BUY-77662: product grid appears ABOVE the hero CTA so buy links are
+            above the fold. Moved before the hero section. */}
+        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
+                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+              </div>
+              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+                Open full search
+              </Link>
+            </div>
+
+            {/* BUY-77662: when the live catalog returns nothing, render
+                config.fallbackProducts (curated editorial picks) so product cards
+                are always visible above the fold. Only show the empty-state message
+                when both live products AND fallback products are unavailable. */}
+            {products.length === 0 && !config.fallbackProducts?.length ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
+                <p className="text-slate-600">
+                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
+                </p>
+              </div>
+            ) : (
+              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+                {(products.length > 0 ? products : (config.fallbackProducts ?? [])).map((product) => (
+                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
@@ -293,34 +328,6 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         </section>
 
         <SeoLandingStickyAnchor />
-
-        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
-                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
-              </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
-                Open full search
-              </Link>
-            </div>
-
-            {products.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
-                <p className="text-slate-600">
-                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
-                </p>
-              </div>
-            ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {products.map((product) => (
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
