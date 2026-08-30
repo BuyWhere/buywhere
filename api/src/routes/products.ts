@@ -693,8 +693,14 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY ${TABLE_ALIAS}.id DESC`;
 
+    // BUY-77835: route the heavy catalog list query to the read replica (when
+    // healthy) so it does not compete with interactive /v1/products/search on
+    // the saturated primary. readDb() falls back to primary if replica is not
+    // configured or caught up.
+    const listDb = readDb();
+
     // pg_class reltuples is instant (system catalog, cached).
-    const countResult = await db.query(
+    const countResult = await listDb.query(
       `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
       [LIST_TABLE]
     );
@@ -703,7 +709,7 @@ router.get(
     // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
     // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
     let dataResult;
-    const listClient = await db.connect();
+    const listClient = await listDb.connect();
     try {
       await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
