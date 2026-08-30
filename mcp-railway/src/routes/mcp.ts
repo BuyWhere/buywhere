@@ -14,6 +14,7 @@ import {
   recordToolCall,
   computeSnapshot,
   getDegradedRegions,
+  P95_TARGET_MS,
   SUPPORTED_REGIONS,
   type SupportedRegion,
 } from '../monitoring/healthSnapshot';
@@ -2388,12 +2389,32 @@ router.get('/health', async (_req: Request, res: Response) => {
     let snapshot;
     try {
       snapshot = computeSnapshot();
-    } catch (snapErr) {
+    } catch (_snapErr) {
       // Failure-open — return stale snapshot, never 5xx.
       snapshot = { status: 'ok', server: 'mcp' as const, ts: new Date().toISOString(), tools: {}, regions: {}, catalog: { total_products: catalogTotal } };
     }
+
+    // BUY-69817: X-BuyWhere-Degraded-Regions header so in-flight tool calls
+    // can self-correct before hitting a timeout.
+    const degradedRegions = getDegradedRegions();
+    if (degradedRegions.length > 0) {
+      res.set('X-BuyWhere-Degraded-Regions', degradedRegions.join(','));
+    }
+
+    // BUY-69817: slo section — p95_current_ms is the max across all tools.
+    // availability_* (30d aggregate) requires query_log data; tracked separately.
+    const toolP95s = Object.values(snapshot.tools)
+      .map(t => t.p95_ms)
+      .filter((p): p is number => p !== null);
+    const p95CurrentMs = toolP95s.length > 0 ? Math.max(...toolP95s) : null;
+
     res.json({
       ...snapshot,
+      slo: {
+        window: '5m',
+        p95_target_ms: P95_TARGET_MS,
+        p95_current_ms: p95CurrentMs,
+      },
       catalog: { total_products: catalogTotal },
       db: 'ok',
       redis: pong === 'PONG' ? 'ok' : 'degraded',
