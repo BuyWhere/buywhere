@@ -10,11 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "MacBook Air M4 Singapore",
+  "searchQuery": "Apple MacBook Air M4 13-inch 16GB Singapore",
   "backupQueries": [
-    "Apple MacBook Air M4 13 Singapore",
-    "MacBook Air M4 15 Singapore",
-    "MacBook Air 13 M4 Apple Singapore"
+    "MacBook Air M4 13-inch 16GB 256GB Singapore",
+    "Apple MacBook Air M4 15-inch Singapore",
+    "MacBook Air M4 Apple Singapore authorised reseller"
   ],
   "minPrice": 1000,
   "requiredProductTerms": [

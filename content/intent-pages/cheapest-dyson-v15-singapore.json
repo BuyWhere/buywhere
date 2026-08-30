@@ -10,17 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Dyson V15 Detect vacuum Singapore",
+  "searchQuery": "Dyson V15 Detect Absolute cordless vacuum Singapore",
   "backupQueries": [
-    "Dyson V15 Detect Absolute vacuum Singapore",
-    "Dyson V15s Detect Submarine Singapore",
-    "Dyson V15 cordless vacuum SG"
+    "Dyson V15 Detect cordless vacuum Singapore SGD",
+    "Dyson V15 Detect Absolute cordless vacuum",
+    "Dyson V15 Detect Submarine cordless vacuum"
   ],
-  "minPrice": 500,
+  "minPrice": 450,
   "requiredProductTerms": [
     "dyson",
     "v15",
-    "vacuum"
+    "detect"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
@@ -120,6 +120,6 @@
     "/best-air-purifiers-singapore"
   ],
   "owner": "Buzz",
-  "reviewer": "Hue",
+  "reviewer": "Fetch",
   "queueRow": 47
 }
