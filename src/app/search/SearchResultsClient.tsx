@@ -387,9 +387,16 @@ const ACCESSORY_KEYWORDS = [
   'portable monitor', 'portable monitors',
   'portable display', 'portable displays', 'second screen',
   'privacy screen', 'privacy filter', 'privacy filters',
-  'screen protector', 'screen protectors',
+  'screen protector', 'screen protectors', 'tempered glass',
   'cleaner', 'cleaners', 'wipes', 'cleaning kit', 'cleaning kits',
   'keyboard', 'keyboards', 'mechanical keyboard', 'mechanical keyboards',
+  // BUY-77675 follow-up: the live API still leaks wireless mice and tempered
+  // glass screen protectors into the top-20 because neither shares any of
+  // the existing laptop-class signal — both reference "laptop" in the title
+  // but are NOT laptops. "mouse" is word-bounded so model names like
+  // "Mighty Mouse" still match (that's still an accessory) but "computer
+  // mouse" (a phrase) is preserved via the multi-word "computer mouse".
+  'mouse', 'mice', 'wireless mouse', 'bluetooth mouse', 'computer mouse',
 ];
 
 function isAccessoryProduct(product: SearchCardProduct): boolean {

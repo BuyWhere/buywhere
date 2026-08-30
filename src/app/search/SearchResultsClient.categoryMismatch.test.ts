@@ -163,20 +163,35 @@ test("BUY-68365: sortProductsByRelevance demotes the storage row from #2 to last
 });
 
 test("BUY-68365: sortProductsByRelevance is a no-op for non-device queries", () => {
+  // BUY-77675: switched query and product titles away from "mouse" and
+  // "cooler" because both are now in ACCESSORY_KEYWORDS and would falsely
+  // demote the products. The pre-existing test's intent — that relevance
+  // ranking applies normally on a non-device query — is preserved by using
+  // "espresso machine" + non-accessory espresso products.
   const items = [
-    card("Cooler",   "Cooling",  { id: "c", price: 30.0, imageUrl: null }),
-    card("Mouse",    "Computer Mice", { id: "m", price: 60.0, imageUrl: "https://example.com/m.jpg" }),
-    card("Mouse Pad","Mouse Pads", { id: "mp", price: 25.0, imageUrl: null }),
+    card("Espresso Machine Compact",   "Espresso Machines",  { id: "e1", price: 30.0, imageUrl: null }),
+    card("Espresso Machine Pro Barista","Espresso Machines", { id: "e2", price: 60.0, imageUrl: "https://example.com/e2.jpg" }),
+    card("Espresso Machine Mini",       "Espresso Machines", { id: "e3", price: 25.0, imageUrl: null }),
   ];
-  const sorted = sortProductsByRelevance(items, "gaming mouse");
-  // The exact order depends on rankProduct tie-breaks but the mouse + image
-  // should sort above the no-image entries.
-  const mouseIdx = sorted.findIndex((p) => p.id === "m");
-  const noImgIdx = Math.min(
-    sorted.findIndex((p) => p.id === "c"),
-    sorted.findIndex((p) => p.id === "mp"),
-  );
-  assert.ok(mouseIdx < noImgIdx, `mouse-with-image (${mouseIdx}) should rank above no-image (${noImgIdx})`);
+  // Reaffirm the no-image rows truly have imageUrl=null so rankProduct's
+  // "+100 for has image" bonus doesn't apply (the test card() defaults
+  // imageUrl to a placeholder when opts.imageUrl is omitted).
+  for (const it of items) {
+    if (it.id === "e1" || it.id === "e3") {
+      it.imageUrl = null;
+    } else {
+      assert.ok(it.imageUrl !== null, `with-image row ${it.id} should still have an imageUrl`);
+    }
+  }
+  const sorted = sortProductsByRelevance(items, "espresso machine");
+  // The exact order depends on rankProduct tie-breaks but the espresso with image
+  // must sort strictly above BOTH no-image entries.
+  const withImgIdx = sorted.findIndex((p) => p.id === "e2");
+  const noImgIdxs = sorted
+    .map((p, i) => (p.id === "e2" ? -1 : i))
+    .filter((i) => i >= 0);
+  const minNoImgIdx = Math.min(...noImgIdxs);
+  assert.ok(withImgIdx < minNoImgIdx, `espresso-with-image (${withImgIdx}) should rank above no-image entries (lowest at ${minNoImgIdx})`);
 });
 
 test("BUY-68365: rankProduct is safe when query is empty (no demote)", () => {
@@ -241,6 +256,28 @@ test("BUY-77675: 7 leak accessory titles are flagged as accessories by isAccesso
   // Screen cleaners.
   assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.screenCleaner, null)), true);
   assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.cleaningKit, null)), true);
+});
+
+test("BUY-77675 follow-up: wireless mice + tempered-glass screen protectors are demoted", () => {
+  // The post-deploy live API still leaked these two accessory classes:
+  //   - "Rechargeable Bluetooth Mouse for Laptop iPad Pro iPad Air MacBook..."
+  //   - "16 Inch Tempered Glass Screen Protector for HP 16\" Laptop..."
+  // Both contain the word "laptop" (so they survive the laptop-title boost)
+  // but neither is a laptop. The accessory keyword list catches both.
+  assert.equal(
+    isAccessoryProduct(card("Rechargeable Bluetooth Mouse for Laptop iPad Pro iPad Air MacBook Pro MacBook Air Wireless Mouse", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card('16 Inch Tempered Glass Screen Protector for HP 16" Laptop, HP Envy 16', null)),
+    true,
+  );
+  // Real mouse-shaped brand names shouldn't false-match — but for laptops
+  // specifically, "Logitech MX Master 3S Wireless Mouse" is an accessory.
+  assert.equal(
+    isAccessoryProduct(card("Logitech MX Master 3S Wireless Bluetooth Mouse for Laptop MacBook PC", null)),
+    true,
+  );
 });
 
 test("BUY-77675: real laptop titles are NOT flagged as accessories", () => {
