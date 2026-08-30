@@ -160,6 +160,10 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "funan_sg",
   "mustafa_sg",
   "takashimaya_sg",
+  // BUY-77791: Shopify tenants (e.g. shopify_techdaddyaccs_com) carrying SG
+  // catalog. The bare "shopify" entry plus candidateAllowlistSlugs()'s
+  // shopify_* prefix fallback match shopify_<anything> to this entry.
+  "shopify",
 ]);
 
 // BUY-74862 Day 2: Malaysia storefront slugs. MY pages surface
@@ -351,6 +355,14 @@ export function candidateAllowlistSlugs(rawSlug: string): string[] {
   if (!lower) return out;
   out.push(lower);
 
+  // BUY-77791: Shopify merchants come as "shopify_<tenant>_com" or similar
+  // shapes, all of which should resolve to the bare "shopify" allowlist entry
+  // when the country list contains it. Emit "shopify" as a candidate so any
+  // shopify_* slug is allowlisted via this fallback.
+  if (lower.startsWith("shopify") && lower !== "shopify" && !out.includes("shopify")) {
+    out.push("shopify");
+  }
+
   // BUY-77342: also add space-normalized variants so "bestdenki" matches
   // allowlist entries like "best denki". Split on common word boundaries and
   // rejoin with spaces to catch camelCase, PascalCase, and concatenated names.
@@ -505,6 +517,17 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "bose",
   "lg",
   "best denki",
+  // BUY-77791: laptop brands so /laptop-singapore fallback products survive
+  // the final country gate (Dell XPS 14, Acer Swift, Microsoft Surface, etc).
+  "dell",
+  "acer",
+  "microsoft",
+  "razer",
+  "alienware",
+  // BUY-77791: Shopify tenants strip down to "Shopify" via
+  // stripMerchantTenantSuffix; allow the bare platform label here so the
+  // filtered label still matches the country allowlist.
+  "shopify",
 ]);
 
 const MY_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
