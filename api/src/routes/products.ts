@@ -675,10 +675,12 @@ router.get(
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     // BUY-77664 FIX: Use partitioned tables for list endpoint (much faster than 413GB parent).
-    const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
+    const LIST_TABLE = /^[A-Z]{2}$/.test(countryCode)
+      ? `products_partitioned_${countryCode.toLowerCase()}`
+      : 'products';
 
-    // Use dynamic table alias based on which table we're querying
-    const TABLE_ALIAS = LIST_TABLE;
+    // Keep SELECT/ORDER references stable while swapping the physical table.
+    const TABLE_ALIAS = 'products';
     const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
                 NULL::text AS affiliate_url,
                 ${TABLE_ALIAS}.title, ${TABLE_ALIAS}.price, ${TABLE_ALIAS}.currency, ${TABLE_ALIAS}.image_url, ${TABLE_ALIAS}.metadata, ${TABLE_ALIAS}.updated_at,
@@ -692,7 +694,8 @@ router.get(
 
     // pg_class reltuples is instant (system catalog, cached).
     const countResult = await db.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = '${LIST_TABLE}'`
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+      [LIST_TABLE]
     );
 
     // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
@@ -701,10 +704,10 @@ router.get(
     let dataResult;
     const listClient = await db.connect();
     try {
-      await listClient.query(`SET statement_timeout = '15s'`);
+      await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
-         FROM ${LIST_TABLE}
+         FROM ${LIST_TABLE} products
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
