@@ -1,11 +1,9 @@
-// BUY-77823: server-to-server shared-secret bypass.
+// BUY-77823/BUY-77829: public catalog search.
 //
 // Asserts:
-//   - with NO env var set: bypass is disabled (every key still rejected unless valid)
-//   - with BUYWHERE_INTERNAL_API_KEY set + matching Bearer: 200 + synthetic apiKeyRecord
-//   - with BUYWHERE_INTERNAL_API_KEY set + wrong Bearer: 401 (timingSafeEqual rejected)
-//   - bypass is rate-limited (in-process, per-secret)
-//   - missing_api_key 401 path is unchanged when no Authorization header
+//   - missing Authorization must not block SSR/page-backed search
+//   - wrong Bearer tokens must not block public catalog search
+//   - BUYWHERE_INTERNAL_API_KEY matching Bearer remains accepted
 //
 // The test mounts the products router with a stub DB and hits /v1/products/search
 // end-to-end through the real middleware.
@@ -93,21 +91,21 @@ function get(path, headers = {}) {
   });
 }
 
-describe('BUY-77823: server-to-server shared-secret bypass', () => {
-  it('rejects requests without Authorization header (401 missing_api_key)', async () => {
+describe('BUY-77823/BUY-77829: public catalog search', () => {
+  it('accepts requests without Authorization header', async () => {
     const res = await get('/v1/products/search?q=laptop&cc=US');
-    assert.equal(res.status, 401, `expected 401 got ${res.status}: ${res.body}`);
+    assert.equal(res.status, 200, `expected 200 got ${res.status}: ${res.body}`);
     const body = JSON.parse(res.body);
-    assert.equal(body.error, 'missing_api_key');
+    assert.ok(body.data, 'response must carry data array');
   });
 
-  it('rejects requests with wrong Bearer token (401 invalid_api_key)', async () => {
+  it('accepts requests with wrong Bearer token', async () => {
     const res = await get('/v1/products/search?q=laptop&cc=US', {
       Authorization: 'Bearer wrong-key',
     });
-    assert.equal(res.status, 401);
+    assert.equal(res.status, 200);
     const body = JSON.parse(res.body);
-    assert.equal(body.error, 'invalid_api_key');
+    assert.ok(body.data, 'response must carry data array');
   });
 
   it('accepts BUYWHERE_INTERNAL_API_KEY matching Bearer (server-to-server bypass)', async () => {
@@ -121,19 +119,19 @@ describe('BUY-77823: server-to-server shared-secret bypass', () => {
     assert.equal(searchCalled > 0, true, 'handler must have been invoked');
   });
 
-  it('rejects near-miss keys (timingSafeEqual rejects different lengths)', async () => {
+  it('accepts near-miss keys because public search ignores auth identity', async () => {
     const nearMiss = INTERNAL_KEY + 'x';
     const res = await get('/v1/products/search?q=laptop&cc=US', {
       Authorization: `Bearer ${nearMiss}`,
     });
-    assert.equal(res.status, 401, 'longer near-miss must be rejected');
+    assert.equal(res.status, 200, 'longer near-miss must not block public search');
   });
 
-  it('rejects same-length wrong secret', async () => {
+  it('accepts same-length wrong secret because public search ignores auth identity', async () => {
     const wrong = INTERNAL_KEY.split('').reverse().join('');
     const res = await get('/v1/products/search?q=laptop&cc=US', {
       Authorization: `Bearer ${wrong}`,
     });
-    assert.equal(res.status, 401, 'reversed secret must be rejected');
+    assert.equal(res.status, 200, 'reversed secret must not block public search');
   });
 });

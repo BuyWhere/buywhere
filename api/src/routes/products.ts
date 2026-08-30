@@ -756,7 +756,6 @@ router.get(
 router.get(
   '/search',
   agentDetectMiddleware,
-  requireApiKey,
   checkRateLimit,
   queryLogMiddleware('products.search'),
   asyncHandler(async (req: Request, res: Response) => {
