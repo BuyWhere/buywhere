@@ -179,8 +179,20 @@ export function queryLogMiddleware(endpoint: string) {
     // before it's sent to the client (the finish handler reads res.locals).
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
-      res.locals.resultCount = extractResultCount(body, res.statusCode);
-      res.locals.returnedProductIds = extractReturnedProductIds(body, res.statusCode);
+      const ids = extractReturnedProductIds(body, res.statusCode);
+      const count = extractResultCount(body, res.statusCode);
+      if (endpoint === 'products.search' && body && typeof body === 'object' && !ids) {
+        const b = body as Record<string, unknown>;
+        const hasData = Array.isArray(b.data) || Array.isArray(b.products) || Array.isArray(b.results);
+        console.error('[queryLog:debug] products.search extract failed:', {
+          status: res.statusCode,
+          hasData,
+          dataLen: Array.isArray(b.data) ? b.data.length : Array.isArray(b.products) ? b.products.length : 'N/A',
+          dataKeys: Object.keys(b).slice(0, 10),
+        });
+      }
+      res.locals.resultCount = count;
+      res.locals.returnedProductIds = ids;
       res.locals.degradedKind = extractDegradedKind(body, res.statusCode);
       // WP5: thread shopping_job_id into every click_url (runs after the route's
       // cache write serialized the body, so the decoration is never cached).
