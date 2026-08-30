@@ -1841,7 +1841,11 @@ router.get(
     if (typeof hasMore === 'undefined') {
       hasMore = dataResult.rows.length > limit;
       if (hasMore) dataResult.rows.pop();
-      total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+      // FIX BUY-77514: removed +1 from total calculation. The +1 was incorrectly
+      // inflating meta.total when hasMore=true, returning 21 instead of 20 for
+      // queries with exactly 20 results. The has_more flag already indicates
+      // more results exist - we don't need to bake that into the total.
+      total = offset + dataResult.rows.length;
     } else if (dataResult.rows.length > limit) {
       dataResult.rows = dataResult.rows.slice(0, limit);
     }
