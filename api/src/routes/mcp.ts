@@ -12,6 +12,7 @@ import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { detectIdentifier, identifierMatchPredicate } from '../lib/identifierDetector';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
   recordToolCall,
@@ -652,6 +653,58 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       }
     }
   } catch (_) { /* redis miss — proceed */ }
+
+  // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
+  // FTS entirely. FTS cannot resolve an ASIN — it returns 0 rows — and worse,
+  // it returns *wrong* rows for tokenised-but-not-identifier queries
+  // (SKU-12345 → fishing reels). The detector is conservative, so a natural-
+  // language query never reaches this branch. Identifiers also force keyword-
+  // only — sending an ASIN through the vector arm adds latency + cost +
+  // hallucinated neighbours.
+  const identifier = detectIdentifier(q);
+  if (identifier) {
+    try {
+      const idIdx = 1;
+      const idParams: unknown[] = [identifier.normalized];
+      const idConds: string[] = ['is_active = true'];
+      idConds.push(identifierMatchPredicate(identifier, idIdx).sql);
+      if (country) {
+        idParams.push(country.toUpperCase());
+        idConds.push(`country_code = $${idParams.length}`);
+      }
+      if (domain) {
+        idParams.push(domain);
+        idConds.push(`source = $${idParams.length}`);
+      }
+      const idWhere = `WHERE ${idConds.join(' AND ')}`;
+      idParams.push(limit + 1);
+      const idLimit = idParams.length;
+      idParams.push(0);
+      const idOffset = idParams.length;
+      const idResult = await db.query(
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, brand, mpn, gtin, category_path,
+                avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+         FROM products ${idWhere}
+         ORDER BY id DESC
+         LIMIT $${idLimit} OFFSET $${idOffset}`,
+        idParams
+      );
+      const idRows = idResult.rows;
+      const idTotal = idRows.length;
+      const idPage = idTotal > limit ? idRows.slice(0, limit) : idRows;
+      const idProducts = idPage.map((r) => buildProduct(r as Record<string, unknown>, currency, compact));
+      const idResult2 = buildSearchResponse(idProducts, idTotal, limit, 0, Date.now() - t0, false);
+      try {
+        await redis.set(cacheKey, JSON.stringify(idResult2), 'EX', MCP_FTS_CACHE_TTL_SECONDS);
+      } catch (_) { /* cache write failure is non-fatal */ }
+      return { ...idResult2, identifier_kind: identifier.kind };
+    } catch (idErr) {
+      // Fail-open to FTS — never let an identifier-detection bug poison the
+      // whole surface. The non-identifier fallback path is below.
+      console.warn('[search_products] identifier lookup failed, falling back to FTS:', (idErr as Error)?.message);
+    }
+  }
 
   const conditions: string[] = ['is_active = true'];
   const params: unknown[] = [];
