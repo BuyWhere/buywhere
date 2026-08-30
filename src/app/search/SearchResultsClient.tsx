@@ -727,6 +727,23 @@ const TITLE_BRANDS_BLOCKLIST = new Set([
   // Product categories / descriptors.
   'wireless', 'bluetooth', 'headphones', 'headphone', 'earbuds', 'earbud',
   'ear', 'earpiece', 'over-ear', 'on-ear', 'in-ear', 'over',
+  // BUY-77666: Category terms that leak into brand facet when they appear
+  // as the first word in titles like "Laptop - Brand New 15.6 inch..."
+  'laptop', 'laptops', 'notebook', 'notebooks', 'macbook', 'macbooks',
+  'chromebook', 'chromebooks', 'desktop', 'desktops', 'computer', 'computers',
+  'gaming', 'game', 'games', 'gamer',
+  'mobile', 'phone', 'phones', 'smartphone', 'smartphones', 'iphone',
+  'tablet', 'tablets', 'ipad',
+  'portable', 'monitor', 'monitors', 'display', 'displays', 'screen', 'screens',
+  'keyboard', 'keyboards', 'mouse', 'mices', 'mousepad', 'speaker', 'speakers',
+  'camera', 'cameras', 'drone', 'drones', 'watch', 'watches', 'band', 'bands',
+  'headset', 'headsets', 'earphone', 'earphones', 'charger', 'chargers',
+  'cable', 'cables', 'adapter', 'adapters', 'hub', 'hubs', 'dock', 'docks',
+  'stand', 'stands', 'mount', 'mounts', 'case', 'cases', 'cover', 'covers',
+  'sleeve', 'sleeves', 'skin', 'skins', 'pad', 'pads', 'mat', 'mats',
+  'bag', 'bags', 'backpack', 'backpacks', 'pouch', 'pouches',
+  'toy', 'toys', 'gift', 'gifts', 'set', 'sets', 'kit', 'kits',
+  'pack', 'packs', 'bundle', 'bundles', 'combo', 'combos',
   // Marketing / quality adjectives.
   'new', 'premium', 'pro', 'plus', 'mini', 'max', 'ultra', 'lite',
   'anc', 'hifi', 'hi-fi', 'stereo', 'mono', 'noise', 'cancelling',
