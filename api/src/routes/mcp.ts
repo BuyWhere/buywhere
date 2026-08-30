@@ -1870,7 +1870,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
   const neg = deviceFilter.negativeTerms;
 
+  // 2026-08-29: the accessory test used to depend on deviceFilter.negativeTerms, which
+  // only populates for recognised device families — so "Silicone Protective Cover Set for
+  // Sony WH-1000XM5" passed as the product itself and became the "best price". This
+  // pattern mirrors the SQL de-prioritisation exactly, so ranking and filtering agree.
+  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
   const isAccessory = (r: Record<string, unknown>) => {
+    if (ACCESSORY_PATTERN.test(String(r.title ?? ''))) return true;
     if (!deviceFilter.type) return false;
     const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata as Record<string, unknown> : {};
     const text = [
@@ -1912,6 +1918,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
   // rather than returning empty. The SQL found products; returning nothing is
   // worse than returning accessories (the user can refine the query).
+  // 2026-08-29: when EVERY candidate is an accessory, falling back to the unfiltered set
+  // hands the caller a headband cover as the "best price" for the headphones — the exact
+  // failure the external benchmark scored CRITICAL. If the query names a specific model
+  // and nothing but accessories matched, say so instead of substituting a different
+  // product. Callers get an explicit reason rather than a misleading answer.
+  const looksLikeExactModel = /[a-z]+[-\s]?\d{2,}|\d{2,}[a-z]{1,3}\b/i.test(productName);
+  if (finalRows.length === 0 && result && result.rows.length > 0 && looksLikeExactModel) {
+    return buildBestPriceResponse({
+      productName,
+      country,
+      rows: [],
+      responseTimeMs: Date.now() - t0,
+      emptinessReason: 'only_accessories_matched',
+      deliverToPresent,
+    });
+  }
   if (finalRows.length === 0 && result && result.rows.length > 0) {
     finalRows = result.rows;
   }
