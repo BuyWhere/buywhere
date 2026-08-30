@@ -687,46 +687,22 @@ router.get(
 
     // BUY-77664/77677 FIX RE-APPLIED: Use partitioned tables for list endpoint.
     // products_partitioned_{country} tables are now populated and much faster.
-    // Fall back to parent 'products' table if partition is empty or doesn't exist.
-    let LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
-
-    // Check if partition exists and has data; fallback to parent if empty.
-    if (countryCode) {
-      const partitionCheck = await db.query(
-        `SELECT 1 FROM pg_tables WHERE tablename = $1 AND schemaname = 'public'`,
-        [`products_partitioned_${countryCode.toLowerCase()}`]
-      );
-      if (partitionCheck.rows.length > 0) {
-        // Partition exists - check if it has data
-        const countCheck = await db.query(
-          `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-          [`products_partitioned_${countryCode.toLowerCase()}`]
-        );
-        const partitionCount = parseInt(countCheck.rows[0]?.count || '0', 10);
-        if (partitionCount < 100) {
-          // Partition exists but has <100 rows - use parent table instead
-          LIST_TABLE = 'products';
-        }
-      } else {
-        // Partition doesn't exist - use parent table
-        LIST_TABLE = 'products';
-      }
-    }
+    const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
 
     // pg_class reltuples is instant (system catalog, cached).
-    // Use the actual table name for count.
+    // Use the partition table name for count if available.
+    const countTable = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
     const countResult = await db.query(
       `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-      [LIST_TABLE]
+      [countTable]
     );
 
-    // Use selected table (partitioned or parent).
+    // Use partitioned table which is much smaller and faster.
     let dataResult;
     const listClient = await db.connect();
     try {
-      // Use longer timeout for parent table, shorter for partitions.
-      const timeout = LIST_TABLE === 'products' ? '15s' : '30s';
-      await listClient.query(`SET statement_timeout = '${timeout}'`);
+      // Partitioned tables are small enough that we don't need the aggressive timeout.
+      await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE}
