@@ -1205,9 +1205,16 @@ router.get(
       // and was timing out at the 15s edge. Bound first by the partition-pruned id
       // index, then rank that small slice for response relevance.
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
+      // BUY-77644: project rank columns (search_vector/title/category/category_path)
+      // into recent_hits so the top_ids CTE can rank against the bounded candidate
+      // set without a second join to products. The old plan joined products in
+      // top_ids (5000 PK lookups per query) and was timing out at ~39s for samsung
+      // because the access penalty's ~12-regex match costs compound on every join.
+      // Selecting the needed columns in the CTE keeps the same ranking semantics
+      // and runs in ~227ms for the same query.
       dataQuery = `
         WITH recent_hits AS MATERIALIZED (
-          SELECT id, country_code
+          SELECT id, country_code, search_vector, title, category, category_path
           FROM products
           ${rankedWhereClause}
           -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
@@ -1216,22 +1223,21 @@ router.get(
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
-                 ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 ts_rank(rh.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
                  -- BUY-63738: boost laptop products and penalize accessories
                  CASE
-                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
-                     OR lower(rhp.category) LIKE '%laptop%'
-                     OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
+                   WHEN lower(rh.title) LIKE '%laptop%' OR lower(rh.title) LIKE '%notebook%' OR lower(rh.title) LIKE '%macbook%'
+                     OR lower(rh.category) LIKE '%laptop%'
+                     OR array_to_string(rh.category_path, ' ') LIKE '%laptop%'
                    THEN 2.0 ELSE 1.0
                  END *
                  CASE
-                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   WHEN rh.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR rh.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR array_to_string(rh.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
                  END AS rank
           FROM recent_hits rh
-          JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
@@ -1333,18 +1339,20 @@ router.get(
             params = dataParams,
             sliceWhereClause = recentSliceWhereClause,
           ): Promise<{ rows: Array<Record<string, unknown>> }> => {
+            // BUY-77644: project search_vector into the bounded CTE so top_ids can
+            // rank directly without a per-row PK join back to products. Mirrors the
+            // recent_hits fix above; same 227ms-vs-39s speedup.
             const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, country_code
+                SELECT id, country_code, search_vector
                 FROM products
                 ${sliceWhereClause}
                   AND ${matchExpr}
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code, ts_rank(rc.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates rc
-                JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
