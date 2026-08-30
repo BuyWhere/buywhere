@@ -118,6 +118,7 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "lazada_sg",
   "lazada",
   "amazon_sg",
+  "amazon",
   "carousell_sg",
   "carousell",
   "challenger_sg",
@@ -160,6 +161,19 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "funan_sg",
   "mustafa_sg",
   "takashimaya_sg",
+  // Laptop brands
+  "dell_sg",
+  "dell",
+  "acer_sg",
+  "acer",
+  "microsoft_sg",
+  "microsoft",
+  "razer_sg",
+  "razer",
+  "alienware_sg",
+  "alienware",
+  // All Shopify merchants (any tenant) are allowed for SG
+  "shopify",
 ]);
 
 const MERCHANT_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
@@ -199,7 +213,13 @@ export function isMerchantAllowedForCountry(
 ): boolean {
   const slug = resolveMerchantSlug(item);
   if (!slug) return false;
-  return MERCHANT_ALLOWLISTS[country]?.has(slug) ?? false;
+  const allowlist = MERCHANT_ALLOWLISTS[country];
+  if (!allowlist) return false;
+  // Exact match
+  if (allowlist.has(slug)) return true;
+  // Prefix match for Shopify (shopify_anything -> matches "shopify")
+  if (slug.startsWith("shopify_") && allowlist.has("shopify")) return true;
+  return false;
 }
 
 /**
@@ -285,6 +305,14 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "bose",
   "lg",
   "best denki",
+  // Laptop brands
+  "dell",
+  "acer",
+  "microsoft",
+  "razer",
+  "alienware",
+  // Shopify stores
+  "shopify",
 ]);
 
 const MERCHANT_LABEL_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
