@@ -72,6 +72,10 @@ export type SearchApiItem = {
   affiliate_redirect_url?: string | null;
   brand?: string | null;
   category?: string | null;
+  // BUY-77675: forward category_path so the client-side category-mismatch
+  // check can reason about products whose `category` column is null/empty
+  // (e.g. SG laptops carried as `category_path:["home-living"]`).
+  category_path?: string[] | null;
   structured_specs?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
 };
@@ -107,6 +111,10 @@ export type SearchCardProduct = {
   href: string;
   brand: string | null;
   category: string | null;
+  // BUY-77675: carry the API's category_path so `isCategoryMismatchedForDeviceQuery`
+  // can see why a product was tagged (e.g. "home-living" vs. "laptop"). Empty array
+  // means the API did not return one; normalized nulls are coerced to undefined.
+  categoryPath?: string[] | null;
 };
 
 function normalizeCountry(value?: string): CountryValue {
@@ -364,6 +372,24 @@ const ACCESSORY_KEYWORDS = [
   'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
   'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
   'stand', 'stands', 'mat', 'mats', 'tablet',
+  // BUY-77675: 7 leak classes QA flagged on the SG laptop search:
+  // Boya / lavalier mics, IEMs / headphones, laptop desks / standing desks,
+  // portable monitors, privacy screens, keyboards (without laptop token),
+  // and screen cleaners. Each is matched as a standalone token against the
+  // title so a real laptop title (which never mentions these words) is
+  // unaffected, while an accessory title like "Wireless Lavalier Microphone
+  // for Laptop Recording" is demoted as an accessory.
+  'microphone', 'microphones', 'mic', 'lavalier',
+  'headphone', 'headphones', 'headset', 'headsets',
+  'earbud', 'earbuds', 'earphone', 'earphones', 'earpiece', 'earpieces',
+  'airpod', 'airpods', 'iem', 'iems',
+  'desk', 'desks', 'standing desk', 'standing desks', 'sit-stand', 'sit stand',
+  'portable monitor', 'portable monitors',
+  'portable display', 'portable displays', 'second screen',
+  'privacy screen', 'privacy filter', 'privacy filters',
+  'screen protector', 'screen protectors',
+  'cleaner', 'cleaners', 'wipes', 'cleaning kit', 'cleaning kits',
+  'keyboard', 'keyboards', 'mechanical keyboard', 'mechanical keyboards',
 ];
 
 function isAccessoryProduct(product: SearchCardProduct): boolean {
@@ -372,8 +398,27 @@ function isAccessoryProduct(product: SearchCardProduct): boolean {
   // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
   // Strategy: products with accessory keywords are accessories UNLESS the title
   // is clearly a primary laptop/notebook/macbook product.
-  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some(keyword => titleLower.includes(keyword));
-
+  // BUY-77675: word-bound every keyword so short stems like "mic" don't match
+  // arbitrary substrings ("Mickey", "economic"). Multiword phrases like
+  // "standing desk" stay as substring matches because the word-boundary regex
+  // would over-anchor them (a title "Sit-Stand Desk" wouldn't match /\bstanding\b/
+  // if "standing" is part of a hyphenated token).
+  const keywordHit = ACCESSORY_KEYWORDS.reduce<{ idx: number; kw: string } | null>(
+    (best, kw) => {
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Word-bounded when the keyword contains a space, otherwise treat as a
+      // word token. Hyphens collapse to whitespace so "sit-stand" matches.
+      const pattern = /\s/.test(kw)
+        ? escaped.replace(/-/g, '\\s?[\\-]?\\s?')
+        : `\\b${escaped}\\b`;
+      const match = new RegExp(pattern, 'i').exec(titleLower);
+      if (!match) return best;
+      if (best && match.index >= best.idx) return best;
+      return { idx: match.index, kw };
+    },
+    null,
+  );
+  const hasAccessoryKeyword = keywordHit !== null;
   if (!hasAccessoryKeyword) return false;
 
   // If title contains "laptop" and the title STARTS with or centers on a real laptop
@@ -384,10 +429,7 @@ function isAccessoryProduct(product: SearchCardProduct): boolean {
   // E.g., "MacBook Pro Case Cover" = accessory
 
   // Heuristic: if accessory keyword appears BEFORE "laptop/notebook/macbook", it's an accessory
-  const accessoryIdx = ACCESSORY_KEYWORDS.reduce((minIdx, kw) => {
-    const idx = titleLower.indexOf(kw);
-    return idx >= 0 && (minIdx < 0 || idx < minIdx) ? idx : minIdx;
-  }, -1);
+  const accessoryIdx = keywordHit!.idx;
 
   const laptopMatch = titleLower.match(/\b(laptop|notebook|macbook)\b/);
   const laptopIdx = laptopMatch ? laptopMatch.index! : -1;
@@ -469,12 +511,21 @@ const COMPLETE_DEVICE_TOKENS: Array<{ token: RegExp; allowedCategories: string[]
 ];
 
 function isCategoryMismatchedForDeviceQuery(query: string, product: SearchCardProduct): boolean {
-  if (!product.category) return false; // empty category → no penalty; let other heuristics decide
+  // BUY-77675: also fold `category_path` into the category check so products
+  // whose `category` is null (or generic like "home-living") but whose category
+  // path is clearly non-laptop still get flagged. The path is the structural
+  // signal — "home-living" or "fashion" never contains a laptop-class term,
+  // so a path of `["home-living"]` with no `category` is still a mismatch.
+  const categoryLower = (product.category ?? '').toLowerCase();
+  const pathLower = (product.categoryPath ?? [])
+    .map((segment) => segment.toLowerCase())
+    .join(' ');
+  const categoryComposite = [categoryLower, pathLower].filter(Boolean).join(' ');
+  if (!categoryComposite) return false; // no category signal → let other heuristics decide
   const queryLower = query.toLowerCase();
-  const categoryLower = product.category.toLowerCase();
   for (const { token, allowedCategories } of COMPLETE_DEVICE_TOKENS) {
     if (!token.test(queryLower)) continue;
-    const match = allowedCategories.some((allowed) => categoryLower.includes(allowed));
+    const match = allowedCategories.some((allowed) => categoryComposite.includes(allowed));
     if (!match) return true;
   }
   return false;
@@ -925,6 +976,12 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     scrapedVia,
     source: item.source ?? null,
     imageUrl,
+    // BUY-77675: forward the API's category_path so the FE mismatch check can
+    // still rank-evaluate a product whose `category` is empty/null. Arrays of
+    // empty/blank segments are dropped so the join path stays clean.
+    categoryPath: Array.isArray(item.category_path)
+      ? item.category_path.map((segment) => String(segment ?? '').trim()).filter(Boolean)
+      : null,
     // BUY-75417: prefer /r/direct/{id} for server-rendered crawlers, fall
     // back to the API affiliate redirect, then click_url, etc.
     href: buildAffiliateRedirectUrl(item.id)

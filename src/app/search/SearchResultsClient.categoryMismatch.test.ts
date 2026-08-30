@@ -29,6 +29,7 @@ import test from "node:test";
 import { __test__ } from "./SearchResultsClient";
 
 const {
+  isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
   rankProduct,
   sortProductsByRelevance,
@@ -38,12 +39,14 @@ interface SearchCardProduct {
   id: string;
   name: string;
   category: string | null;
+  categoryPath?: string[] | null;
   price: number | null;
   currency: string;
   imageUrl: string | null;
   brand: string | null;
-  merchant: string | null;
+  merchant: string;
   url: string;
+  href: string;
 }
 
 function card(name: string, category: string | null, opts: Partial<SearchCardProduct> = {}): SearchCardProduct {
@@ -51,12 +54,14 @@ function card(name: string, category: string | null, opts: Partial<SearchCardPro
     id: opts.id ?? Math.random().toString(36).slice(2),
     name,
     category,
+    categoryPath: opts.categoryPath ?? null,
     price: opts.price ?? 1499.99,
     currency: opts.currency ?? "USD",
     imageUrl: opts.imageUrl ?? "https://example.com/img.jpg",
     brand: opts.brand ?? null,
-    merchant: opts.merchant ?? null,
+    merchant: opts.merchant ?? "",
     url: opts.url ?? "https://example.com/p",
+    href: opts.href ?? opts.url ?? "https://example.com/p",
   };
 }
 
@@ -179,4 +184,165 @@ test("BUY-68365: rankProduct is safe when query is empty (no demote)", () => {
   const score = rankProduct(firecuda, "");
   // Empty query → no demote, default ranks apply.
   assert.ok(score >= 100, `firecuda should still rank normally when query is empty; got ${score}`);
+});
+
+// =============================================================================
+// BUY-77675: SG laptop search returned 72% non-laptops on the 06:15Z VidMee
+// capture (microphones / IEMs / laptop desks / portable monitors / privacy
+// screens / keyboards / screen cleaners). The accessory keyword list and the
+// category-path check must catch all 7 leak classes — and must NOT demote a
+// real laptop whose title contains nothing accessory-shaped.
+// =============================================================================
+
+const LAPTOP_TITLES = {
+  razerBlade13: "Razer RZ09-03272E82-R341 Blade Stealth 13 Ultrabook Laptop OLED Full HD Touch",
+  thinkBook14: "Lenovo ThinkBook Laptop 14 G7 U7 /8GB/512GB SSD 21MR008SSB",
+  thinkPadE14: "Lenovo ThinkPad Laptop E14 G5 i5-1340P/8GB+8GB/512GB SSD 21JKS00C00",
+  dellLatitude: "Dell Latitude 14 5000 5430 Laptop Intel i5-1235U 16GB 512GB SSD",
+  asusVivobook: "ASUS Vivobook 15 Laptop Intel Core i3 8GB 256GB SSD",
+  macbookAir: "Apple MacBook Air A1466 13 inch Intel Core i5 1.6GHz 8GB 128GB",
+  hp14Student: "HP 14 Student-Laptop Intel Celeron N4120 4GB 128GB eMMC",
+};
+
+const ACCESSORY_TITLES = {
+  boyaMic: "Boya BY-M1V Wireless Lavalier Microphone for Laptop Recording",
+  boyaMic2: "Boya BY-M1 Pro Lavalier Microphone for iPhone Laptop DSLR",
+  iem: "KZ ZSN Pro X IEM In-Ear Monitors for Laptop Mobile",
+  overEar: "Sony WH-1000XM5 Wireless Noise Canceling Headphones for Laptop Office",
+  standingDesk: "FlexiSpot EC1 Standing Desk Electric Height Adjustable for Home Office Laptop",
+  laptopDesk: "SAYGEER Laptop Bed Desk for Bed Sofa Portable Lap Desk",
+  portableMonitor: "Arzopa 15.6 inch Portable Monitor 1080P FHD USB C Second Screen for Laptop",
+  privacyScreen: "Kensington MP13 Laptop Privacy Screen Filter 13.3 inch",
+  privacyFilter: "3M Privacy Filter for 15.6 inch Laptop Display",
+  keyboard: "Logitech K380 Multi-Device Bluetooth Keyboard for Laptop Phone Tablet",
+  mechKeyboard: "Keychron K2 V2 Mechanical Keyboard Wireless for Mac Laptop PC",
+  screenCleaner: "Endust for Electronics Screen Cleaner Spray 8 oz + Microfiber for Laptop",
+  cleaningKit: "Screen Cleaning Kit 2-in-1 Microfiber Spray Bottle for Laptop Monitor Tablet",
+};
+
+test("BUY-77675: 7 leak accessory titles are flagged as accessories by isAccessoryProduct", () => {
+  // Microphones (Boya / lavalier).
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.boyaMic, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.boyaMic2, null)), true);
+  // IEMs / headphones.
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.iem, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.overEar, null)), true);
+  // Desks / standing desks.
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.standingDesk, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.laptopDesk, null)), true);
+  // Portable monitors.
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.portableMonitor, null)), true);
+  // Privacy screens / filters.
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.privacyScreen, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.privacyFilter, null)), true);
+  // Keyboards (no laptop token in title).
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.keyboard, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.mechKeyboard, null)), true);
+  // Screen cleaners.
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.screenCleaner, null)), true);
+  assert.equal(isAccessoryProduct(card(ACCESSORY_TITLES.cleaningKit, null)), true);
+});
+
+test("BUY-77675: real laptop titles are NOT flagged as accessories", () => {
+  // Each of these is a real laptop title without any accessory keyword.
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.razerBlade13, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.thinkBook14, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.thinkPadE14, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.dellLatitude, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.asusVivobook, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.macbookAir, null)), false);
+  assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.hp14Student, null)), false);
+});
+
+test("BUY-77675: category-mismatch check fires via category_path when category column is null", () => {
+  // The live SG laptop rows are returned with category=null but
+  // category_path=["home-living"]. That path is clearly not a laptop-class
+  // path → the product must be flagged so it gets demoted via rankProduct.
+  const accessoryWithHomeLivingPath = card(ACCESSORY_TITLES.boyaMic, null, {
+    categoryPath: ["home-living"],
+  });
+  assert.equal(
+    isCategoryMismatchedForDeviceQuery("laptop", accessoryWithHomeLivingPath),
+    true,
+    "boya mic with category_path=[home-living] must be flagged for laptop query",
+  );
+});
+
+test("BUY-77675: category-mismatch check passes when category_path signals a laptop class", () => {
+  // SG laptop rows have category=null + category_path=["home-living"] in the
+  // buggy state. A real laptop with category_path=["electronics","computers","laptops"]
+  // must NOT be flagged — the path includes "laptops".
+  const laptopWithLaptopPath = card(LAPTOP_TITLES.thinkBook14, null, {
+    categoryPath: ["electronics", "computers", "laptops"],
+  });
+  assert.equal(
+    isCategoryMismatchedForDeviceQuery("laptop", laptopWithLaptopPath),
+    false,
+    "laptop with category_path ending in laptops must NOT be flagged",
+  );
+});
+
+test("BUY-77675: 7 leak classes never outrank a real laptop on rankProduct", () => {
+  const query = "laptop";
+  const laptop = card(LAPTOP_TITLES.thinkBook14, "Computers", {
+    id: "laptop",
+    price: 1499,
+    imageUrl: "https://example.com/l.jpg",
+  });
+  const accessories = [
+    card(ACCESSORY_TITLES.boyaMic, "Audio", { id: "mic", price: 89, imageUrl: "https://example.com/m.jpg" }),
+    card(ACCESSORY_TITLES.iem, "Headphones", { id: "iem", price: 39, imageUrl: "https://example.com/i.jpg" }),
+    card(ACCESSORY_TITLES.standingDesk, "Furniture", { id: "desk", price: 499, imageUrl: "https://example.com/d.jpg" }),
+    card(ACCESSORY_TITLES.portableMonitor, "Monitors", { id: "monitor", price: 199, imageUrl: "https://example.com/m2.jpg" }),
+    card(ACCESSORY_TITLES.privacyScreen, "Accessories", { id: "privacy", price: 39, imageUrl: "https://example.com/p.jpg" }),
+    card(ACCESSORY_TITLES.keyboard, "Keyboards", { id: "kb", price: 49, imageUrl: "https://example.com/k.jpg" }),
+    card(ACCESSORY_TITLES.screenCleaner, "Cleaning Supplies", { id: "cleaner", price: 12, imageUrl: "https://example.com/c.jpg" }),
+  ];
+  const laptopScore = rankProduct(laptop, query);
+  for (const acc of accessories) {
+    const accScore = rankProduct(acc, query);
+    assert.ok(
+      laptopScore > accScore,
+      `laptop (${laptopScore}) must outrank ${acc.id} (${accScore}) for query="${query}"`,
+    );
+  }
+});
+
+test("BUY-77675: sortProductsByRelevance demotes all 7 leak classes below real laptops", () => {
+  const query = "laptop";
+  const items = [
+    card(LAPTOP_TITLES.razerBlade13, "Laptops", { id: "laptop1", price: 2299, imageUrl: "https://example.com/l1.jpg" }),
+    card(LAPTOP_TITLES.thinkBook14, "Laptops", { id: "laptop2", price: 1499, imageUrl: "https://example.com/l2.jpg" }),
+    card(ACCESSORY_TITLES.boyaMic, "Audio", { id: "mic", price: 89, imageUrl: "https://example.com/m.jpg" }),
+    card(ACCESSORY_TITLES.iem, "Headphones", { id: "iem", price: 39, imageUrl: "https://example.com/i.jpg" }),
+    card(ACCESSORY_TITLES.standingDesk, "Furniture", { id: "desk", price: 499, imageUrl: "https://example.com/d.jpg" }),
+    card(ACCESSORY_TITLES.portableMonitor, "Monitors", { id: "monitor", price: 199, imageUrl: "https://example.com/m2.jpg" }),
+    card(ACCESSORY_TITLES.privacyScreen, "Accessories", { id: "privacy", price: 39, imageUrl: "https://example.com/p.jpg" }),
+    card(ACCESSORY_TITLES.keyboard, "Keyboards", { id: "kb", price: 49, imageUrl: "https://example.com/k.jpg" }),
+    card(ACCESSORY_TITLES.screenCleaner, "Cleaning Supplies", { id: "cleaner", price: 12, imageUrl: "https://example.com/c.jpg" }),
+  ];
+  const sorted = sortProductsByRelevance(items, query);
+  const ids = sorted.map((p) => p.id);
+  // Top 2 must be the laptops.
+  assert.deepEqual(
+    new Set(ids.slice(0, 2)),
+    new Set(["laptop1", "laptop2"]),
+    `top 2 must be the laptops; got ${ids.slice(0, 2).join(", ")}`,
+  );
+  // None of the 7 accessory ids may appear in the top 2.
+  for (const accId of ["mic", "iem", "desk", "monitor", "privacy", "kb", "cleaner"]) {
+    assert.ok(
+      ids.indexOf(accId) >= 2,
+      `${accId} must be ranked below laptops; got ${ids.indexOf(accId)} in ${ids.join(", ")}`,
+    );
+  }
+});
+
+test("BUY-77675: short stems like 'mic' don't false-match unrelated titles", () => {
+  // Word boundary must anchor "mic" so it only matches the standalone token,
+  // not substrings ("Mickey", "economic"). Existing accessory keywords like
+  // "sticker" still apply where relevant.
+  assert.equal(isAccessoryProduct(card("Microeconomics 101 Textbook", null)), false);
+  assert.equal(isAccessoryProduct(card("Micro Machines Collectible Toy", null)), false);
+  assert.equal(isAccessoryProduct(card("Mickey Mouse Clubhouse Toys Laptop Decal Sticker", null)), true);
 });
