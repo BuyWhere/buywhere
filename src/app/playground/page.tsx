@@ -40,6 +40,22 @@ type PlaygroundPayload = {
   upstream_error?: unknown;
 };
 
+type DemoMode = 'search' | 'agent';
+
+type SearchResultItem = {
+  id?: string;
+  product_id?: string;
+  name?: string;
+  title?: string;
+  merchant?: string;
+  source?: string;
+  price?: string | number;
+  currency?: string;
+  confidence_score?: number;
+  buy_url?: string;
+  affiliate_url?: string;
+};
+
 function buildCurlCommand(
   endpoint: string,
   query: string,
@@ -76,7 +92,45 @@ function buildCurlCommand(
   -H ${authHeader}`;
 }
 
+function extractSearchItems(payload: PlaygroundPayload | null): SearchResultItem[] {
+  if (!payload || !payload.response || typeof payload.response !== 'object') {
+    return [];
+  }
+
+  const response = payload.response as {
+    items?: SearchResultItem[];
+    data?: SearchResultItem[];
+    results?: SearchResultItem[];
+  };
+
+  if (Array.isArray(response.items)) return response.items;
+  if (Array.isArray(response.data)) return response.data;
+  if (Array.isArray(response.results)) return response.results;
+  return [];
+}
+
+function getItemLabel(item: SearchResultItem) {
+  return item.title || item.name || 'Unnamed product';
+}
+
+function getItemUrl(item: SearchResultItem) {
+  return item.buy_url || item.affiliate_url || '';
+}
+
+function formatItemPrice(item: SearchResultItem) {
+  if (typeof item.price === 'number') {
+    return `${item.currency || 'USD'} ${item.price.toFixed(2)}`;
+  }
+
+  if (typeof item.price === 'string' && item.price.trim()) {
+    return `${item.currency || 'USD'} ${item.price.trim()}`;
+  }
+
+  return 'Price unavailable';
+}
+
 export default function PlaygroundPage() {
+  const [demoMode, setDemoMode] = useState<DemoMode>('search');
   const [query, setQuery] = useState('wireless headphones');
   const [productId, setProductId] = useState('');
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
@@ -90,6 +144,67 @@ export default function PlaygroundPage() {
 
   const selectedEndpoint = endpointOptions.find((opt) => opt.value === endpoint) ?? endpointOptions[0];
   const curlCommand = buildCurlCommand(endpoint, query, productId, limit, source, apiKey);
+  const isSearchEndpoint = endpoint === 'search';
+  const searchItems = extractSearchItems(payload);
+  const topItems = searchItems.slice(0, 3);
+  const topItem = topItems[0];
+  const cheapestItem = topItems.reduce<SearchResultItem | null>((best, item) => {
+    const rawPrice = typeof item.price === 'number' ? item.price : Number(item.price);
+    if (!Number.isFinite(rawPrice)) return best;
+    if (!best) return item;
+    const bestPrice = typeof best.price === 'number' ? best.price : Number(best.price);
+    if (!Number.isFinite(bestPrice) || rawPrice < bestPrice) return item;
+    return best;
+  }, null);
+  const agentQuery = query.trim() || 'wireless headphones';
+  const agentToolCall = `resolve_product_query(${JSON.stringify(
+    {
+      q: agentQuery,
+      source,
+      limit,
+      endpoint: '/v1/search',
+    },
+    null,
+    2
+  )})`;
+  const agentResponsePreview = JSON.stringify(
+    {
+      meta: payload?.meta
+        ? {
+            mode: payload.meta.mode,
+            latency_ms: payload.meta.latency_ms,
+            source: payload.meta.source,
+          }
+        : null,
+      results: topItems.map((item) => ({
+        id: item.id || item.product_id,
+        name: getItemLabel(item),
+        merchant: item.merchant || item.source,
+        price: item.price,
+        currency: item.currency,
+        url: getItemUrl(item),
+        confidence_score: item.confidence_score,
+      })),
+    },
+    null,
+    2
+  );
+  const agentAnswer = !payload
+    ? 'Run the search to generate the agent simulation.'
+    : !topItems.length
+      ? `I searched BuyWhere for "${agentQuery}" but did not get any product matches to recommend yet. I would broaden the query or ask a clarifying follow-up before answering confidently.`
+      : `Top recommendation: ${getItemLabel(topItem)} at ${formatItemPrice(topItem)}${topItem?.merchant ? ` from ${topItem.merchant}` : ''}. ${
+          cheapestItem
+            ? `Why: the response returned ${searchItems.length} structured match${searchItems.length === 1 ? '' : 'es'}, and the lowest visible offer is ${getItemLabel(cheapestItem)} at ${formatItemPrice(cheapestItem)}. `
+            : `Why: the response returned ${searchItems.length} structured match${searchItems.length === 1 ? '' : 'es'} with merchant attribution and product identifiers the agent can safely cite. `
+        }Alternatives: ${
+          topItems.slice(1).length
+            ? topItems
+                .slice(1)
+                .map((item) => `${getItemLabel(item)} at ${formatItemPrice(item)}${item.merchant ? ` from ${item.merchant}` : ''}`)
+                .join('; ')
+            : 'no clear fallback products were returned in this result set'
+        }. Because the response preserves merchant attribution and stable product identifiers, the agent can compare offers and route the user to the right merchant instead of giving an ungrounded shopping answer.`;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(curlCommand);
@@ -127,7 +242,7 @@ export default function PlaygroundPage() {
     <div className="flex min-h-screen flex-col bg-[#0f1117]">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <div className="mx-auto max-7xl px-4 py-16 sm:px-6">
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">API Playground</p>
@@ -135,8 +250,32 @@ export default function PlaygroundPage() {
               Try the BuyWhere API
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-slate-400">
-              Test public endpoints directly in your browser. No signup required — demo data is returned without an API key.
+              {demoMode === 'agent'
+                ? 'Run the live search demo, then inspect how an agent would turn the tool call and structured response into a grounded final answer.'
+                : 'Test public endpoints directly in your browser. No signup required — demo data is returned without an API key.'}
             </p>
+            {isSearchEndpoint && (
+              <div className="mt-6 inline-flex rounded-full border border-[#30363d] bg-[#161b22] p-1">
+                <button
+                  type="button"
+                  onClick={() => setDemoMode('search')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    demoMode === 'search' ? 'bg-cyan-500 text-[#0f1117]' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Search Demo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDemoMode('agent')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    demoMode === 'agent' ? 'bg-cyan-500 text-[#0f1117]' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Agent Demo
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
@@ -309,6 +448,61 @@ export default function PlaygroundPage() {
               {error && (
                 <div className="rounded-2xl border border-red-900/50 bg-red-900/20 px-5 py-4 text-sm text-red-300">
                   {error}
+                </div>
+              )}
+
+              {isSearchEndpoint && demoMode === 'agent' && (
+                <div className="overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#0b1120]">
+                  <div className="border-b border-cyan-500/10 px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Agent Simulation</p>
+                        <h2 className="mt-2 text-xl font-semibold text-white">From user query to grounded answer</h2>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                          This view shows the same playground request as an agent workflow: user intent, tool invocation, structured API output, and the final answer the agent can safely produce.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                        {payload ? 'Response mapped live' : 'Ready for live query'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 p-5 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">User Query</p>
+                      <p className="mt-3 text-base text-white">{agentQuery}</p>
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-slate-300">Intent: product discovery</span>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-slate-300">Source: {source}</span>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-slate-300">Limit: {limit}</span>
+                        {payload && (
+                          <span className="rounded-full bg-white/10 px-3 py-1 text-slate-300">
+                            Latency: {payload.meta.latency_ms}ms
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Tool Call</p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                        <code>{agentToolCall}</code>
+                      </pre>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">JSON Response</p>
+                      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                        <code>{agentResponsePreview}</code>
+                      </pre>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Final Agent Answer</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-100">{agentAnswer}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 

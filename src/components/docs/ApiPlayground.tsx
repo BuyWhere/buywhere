@@ -9,7 +9,7 @@ const DEFAULT_SOURCE = 'amazon_us';
 const DEFAULT_ENDPOINT = 'search';
 
 const endpointOptions = [
-  { label: 'Search', value: 'search', method: 'GET', path: '/v1/search' },
+  { label: 'Search', value: 'search', method: 'GET', path: '/v1/products/search' },
   { label: 'Deals', value: 'deals', method: 'GET', path: '/v1/deals' },
   { label: 'Categories', value: 'categories', method: 'GET', path: '/v1/categories' },
 ];
@@ -45,7 +45,7 @@ function buildCurlCommand(endpoint: string, query: string, limit: number, source
     : '"Authorization: Bearer YOUR_API_KEY"';
 
   const params = new URLSearchParams({ limit: String(limit) });
-  let path = '/v1/search';
+  let path = '/v1/products/search';
 
   if (endpoint === 'deals') {
     path = '/v1/deals';
@@ -63,7 +63,7 @@ function buildCurlCommand(endpoint: string, query: string, limit: number, source
 
 const initialResponse: PlaygroundPayload = {
   meta: {
-    endpoint: '/v1/search',
+    endpoint: '/v1/products/search',
     latency_ms: 24,
     mode: 'demo',
     reason: 'Ready to run. Add an API key for live data or try the demo response.',

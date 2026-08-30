@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import PlatformComparisonBadge from "@/components/PlatformComparisonBadge";
 import { AsyncSurfaceState } from "@/components/ui/AsyncSurfaceState";
 import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
-import { getFreshnessTier, type DataFreshness } from "@/lib/freshness";
+import type { DataFreshness } from "@/lib/freshness";
 import editorialContent from "../../content/compare/editorial-content.json";
 import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
@@ -36,7 +36,7 @@ interface ProductCoverage {
 interface Product {
   id: string;
   name: string;
-  image: string;
+  image: string | null;
   description: string;
   specs: Record<string, string>;
   prices: MerchantPrice[];
@@ -45,6 +45,39 @@ interface Product {
   brand: string;
   sku: string;
   coverage?: ProductCoverage;
+}
+
+function ProductImage({ product, className, size }: { product: Product; className: string; size: "mobile" | "card" | "table" }) {
+  if (!product.image) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-gray-100 text-xs font-medium text-gray-400`}>
+        No image
+      </div>
+    );
+  }
+
+  if (size === "card") {
+    return (
+      <Image
+        src={product.image}
+        alt={product.name}
+        fill
+        className={className}
+        sizes="(max-width: 768px) 100vw, 500px"
+      />
+    );
+  }
+
+  const dimensions = size === "mobile" ? 80 : 64;
+  return (
+    <Image
+      src={product.image}
+      alt={product.name}
+      width={dimensions}
+      height={dimensions}
+      className={className}
+    />
+  );
 }
 
 interface ComparisonCategory {
@@ -147,140 +180,6 @@ function getCoverageScore(coverage: ProductCoverage): { score: number; label: st
   return { score, label: "Low coverage", color: "text-red-600" };
 }
 
-function generateMockProducts(category: string, region: Region = "SG"): Product[] {
-  const products: Product[] = [];
-  const productNames: Record<string, string[]> = {
-    electronics: [
-      "Sony WH-1000XM5 Wireless Headphones",
-      "Apple AirPods Pro 2nd Gen",
-      "Samsung Galaxy Buds2 Pro",
-      "Bose QuietComfort 45",
-      "JBL Tune 770NC Headphones",
-    ],
-    fashion: [
-      "Nike Air Max 270 Sneakers",
-      "Adidas Originals Trefoil Hoodie",
-      "Uniqlo Ultra Light Down Jacket",
-      "Zara High Waist Wide Leg Trousers",
-      "H&M Cotton Cardigan",
-    ],
-    home: [
-      "IKEA KALLAX Shelf Unit",
-      "Philips Hue Smart Bulb Starter Kit",
-      " Tefal Jamie Oliver Cookware Set",
-      "Dyson V15 Detect Vacuum",
-      "雀巢 Dolce Gusto Coffee Machine",
-    ],
-    beauty: [
-      "SK-II Facial Treatment Essence",
-      "La Mer Moisturizing Cream",
-      "Shiseido Ultimune Power Cream",
-      "Kiehl's Calendula Serum",
-      "Estee Lauder Advanced Night Repair",
-    ],
-    sports: [
-      "Nike Metcon 9 Training Shoes",
-      "Adidas Powerlifting Shoes",
-      "Under Armour HeatGear Shorts",
-      "Garmin Forerunner 265 Watch",
-      "Theragun Mini Massager",
-    ],
-    health: [
-      "Blackmores Complete Multi Vitamins",
-      "Swisse Ultiboost Calcium + Vitamin D",
-      "Centrum Silver Adults 50+",
-      "Nature's Way Selenium Supplement",
-      "Bioglan Melatonin 1mg",
-    ],
-    toys: [
-      "LEGO Star Wars Millennium Falcon",
-      "PlayStation 5 DualSense Controller",
-      "Nintendo Switch OLED",
-      "Mattel UNO Card Game",
-      "Hot Wheels 50 Car Gift Pack",
-    ],
-    food: [
-      "Godiva Chocolate Gift Box",
-      "TWG Tea Advent Calendar",
-      "Harrolds Fine Foods Truffle Oil",
-      "Whittard of Chelsea Hot Chocolate",
-      "Fortnum & Mason Biscuit Collection",
-    ],
-    automotive: [
-      "3M Car Phone Mount",
-      "Xiaomi 70mai Dash Cam",
-      "Turtle Wax Hybrid Ceramic Spray",
-      "Autoglym Bodywork Polish Kit",
-      "Bosch Spark Plugs Iridium",
-    ],
-    pets: [
-      "Royal Canin Adult Dog Food",
-      "Hill's Science Diet Cat Food",
-      "KONG Classic Dog Toy",
-      "Feliway Classic Plug-in Diffuser",
-      "Bravecto Flea & Tick Treatment",
-    ],
-  };
-
-  const names = productNames[category] || productNames.electronics;
-  const sgMerchants = ["Shopee", "Lazada", "Amazon.sg", "Carousell", "Qoo10"];
-  const usMerchants = ["Amazon.com", "Walmart", "Target", "Best Buy"];
-  const merchants = region === "US" ? usMerchants : region === "BOTH" ? [...sgMerchants, ...usMerchants] : sgMerchants;
-
-  names.forEach((name, idx) => {
-    const defaultCurrencyPrefix = region === "US" ? "$" : "S$";
-    const prices: MerchantPrice[] = merchants.slice(0, 3 + Math.floor(Math.random() * 3)).map((merchant) => {
-      const isUSMerchant = usMerchants.includes(merchant);
-      const currencyPrefix = isUSMerchant ? "$" : "S$";
-      return {
-        merchant,
-        price: `${currencyPrefix}${(20 + Math.random() * 500).toFixed(2)}`,
-        url: "#",
-        inStock: Math.random() > 0.2,
-        rating: 3.5 + Math.random() * 1.5,
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 3).toISOString(),
-      };
-    });
-
-    const lastUpdated = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString();
-    const availableCount = prices.filter(p => p.price !== null).length;
-    const unavailableMerchants = merchants.slice(prices.length);
-
-    const coverage: ProductCoverage = {
-      total_retailers: merchants.length,
-      available_retailers: availableCount,
-      unavailable_retailers: unavailableMerchants,
-      data_freshness: getFreshnessTier(lastUpdated),
-      zero_price: prices.some(p => p.price === `${defaultCurrencyPrefix}0.00`),
-    };
-
-    products.push({
-      id: `${category}-${idx}`,
-      name,
-      image: `https://picsum.photos/seed/${category}${idx}/400/400`,
-      description: `High-quality ${name.toLowerCase()} available from multiple retailers across supported markets.`,
-      specs: {
-        Brand: ["Sony", "Apple", "Samsung", "Nike", "Adidas"][idx % 5],
-        "Product Type": category === "electronics" ? "Audio" : category === "fashion" ? "Footwear" : "General",
-        Rating: `${(3.5 + Math.random()).toFixed(1)} / 5`,
-        Reviews: `${Math.floor(50 + Math.random() * 500)}`,
-      },
-      prices: prices.sort((a, b) => {
-        const aPrice = a.price ? parseFloat(a.price.replace(/[S$]/g, "")) : Infinity;
-        const bPrice = b.price ? parseFloat(b.price.replace(/[S$]/g, "")) : Infinity;
-        return aPrice - bPrice;
-      }),
-      overallRating: 3.5 + Math.random() * 1.5,
-      reviewCount: Math.floor(50 + Math.random() * 500),
-      brand: ["Sony", "Apple", "Samsung", "Nike", "Adidas"][idx % 5],
-      sku: `SKU-${category.toUpperCase()}-${1000 + idx}`,
-      coverage,
-    });
-  });
-
-  return products;
-}
-
 function ProductCard({ product, isMobile }: { product: Product; isMobile?: boolean }) {
   const retailerCount = product.prices.length;
   const hasPrices = product.prices.some(p => p.price !== null);
@@ -298,13 +197,7 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
     return (
       <div className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden ${isSparseState ? "border-amber-200" : "border-gray-100"}`}>
         <div className="flex p-3 gap-3">
-          <Image
-            src={product.image}
-            alt={product.name}
-            width={80}
-            height={80}
-            className="object-cover rounded-lg bg-gray-100 flex-shrink-0"
-          />
+          <ProductImage product={product} size="mobile" className="h-20 w-20 object-cover rounded-lg bg-gray-100 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2">{product.name}</h3>
             <div className="flex items-center gap-1 mb-1">
@@ -341,13 +234,7 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
       <div className="p-4">
         <SparseStateIndicator coverage={coverage} retailerCount={retailerCount} />
         <div className="relative w-full h-48 mb-4 bg-gray-100 rounded-xl overflow-hidden">
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            className="object-cover rounded-xl"
-            sizes="(max-width: 768px) 100vw, 500px"
-          />
+          <ProductImage product={product} size="card" className="object-cover rounded-xl" />
         </div>
         <h3 className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2">{product.name}</h3>
         {product.description && (
@@ -362,6 +249,14 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
           productQuery={product.name}
           maxPlatforms={isSingleRetailer ? 1 : 3}
           className="mt-2"
+          prices={product.prices
+            .filter((p) => p.url && p.url !== '#')
+            .map((p) => ({
+              platform: p.merchant,
+              price: p.price,
+              url: p.url,
+              inStock: p.inStock ?? true,
+            }))}
         />
         {coverageInfo && (
           <div className={`text-xs ${coverageInfo.color} mt-2 font-medium`}>
@@ -712,13 +607,7 @@ function ComparisonTable({ products }: { products: Product[] }) {
               <tr key={product.id} className={`border-b border-gray-100 hover:bg-gray-50 ${isSparse ? "bg-amber-50/30" : ""}`}>
                 <td className="py-3 px-3 md:py-4 md:px-4">
                   <div className="flex items-center gap-2 md:gap-3">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      width={64}
-                      height={64}
-                      className="object-cover rounded-lg bg-gray-100 flex-shrink-0"
-                    />
+                    <ProductImage product={product} size="table" className="h-16 w-16 object-cover rounded-lg bg-gray-100 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 text-xs md:text-sm line-clamp-2">{product.name}</p>
                       <p className="text-xs text-gray-500 hidden md:block">{product.brand}</p>
@@ -832,10 +721,10 @@ function ProductComparisonClient({
       );
       if (!response.ok) throw new Error("API error");
       const data = await response.json();
-      const adaptedProducts: Product[] = data.products.map((p: { id: number; name: string; brand: string; sku: string; prices: { merchant: string; price: string; url: string; in_stock: boolean; rating?: number; last_updated: string }[] }) => ({
+      const adaptedProducts: Product[] = data.products.map((p: { id: number; name: string; brand: string; sku: string; image_url?: string | null; image?: string | null; prices: { merchant: string; price: string; url: string; in_stock: boolean; rating?: number; last_updated: string }[] }) => ({
         id: String(p.id),
         name: p.name,
-        image: `https://picsum.photos/seed/${p.id}/400/400`,
+        image: p.image_url || p.image || null,
         description: `Compare prices for ${p.name} across multiple retailers.`,
         specs: { Brand: p.brand, SKU: p.sku },
         prices: p.prices.map((mp) => ({
@@ -854,7 +743,6 @@ function ProductComparisonClient({
       setProducts(adaptedProducts);
     } catch {
       setError(true);
-      setProducts(generateMockProducts(category.slug, region));
     } finally {
       setLoading(false);
     }
@@ -922,6 +810,7 @@ function ProductComparisonClient({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
 
+      <main id="main-content">
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-4">
@@ -1147,6 +1036,7 @@ function ProductComparisonClient({
           </div>
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>

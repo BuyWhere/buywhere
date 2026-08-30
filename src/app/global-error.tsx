@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -13,13 +11,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    console.error("Global error:", error);
   }, [error]);
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main className="flex-1 flex items-center justify-center px-4 py-20">
+      <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-20">
         <div className="max-w-lg text-center">
           <div className="mb-8">
             <svg
@@ -48,13 +46,9 @@ export default function GlobalError({
             We encountered an unexpected error. Our team has been notified and
             we&apos;re working to fix it. Please try again shortly.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/">
-              <Button>Go home</Button>
-            </Link>
-            <Link href="/search">
-              <Button variant="secondary">Search products</Button>
-            </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
+            <Button href="/">Go home</Button>
+            <Button href="/search" variant="secondary">Search products</Button>
           </div>
         </div>
       </main>

@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/generate-active-blog-slugs.mjs && bash scripts/check-server-handlers.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:blog-slugs": "node scripts/generate-active-blog-slugs.mjs && git diff --exit-code -- src/lib/active-blog-slugs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",
@@ -18,21 +20,24 @@
     "lucide-react": "^0.515.0",
     "next": "14.2.35",
     "pg": "^8.13.3",
+    "postcss": "^8.5.8",
+    "posthog-js": "^1.376.0",
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^9.0.3",
     "react-syntax-highlighter": "^16.1.1",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^20.19.41",
     "@types/pg": "^8.11.13",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^3.4.19",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }
+

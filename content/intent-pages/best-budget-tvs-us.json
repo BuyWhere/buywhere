@@ -1,0 +1,132 @@
+{
+  "slug": "best-budget-tvs-us",
+  "title": "Best Budget TVs in the US (2026) — Live Prices From Every Retailer",
+  "description": "The best budget TVs you can buy in the United States right now: live prices from Walmart, Amazon, Best Buy and Target, ranked daily, plus expert advice on panel type, size, Roku vs Fire TV and what to avoid.",
+  "heroEyebrow": "US budget TV buying guide",
+  "heroTitle": "Best Budget TVs in the US (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "Best Budget TVs in the US — from {floorPrice} today",
+  "heroBody": "Budget TVs in 2026 are no longer the compromise purchase they used to be: a mid-range 55-inch 4K TV now ships with proper HDR, low input lag for console gaming, and at least three streaming platforms built in. The US budget market is dominated by TCL, Hisense and Amazon's Omni Fire TV line in the entry band, with Sony and Samsung competing at the mid-range boundary. This page pulls live listings from BuyWhere's catalog every few minutes so the price on each card is what US retailers are actually charging right now, not a snapshot from earlier in the year.",
+  "canonicalPath": "/best-budget-tvs-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "55 inch TV",
+  "backupQueries": [
+    "4K TV 55",
+    "LED TV",
+    "smart TV 55"
+  ],
+  "minPrice": 150,
+  "requiredProductTerms": [
+    "tv",
+    "55",
+    "4k"
+  ],
+  "excludeAccessories": false,
+  "refreshedLabel": "Updated August 25, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-08-29",
+  "productSectionTitle": "Live budget TV prices in the US",
+  "comparisonSectionTitle": "Which budget TV should you buy in the US? At a glance",
+  "comparisonColumns": [
+    "Size",
+    "Typical panel",
+    "Smart platform",
+    "Best for"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Sub-$300 (43-50 inch)",
+      "values": [
+        "43-50 inch",
+        "VA or entry IPS",
+        "Roku, Fire TV, Google TV",
+        "Bedroom, kitchen, secondary room"
+      ]
+    },
+    {
+      "label": "$300-$500 (55-65 inch)",
+      "values": [
+        "55-65 inch",
+        "VA with local dimming",
+        "Roku, Fire TV, Google TV",
+        "Main living-room TV for most households"
+      ]
+    },
+    {
+      "label": "$500-$800 (65-75 inch)",
+      "values": [
+        "65-75 inch",
+        "QLED or entry Mini-LED",
+        "Google TV, Fire TV, Roku",
+        "Larger living rooms, bright rooms, casual HDR"
+      ]
+    },
+    {
+      "label": "Gaming-focused budget ($400-$700)",
+      "values": [
+        "55-65 inch",
+        "VA with VRR and ALLM",
+        "Any platform",
+        "Console or PC gaming on a budget"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What changed with budget TVs in 2026",
+  "highlights": [
+    {
+      "title": "Local dimming has reached the budget band",
+      "body": "Two years ago, local dimming (where the TV dims dark areas of the screen in real time) was a premium-only feature. In 2026, entry-level Hisense and TCL sets ship with basic local dimming that improves the perceived contrast meaningfully. It is not Mini-LED quality, but for streaming HDR movies it is the single biggest visible upgrade in the budget band."
+    },
+    {
+      "title": "Gaming features are now standard",
+      "body": "VRR (variable refresh rate) and ALLM (auto low-latency mode) used to require a premium TV. Newer Hisense U7 and TCL Q7 lines at the mid-range mark ship with HDMI 2.1 ports that support both, plus 120Hz panels. A PS5, Xbox Series X or RTX-equipped PC now gets a proper low-lag gaming experience on a budget TV."
+    },
+    {
+      "title": "Smart platforms have stabilized",
+      "body": "Roku TV, Fire TV, Google TV and Samsung Tizen are now the only real choices. Vizio's SmartCast has been wound down after the Walmart acquisition. For most buyers, the platform is a matter of which streaming services and voice assistant you prefer; the TV's actual picture quality has decoupled from the smart platform."
+    }
+  ],
+  "adviceSectionTitle": "How to pick a budget TV in the US without regret",
+  "advicePoints": [
+    "Match size to viewing distance. A 55-inch 4K TV is right for 2-3m viewing in a typical US living room. Going larger only makes sense if your sofa is 3m+ away; otherwise you see pixel structure and compression artefacts.",
+    "Skip the smallest 4K screens. A 43-inch 4K panel has higher pixel density but lower perceived sharpness than a 50-inch 4K from the same brand at the same price. The 50-65 inch band is the sweet spot for value.",
+    "Prioritize HDMI ports and ARC/eARC over panel type. A TV with three HDMI ports (one eARC for a soundbar) is more future-proof than a slightly better panel with two ports. Soundbars need eARC to pass Dolby Atmos.",
+    "Check the warranty and burn-in policy. Budget brands used to offer one-year warranties; in 2026, TCL and Hisense both offer two-year panel warranties on most lines. Walmart and Best Buy add return windows on top.",
+    "Avoid no-name brands on Amazon marketplace. Hisense, TCL, Samsung, LG, Sony, Roku and Fire TV (Amazon) are the safe picks. Anything else in the entry band tends to use inferior panels and unsupported smart platforms."
+  ],
+  "faqSectionTitle": "Budget TVs in the US — common questions",
+  "faqs": [
+    {
+      "question": "What is the cheapest good 55-inch TV in the US right now?",
+      "answer": "In 2026, the cheapest worthwhile 55-inch 4K TV in the US sits in the entry band and comes from Hisense, TCL or Amazon's Omni Fire TV line. Below the low-end mark you start to see real compromises in HDR and gaming features; above the mid-range mark you are paying for size or premium brand, not picture quality."
+    },
+    {
+      "question": "Is a budget TV good enough for a PS5 or Xbox Series X?",
+      "answer": "Yes, if you pick the Hisense U7 or TCL Q7 line. Both ship with HDMI 2.1 ports, VRR, ALLM and a 120Hz panel at 65 inches for a mid-range price. Avoid entry-band sets if gaming is the priority — they cap at 60Hz and lack VRR."
+    },
+    {
+      "question": "Which budget TV brand is most reliable in the US?",
+      "answer": "Hisense and TCL have both dramatically improved reliability over the last three years and now match Sony and Samsung for return rates. Hisense offers a stronger two-year warranty in the US; TCL offers more aggressive sale pricing. Both are safe picks."
+    },
+    {
+      "question": "When is a TV cheapest in the US?",
+      "answer": "Black Friday week (late November) and the Super Bowl window (late January) are the deepest TV discount periods. Amazon Prime Day in July and the back-to-school August window are secondary. Outside those windows, the live cards on this page show the current floor price."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-SG": "/best-budget-tvs-singapore"
+  },
+  "categoryIntro": {
+    "heading": "Why budget TV prices swing so widely in the US",
+    "body": "Three forces drive the spread between the cheapest and most expensive budget TV listings on any given day in the US. First, panel technology: VA panels are cheaper than IPS, and QLED or Mini-LED backlights add meaningful cost. Second, smart platform: Roku, Fire TV and Google TV sets are often discounted by their platform owners to drive service subscriptions. Third, retailer competition: Walmart and Amazon undercut Best Buy and Target on price, and Best Buy matches within hours during sale events. The live cards on this page read current listings rather than a stale 'best price' table."
+  },
+  "owner": "Wave",
+  "reviewer": "Hue",
+  "queueRow": 16,
+  "inboundLinks": [
+    "/airpods-singapore",
+    "/blog/best-laptop-deals-singapore"
+  ]
+}

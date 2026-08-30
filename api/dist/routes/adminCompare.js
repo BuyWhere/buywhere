@@ -37,7 +37,7 @@ router.get('/', requireAdminKey, async (_req, res) => {
 router.post('/', requireAdminKey, async (req, res) => {
     const { slug, product_ids, category, status, expert_summary, hero_image_url, metadata } = req.body;
     if (!slug || !Array.isArray(product_ids) || product_ids.length === 0 || !category) {
-        res.status(400).json({ error: 'slug, product_ids (non-empty UUID array), and category are required' });
+        res.status(400).json({ error: 'slug, product_ids (non-empty BIGINT array), and category are required' });
         return;
     }
     if (!isValidSlug(slug)) {
@@ -58,7 +58,7 @@ router.post('/', requireAdminKey, async (req, res) => {
     const publishedAt = pageStatus === 'published' ? new Date() : null;
     const result = await config_1.db.query(`INSERT INTO comparison_pages
        (slug, product_ids, category, status, expert_summary, hero_image_url, published_at, metadata)
-     VALUES ($1, $2::uuid[], $3, $4, $5, $6, $7, $8)
+     VALUES ($1, $2::bigint[], $3, $4, $5, $6, $7, $8)
      RETURNING *`, [
         slug,
         product_ids,
@@ -94,7 +94,7 @@ router.patch('/:id', requireAdminKey, async (req, res) => {
         return;
     }
     if (product_ids !== undefined && (!Array.isArray(product_ids) || product_ids.length === 0)) {
-        res.status(400).json({ error: 'product_ids must be a non-empty UUID array' });
+        res.status(400).json({ error: 'product_ids must be a non-empty BIGINT array' });
         return;
     }
     const validCategories = ['electronics', 'grocery', 'home', 'health'];
@@ -123,9 +123,9 @@ router.patch('/:id', requireAdminKey, async (req, res) => {
     };
     if (slug !== undefined)
         addField(slug, 'slug');
-    // product_ids passed as UUID[] literal
+    // product_ids passed as BIGINT[] literal
     if (product_ids !== undefined) {
-        setClauses.push(`product_ids = $${idx++}::uuid[]`);
+        setClauses.push(`product_ids = $${idx++}::bigint[]`);
         params.push(product_ids);
     }
     addField(category, 'category');

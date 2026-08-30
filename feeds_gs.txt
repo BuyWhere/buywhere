@@ -1,0 +1,55 @@
+# Google Shopping feed URLs - test set
+# Updated: 2026-05-14 - Most feeds are blocked by bot protection or don't exist
+# Tested with direct access and Brightdata residential proxy
+# Status key: 404=feed doesn't exist, 403=blocked by bot protection, 502=proxy error
+
+# CONFIRMED NON-WORKING (404 - feed doesn't exist):
+https://www.nuvanta.com.sg/feed/googlebase.xml
+https://www.spectaclehut.com.sg/feed/googlebase.xml
+https://www.spectaclehut.com.sg/?feed=googlebase
+https://www.anker.com/googlebase.xml
+https://www.leatherman.com/googlebase.xml
+https://www.burst.shopify.com/products.xml
+https://www.target.com/feed.xml
+https://www.walmart.com/feed.xml
+https://www.ikea.com/us/en/feed.xml
+https://www.lampsplus.com/feed.xml
+
+# BLOCKED BY BOT PROTECTION (403/429):
+https://www.monoprice.com/feed/googlebase.xml
+https://www.monoprice.com/googlebase.xml
+https://www.homedepot.com/feed.xml
+https://www.lowes.com/feed.xml
+https://www.macys.com/feed.xml
+https://www.nordstrom.com/feed.xml
+https://www.dickssportinggoods.com/feed.xml
+https://www.rei.com/feed.xml
+https://www.backcountry.com/feed.xml
+https://www.steepandcheap.com/feed.xml
+https://www.bhphotovideo.com/feed.xml
+https://www.pcrichard.com/feed.xml
+https://www.sweetwater.com/feed.xml
+https://www.adorama.com/feed.xml
+https://www.bandh.com/feed.xml
+https://www.footlocker.com/feed.xml
+https://www.finishline.com/feed.xml
+https://www.westelm.com/feed.xml
+https://www.cb2.com/feed.xml
+https://www.potterybarn.com/feed.xml
+https://www.williams-sonoma.com/feed.xml
+https://www.gnc.com/feed.xml
+https://www.vitaminshoppe.com/feed.xml
+https://www.kogan.com/feed.xml
+https://www.zalando.nl/feed.xml
+https://www.soccer.com/feed.xml
+https://www.footballamerica.com/feed.xml
+
+# PROXY ERRORS (502 - even with Brightdata residential proxy):
+# anker.com via proxy
+
+# NOTE: Google Shopping feeds are typically hosted on merchant sites at /feed/googlebase.xml
+# or similar paths, but most retailers either:
+# 1. Don't publish public feeds
+# 2. Protect feeds with Cloudflare/Perimeterx/bot protection
+# 3. Use Google Merchant Center which is not publicly accessible
+# Brightdata residential proxies do NOT bypass this protection.

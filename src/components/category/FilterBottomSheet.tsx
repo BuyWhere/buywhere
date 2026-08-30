@@ -55,7 +55,7 @@ export function FilterBottomSheet({
           <span className="text-lg font-semibold text-gray-900">Filters</span>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600"
+            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800"
             aria-label="Close filters"
           >
             ✕
@@ -99,7 +99,7 @@ export function FilterBottomSheet({
                       className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span className="flex-1 text-sm text-gray-600">{brand.value}</span>
-                    <span className="text-xs text-gray-400">({brand.count})</span>
+                    <span className="text-xs text-gray-600">({brand.count})</span>
                   </label>
                 ))}
               </div>
@@ -267,7 +267,7 @@ export function FilterBottomSheet({
                       className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span className="flex-1 text-sm text-gray-600">{region.value}</span>
-                    <span className="text-xs text-gray-400">({region.count})</span>
+                    <span className="text-xs text-gray-600">({region.count})</span>
                   </label>
                 ))}
               </div>

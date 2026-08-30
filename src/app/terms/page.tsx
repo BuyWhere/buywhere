@@ -1,17 +1,55 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Terms of Service — BuyWhere",
   description: "BuyWhere Terms of Service",
+  alternates: {
+    canonical: toSiteUrl("/terms/"),
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "Terms of Service — BuyWhere",
+    description: "BuyWhere Terms of Service",
+    url: toSiteUrl("/terms/"),
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere Terms of Service",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service — BuyWhere",
+    description: "BuyWhere Terms of Service",
+    images: ["/og-image.png"],
+  },
 };
+
+const termsSchema = buildWebPageSchema({
+  path: "/terms/",
+  name: "Terms of Service",
+  description: "BuyWhere Terms of Service",
+});
 
 export default function TermsPage() {
   return (
     <div className="flex flex-col min-h-screen">
+      <Schema data={termsSchema} />
       <Nav />
 
-      <main className="flex-1 py-16">
+      <main id="main-content" className="flex-1 py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Terms of Service</h1>
           <p className="text-sm text-gray-400 mb-10">Last updated: 1 April 2026</p>
@@ -102,7 +140,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact</h2>
               <p>
-                For questions about these Terms, contact us at <a href="mailto:legal@buywhere.ai" className="text-indigo-600 hover:underline">legal@buywhere.ai</a> or through our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
+                For questions about these Terms, contact us via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
               </p>
             </section>
           </div>

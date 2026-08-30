@@ -1,0 +1,82 @@
+{
+  "started_at": "2026-08-26T14:42:51.269972+00:00",
+  "merchant_start": 0,
+  "merchant_end": 4,
+  "use_brightdata_proxy": false,
+  "proxy_zone": null,
+  "merchants": [
+    {
+      "domain": "stickbowsupplies.com",
+      "status": "success",
+      "fetched": 377,
+      "transformed": 377,
+      "ingested": 377,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "stickbowsupplies.com",
+        "http_code": 200,
+        "last_page": 2,
+        "error": null
+      }
+    },
+    {
+      "domain": "littleranchfamily.com",
+      "status": "success",
+      "fetched": 11,
+      "transformed": 11,
+      "ingested": 11,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "littleranchfamily.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "kneadedkitchens.com",
+      "status": "success",
+      "fetched": 761,
+      "transformed": 761,
+      "ingested": 761,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "kneadedkitchens.com",
+        "http_code": 200,
+        "last_page": 4,
+        "error": null
+      }
+    },
+    {
+      "domain": "archsupplies.com",
+      "status": "success",
+      "fetched": 1205,
+      "transformed": 1205,
+      "ingested": 905,
+      "failed": 300,
+      "last_error": {
+        "http_code": null,
+        "status": "failed",
+        "error": "Database error: canceling statement due to statement timeout"
+      },
+      "fetch_meta": {
+        "domain": "archsupplies.com",
+        "http_code": 200,
+        "last_page": 5,
+        "error": null
+      }
+    }
+  ],
+  "completed_at": "2026-08-26T14:46:31.821493+00:00",
+  "stats": {
+    "merchants_processed": 4,
+    "merchants_success": 4,
+    "merchants_failed": 0,
+    "total_products_fetched": 2354,
+    "total_products_ingested": 2054,
+    "total_products_failed": 300
+  }
+}

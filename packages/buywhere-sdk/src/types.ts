@@ -1,30 +1,28 @@
-export interface Product {
-  id: number;
-  name: string;
-  price: number;
+export interface ProductPrice {
+  amount: number | null;
   currency: string;
-  source: string;
-  buy_url: string;
-  affiliate_url?: string;
-  is_available: boolean;
-  rating?: number;
-  image_url?: string;
 }
 
-export interface ProductDetail {
-  id: number;
-  name: string;
-  brand: string;
-  description: string;
-  category: string;
-  prices: MerchantPrice[];
-  lowest_price: string;
-  lowest_price_merchant: string;
-  image_url?: string;
-  rating?: number;
-  reviews_count?: number;
-  last_updated: string;
+export interface Product {
+  id: string;
+  title: string;
+  price: ProductPrice;
+  merchant: string;
+  url: string;
+  image_url: string | null;
+  region: string | null;
+  country_code: string | null;
+  updated_at: string | null;
+  metadata?: Record<string, unknown> | null;
+  canonical_id?: string;
+  normalized_price_usd?: number | null;
+  structured_specs?: Record<string, unknown>;
+  comparison_attributes?: Array<{ key: string; label: string; value: unknown }>;
+  original_price?: number | null;
+  discount_pct?: number | null;
 }
+
+export type ProductDetail = Product;
 
 export interface GetProductParams {
   product_id: number;
@@ -43,11 +41,11 @@ export interface SearchParams {
 }
 
 export interface SearchResponse {
+  results: Product[];
   total: number;
-  limit: number;
-  offset: number;
-  has_more: boolean;
-  items: Product[];
+  page: { limit: number; offset: number };
+  response_time_ms: number;
+  cached: boolean;
 }
 
 export interface MerchantPrice {
@@ -61,17 +59,6 @@ export interface MerchantPrice {
   price_diff?: number;
   savings_pct?: number;
   best_value?: boolean;
-}
-
-export interface ComparisonProduct {
-  id: number;
-  name: string;
-  brand: string;
-  sku: string;
-  prices: MerchantPrice[];
-  lowest_price: string;
-  lowest_price_merchant: string;
-  lowest_price_best_value: boolean;
 }
 
 export interface ComparisonCategory {
@@ -89,28 +76,12 @@ export interface CompareParams {
   country?: Country;
 }
 
-export interface CompareResponse {
-  category?: ComparisonCategory;
-  products: ComparisonProduct[];
-  meta: {
-    total_products: number;
-    total_merchants: number;
-    last_updated: string;
-  };
+export interface CompareResponse extends SearchResponse {
+  currencies_mixed?: boolean;
+  currency_warning?: string;
 }
 
-export interface DealProduct {
-  id: number;
-  name: string;
-  price: number;
-  original_price?: number;
-  currency: string;
-  discount_pct?: number;
-  merchant: string;
-  url: string;
-  ends_at?: string;
-  is_exclusive?: boolean;
-}
+export type DealProduct = Product;
 
 export interface DealsParams {
   country?: string;
@@ -119,14 +90,7 @@ export interface DealsParams {
   offset?: number;
 }
 
-export interface DealsResponse {
-  deals: DealProduct[];
-  meta: {
-    total: number;
-    has_more: boolean;
-    last_updated: string;
-  };
-}
+export type DealsResponse = SearchResponse;
 
 export interface PriceHistoryPoint {
   date: string;
@@ -163,14 +127,7 @@ export interface DealsFeedParams {
   min_discount_pct?: number;
 }
 
-export interface DealsFeedResponse {
-  deals: DealProduct[];
-  meta: {
-    total: number;
-    has_more: boolean;
-    last_updated: string;
-  };
-}
+export type DealsFeedResponse = SearchResponse;
 
 export type Region = 'SG' | 'US' | 'MY' | 'TH' | 'PH' | 'VN' | 'ID';
 export type Country = 'SG' | 'MY' | 'TH' | 'PH' | 'VN' | 'ID' | 'US';

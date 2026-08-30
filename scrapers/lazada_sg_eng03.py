@@ -32,10 +32,14 @@ import time
 from typing import Any
 
 import httpx
-import cloudscraper
-from playwright.async_api import async_playwright
+
+try:
+    import cloudscraper
+except ModuleNotFoundError:
+    cloudscraper = None
 
 from scrapers.base_scraper import BaseScraper
+from scrapers.jsonld_utils import enrich_batch_with_identifiers
 from scrapers.scraper_registry import register
 
 MERCHANT_ID = "lazada_sg_eng03"
@@ -135,20 +139,29 @@ class LazadaSGEng03Scraper(BaseScraper):
         target_products: int = 50000,
         max_pages_per_category: int = 200,
         scraperapi_key: str | None = None,
+        extract_gtin: bool = False,
+        category_filter: str | None = None,
     ):
         self.max_concurrent = max_concurrent
         self.target_products = target_products
         self.max_pages_per_category = max_pages_per_category
         self.scraperapi_key = scraperapi_key or os.environ.get("SCRAPERAPI_KEY")
+        self.extract_gtin = extract_gtin
+        self._category_filter = self._normalize_category_filter(category_filter)
         self._semaphore: asyncio.Semaphore | None = None
         self._products_outfile: str | None = None
         self._playwright = None
         self._browser = None
+        self._scraper: Any | None = None
         self._ensure_output_dir()
-        self._scraper = cloudscraper.create_scraper(
-            browser={"browser": "chrome", "platform": "windows", "desktop": True},
-            delay=10,
-        )
+        if cloudscraper is None:
+            if not self.scraperapi_key:
+                self.log.progress("cloudscraper is unavailable and no scraperapi key is configured; API fetches will be skipped.")
+        else:
+            self._scraper = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows", "desktop": True},
+                delay=10,
+            )
         super().__init__(
             api_key=api_key,
             api_base=api_base,
@@ -159,8 +172,33 @@ class LazadaSGEng03Scraper(BaseScraper):
             scrape_only=scrape_only,
         )
 
+    @staticmethod
+    def _normalize_category_filter(raw: str | None) -> list[str]:
+        if not raw:
+            return []
+        values: list[str] = []
+        for item in raw.replace(";", ",").split(","):
+            normalized = item.strip().lower()
+            if normalized:
+                values.append(normalized)
+        return values
+
+    def _category_matches_filter(self, category: dict) -> bool:
+        if not self._category_filter:
+            return True
+        candidates = {
+            str(category.get("id", "")).lower(),
+            str(category.get("name", "")).lower(),
+            str(category.get("sub", "")).lower(),
+            str(category.get("slug", "")).lower(),
+        }
+        return any(f in c for c in candidates for f in self._category_filter) or any(
+            f in candidates for f in self._category_filter
+        )
+
     async def _init_playwright(self):
         if self._playwright is None:
+            from playwright.async_api import async_playwright
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(headless=True)
 
@@ -183,7 +221,15 @@ class LazadaSGEng03Scraper(BaseScraper):
         return self._products_outfile
 
     def get_categories(self) -> list[dict]:
-        return CATEGORIES
+        if not self._category_filter:
+            return CATEGORIES
+        selected = [category for category in CATEGORIES if self._category_matches_filter(category)]
+        if not selected:
+            self.log.progress(
+                "No categories matched category filter: "
+                + ", ".join(self._category_filter)
+            )
+        return selected
 
     def _build_scraperapi_url(self, url: str, params: dict | None = None) -> str:
         import urllib.parse
@@ -200,6 +246,9 @@ class LazadaSGEng03Scraper(BaseScraper):
         url: str,
         params: dict | None = None,
     ) -> str | None:
+        if self._scraper is None and not self.scraperapi_key:
+            self.log.progress("Skipping HTTP fetch: cloudscraper is not configured and no ScraperAPI key is set.")
+            return None
         if self.scraperapi_key:
             return await self._get_with_scraperapi(url, params)
         for attempt in range(self.max_retries):
@@ -258,13 +307,13 @@ class LazadaSGEng03Scraper(BaseScraper):
         return None
 
     async def _fetch_with_playwright(self, url: str, params: dict | None = None) -> str | None:
-        await self._init_playwright()
-        full_url = url
-        if params:
-            import urllib.parse
-            query = urllib.parse.urlencode(params)
-            full_url = f"{url}?{query}"
         try:
+            await self._init_playwright()
+            full_url = url
+            if params:
+                import urllib.parse
+                query = urllib.parse.urlencode(params)
+                full_url = f"{url}?{query}"
             page = await self._browser.new_page()
             await page.goto(full_url, wait_until="networkidle", timeout=30000)
             await page.wait_for_timeout(2000)
@@ -272,7 +321,7 @@ class LazadaSGEng03Scraper(BaseScraper):
             await page.close()
             return content
         except Exception as e:
-            self.log.network_error(full_url, str(e))
+            self.log.progress(f"Playwright unavailable for {url}: {e}")
             return None
 
     async def fetch_page(self, category: dict, page: int) -> list[dict]:
@@ -442,6 +491,8 @@ class LazadaSGEng03Scraper(BaseScraper):
 
             return {
                 "sku": sku,
+                "gtin": raw.get("gtin13") or raw.get("gtin") or "",
+                "mpn": raw.get("mpn") or "",
                 "merchant_id": MERCHANT_ID,
                 "title": name,
                 "description": raw.get("description", "") or raw.get("productDescription", "") or "",
@@ -521,6 +572,8 @@ class LazadaSGEng03Scraper(BaseScraper):
                         self.total_scraped += 1
 
                         if len(batch) >= self.batch_size:
+                            if self.extract_gtin:
+                                await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
                             i, u, f = await self.ingest_batch(batch)
                             counts["ingested"] += i
                             counts["updated"] += u
@@ -540,6 +593,8 @@ class LazadaSGEng03Scraper(BaseScraper):
                 await asyncio.sleep(self.delay)
 
             if batch:
+                if self.extract_gtin:
+                    await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
                 i, u, f = await self.ingest_batch(batch)
                 counts["ingested"] += i
                 counts["updated"] += u
@@ -554,16 +609,19 @@ class LazadaSGEng03Scraper(BaseScraper):
     async def run(self) -> dict[str, Any]:
         self._semaphore = asyncio.Semaphore(self.max_concurrent)
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
+        selected_categories = self.get_categories()
         self.log.progress(f"Lazada SG Eng03 Scraper starting...")
         self.log.progress(f"Mode: {mode}")
         self.log.progress(f"Batch size: {self.batch_size}, Delay: {self.delay}s, Max concurrent: {self.max_concurrent}")
         self.log.progress(f"Output: {self.products_outfile}")
-        self.log.progress(f"Categories: {len(CATEGORIES)} subcategories across 8 verticals")
+        self.log.progress(f"Categories selected: {len(selected_categories)}")
+        if self._category_filter:
+            self.log.progress("Category filter: " + ", ".join(self._category_filter))
         self.log.progress(f"Target: {self.target_products} products")
 
         start = time.time()
 
-        tasks = [self.scrape_category(cat) for cat in CATEGORIES]
+        tasks = [self.scrape_category(cat) for cat in selected_categories]
         await asyncio.gather(*tasks)
 
         elapsed = time.time() - start
@@ -576,7 +634,7 @@ class LazadaSGEng03Scraper(BaseScraper):
             "total_failed": self.total_failed,
             "output_file": self.products_outfile,
             "target": self.target_products,
-            "categories_covered": len(CATEGORIES),
+            "categories_covered": len(selected_categories),
         }
 
         self.log.progress(f"Scraper complete: {summary}")
@@ -599,6 +657,12 @@ class LazadaSGEng03Scraper(BaseScraper):
         parser.add_argument("--target", type=int, default=50000, help="Target number of products")
         parser.add_argument("--max-pages", type=int, default=200, help="Max pages per category")
         parser.add_argument("--scraperapi-key", default=None, help="ScraperAPI key for anti-bot bypass (or set SCRAPERAPI_KEY env var)")
+        parser.add_argument(
+            "--categories",
+            default=None,
+            help="Comma or semicolon-separated category filters (match category id/name/sub). Use to target Automotive only.",
+        )
+        parser.add_argument("--extract-gtin", action="store_true", help="Fetch product pages to extract GTIN/EAN/UPC from JSON-LD")
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> "LazadaSGEng03Scraper":
@@ -614,6 +678,8 @@ class LazadaSGEng03Scraper(BaseScraper):
             target_products=args.target,
             max_pages_per_category=args.max_pages,
             scraperapi_key=args.scraperapi_key,
+            extract_gtin=args.extract_gtin,
+            category_filter=args.categories,
         )
 
 

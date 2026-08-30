@@ -7,6 +7,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   fullWidth?: boolean;
+  /** Render as an anchor tag with this href */
+  href?: string;
   children: React.ReactNode;
 }
 
@@ -16,33 +18,54 @@ export function Button({
   loading = false,
   fullWidth = false,
   disabled,
+  href,
   children,
   className = '',
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
-  return (
-    <button
-      className={[
-        styles.button,
-        styles[variant],
-        styles[size],
-        fullWidth ? styles.fullWidth : '',
-        loading ? styles.loading : '',
-        className,
-      ].filter(Boolean).join(' ')}
-      disabled={isDisabled}
-      aria-disabled={isDisabled}
-      aria-busy={loading}
-      {...props}
-    >
+  const classNames = [
+    styles.button,
+    styles[variant],
+    styles[size],
+    fullWidth ? styles.fullWidth : '',
+    loading ? styles.loading : '',
+    className,
+  ].filter(Boolean).join(' ');
+
+  const content = (
+    <>
       {loading && (
         <span className={styles.spinnerWrapper} aria-hidden="true">
           <Spinner size="sm" />
         </span>
       )}
       <span className={loading ? styles.hiddenText : ''}>{children}</span>
+    </>
+  );
+
+  if (href && !isDisabled) {
+    return (
+      <a
+        href={href}
+        className={classNames}
+        {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      className={classNames}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
+      aria-busy={loading}
+      {...(props as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+    >
+      {content}
     </button>
   );
 }

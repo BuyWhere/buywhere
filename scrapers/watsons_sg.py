@@ -24,10 +24,13 @@ from typing import Any
 
 import httpx
 
+from scrapers.scraper_logging import get_logger
+from scrapers.scraper_registry import register
+
 MERCHANT_ID = "watsons_sg"
 SOURCE = "watsons_sg"
 BASE_URL = "https://www.watsons.com.sg"
-OUTPUT_DIR = "/home/paperclip/buywhere/data"
+OUTPUT_DIR = "/home/paperclip/buywhere-api/data/watsons_sg"
 
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -118,6 +121,7 @@ def _extract_product_info(html: str, sku: str) -> dict[str, Any] | None:
         return None
 
 
+@register("watsons_sg")
 class WatsonsSGScraper:
     def __init__(
         self,
@@ -130,6 +134,7 @@ class WatsonsSGScraper:
         data_dir: str | None = None,
         headless: bool = True,
         target_products: int = 20000,
+        concurrency: int = 5,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
@@ -140,6 +145,7 @@ class WatsonsSGScraper:
         self.data_dir = data_dir or OUTPUT_DIR
         self.headless = headless
         self.target_products = target_products
+        self.concurrency = concurrency
         self._proxy_url = _build_proxy_url()
         self._http_client: httpx.AsyncClient | None = None
         self._session_start = time.strftime("%Y%m%d_%H%M%S")
@@ -149,6 +155,8 @@ class WatsonsSGScraper:
         self.total_updated = 0
         self.total_failed = 0
         self.seen_skus: set[str] = set()
+        self._sem: asyncio.Semaphore | None = None
+        self.log = get_logger(MERCHANT_ID)
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._http_client is None:
@@ -212,6 +220,25 @@ class WatsonsSGScraper:
         print(f"  Found {len(codes)} BP codes from homepage")
         return codes
 
+    async def _fetch_bp_codes_from_sitemap(self) -> list[str]:
+        client = await self._get_client()
+        sitemap_urls = [
+            "https://www.watsons.com.sg/sitemap_prd_en_01.xml",
+        ]
+        all_codes: list[str] = []
+        for sm_url in sitemap_urls:
+            try:
+                resp = await client.get(sm_url, headers=BROWSER_HEADERS)
+                if resp.status_code == 200:
+                    codes = re.findall(r"/p/(BP_\d+)", resp.text)
+                    all_codes.extend(codes)
+                    print(f"  Sitemap {sm_url.split('/')[-1]}: {len(codes)} BP codes")
+                else:
+                    print(f"  Sitemap {sm_url.split('/')[-1]}: HTTP {resp.status_code}")
+            except Exception as e:
+                print(f"  Sitemap error: {e}")
+        return list(set(all_codes))
+
     async def _fetch_bp_codes_from_categories(self) -> list[str]:
         client = await self._get_client()
         all_codes: list[str] = []
@@ -232,7 +259,7 @@ class WatsonsSGScraper:
                     print(f"  {cat_path}: {len(codes)} BP codes (total: {len(all_codes)})")
                 else:
                     print(f"  {cat_path}: HTTP {resp.status_code}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
             except Exception as e:
                 print(f"  {cat_path}: Error - {str(e)[:40]}")
         
@@ -248,6 +275,37 @@ class WatsonsSGScraper:
             return _extract_product_info(resp.text, sku)
         except Exception:
             return None
+
+    async def scrape_product_with_sem(self, sku: str) -> dict[str, Any] | None:
+        async with self._sem:
+            return await self.scrape_product(sku)
+
+    @classmethod
+    def add_cli_args(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--api-key", required=False)
+        parser.add_argument("--api-base", default="http://localhost:8000")
+        parser.add_argument("--batch-size", type=int, default=100)
+        parser.add_argument("--delay", type=float, default=1.0)
+        parser.add_argument("--limit", type=int, default=0)
+        parser.add_argument("--target", type=int, default=20000)
+        parser.add_argument("--scrape-only", action="store_true")
+        parser.add_argument("--data-dir", default=None)
+        parser.add_argument("--concurrency", type=int, default=5,
+                            help="Number of concurrent product fetches")
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace) -> "WatsonsSGScraper":
+        return cls(
+            api_key=args.api_key,
+            api_base=args.api_base,
+            batch_size=args.batch_size,
+            delay=args.delay,
+            limit=args.limit,
+            target_products=args.target,
+            scrape_only=args.scrape_only,
+            data_dir=args.data_dir,
+            concurrency=args.concurrency,
+        )
 
     async def run(self) -> dict[str, Any]:
         print("=" * 60)
@@ -269,6 +327,10 @@ class WatsonsSGScraper:
         
         all_codes: list[str] = []
         
+        # Get codes from sitemap (largest source — ~14K product URLs)
+        sitemap_codes = await self._fetch_bp_codes_from_sitemap()
+        all_codes.extend(sitemap_codes)
+        
         # Get codes from homepage
         homepage_codes = await self._fetch_bp_codes_from_homepage()
         all_codes.extend(homepage_codes)
@@ -286,39 +348,42 @@ class WatsonsSGScraper:
             return {"error": "No BP codes found"}
 
         # Step 2: Scrape products
-        print(f"\n[2/3] Scraping {min(len(all_codes), self.target_products)} products...")
+        codes_to_scrape = all_codes[:self.target_products] if self.target_products > 0 else all_codes
+        if self.limit > 0:
+            codes_to_scrape = codes_to_scrape[:self.limit]
+        print(f"\n[2/3] Scraping {len(codes_to_scrape)} products (concurrency={self.concurrency})...")
         batch: list[dict] = []
         counts = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0}
 
-        for i, sku in enumerate(all_codes):
-            if self.limit > 0 and self.total_scraped >= self.limit:
-                break
+        self._sem = asyncio.Semaphore(self.concurrency)
+
+        for i in range(0, len(codes_to_scrape), self.concurrency):
+            chunk = codes_to_scrape[i:i + self.concurrency]
             if self.target_products > 0 and self.total_scraped >= self.target_products:
                 break
 
-            if i % 50 == 0:
-                print(f"  Progress: {i}/{len(all_codes)}, scraped={self.total_scraped}")
+            results = await asyncio.gather(*[self.scrape_product(sku) for sku in chunk])
 
-            if sku in self.seen_skus:
-                continue
+            for product in results:
+                if product and product["sku"] not in self.seen_skus:
+                    self.seen_skus.add(product["sku"])
+                    batch.append(product)
+                    counts["scraped"] += 1
+                    self.total_scraped += 1
 
-            product = await self.scrape_product(sku)
-            if product:
-                self.seen_skus.add(sku)
-                batch.append(product)
-                counts["scraped"] += 1
-                self.total_scraped += 1
+                    if len(batch) >= self.batch_size:
+                        i_count, u_count, f_count = await self._ingest_batch(batch)
+                        counts["ingested"] += i_count
+                        counts["updated"] += u_count
+                        counts["failed"] += f_count
+                        self.total_ingested += i_count
+                        self.total_updated += u_count
+                        self.total_failed += f_count
+                        batch = []
 
-                if len(batch) >= self.batch_size:
-                    i_count, u_count, f_count = await self._ingest_batch(batch)
-                    counts["ingested"] += i_count
-                    counts["updated"] += u_count
-                    counts["failed"] += f_count
-                    self.total_ingested += i_count
-                    self.total_updated += u_count
-                    self.total_failed += f_count
-                    batch = []
-                    await asyncio.sleep(self.delay)
+            if (i // self.concurrency) % 20 == 0 and i > 0:
+                elapsed = time.time() - start
+                print(f"  Progress: {i}/{len(codes_to_scrape)}, scraped={self.total_scraped}, {elapsed:.1f}s")
 
         # Flush remaining batch
         if batch:
@@ -340,6 +405,7 @@ class WatsonsSGScraper:
             "total_failed": self.total_failed,
             "unique_skus": len(self.seen_skus),
             "codes_discovered": len(all_codes),
+            "concurrency": self.concurrency,
             "output_file": self._products_outfile,
         }
 
@@ -351,29 +417,13 @@ class WatsonsSGScraper:
 
 async def main():
     parser = argparse.ArgumentParser(description="Watsons SG HTTPX Scraper")
-    parser.add_argument("--api-key", required=False)
-    parser.add_argument("--api-base", default="http://localhost:8000")
-    parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--delay", type=float, default=1.0)
-    parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--target", type=int, default=20000)
-    parser.add_argument("--scrape-only", action="store_true")
-    parser.add_argument("--data-dir", default=None)
+    WatsonsSGScraper.add_cli_args(parser)
     args = parser.parse_args()
 
     if not args.scrape_only and not args.api_key:
         parser.error("--api-key is required unless --scrape-only is specified")
 
-    scraper = WatsonsSGScraper(
-        api_key=args.api_key,
-        api_base=args.api_base,
-        batch_size=args.batch_size,
-        delay=args.delay,
-        limit=args.limit,
-        target_products=args.target,
-        scrape_only=args.scrape_only,
-        data_dir=args.data_dir,
-    )
+    scraper = WatsonsSGScraper.from_args(args)
 
     try:
         await scraper.run()

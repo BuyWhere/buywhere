@@ -1,25 +1,16 @@
-import { buildSitemapResponse, getProductSitemapChunk, getProductSitemapChunkCount, renderUrlSet } from "@/lib/sitemaps";
+import {
+  buildSitemapResponse,
+  renderUrlSet,
+  getProductSitemapEntries,
+} from "@/lib/sitemaps";
 
-function parsePageNumber(request: Request): number {
-  const rawPage = new URL(request.url).searchParams.get("page");
-  const page = rawPage ? Number.parseInt(rawPage, 10) : 1;
-  return Number.isFinite(page) && page > 0 ? page : 1;
-}
+// BUY-65819: sitemap-products.xml must contain US-only product URLs.
+// SG product URLs belong in sitemap-products-sg.xml (BUY-65557).
+// This restores the baseline of ~100 US-only URLs (23,688B) from mid-July.
+// Prior regression: 200 URLs (100 US + 100 SG) with all SG entries 410 Gone.
+export const dynamic = "force-dynamic";
 
-export async function GET(request: Request): Promise<Response> {
-  const page = parsePageNumber(request);
-  let totalPages: number;
-
-  try {
-    totalPages = await getProductSitemapChunkCount();
-  } catch {
-    return new Response("Product sitemap unavailable", { status: 503 });
-  }
-
-  if (page > totalPages) {
-    return new Response("Not Found", { status: 404 });
-  }
-
-  const entries = await getProductSitemapChunk(page);
-  return buildSitemapResponse(renderUrlSet(entries));
+export async function GET(): Promise<Response> {
+  const usEntries = await getProductSitemapEntries();
+  return buildSitemapResponse(renderUrlSet(usEntries));
 }

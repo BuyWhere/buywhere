@@ -1,10 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "FAQ — BuyWhere",
   description: "Top 10 questions about BuyWhere — how it works, what's covered, how accurate prices are, and more.",
+  alternates: {
+    canonical: toSiteUrl("/faq/"),
+  },
 };
 
 const faqs = [
@@ -53,6 +57,8 @@ const faqs = [
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
+  "@id": "https://buywhere.ai/faq#faq",
+  mainEntityOfPage: "https://buywhere.ai/faq",
   mainEntity: faqs.map((faq) => ({
     "@type": "Question",
     name: faq.question,
@@ -73,6 +79,7 @@ export default function FaqPage() {
       <div className="flex flex-col min-h-screen">
         <Nav />
 
+        <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
         <section className="bg-indigo-600 text-white py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-2xl">
@@ -99,6 +106,7 @@ export default function FaqPage() {
           </div>
         </section>
 
+        </main>
         <Footer />
       </div>
     </>

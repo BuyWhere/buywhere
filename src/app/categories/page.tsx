@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buildCategoriesIndexMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildCategoriesIndexMetadata();
 
@@ -30,24 +31,26 @@ const categories = [
 const schemaMarkup = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
+  '@id': 'https://buywhere.ai/#breadcrumb',
   itemListElement: [
     {
       '@type': 'ListItem',
       position: 1,
       name: 'Home',
-      item: 'https://buywhere.ai',
+      item: toSiteUrl('/'),
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: 'Categories',
+      item: toSiteUrl('/categories/'),
     },
   ],
 };
 
 export default function CategoriesPage() {
   return (
-    <div className="min-h-[60vh] py-12">
+    <main id="main-content" className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
@@ -67,7 +70,7 @@ export default function CategoriesPage() {
             {countries.map((country) => (
               <Link
                 key={country.code}
-                href={`/search?q=&country=${country.code}`}
+                href={`/search?q=&country=${country.code}`} rel="nofollow"
                 className="px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-300"
               >
                 {country.code}
@@ -80,7 +83,7 @@ export default function CategoriesPage() {
           {categories.map((category) => (
             <Link
               key={category.slug}
-              href={`/search?q=${category.slug}&country=SG`}
+              href={`/categories/${category.slug}`}
               className="flex items-center justify-between p-5 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all dark:border-gray-700 dark:hover:border-indigo-700"
             >
               <div>
@@ -110,6 +113,6 @@ export default function CategoriesPage() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

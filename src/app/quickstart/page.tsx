@@ -1,17 +1,26 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { PopularComparisons } from "@/components/PopularComparisons";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "BuyWhere Quickstart",
-  description: "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
-  alternates: {
-    canonical: "https://buywhere.ai/quickstart",
-  },
-};
+  description:
+    "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
+  path: "/quickstart",
+});
 
-const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
+const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
+const curlExample = `# Always pass deliver_to (buyer's country) — it scopes the search to that
+# market so results come back in ~200ms instead of timing out on a global scan.
+curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&deliver_to=SG&limit=5" \\
   -H "Authorization: Bearer bw_live_your_key_here"`;
 
 const responseExample = `{
@@ -21,9 +30,9 @@ const responseExample = `{
       "title": "Sony WH-1000XM5 Wireless Headphones",
       "price": 429.0,
       "currency": "SGD",
-      "domain": "lazada.sg",
+      "domain": "hifisolutions.sg",
       "url": "https://...",
-      "source": "lazada_sg",
+      "source": "shopify_hifisolutions",
       "country_code": "SG"
     }
   ],
@@ -46,6 +55,40 @@ const mcpConfig = `{
   }
 }`;
 
+const resolveProductQuerySchema = `{
+  "type": "function",
+  "function": {
+    "name": "resolve_product_query",
+    "description": "Retrieve structured product candidates, merchant attribution, and comparison-ready signals from BuyWhere before answering a shopping question.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string", "description": "The user's shopping or product-research question." },
+        "country": { "type": "string", "description": "Target market such as US, SG, MY, TH, or VN." },
+        "max_price": { "type": "number", "description": "Optional budget cap in the local currency." },
+        "limit": { "type": "integer", "default": 5 }
+      },
+      "required": ["query", "country"]
+    }
+  }
+}`;
+
+const agentFlowExample = `User: best laptop under $1000
+
+Agent -> resolve_product_query({
+  "query": "best laptop under $1000",
+  "country": "US",
+  "max_price": 1000,
+  "limit": 5
+})
+
+Agent:
+Top recommendation: Acer Aspire 5 at $899 from Best Buy
+Why: best balance of price, RAM, and current availability
+Alternatives:
+- Lenovo IdeaPad Slim 3 at $749 from Walmart
+- ASUS Vivobook 16 at $999 from Amazon`;
+
 function CodeBlock({
   label,
   code,
@@ -67,10 +110,82 @@ function CodeBlock({
 }
 
 export default function QuickstartPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://buywhere.ai/quickstart#faq",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do I get started with the BuyWhere API?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Get a free API key at buywhere.ai/api-keys in under a minute — no credit card required. Verify your email to unlock 200 requests/min and 10,000/day (still free). Then make your first request to GET /v1/products/search with a bearer token, a natural-language query like 'wireless headphones', and deliver_to set to your buyer's country. You will get structured product results back in about 200ms."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How do I connect BuyWhere MCP to my AI agent?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "After getting your API key, install the BuyWhere MCP package with npx -y @buywhere/mcp-server and add it to your MCP client config (Claude Desktop, Cursor, or any MCP-compatible agent) with your API key. The MCP server runs locally and exposes BuyWhere tools your agent can call directly."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What does a BuyWhere API response look like?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "A product search response returns a data array with product id, title, price, currency, domain, URL, source, and country_code for each result. The response also includes a meta object with total count, limit, and offset for pagination."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What is the resolve_product_query function?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "resolve_product_query is a BuyWhere agent function that retrieves structured product candidates, merchant attribution, and comparison-ready signals from BuyWhere before answering a shopping question. It takes a natural-language query, country code, optional max_price, and limit parameters."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Do I need MCP or can I use the REST API directly?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Both. The REST API at api.buywhere.ai/v1 gives you direct programmatic access to the product catalog. MCP is an optional wrapper that makes the same capabilities available as tools inside AI agents like Claude Desktop, Cursor, CrewAI, or LangChain without writing custom API integration code."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How long does it take to get a BuyWhere API key?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The self-serve signup form delivers a working API key instantly — no waiting, no sales call required. During beta, the free tier includes 1,000 API calls per month with no credit card needed."
+        }
+      }
+    ]
+  };
+
+  const schema = buildWebPageSchema({
+    path: "/quickstart",
+    name: "Quickstart — BuyWhere",
+    description:
+      "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Quickstart", path: "/quickstart" },
+    ],
+  });
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-white">
+        <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(faqSchema)}
+      </Script>
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.18),_transparent_38%),linear-gradient(135deg,#0f172a_0%,#111827_48%,#1e1b4b_100%)] text-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-20 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -81,7 +196,7 @@ export default function QuickstartPage() {
               API key to first BuyWhere query in under five minutes.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff across the US and Southeast Asia.
+              BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore and expanding across Southeast Asia.
             </p>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
               Start with one live API request, then add the published MCP package when you want BuyWhere tools inside your agent client.
@@ -120,8 +235,80 @@ export default function QuickstartPage() {
         </div>
       </section>
 
+      <section className="border-b border-slate-200 bg-white py-12">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="rounded-[2rem] border border-indigo-100 bg-indigo-50 p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-indigo-600">Agents-first setup</p>
+            <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+              Skip the human form when you are provisioning an agent. This call returns an <code className="rounded bg-white px-1.5 py-0.5 text-sm text-slate-900">api_key</code> instantly with 1,000 requests/day free.
+            </p>
+            <div className="mt-6">
+              <CodeBlock label="agent key registration" code={agentRegisterCurl} />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-500">
+              Prefer a browser flow? The human self-serve form remains available at <Link href="/api-keys" className="font-semibold text-indigo-600 hover:underline">buywhere.ai/api-keys</Link>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-slate-50 py-6">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+            <span className="text-xs font-medium uppercase tracking-[0.15em] text-slate-500">Region:</span>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/quickstart"
+                className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-200"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                Singapore — Live
+              </Link>
+              <Link
+                href="/quickstart/us"
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-200"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                United States — Preview
+              </Link>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                SEA — Coming soon
+              </span>
+            </div>
+            <span className="ml-auto text-xs text-slate-400">Select region to see relevant onboarding path</span>
+          </div>
+        </div>
+      </section>
+
       <section className="border-b border-slate-200 bg-slate-50 py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mb-12 rounded-[2rem] border border-indigo-100 bg-white p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-indigo-600">2-minute agent integration</p>
+            <h2 className="mt-3 text-3xl font-bold text-slate-900">Teach the model to call BuyWhere before it answers.</h2>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+              When your agent needs product data, call BuyWhere first. Use this for what-to-buy questions, cheapest-option requests, and comparisons. This is the retrieval step that replaces scraping, guessing, and stale model memory.
+            </p>
+
+            <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+              <CodeBlock label="tool schema" code={resolveProductQuerySchema} />
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Recommended answer shape</p>
+                <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
+                  <li><strong>Top recommendation:</strong> best candidate from the returned results.</li>
+                  <li><strong>Why:</strong> explain the decision with price, merchant, and availability signals.</li>
+                  <li><strong>Alternatives:</strong> show fallback options with tradeoffs.</li>
+                  <li><strong>Source:</strong> keep merchant attribution and the BuyWhere-linked URL.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <CodeBlock label="example flow" code={agentFlowExample} />
+            </div>
+          </div>
+
           <div className="mb-10 max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-indigo-600">Step 1</p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">Create your API key</h2>
@@ -169,7 +356,7 @@ export default function QuickstartPage() {
                 <li>Base URL: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">https://api.buywhere.ai</code></li>
                 <li>Auth: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">Authorization: Bearer YOUR_KEY</code></li>
                 <li>Required query: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">q</code></li>
-                <li>Helpful starter params: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">limit</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">country_code</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">domain</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">min_price</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">max_price</code></li>
+                <li>Helpful starter params: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">deliver_to</code> (buyer country — always pass it), <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">limit</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">country_code</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">domain</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">min_price</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">max_price</code></li>
               </ul>
             </div>
           </div>
@@ -240,7 +427,10 @@ export default function QuickstartPage() {
         </div>
       </section>
 
+      <PopularComparisons variant="footer" />
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

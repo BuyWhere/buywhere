@@ -218,5 +218,39 @@
         "answer": "Ingredient quality and formulation standards vary significantly. Look for products that meet AAFCO or equivalent regional nutritional standards rather than relying on price alone as a proxy for quality. Your veterinarian is the best source of guidance for your pet's specific dietary needs."
       }
     ]
+  },
+  "outdoor-living": {
+    "expertSummaries": [
+      {
+        "title": "Buy patio and outdoor furniture off-season for the biggest savings",
+        "body": "Outdoor furniture, BBQ grills, and garden tools see their deepest discounts in late summer and early autumn as retailers clear inventory. If you are planning ahead, shopping outside peak outdoor season can deliver 30–40% off compared to spring pricing. Our price comparison table captures these seasonal shifts across all major retailers."
+      },
+      {
+        "title": "Material quality determines long-term value more than initial price",
+        "body": "A teak or powder-coated steel set costs more upfront but resists rust and UV damage far better than lower-priced acacia or unprotected metal. For frequently-used outdoor items like BBQ grills, cooking equipment, and garden furniture, amortising the cost over a 5–10 year lifespan often makes premium materials the cheaper choice over multiple seasons."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Why do BBQ grill prices vary so much for similar cooking areas?",
+        "answer": "Build materials (cast iron vs enamelled steel, stainless vs chrome-plated components), burner count and heat output, and ignition systems drive cost differences more than raw cooking area. A 3-burner grill with solid construction often outperforms a cheaper 4-burner model in durability and heat distribution. Check the grill's total BTU output and burner quality before assuming a larger cooking area is better value."
+      },
+      {
+        "question": "Are solar lights bright enough to use as primary outdoor lighting?",
+        "answer": "Solar light output has improved significantly, but lumen ratings still lag wired LED equivalents. Solar path lights and decorative string lights work well for ambient use; for security or task lighting, a hardwired or plugin LED system with a motion sensor is more reliable. Check the battery capacity (mAh) and hours of full sun exposure needed — partial shade drastically reduces runtime."
+      },
+      {
+        "question": "How do I compare garden hose prices when lengths and fittings differ?",
+        "answer": "Convert to cost per metre and verify the fitting type matches your outdoor taps. Expandable hoses cost more per metre but are lighter to handle and coil compactly; standard reinforced hoses are more durable against punctures but require more storage space. Always check whether the listed price includes spray nozzles or only the hose itself."
+      },
+      {
+        "question": "What drives the price difference between lawn mower types?",
+        "answer": "Corded electric mowers are cheapest to run but require a power cable; cordless battery models cost more upfront with no ongoing fuel cost; petrol mowers suit large uneven lawns but carry maintenance overhead. For typical suburban yards under 500 sqm, a quality battery mower often represents the best balance of convenience and total cost."
+      },
+      {
+        "question": "Are outdoor speakers worth the premium over indoor models?",
+        "answer": "Outdoor speakers are specifically rated for UV resistance, humidity, and temperature extremes — indoor speakers degrade quickly when exposed to weather. All-weather ratings (IP65 or higher) add to cost but prevent premature failure. If you entertain outdoors regularly, weatherproof speakers typically pay back the price premium within the first season."
+      }
+    ]
   }
 }

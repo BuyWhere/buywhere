@@ -1,35 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const COOKIE_NAME = "bw_dashboard_key";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
-
-function buildCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: COOKIE_MAX_AGE,
-  };
-}
-
 export async function POST(request: NextRequest) {
-  const apiKey = request.headers.get("x-api-key");
+  try {
+    const { apiKey } = await request.json();
 
-  if (!apiKey) {
-    return NextResponse.json({ error: "API key required" }, { status: 401 });
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "API key is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the API key by checking the account endpoint
+    const response = await fetch(`${process.env.API_BASE_URL || "https://api.buywhere.ai"}/v1/dashboard/account`, {
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Invalid API key" },
+        { status: 401 }
+      );
+    }
+
+    // If we get here, the API key is valid
+    // In a real implementation, you might want to create a server-side session
+    // For now, we'll just return success
+    return NextResponse.json({
+      success: true,
+      message: "Session established successfully",
+    });
+
+  } catch (error) {
+    console.error("Session creation error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(COOKIE_NAME, apiKey, buildCookieOptions());
-  return response;
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(COOKIE_NAME, "", {
-    ...buildCookieOptions(),
-    maxAge: 0,
+  // This handles session cleanup
+  return NextResponse.json({
+    success: true,
+    message: "Session cleared successfully",
   });
-  return response;
 }

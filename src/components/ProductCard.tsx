@@ -5,8 +5,12 @@ import Image from 'next/image';
 import { useCompare, CompareProduct } from '@/lib/compare-context';
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge';
 import { MerchantBadge, getMerchantConfig } from '@/components/ui/MerchantBadge';
+import { PlatformChip } from '@/components/ui/PlatformChip';
 import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
+import { buildUSProductSlug } from '@/lib/us-products';
+import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 
 interface ProductCardProps {
   deal: {
@@ -16,6 +20,9 @@ interface ProductCardProps {
     original_price?: number;
     discount_pct?: number;
     merchant: string;
+    merchant_slug?: string | null;
+    source?: string | null;
+    scraped_via?: 'first_party' | 'affiliate' | 'aggregator' | string | null;
     url: string;
     is_exclusive?: boolean;
     image_url?: string;
@@ -131,11 +138,18 @@ function formatUSD(price: number): string {
 export const ProductCard = React.memo(function ProductCard({ deal, comparisonEnabled }: ProductCardProps) {
   const config = getMerchantConfig(deal.merchant);
 
+  // BUY-75417: route affiliate links through /r/direct/{id} so crawlers
+  // (GPTBot, ClaudeBot, PerplexityBot) see a followable server-rendered href.
+  const redirectHref = buildAffiliateRedirectUrl(deal.id) || deal.url;
+
   return (
     <a
-      href={deal.url}
+      href={redirectHref}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer nofollow sponsored"
+      title={deal.name}
+      aria-label={`View deal: ${deal.name} from ${deal.merchant}`}
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"
     >
       <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1/1'}}>
@@ -146,8 +160,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
               alt={deal.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              className="object-contain"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               loading={deal.id <= 4 ? 'eager' : 'lazy'}
               priority={deal.id <= 2}
             />
@@ -193,7 +207,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
             variant="menu"
             productId={deal.id}
             productName={deal.name}
-            productUrl={`/products/us/${deal.id}`}
+            productUrl={`/products/us/${buildUSProductSlug({ id: String(deal.id), name: deal.name })}/`}
             merchant={deal.merchant}
             priceText={formatUSD(deal.price)}
           />
@@ -205,10 +219,21 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
       </div>
       <div className="p-4">
-        <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors">
+        <h3
+          title={deal.name}
+          aria-label={deal.name}
+          className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors"
+        >
           {deal.name}
         </h3>
-        <MerchantBadge merchant={deal.merchant} className="mb-2" />
+        <div className="mb-2 flex flex-col items-start gap-0.5">
+          <MerchantBadge
+            merchant={deal.merchant}
+            merchantSlug={deal.merchant_slug}
+            scrapedVia={deal.scraped_via}
+          />
+          <PlatformChip source={deal.source} />
+        </div>
         {(deal.rating || deal.stock_status || deal.shipping_info) && (
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {deal.rating && (
@@ -216,7 +241,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
                 <StarRating rating={deal.rating} />
                 <span className="text-xs text-gray-500">{deal.rating.toFixed(1)}</span>
                 {deal.review_count && (
-                  <span className="text-xs text-gray-400">({deal.review_count > 999 ? `${(deal.review_count / 1000).toFixed(1)}k` : deal.review_count})</span>
+                  <span className="text-xs text-gray-600">({deal.review_count > 999 ? `${(deal.review_count / 1000).toFixed(1)}k` : deal.review_count})</span>
                 )}
               </div>
             )}
@@ -225,10 +250,10 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
         {deal.shipping_info && (
           <div className="flex items-center gap-1 mb-2">
-            <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            <span className="text-xs text-gray-500">{deal.shipping_info}</span>
+            <span className="text-xs text-gray-600">{deal.shipping_info}</span>
           </div>
         )}
         <div className="flex items-baseline gap-2">
@@ -236,10 +261,13 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
             {formatUSD(deal.price)}
           </span>
           {deal.original_price && deal.original_price > deal.price && (
-            <span className="text-sm text-gray-400 line-through">
+            <span className="text-sm text-gray-600 line-through">
               {formatUSD(deal.original_price)}
             </span>
           )}
+        </div>
+        <div className="mt-2">
+          <AffiliateDisclosure variant="inline" />
         </div>
       </div>
     </a>

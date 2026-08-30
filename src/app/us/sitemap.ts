@@ -7,8 +7,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const products = await getUSProducts();
 
   const routes = [
-    { url: "/compare/us/", priority: 1.0, changeFrequency: "daily" as const },
-    { url: "/us/", priority: 0.9, changeFrequency: "weekly" as const },
+    { url: "/compare/us", priority: 1.0, changeFrequency: "daily" as const },
+    { url: "/us", priority: 0.9, changeFrequency: "weekly" as const },
   ];
 
   return [
@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority,
     })),
     ...products.map((product) => ({
-      url: `${base}/products/us/${product.slug}/`,
+      url: `${base}/products/us/${product.slug}`,
       lastModified: new Date(product.lastUpdated),
       changeFrequency: "daily" as const,
       priority: 0.8,

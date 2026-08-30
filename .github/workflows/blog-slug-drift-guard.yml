@@ -1,0 +1,139 @@
+# blog-slug-drift-guard — BUY-72702 (enforcement half)
+#
+# Hard-fails a PR whose content/blog/*.md set no longer matches the generated
+# src/lib/active-blog-slugs.ts allowlist that src/middleware.ts gates on.
+#
+# Background: middleware serves 410 Gone for any /blog/<slug> not present in
+# ACTIVE_BLOG_SLUGS, while sitemap-blog.xml is derived independently from
+# content/blog/*.md. A post that satisfies the publish criteria therefore ships
+# LISTED IN THE SITEMAP BUT 410 — an active de-index of a live page. That is
+# exactly what happened to cite-buywhere-catalog-stats-faq (BUY-72696 sweep,
+# fixed in PR #660).
+#
+# Commit 9ac060b3 fixed the *derivation* (scripts/generate-active-blog-slugs.mjs
+# + a `prebuild` hook + an `npm run check:blog-slugs` script) but did NOT wire
+# the check into any workflow, so nothing ever ran it:
+#   - No workflow referenced check:blog-slugs or the generator.
+#   - The `prebuild` npm lifecycle hook cannot save it either: the production
+#     image builds via `npx next build --no-lint` in site.Dockerfile, and the
+#     image build runs `npm install --ignore-scripts`. Neither path fires
+#     `prebuild`, so the committed allowlist is what ships.
+# The allowlist was in sync at the time of writing (37/37) by luck, not by
+# enforcement. This workflow is the missing enforcement half.
+#
+# Check: regenerate the allowlist from content/blog/*.md and fail if the result
+# differs from what is committed at HEAD — i.e. `npm run check:blog-slugs`.
+# The generator's publish criteria (slug + title + description + publishedAt)
+# intentionally mirror parseBlogPost() in src/lib/blog.ts:55, which is the same
+# gate sitemap-blog.xml and generateStaticParams() use.
+#
+# Triggers: pull_request to main + push to main + workflow_dispatch (test mode).
+# Behavior: hard-fails (exit 1) with ::error:: naming the drifted slug(s).
+# Fix for an author who trips it: run `npm run check:blog-slugs` locally and
+# commit the regenerated src/lib/active-blog-slugs.ts.
+# Override: none — a drifted allowlist means a live page is being de-indexed.
+
+name: blog-slug-drift-guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      simulate_drift:
+        description: 'Set to "true" to inject a synthetic unlisted blog post (test mode)'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: blog-slug-drift-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Verify the guarded files exist at HEAD
+        run: |
+          set -euo pipefail
+          MISSING=0
+          for f in scripts/generate-active-blog-slugs.mjs src/lib/active-blog-slugs.ts src/middleware.ts; do
+            if [ ! -f "$f" ]; then
+              echo "::error::BUY-72702 guard: required file missing at HEAD: $f"
+              MISSING=1
+            fi
+          done
+          # The allowlist is only load-bearing if middleware actually imports it.
+          # A hardcoded Set would silently reintroduce the original drift bug.
+          # Match the import statement specifically: a passing reference in a
+          # comment (there is one at src/middleware.ts:248) must NOT satisfy this.
+          if [ -f src/middleware.ts ] && ! grep -qE '^[[:space:]]*import[[:space:]].*from[[:space:]]+["'"'"']@?/?.*lib/active-blog-slugs["'"'"']' src/middleware.ts; then
+            echo "::error::BUY-72702 guard: src/middleware.ts no longer imports the generated allowlist from @/lib/active-blog-slugs — ACTIVE_BLOG_SLUGS must stay derived, not hardcoded."
+            MISSING=1
+          fi
+          [ "$MISSING" -eq 0 ] || exit 1
+          echo "Guarded files present; middleware imports the generated allowlist."
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Inject synthetic drift (workflow_dispatch test mode only)
+        if: github.event_name == 'workflow_dispatch' && inputs.simulate_drift == 'true'
+        run: |
+          set -euo pipefail
+          cat > content/blog/zz-guard-selftest.md <<'EOF'
+          ---
+          slug: zz-guard-selftest
+          title: Guard Self Test
+          description: Synthetic post injected by workflow_dispatch to prove the guard fails on drift.
+          publishedAt: 2026-01-01
+          ---
+          Synthetic body.
+          EOF
+          echo "Injected content/blog/zz-guard-selftest.md — the guard MUST fail below."
+
+      - name: Regenerate allowlist and fail on drift
+        run: |
+          set -euo pipefail
+          node scripts/generate-active-blog-slugs.mjs
+          if git diff --quiet -- src/lib/active-blog-slugs.ts; then
+            COUNT=$(grep -cE '^\s*"' src/lib/active-blog-slugs.ts || true)
+            echo "OK — src/lib/active-blog-slugs.ts matches content/blog/ (${COUNT} active slugs)."
+            exit 0
+          fi
+
+          echo "::group::Diff (committed vs regenerated)"
+          git --no-pager diff -- src/lib/active-blog-slugs.ts
+          echo "::endgroup::"
+
+          # Added lines = posts that would ship 410 Gone while listed in sitemap-blog.xml.
+          git --no-pager diff -U0 -- src/lib/active-blog-slugs.ts \
+            | grep -E '^\+\s+"' | sed -E 's/^\+\s*"([^"]+)".*/\1/' > /tmp/added.txt || true
+          git --no-pager diff -U0 -- src/lib/active-blog-slugs.ts \
+            | grep -E '^-\s+"' | sed -E 's/^-\s*"([^"]+)".*/\1/' > /tmp/removed.txt || true
+
+          while IFS= read -r s || [ -n "$s" ]; do
+            [ -z "$s" ] && continue
+            echo "::error::BUY-72702 guard: '${s}' is a published post in content/blog/ but is MISSING from src/lib/active-blog-slugs.ts — middleware would serve 410 Gone while sitemap-blog.xml lists it (active de-index)."
+          done < /tmp/added.txt
+
+          while IFS= read -r s || [ -n "$s" ]; do
+            [ -z "$s" ] && continue
+            echo "::error::BUY-72702 guard: '${s}' is allowlisted in src/lib/active-blog-slugs.ts but no longer a published post in content/blog/ — stale entry."
+          done < /tmp/removed.txt
+
+          echo "::error::BUY-72702 guard: allowlist drift detected. Run 'npm run check:blog-slugs' locally and commit the regenerated src/lib/active-blog-slugs.ts."
+          exit 1

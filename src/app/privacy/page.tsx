@@ -1,17 +1,55 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Privacy Policy — BuyWhere",
   description: "BuyWhere Privacy Policy",
+  alternates: {
+    canonical: toSiteUrl("/privacy/"),
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "Privacy Policy — BuyWhere",
+    description: "BuyWhere Privacy Policy",
+    url: toSiteUrl("/privacy/"),
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere Privacy Policy",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Privacy Policy — BuyWhere",
+    description: "BuyWhere Privacy Policy",
+    images: ["/og-image.png"],
+  },
 };
+
+const privacySchema = buildWebPageSchema({
+  path: "/privacy/",
+  name: "Privacy Policy",
+  description: "BuyWhere Privacy Policy",
+});
 
 export default function PrivacyPage() {
   return (
     <div className="flex flex-col min-h-screen">
+      <Schema data={privacySchema} />
       <Nav />
 
-      <main className="flex-1 py-16">
+      <main id="main-content" className="flex-1 py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
           <p className="text-sm text-gray-400 mb-10">Last updated: 1 April 2026</p>
@@ -89,7 +127,7 @@ export default function PrivacyPage() {
                 <li>Withdraw consent for optional processing</li>
                 <li>Request deletion of your data (subject to legal obligations)</li>
               </ul>
-              <p className="mt-2">To exercise these rights, contact us at <a href="mailto:privacy@buywhere.ai" className="text-indigo-600 hover:underline">privacy@buywhere.ai</a>.</p>
+              <p className="mt-2">To exercise these rights, contact us via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.</p>
             </section>
 
             <section>
@@ -116,7 +154,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact Us</h2>
               <p>
-                For privacy inquiries or to exercise your PDPA rights, contact our Data Protection Officer at <a href="mailto:privacy@buywhere.ai" className="text-indigo-600 hover:underline">privacy@buywhere.ai</a> or through our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
+                For privacy inquiries or to exercise your PDPA rights, contact our Data Protection Officer via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
               </p>
               <p className="mt-2">
                 BuyWhere Pte. Ltd.<br />

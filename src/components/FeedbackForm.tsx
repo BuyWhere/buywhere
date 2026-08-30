@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
 
 type FormState = {
   name: string;
@@ -21,7 +22,7 @@ const CATEGORIES = ["Bug report", "Feature request", "Partnership", "Other"];
 export default function FeedbackForm() {
   const [form, setForm] = useState(INITIAL_STATE);
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState<ReactNode>("");
 
   const updateField = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -73,7 +74,13 @@ export default function FeedbackForm() {
       setStatus("success");
       setForm(INITIAL_STATE);
     } catch {
-      setErrorMessage("Unable to submit feedback. Please email us directly at hello@buywhere.ai");
+      setErrorMessage(
+        <>
+          Unable to submit feedback. Please{" "}
+          <Link href="/contact" className="underline hover:text-gray-600">contact us directly</Link>
+          {" "}and we will get back to you within 1 business day.
+        </>
+      );
       setStatus("error");
     }
   }
@@ -187,10 +194,10 @@ export default function FeedbackForm() {
       </button>
 
       <p className="text-xs text-gray-400 text-center">
-        Can&apos;t submit? Email us directly at{" "}
-        <a href="mailto:hello@buywhere.ai" className="underline hover:text-gray-600">
-          hello@buywhere.ai
-        </a>
+        Can&apos;t submit? Reach us through our{" "}
+        <a href="/contact" className="underline hover:text-gray-600">
+          contact page
+        </a>.
       </p>
     </form>
   );

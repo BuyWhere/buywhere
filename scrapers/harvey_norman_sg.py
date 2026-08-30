@@ -26,7 +26,8 @@ from typing import Any
 
 import httpx
 
-from scrapers.logging import get_logger
+from scrapers.proxy_config import Zone, proxy_config_for_httpx
+from scrapers.scraper_logging import get_logger
 
 MERCHANT_ID = "harvey_norman_sg"
 SOURCE = "harvey_norman_sg"
@@ -77,7 +78,16 @@ class HarveyNormanScraper:
         self.test_limit = test_limit
         self.scrape_only = scrape_only
         self.sitemap_client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
-        self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
+        try:
+            from scrapers.proxy_config import _load_zone_config
+            zone_cfg = _load_zone_config(Zone.RESIDENTIAL_PROXY1)
+            if zone_cfg.password:
+                proxy_url = proxy_config_for_httpx(Zone.RESIDENTIAL_PROXY1)
+                self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True, proxies=proxy_url, verify=False)
+            else:
+                self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
+        except Exception:
+            self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         self.total_scraped = 0
         self.total_ingested = 0
         self.total_updated = 0
@@ -98,11 +108,21 @@ class HarveyNormanScraper:
         for attempt in range(retries):
             try:
                 resp = await client.get(url)
-                resp.raise_for_status()
-                return resp.text
+                if resp.status_code < 500:
+                    resp.raise_for_status()
+                    return resp.text
+                if attempt < retries - 1:
+                    await asyncio.sleep(1 + attempt)
+                log.request_failed(url, attempt, f"HTTP {resp.status_code}")
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    return None
+                if attempt < retries - 1:
+                    await asyncio.sleep(1 + attempt)
+                log.request_failed(url, attempt, f"HTTP {e.response.status_code}")
             except Exception:
                 if attempt < retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(1 + attempt)
                 log.request_failed(url, attempt, "HTTP request failed")
         return None
 
@@ -112,12 +132,15 @@ class HarveyNormanScraper:
         self.sitemap_client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         if not html:
             return []
-        urls = re.findall(r'https://www\.harveynorman\.com\.sg/[^\s<>"\']*product-\d+\.html', html)
+        urls = re.findall(r'https://www\.harveynorman\.com\.sg/[^\s<>"\']+\.html', html)
         seen = set()
         unique_urls = []
         for url in urls:
             if url not in seen:
                 seen.add(url)
+                url_path = url.replace("https://www.harveynorman.com.sg", "")
+                if "/products/product-" in url_path:
+                    continue
                 unique_urls.append(url)
         return unique_urls
 
@@ -312,8 +335,8 @@ class HarveyNormanScraper:
             if self.test_limit and counts["scraped"] >= self.test_limit:
                 break
 
-            if i % 50 == 0 and i > 0:
-                print(f"  Progress: {i}/{len(product_urls)}...", end=" ", flush=True)
+            if i % 25 == 0:
+                print(f"  Progress: {i}/{len(product_urls)} scraped={counts['scraped']} failed={counts['failed']}...", flush=True)
 
             raw = await self.scrape_product(url)
             if not raw:
@@ -337,7 +360,7 @@ class HarveyNormanScraper:
                 batch = []
                 await asyncio.sleep(self.delay)
 
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
         if batch:
             i_count, u_count, f_count = await self.ingest_batch(batch)

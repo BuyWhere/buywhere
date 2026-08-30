@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories',
-  'Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, ASOS, Love Bonito, and more. Free shipping deals available.',
+  'Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, Amazon SG, Love Bonito, and more. Free shipping deals available.',
   'fashion'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/fashion');
 
 export default function FashionCategoryPage() {
   const schemaMarkup = {
@@ -14,35 +17,40 @@ export default function FashionCategoryPage() {
     "@graph": [
       {
         "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/#breadcrumb",
         itemListElement: [
           {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
-            name: "Fashion"
+            name: "Fashion",
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories",
-        description: "Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, ASOS, Love Bonito, and more.",
-        url: "https://buywhere.ai/categories/fashion",
+        description: "Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, Amazon SG, Love Bonito, and more.",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
+          "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",
@@ -220,7 +228,7 @@ export default function FashionCategoryPage() {
         <section className="mb-16 bg-gray-50">
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Singapore Fashion Retailers on BuyWhere</h2>
           <p className="text-lg text-gray-600 mb-8">
-            BuyWhere features products from the retailers Singapore shoppers love most, including Zalora, ASOS, Love Bonito, Charles & Keith, Cotton On, H&M, Uniqlo, Farfetch, and many independent local boutiques. Whether you are looking for affordable basics or luxury designer pieces, we have got you covered.
+            BuyWhere features products from the retailers Singapore shoppers love most, including Zalora, Love Bonito, Charles & Keith, Cotton On, H&M, Uniqlo, Farfetch, Amazon SG, and many independent local boutiques. Whether you are looking for affordable basics or luxury designer pieces, we have got you covered.
           </p>
         </section>
 
@@ -239,7 +247,7 @@ export default function FashionCategoryPage() {
             <div className="border-l-4 border-indigo-500 pl-4">
               <h3 className="font-semibold text-gray-900 mb-2">Which online fashion stores ship to Singapore?</h3>
               <p className="text-gray-600">
-                Most international fashion retailers ship to Singapore, including ASOS, Zalora, and Farfetch. BuyWhere shows shipping availability and estimated delivery times for each product.
+                Most international fashion retailers ship to Singapore, including Amazon SG, Zalora, and Farfetch. BuyWhere shows shipping availability and estimated delivery times for each product.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
@@ -274,7 +282,7 @@ export default function FashionCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Discover fashion online in Singapore and build your perfect wardrobe with BuyWhere.
           </p>
-          <Link href="/search?q=fashion&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=fashion&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Shop Fashion Now →
           </Link>
         </section>

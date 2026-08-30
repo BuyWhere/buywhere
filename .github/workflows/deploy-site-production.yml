@@ -1,148 +1,158 @@
-name: Deploy BuyWhere Site (Cloud Run)
+name: Deploy site to production
+
+# Deploys the buywhere.ai site to Railway.
+#
+# Why this exists (BUY-46772):
+#   * Railway's GitHub auto-deploy for the `buywhere` site service was not firing
+#     reliably — the service had NO deployment trigger configured, so merges to
+#     `main` silently never reached production (the 24-day "merged-but-not-live"
+#     backlog Reed flagged).
+#   * The previous version of this workflow SSH'd to a production VM that no longer
+#     exists (the site runs on Railway), so the "Deploy site to production" button
+#     was a dead path.
+#
+# This workflow is now the single, reliable deploy mechanism for the site:
+#   * It runs automatically on every push to `main` (no manual API call needed).
+#   * It deploys via `railway up` against the site service, matching the pattern
+#     already used by deploy-railway.yml for buywhere-api.
+#   * Railway builds the image from railway.json (DOCKERFILE -> site.Dockerfile).
+#
+# Required secret: RAILWAY_TOKEN (same project token used by deploy-railway.yml).
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'content/**'
-      - 'docs/**'
-      - 'next.config.mjs'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'site.Dockerfile'
-      - '.github/workflows/deploy-site-production.yml'
   workflow_dispatch:
+    inputs:
+      skip_e2e:
+        description: 'Skip post-deploy Playwright e2e smoke (emergency deploys only)'
+        required: false
+        default: 'false'
+        type: boolean
 
+# Serialize deploys so two merges in quick succession can't race each other.
 concurrency:
-  group: deploy-site-production
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  id-token: write
+  group: buywhere-site-railway-production
+  cancel-in-progress: false
 
 env:
-  GCP_PROJECT_ID: gaia-calendar-488606
-  GCP_REGION: asia-southeast1
-  CLOUD_RUN_SERVICE: buywhere-site-production
-  AR_REPO: buywhere
-  AR_IMAGE: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/site
+  # Railway `buywhere` site service, production environment (BUY-46772).
+  RAILWAY_SERVICE_ID: f426a218-bbf2-408f-91f4-e6527efa8788
+  RAILWAY_ENVIRONMENT_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  SITE_URL: https://buywhere.ai
 
 jobs:
-  build:
-    name: Build and Push Site Image
-    runs-on: ubuntu-latest
-    environment: production
-    outputs:
-      image_tag: ${{ steps.image_meta.outputs.image_tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
-
-      - name: Ensure Artifact Registry repository exists
-        run: |
-          gcloud artifacts repositories describe ${{ env.AR_REPO }} \
-            --location=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(name)" 2>/dev/null || \
-          gcloud artifacts repositories create ${{ env.AR_REPO }} \
-            --repository-format=docker \
-            --location=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --description="BuyWhere container images"
-
-      - name: Set image tag
-        id: image_meta
-        run: echo "image_tag=${{ env.AR_IMAGE }}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build and push site image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: site.Dockerfile
-          push: true
-          tags: ${{ steps.image_meta.outputs.image_tag }}
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+  # ──────────────────────────────────────────────────────────────────────────
+  # Deploy: push the current commit to Railway and wait for it to go live.
+  # `railway up --ci` blocks until the build + deploy completes and exits
+  # non-zero on failure, so a red workflow == a failed deploy.
+  # ──────────────────────────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Cloud Run
-    needs: build
+    name: Deploy site to Railway
     runs-on: ubuntu-latest
-    environment: production
+    steps:
+      - name: Refuse non-main refs (BUY-64967 postmortem)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (this 410'd the whole July blog catch-up batch on 2026-07-29)."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway (build + wait)
+        env:
+          # This secret is an account/workspace token. Railway CLI expects
+          # account tokens in RAILWAY_API_TOKEN; RAILWAY_TOKEN is only for
+          # project tokens and fails with "Invalid RAILWAY_TOKEN" here.
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          echo "Deploying ${GITHUB_SHA} to Railway site service ${RAILWAY_SERVICE_ID}..."
+          railway up \
+            --project "$RAILWAY_PROJECT_ID" \
+            --service "$RAILWAY_SERVICE_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --ci
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "=== Smoke testing ${SITE_URL} ==="
+          # Homepage must serve 200. Retry for cold-start latency — a freshly
+          # started Railway container can take a few seconds to accept traffic.
+          ok=0
+          for i in $(seq 1 20); do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SITE_URL}/" || echo "000")
+            echo "GET / -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then ok=1; break; fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "ERROR: homepage did not return 200 after deploy"
+            exit 1
+          fi
+
+          # Content-level health endpoint must report status ok (not degraded/down).
+          # This endpoint runs several internal sub-fetches (homepage keyword +
+          # static assets), so it is slow on a cold container — retry rather than
+          # hard-failing on the first attempt. Each curl is guarded with `|| echo`
+          # so a transient timeout can't trip `set -e` mid-loop.
+          health_ok=0
+          HEALTH_JSON=""
+          for i in $(seq 1 12); do
+            HEALTH_JSON=$(curl -fsS --max-time 30 "${SITE_URL}/api/health/site" || echo "")
+            STATUS=$(printf '%s' "$HEALTH_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "GET /api/health/site -> status='${STATUS}' (attempt ${i})"
+            if [ "$STATUS" = "ok" ]; then health_ok=1; break; fi
+            sleep 10
+          done
+          if [ "$health_ok" != "1" ]; then
+            echo "ERROR: /api/health/site never reported status=ok after deploy"
+            echo "${HEALTH_JSON}"
+            exit 1
+          fi
+          echo "Site healthy after deploy (status=ok)"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Post-deploy e2e: Playwright smoke against the freshly-deployed production
+  # site. Skippable on manual dispatch for emergency deploys.
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: Post-deploy e2e smoke (Playwright)
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
 
-      - name: Deploy to Cloud Run
-        id: deploy
-        run: |
-          set -o pipefail
-          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
-            --project ${{ env.GCP_PROJECT_ID }} \
-            --region ${{ env.GCP_REGION }} \
-            --image ${{ needs.build.outputs.image_tag }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --port 3000 \
-            --memory 512Mi \
-            --cpu 1 \
-            --min-instances 1 \
-            --max-instances 10 \
-            --concurrency 80 \
-            --timeout 30s \
-            --set-env-vars "NODE_ENV=production" \
-            --set-env-vars "SIGNUP_WEBHOOK_URL=${{ secrets.SIGNUP_WEBHOOK_URL || '' }}" \
-            --format json | jq -r '.status.url // empty')
-          echo "url=${SERVICE_URL}" >> "$GITHUB_OUTPUT"
-          echo "Site deployed: ${SERVICE_URL}"
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
-      - name: Verify deployment
-        run: |
-          sleep 10
-          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
-            "${{ steps.deploy.outputs.url }}" --max-time 15 || echo "000")
-          echo "Cloud Run site health: HTTP ${HTTP}"
-          if [[ "$HTTP" != "200" ]]; then
-            echo "WARN: Cloud Run returned ${HTTP} — check service logs"
-          fi
+      - name: Run smoke tests against production
+        env:
+          PLAYWRIGHT_BASE_URL: https://buywhere.ai
+        run: npx playwright test tests/e2e/site-smoke.spec.ts --project=chromium
 
-      - name: Smoke test static assets
-        run: |
-          set -o pipefail
-          SITE="${{ steps.deploy.outputs.url }}"
-          STATIC_ASSET=$(curl -sf -o /dev/null -w "%{http_code}" \
-            "${SITE}/_next/static/css/765b3c9ef9d41d32.css" --max-time 15 || echo "000")
-          echo "Static CSS asset status: HTTP ${STATIC_ASSET}"
-          if [[ "$STATIC_ASSET" == "400" ]]; then
-            echo "FAIL: _next/static asset returned 400 — stale build artifact detected"
-            echo "This means the container was built with a mismatched manifest and is serving wrong static files"
-            exit 1
-          elif [[ "$STATIC_ASSET" == "000" ]]; then
-            echo "WARN: Could not reach static asset — network or DNS issue"
-          else
-            echo "Static assets smoke test passed: HTTP ${STATIC_ASSET}"
-          fi
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-playwright-report
+          path: playwright-report/
+          retention-days: 14

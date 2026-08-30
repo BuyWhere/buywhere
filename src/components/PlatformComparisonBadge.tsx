@@ -1,7 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
 interface PlatformPrice {
   platform: string;
   price: string;
@@ -29,6 +27,16 @@ interface PlatformComparisonBadgeProps {
   onPlatformClick?: (platform: string, url: string) => void;
   className?: string;
   region?: "SG" | "US" | "BOTH";
+  // BUY-60872 (governance rule #10): real retailer offers. When provided, the
+  // badge renders these instead of synthesizing prices. When absent or empty,
+  // the badge renders nothing — it never invents catalog data.
+  prices?: Array<{
+    platform: string;
+    price: string | number | null;
+    currency?: string;
+    url?: string | null;
+    inStock?: boolean;
+  }>;
 }
 
 const PLATFORM_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -113,61 +121,6 @@ function PlatformBadge({
   );
 }
 
-function PriceComparisonRowSkeleton() {
-  return (
-    <div className="flex items-center gap-2">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="h-6 w-28 bg-gray-200 rounded-full animate-pulse"
-        />
-      ))}
-    </div>
-  );
-}
-
-function generateMockComparison(
-  productQuery: string,
-  productId?: string,
-  region: "SG" | "US" | "BOTH" = "SG"
-): PlatformComparisonData {
-  const sgMerchants = ["Shopee", "Lazada", "Amazon.sg", "Carousell", "Qoo10"];
-  const usMerchants = ["Amazon.com", "Walmart", "Target", "Best Buy"];
-  const merchants = region === "US" ? usMerchants : region === "BOTH" ? [...sgMerchants, ...usMerchants] : sgMerchants;
-
-  const seed = `${productQuery}-${productId ?? "none"}`;
-  const seedValue = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const platformCount = 2 + (seedValue % 4);
-  const basePrice = 25 + (seedValue % 180);
-
-  const prices: PlatformPrice[] = merchants.slice(0, platformCount).map((platform, index) => {
-    const price = basePrice + index * 7 + ((seedValue + index) % 9);
-    const isUSRegion = region === "US" || (region === "BOTH" && usMerchants.includes(platform));
-    return {
-      platform,
-      price: price.toFixed(2),
-      currency: isUSRegion ? "$" : "S$",
-      url: "#",
-      inStock: (seedValue + index) % 5 !== 0,
-      rating: 3.8 + ((seedValue + index) % 12) / 10,
-      lastUpdated: new Date(Date.now() - index * 3600_000).toISOString(),
-    };
-  });
-
-  prices.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-
-  return {
-    productName: productQuery,
-    productId,
-    prices,
-    lowestPrice: prices[0],
-    highestPrice: prices[prices.length - 1],
-    priceDiff: (
-      parseFloat(prices[prices.length - 1].price) - parseFloat(prices[0].price)
-    ).toFixed(2),
-  };
-}
-
 export default function PlatformComparisonBadge({
   productQuery,
   productId,
@@ -176,47 +129,40 @@ export default function PlatformComparisonBadge({
   onPlatformClick,
   className = "",
   region = "SG",
+  prices = [],
 }: PlatformComparisonBadgeProps) {
-  const [data, setData] = useState<PlatformComparisonData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // BUY-60872 (governance rule #10): render nothing when no real prices are available.
+  // We NEVER synthesize invented retailer prices — not even "nice" random ones.
+  void productId;
+  void productQuery;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    function load() {
-      setLoading(true);
-      setError(false);
-      const result = generateMockComparison(productQuery, productId, region);
-
-      if (!cancelled) {
-        setData(result);
-        setLoading(false);
-      }
-    }
-
-    const timeoutId = window.setTimeout(load, 150);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [productQuery, productId, region]);
-
-  if (loading) {
-    return (
-      <div className={`inline-flex items-center ${className}`}>
-        <PriceComparisonRowSkeleton />
-      </div>
-    );
-  }
-
-  if (error || !data || data.prices.length === 0) {
+  if (prices.length === 0) {
     return null;
   }
 
-  const displayedPlatforms = data.prices.slice(0, maxPlatforms);
-  const remainingCount = data.prices.length - maxPlatforms;
+  const formattedPrices: PlatformPrice[] = prices
+    .filter((p) => p.price !== null && p.price !== undefined)
+    .sort((a, b) => {
+      const aPrice = typeof a.price === 'number' ? a.price : parseFloat(String(a.price) || '0');
+      const bPrice = typeof b.price === 'number' ? b.price : parseFloat(String(b.price) || '0');
+      return aPrice - bPrice;
+    })
+    .map((p) => ({
+      platform: p.platform,
+      price: typeof p.price === 'number' ? p.price.toFixed(2) : String(p.price),
+      currency: p.currency ?? (region === 'US' ? '$' : 'S$'),
+      url: p.url ?? '#',
+      inStock: p.inStock ?? true,
+      rating: undefined,
+      lastUpdated: new Date().toISOString(),
+    }));
+
+  if (formattedPrices.length === 0) {
+    return null;
+  }
+
+  const displayedPlatforms = formattedPrices.slice(0, maxPlatforms);
+  const remainingCount = formattedPrices.length - maxPlatforms;
 
   return (
     <div className={`inline-flex items-center flex-wrap gap-2 ${className}`}>
@@ -242,9 +188,12 @@ export default function PlatformComparisonBadge({
           </span>
         )}
       </div>
-      {showPriceDiff && data.prices.length > 1 && (
+      {showPriceDiff && formattedPrices.length > 1 && (
         <span className="text-xs text-gray-400">
-          (diff: {formatPrice(data.priceDiff)})
+          (diff: {formatPrice(
+            (parseFloat(formattedPrices[formattedPrices.length - 1].price) - parseFloat(formattedPrices[0].price)).toFixed(2),
+            formattedPrices[0].currency,
+          )})
         </span>
       )}
     </div>

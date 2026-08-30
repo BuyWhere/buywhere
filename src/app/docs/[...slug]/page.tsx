@@ -8,6 +8,8 @@ import path from "node:path";
 import matter from "gray-matter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
+import Schema from "@/components/Schema";
 
 const docsDirectory = path.join(process.cwd(), "docs");
 
@@ -22,9 +24,9 @@ type DocsFrontmatter = {
 };
 
 type DocRouteParams = {
-  params: {
+  params: Promise<{
     slug: string[];
-  };
+  }>;
 };
 
 type DocRecord = {
@@ -108,13 +110,54 @@ function getDocBySlug(slugParts: string[]) {
   return docs.find((doc) => doc.slug === slug);
 }
 
+function buildDocSchema(doc: DocRecord) {
+  const path = `/docs/${doc.slug}`;
+  const isGuide = doc.slug.startsWith("guides/");
+  const isApiReference = doc.slug.startsWith("api-reference/");
+  const dateModified = doc.lastUpdated || "2026-08-14";
+  const article = {
+    "@context": "https://schema.org",
+    "@type": isApiReference ? ["TechArticle", "APIReference"] : isGuide ? ["TechArticle", "HowTo"] : "TechArticle",
+    headline: doc.title,
+    name: doc.title,
+    description: doc.description,
+    url: toSiteUrl(path),
+    dateModified,
+    author: {
+      "@type": "Organization",
+      name: doc.author || "BuyWhere",
+      url: toSiteUrl("/"),
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "BuyWhere",
+      url: toSiteUrl("/"),
+      logo: {
+        "@type": "ImageObject",
+        url: toSiteUrl("/og-image.png"),
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": toSiteUrl(path),
+    },
+    image: [toSiteUrl("/og-image.png")],
+  };
+
+  return article;
+}
+
+// Only the published docs are valid slugs; anything else 404s at the routing layer
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   const docs = getAllDocs();
   return docs.map((doc) => ({ slug: doc.slug.split("/") }));
 }
 
 export async function generateMetadata({ params }: DocRouteParams): Promise<Metadata> {
-  const doc = getDocBySlug(params.slug);
+  const { slug } = await params;
+  const doc = getDocBySlug(slug);
 
   if (!doc) {
     return {
@@ -129,24 +172,39 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
     title: doc.title,
     description: doc.description,
     alternates: {
-      canonical: `https://buywhere.ai/docs/${doc.slug}`,
+      canonical: toSiteUrl(`/docs/${doc.slug}`),
     },
     openGraph: {
       title: doc.title,
       description: doc.description,
       type: "website",
-      url: `https://buywhere.ai/docs/${doc.slug}`,
+      url: toSiteUrl(`/docs/${doc.slug}`),
       siteName: "BuyWhere Documentation",
+      images: [
+        {
+          url: toSiteUrl("/og-image.png"),
+          width: 1200,
+          height: 630,
+          alt: doc.title,
+        },
+      ],
     },
     robots: {
       index: true,
       follow: true,
     },
+    twitter: {
+      card: "summary_large_image",
+      title: doc.title,
+      description: doc.description,
+      images: [toSiteUrl("/og-image.png")],
+    },
   };
 }
 
-export default function DocPage({ params }: DocRouteParams) {
-  const doc = getDocBySlug(params.slug);
+export default async function DocPage({ params }: DocRouteParams) {
+  const { slug } = await params;
+  const doc = getDocBySlug(slug);
   const allDocs = getAllDocs();
 
   if (!doc) {
@@ -167,11 +225,14 @@ export default function DocPage({ params }: DocRouteParams) {
     }
   };
 
+  const schema = buildDocSchema(doc);
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Schema data={schema} />
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 md:py-16">
             <Link href="/docs" className="mb-6 inline-flex text-sm font-medium text-indigo-600">
@@ -215,9 +276,9 @@ export default function DocPage({ params }: DocRouteParams) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   h1: ({ children }) => (
-                    <h1 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
+                    <div className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
                       {children}
-                    </h1>
+                    </div>
                   ),
                   h2: ({ children }) => (
                     <h2 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">

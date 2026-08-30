@@ -1,16 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-
-export const metadata: Metadata = {
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "BuyWhere for AI Agents",
   description:
     "Product behavior documentation for AI agents using BuyWhere: ranking, price comparison, availability, merchant selection, tool mapping, and machine-relevant metrics.",
-  alternates: {
-    canonical: "https://buywhere.ai/agents",
-  },
-};
+  path: "/agents",
+});
 
 const flowSteps = [
   {
@@ -113,12 +112,39 @@ const metrics = [
   },
 ];
 
+
+
+const regionParams = [
+  ["region", "sg | us | sea", "Geographic scope for ranking and filtering"],
+  ["country", "SG | US | VN | TH | MY", "ISO 3166-1 alpha-2 country code for availability filtering"],
+  ["currency", "SGD | USD | VND | THB | MYR", "Prices returned in this currency"],
+  ["region_boost", "local | none | only", "Control whether local products are boosted in ranking"],
+];
+
+const regionBoostDescriptions = [
+  ["local (default)", "Boost local merchants in results; international products shown but deprioritized"],
+  ["none", "Rank purely by score; no geographic preference applied"],
+  ["only", "Show only products available in the specified region/country"],
+];
+
 export default function AgentsPage() {
+  const schema = buildWebPageSchema({
+    path: "/agents",
+    name: "BuyWhere for AI Agents",
+    description:
+      "Product behavior documentation for AI agents using BuyWhere: ranking, price comparison, availability, merchant selection, tool mapping, and machine-relevant metrics.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "AI Agents", path: "/agents" },
+    ],
+  });
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_28%),linear-gradient(135deg,#0f172a_0%,#111827_56%,#172554_100%)] text-white">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
             <div className="max-w-3xl">
@@ -305,6 +331,100 @@ export default function AgentsPage() {
         <section className="border-b border-slate-200 bg-white py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Region-aware search</p>
+              <h2 className="mt-3 text-3xl font-bold text-slate-900">How region and country parameters affect results</h2>
+              <p className="mt-4 text-lg leading-8 text-slate-600">
+                The BuyWhere API returns products ranked and filtered by geographic region. Adding explicit region
+                parameters improves result relevance for your target market and ensures your agent handles launch
+                availability correctly.
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-8 lg:grid-cols-2">
+              <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">Live</p>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Available now</span>
+                </div>
+                <h3 className="mt-4 text-xl font-semibold text-slate-900">Singapore</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Full catalog with 850K+ products, self-serve API key, and production use supported. Default
+                  currency is SGD.
+                </p>
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.15em] text-slate-500">Example query</p>
+                  <pre className="mt-2 text-sm font-mono text-slate-800">region=sg&amp;country=SG&amp;currency=SGD</pre>
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-600">Preview</p>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Not yet live</span>
+                </div>
+                <h3 className="mt-4 text-xl font-semibold text-slate-900">United States</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  US catalog is in preview. Do not use for production queries. Use illustrative examples with
+                  explicit &quot;Preview&quot; labels.
+                </p>
+                <div className="mt-4 rounded-xl border border-amber-200 bg-white p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.15em] text-slate-500">Example query</p>
+                  <pre className="mt-2 text-sm font-mono text-slate-800">region=us&amp;country=US&amp;currency=USD</pre>
+                  <p className="mt-2 text-xs text-amber-600">Preview — US catalog launching soon</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full border-collapse text-left text-sm">
+                <thead className="bg-slate-100 text-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Parameter</th>
+                    <th className="px-4 py-3 font-semibold">Values</th>
+                    <th className="px-4 py-3 font-semibold">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {regionParams.map(([param, values, description]) => (
+                    <tr key={param}>
+                      <td className="px-4 py-3 font-mono text-sm text-slate-800">{param}</td>
+                      <td className="px-4 py-3 text-slate-600">{values}</td>
+                      <td className="px-4 py-3 text-slate-600">{description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-8 rounded-[28px] border border-slate-200 bg-slate-950 p-8 text-white">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">region_boost options</p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                Use <code className="text-cyan-200">region_boost</code> to control geographic ranking behavior:
+              </p>
+              <div className="mt-4 space-y-3">
+                {regionBoostDescriptions.map(([option, description]) => (
+                  <div key={option} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="font-mono text-sm text-cyan-200">{option}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-[28px] border border-amber-200 bg-amber-50 p-6">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Preview region behavior</p>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-amber-900">
+                US, Vietnam, Thailand, and Malaysia catalogs are in preview. Agents targeting these regions should
+                display illustrative results labeled &ldquo;Preview&rdquo; and link to the waitlist or design partner signup
+                rather than presenting results as live product data.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-slate-200 bg-white py-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Machine-relevant metrics</p>
               <h2 className="mt-3 text-3xl font-bold text-slate-900">Operational targets for agent builders</h2>
               <p className="mt-4 text-lg leading-8 text-slate-600">
@@ -359,5 +479,6 @@ export default function AgentsPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

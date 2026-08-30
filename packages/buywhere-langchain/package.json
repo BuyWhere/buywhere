@@ -49,18 +49,18 @@
     "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0",
-    "@langchain/core": "^0.3.0"
+    "@langchain/core": "^0.3.80",
+    "typescript": "^5.0.0"
   },
   "dependencies": {
     "@buywhere/sdk": "file:../buywhere-sdk",
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@langchain/core": "^0.3.0",
+    "@langchain/core": "^0.3.80",
     "@types/node": "^20.0.0",
     "eslint": "^8.0.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }

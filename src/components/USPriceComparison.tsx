@@ -240,108 +240,6 @@ function USProductRow({
   );
 }
 
-function generateMockUSProducts(): USProduct[] {
-  const products: USProduct[] = [];
-  const productData: Array<{ name: string; brand: string; category: string }> = [
-    { name: "Sony WH-1000XM5 Wireless Noise Canceling Headphones", brand: "Sony", category: "Electronics" },
-    { name: "Apple AirPods Pro 2nd Generation", brand: "Apple", category: "Electronics" },
-    { name: "Samsung Galaxy Buds2 Pro Earbuds", brand: "Samsung", category: "Electronics" },
-    { name: "Bose QuietComfort 45 Headphones", brand: "Bose", category: "Electronics" },
-    { name: "JBL Tune 770NC Wireless Over-Ear Headphones", brand: "JBL", category: "Electronics" },
-    { name: "Apple Watch Series 9 GPS 45mm", brand: "Apple", category: "Electronics" },
-    { name: "Samsung Galaxy Watch 6 Classic", brand: "Samsung", category: "Electronics" },
-    { name: "Fitbit Charge 6 Fitness Tracker", brand: "Fitbit", category: "Electronics" },
-    { name: "Garmin Forerunner 265 Smartwatch", brand: "Garmin", category: "Electronics" },
-    { name: "Dyson V15 Detect Cordless Vacuum", brand: "Dyson", category: "Home & Living" },
-    { name: "iRobot Roomba j7+ Self-Emptying Robot Vacuum", brand: "iRobot", category: "Home & Living" },
-    { name: "Shark Navigator Lift-Away Upright Vacuum", brand: "Shark", category: "Home & Living" },
-    { name: "Ninja Foodi 9-in-1 Pressure Cooker & Air Fryer", brand: "Ninja", category: "Home & Living" },
-    { name: "Instant Pot Pro Plus 8-Quart", brand: "Instant Pot", category: "Home & Living" },
-    { name: "KitchenAid Stand Mixer 5-Quart", brand: "KitchenAid", category: "Home & Living" },
-    { name: "Levi's 501 Original Fit Jeans", brand: "Levi's", category: "Fashion" },
-    { name: "Nike Air Max 270 Running Shoes", brand: "Nike", category: "Fashion" },
-    { name: "Adidas Classic Backpack", brand: "Adidas", category: "Fashion" },
-    { name: "Ray-Ban Aviator Sunglasses", brand: "Ray-Ban", category: "Fashion" },
-    { name: "The North Face Puffer Jacket", brand: "The North Face", category: "Fashion" },
-    { name: "Olaplex Hair Repair Treatment", brand: "Olaplex", category: "Beauty" },
-    { name: "Cetaphil Moisturizing Cream", brand: "Cetaphil", category: "Beauty" },
-    { name: "La Mer Moisturizing Cream", brand: "La Mer", category: "Beauty" },
-    { name: "Philips Sonicare Electric Toothbrush", brand: "Philips", category: "Beauty" },
-    { name: "Foreo Luna Facial Cleansing Device", brand: "Foreo", category: "Beauty" },
-  ];
-
-  productData.forEach(({ name, brand }, idx) => {
-    const basePrice = 29 + Math.random() * 400;
-    const msrp = (basePrice * (1 + Math.random() * 0.2)).toFixed(2);
-    const prices: USMerchantPrice[] = [
-      {
-        merchant: "Amazon.com",
-        price: (basePrice + Math.random() * 15).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.15,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        primeEligible: Math.random() > 0.3,
-      },
-      {
-        merchant: "Walmart",
-        price: (basePrice - Math.random() * 10).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.1,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.4,
-      },
-      {
-        merchant: "Target",
-        price: (basePrice + Math.random() * 20).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.12,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.35,
-      },
-      {
-        merchant: "Best Buy",
-        price: (basePrice + Math.random() * 5).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.08,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-      },
-    ];
-
-    products.push({
-      id: `us-product-${idx}`,
-      name,
-      image: `https://picsum.photos/seed/us${idx}/400/400`,
-      description: `Compare prices for ${name} across Amazon, Walmart, Target, and Best Buy.`,
-      specs: {
-        Brand: brand,
-        "Product Type": "Electronics",
-        Rating: `${(4.0 + Math.random()).toFixed(1)} / 5`,
-        Reviews: `${Math.floor(100 + Math.random() * 1000)}`,
-      },
-      prices: prices.sort((a, b) => {
-        if (a.price === null) return 1;
-        if (b.price === null) return -1;
-        return parseFloat(a.price) - parseFloat(b.price);
-      }),
-      msrp,
-      overallRating: 4.0 + Math.random(),
-      reviewCount: Math.floor(100 + Math.random() * 1000),
-      brand: brand,
-      sku: `SKU-US-${1000 + idx}`,
-      asin: `B00${100000 + idx}`,
-      walmartId: `WM${10000000 + idx}`,
-      targetId: `TG${1000000 + idx}`,
-      bestBuyId: `BBY${10000000 + idx}`,
-    });
-  });
-
-  return products;
-}
-
 function LoadingSkeleton() {
   return (
     <AsyncSurfaceState
@@ -424,7 +322,7 @@ function EmptyState({ onClear }: { onClear: () => void }) {
 }
 
 export default function USPriceComparisonPage() {
-  const [products, setProducts] = useState<USProduct[]>([]);
+  const [products] = useState<USProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [sortBy, setSortBy] = useState<"price" | "rating" | "name">("price");
@@ -454,11 +352,6 @@ export default function USPriceComparisonPage() {
     fetchProducts();
   }, []);
 
-  useEffect(() => {
-    if (!loading && !error) {
-      setProducts(generateMockUSProducts());
-    }
-  }, [loading, error]);
 
   const filteredProducts = products
     .filter((p) =>
@@ -507,36 +400,37 @@ const schemaMarkup = {
          dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
        />
 
-      <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-4">
-            <span className="px-2 py-0.5 bg-indigo-500/30 text-indigo-200 text-xs font-medium rounded-full">
+            <span className="px-2 py-0.5 bg-white/15 text-white text-xs font-medium rounded-full">
               United States
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-4">
             Compare Amazon vs Walmart vs Target vs Best Buy
           </h1>
-          <p className="text-indigo-200 text-lg max-w-2xl">
+          <p className="text-white text-lg max-w-2xl">
             Find the best deals by comparing prices across America&apos;s top retailers — all in one place.
           </p>
 
           <div className="flex items-center gap-6 mt-8">
             <div className="flex items-center gap-2">
               <span className="text-2xl">📦</span>
-              <span className="text-sm text-indigo-200">Amazon</span>
+              <span className="text-sm text-white">Amazon</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🛒</span>
-              <span className="text-sm text-indigo-200">Walmart</span>
+              <span className="text-sm text-white">Walmart</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🎯</span>
-              <span className="text-sm text-indigo-200">Target</span>
+              <span className="text-sm text-white">Target</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🏪</span>
-              <span className="text-sm text-indigo-200">Best Buy</span>
+              <span className="text-sm text-white">Best Buy</span>
             </div>
           </div>
         </div>
@@ -659,6 +553,7 @@ const schemaMarkup = {
           <ScrapingVsBuyWhere />
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>

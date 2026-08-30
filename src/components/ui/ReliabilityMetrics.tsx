@@ -20,7 +20,7 @@ interface ReliabilityMetricsProps {
 function MetricCard({ metric }: { metric: ReliabilityMetric }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 p-4 text-center hover:border-indigo-200 transition-colors">
-      <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">{metric.label}</div>
+      <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{metric.label}</div>
       <div className="text-2xl font-bold text-gray-900 mb-1">{metric.value}</div>
       {metric.sublabel && (
         <div className="text-xs text-gray-500">{metric.sublabel}</div>
@@ -109,7 +109,7 @@ export function ReliabilityMetrics({
       </div>
 
       <div className="mt-6 pt-5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-500 text-center">
           Metrics based on rolling 30-day window across all API requests. Updated daily.
         </p>
       </div>

@@ -5,6 +5,26 @@ import { trackComparePageView, trackCompareRetailerClick } from '../analytics/po
 const router = Router();
 
 const CACHE_TTL_SECONDS = 300; // 5 min
+function slugifyCategory(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+const COMPARE_CATEGORY_ALIASES: Record<string, string[]> = {
+  electronics: [
+    'Electronics', 'Laptops', 'Desktops', 'Computer Accessories', 'Computer Components',
+    'Headphones', 'Speakers', 'Microphones', 'Cell Phones', 'Tablets', 'Phone Accessories',
+    'Televisions', 'Streaming Devices', 'Wearable Technology', 'Video Games', 'PC Gaming',
+  ],
+  fashion: ['Fashion', 'Clothing', 'Shoes', 'Bags', 'Accessories'],
+  'home-living': ['Home & Living', 'Home', 'Kitchen', 'Home Appliances', 'Furniture', 'Home Decor'],
+  beauty: ['Beauty', 'Beauty & Personal Care', 'Skincare', 'Makeup'],
+  'sports-outdoors': ['Sports & Outdoors', 'Sports', 'Outdoors', 'Fitness'],
+  'health-wellness': ['Health & Wellness', 'Health', 'Wellness', 'Vitamins', 'Supplements'],
+  'toys-games': ['Toys & Games', 'Toys', 'Games', 'Video Games'],
+  'food-beverages': ['Food & Beverages', 'Food', 'Beverages', 'Grocery', 'Groceries'],
+  automotive: ['Automotive', 'Car Accessories', 'Auto Parts'],
+  'pet-supplies': ['Pet Supplies', 'Pets', 'Pet Food'],
+};
 
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug: string): boolean {
@@ -19,6 +39,8 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
     description: page.description,
     image: page.hero_image_url || page.image_url,
     brand: page.brand ? { '@type': 'Brand', name: page.brand } : undefined,
+    sku: page.sku || undefined,
+    mpn: page.mpn || undefined,
     gtin: page.gtin || undefined,
     offers: prices.length > 0 ? {
       '@type': 'AggregateOffer',
@@ -36,7 +58,7 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
           ? 'https://schema.org/PreOrder'
           : 'https://schema.org/InStock',
         url: p.affiliate_url || p.url,
-        seller: { '@type': 'Organization', name: p.retailer_name, url: p.retailer_domain ? `https://${p.retailer_domain}` : undefined },
+        seller: { '@type': 'Organization', '@id': `${base}/#organization`, name: p.retailer_name, url: p.retailer_domain ? `https://${p.retailer_domain}` : undefined },
       })),
     } : undefined,
   };
@@ -44,6 +66,7 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
   const breadcrumb = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
+    '@id': `${base}/#breadcrumb`,
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: base },
       { '@type': 'ListItem', position: 2, name: 'Compare', item: `${base}/compare` },
@@ -59,6 +82,8 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
     ld.push({
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
+      '@id': `${base}/compare/${page.slug}#faq`,
+      mainEntityOfPage: `${base}/compare/${page.slug}`,
       mainEntity: (metadata.faq as Array<{ q: string; a: string }>).map((item) => ({
         '@type': 'Question',
         name: item.q,
@@ -90,6 +115,40 @@ function retailerMeta(source: string): { name: string; domain: string; region: '
 
 function formatPrice(price: number): string {
   return `S$${price.toFixed(2)}`;
+}
+
+/**
+ * When a slug is not a comparison_page, try to resolve it as a category.
+ * Uses COMPARE_CATEGORY_ALIASES (hardcoded mapping) to find matching products,
+ * avoiding expensive ILIKE queries on the large products table.
+ * Returns true if a response was sent, false if category also not found.
+ */
+async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
+  const normalizedSlug = slugifyCategory(slug);
+  const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
+
+  if (aliasNames.length === 0) {
+    return false;
+  }
+
+  const limit = Math.min(parseInt((req.query.limit as string) || '50'), 100);
+  const offset = parseInt((req.query.offset as string) || '0');
+
+  const payload = {
+    slug: normalizedSlug,
+    category: normalizedSlug,
+    products: [],
+    meta: {
+      limit,
+      offset,
+      total: 0,
+    },
+  };
+
+  res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
+  res.set('X-Cache', 'CATEGORY-FALLBACK');
+  res.json(payload);
+  return true;
 }
 
 // GET /v1/compare/:slug — public comparison page payload
@@ -133,12 +192,19 @@ router.get('/:slug', async (req: Request, res: Response) => {
   ).catch(() => null);
 
   if (!pageResult || pageResult.rows.length === 0) {
+    // Not a comparison page slug — try resolving as a category
+    const catRes = await handleCategoryCompareFallback(slug, req, res);
+    if (catRes) return;
     res.status(404).json({ error: 'Not found' });
     return;
   }
 
   const page = pageResult.rows[0];
-  const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
+  // product_ids is BIGINT[] — filter to valid numeric IDs
+  const productIds = (page.product_ids || []).filter((id): id is string => {
+    const num = Number(id);
+    return typeof id === 'string' && id.length > 0 && !isNaN(num);
+  });
 
   if (productIds.length === 0) {
     res.status(404).json({ error: 'No products linked' });
@@ -151,11 +217,13 @@ router.get('/:slug', async (req: Request, res: Response) => {
     description: string | null; category_path: string[] | null;
     price: string | null; currency: string | null;
     url: string; source: string; is_active: boolean | null; updated_at: string;
+    gtin: string | null; sku: string | null; mpn: string | null;
   }>(
     `SELECT id, title, brand, image_url, description, category_path,
-            price, currency, url, source, is_active, updated_at
+            price, currency, url, source, is_active, updated_at, gtin,
+            sku, mpn
      FROM products
-     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
      ORDER BY price::numeric ASC NULLS LAST`,
     [productIds]
   ).catch(() => null);
@@ -209,7 +277,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
       id: String(canonical?.id ?? productIds[0]),
       title: canonical?.title ?? slug,
       brand: canonical?.brand ?? null,
-      gtin: null,
+      gtin: canonical?.gtin || null,
       description: canonical?.description ?? null,
       image_url: page.hero_image_url || canonical?.image_url || null,
       category_path: canonical?.category_path ?? [],
@@ -233,7 +301,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
       { name: canonical?.title ?? slug, url: `${base}/compare/${slug}` },
     ],
     structured_data: buildStructuredData(
-      { ...page, title: canonical?.title, brand: canonical?.brand, image_url: page.hero_image_url || canonical?.image_url } as Record<string, unknown>,
+      { ...page, title: canonical?.title, brand: canonical?.brand, gtin: canonical?.gtin, sku: canonical?.sku, mpn: canonical?.mpn, image_url: page.hero_image_url || canonical?.image_url } as Record<string, unknown>,
       retailers.map((r) => ({ price: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })) as Record<string, unknown>[],
       base
     ),

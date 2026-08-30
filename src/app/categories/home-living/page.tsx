@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Home & Living Singapore | Compare Best Prices on Furniture & Household Items',
@@ -8,41 +9,48 @@ export const metadata = buildSgCategoryMetadata(
   'home-living'
 );
 
+const CATEGORY_URL = toSiteUrl('/categories/home-living');
+
 export default function HomeLivingCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/#breadcrumb",
         itemListElement: [
           {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
-            name: "Home & Living"
+            name: "Home & Living",
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Home & Living Singapore | Compare Best Prices on Furniture & Household Items",
         description: "Shop home and living products in Singapore. Compare cheapest prices on furniture, kitchen appliances, bedding, and home decor from IKEA, Courts, and top retailers.",
-        url: "https://buywhere.ai/categories/home-living",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
+          "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",
@@ -204,7 +212,7 @@ export default function HomeLivingCategoryPage() {
           <p className="text-lg text-gray-600 mb-8">
             Singapore offers a wide range of home and living options, from IKEA&apos;s affordable Swedish designs to premium brands like Courts and Singtel. BuyWhere helps you compare prices across all major retailers so you can find the best deals on furniture, appliances, and home goods.
           </p>
-          <Link href="/search?q=home+living&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=home+living&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Home & Living Deals →
           </Link>
         </section>

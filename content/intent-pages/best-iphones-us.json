@@ -1,0 +1,123 @@
+{
+  "slug": "best-iphones-us",
+  "title": "Best iPhones in the US (2026) — Live Prices From Every Carrier and Retailer",
+  "description": "The best iPhones you can buy in the United States right now: live prices from Apple, Amazon, Best Buy, Verizon, AT&T and T-Mobile, ranked daily, with expert advice on which model to pick at every price band.",
+  "heroEyebrow": "US iPhone buying guide",
+  "heroTitle": "Best iPhones in the US (2026) — 2026 live price comparison",
+  "heroTitleTemplate": "Best iPhones in the US — from {floorPrice} today",
+  "heroBody": "Apple currently sells four iPhone lines in the US — the mainstream iPhone, the Pro, the Pro Max and the still-supported older generation — plus the Air line introduced last cycle. Each one targets a different buyer, and US pricing varies more than people expect: Apple holds list, carriers run trade-in and bill-credit promotions that take a few hundred dollars off with a new line, and Amazon and Best Buy match each other within hours on the unlocked versions. This page pulls live US listings from BuyWhere's catalog every few minutes so the price on each card is what US retailers are actually charging right now, not a static snapshot from earlier in the year.",
+  "canonicalPath": "/best-iphones-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "iPhone",
+  "backupQueries": [
+    "Apple iPhone",
+    "iPhone unlocked",
+    "iPhone 256GB"
+  ],
+  "minPrice": 300,
+  "requiredProductTerms": [
+    "iphone",
+    "apple",
+    "unlocked"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated August 25, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-08-29",
+  "productSectionTitle": "Live iPhone prices in the US",
+  "comparisonSectionTitle": "Which iPhone should you buy? At a glance",
+  "comparisonColumns": [
+    "Model line",
+    "Typical storage",
+    "Best for"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Standard iPhone",
+      "values": [
+        "128GB-512GB",
+        "Most buyers, balanced price and features"
+      ]
+    },
+    {
+      "label": "iPhone Air",
+      "values": [
+        "256GB-1TB",
+        "Thinness and light weight over Pro features"
+      ]
+    },
+    {
+      "label": "iPhone Pro",
+      "values": [
+        "256GB-1TB",
+        "Pro camera, ProMotion display, USB-C at full speed"
+      ]
+    },
+    {
+      "label": "iPhone Pro Max",
+      "values": [
+        "256GB-2TB",
+        "Largest battery, longest zoom, big-screen media"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What changed with iPhones in 2026",
+  "highlights": [
+    {
+      "title": "The iPhone Air line is now a year old",
+      "body": "Apple's iPhone Air sits between the standard iPhone and the Pro in price, with the headline trade-off being thinness and weight rather than camera or display capability. If you read a lot, commute one-handed or carry a phone in a shirt pocket, the Air is the most pleasant-feeling iPhone Apple has ever shipped. If you shoot a lot of video or play graphics-heavy games, the Pro is still the better tool."
+    },
+    {
+      "title": "Carrier promotions are still the cheapest path",
+      "body": "Verizon, AT&T and T-Mobile continue to subsidize new iPhones through 36-month bill credits when you trade in a recent model on an eligible unlimited plan. The effective price can be hundreds of dollars lower than the unlocked sticker — but only if you stay on the plan for the full term and the trade-in passes inspection. If you switch carriers often or travel internationally, unlocked at Apple, Amazon or Best Buy is the safer purchase."
+    },
+    {
+      "title": "Pro Max is no longer the only choice for long battery",
+      "body": "Recent standard and Air iPhones have closed most of the battery-life gap with the Pro Max in day-to-day use. The Pro Max still wins for power users who spend long days off-grid, but for most buyers the standard or Air models now last a full day without compromise."
+    }
+  ],
+  "adviceSectionTitle": "How to pick an iPhone without overpaying",
+  "advicePoints": [
+    "Storage is the single decision most people get wrong. 128GB fills up fast if you shoot ProRes video or keep a large photo library locally; 256GB is the new sensible default for almost everyone.",
+    "Buy unlocked unless the carrier promotion is genuinely worth it. An unlocked iPhone from Apple, Amazon or Best Buy works on every US carrier and resells for more when you upgrade.",
+    "AppleCare+ is worth it for the Pro and Pro Max because screen replacements are expensive; it is harder to justify on the standard iPhone where a third-party repair shop can fix a cracked screen for a much lower flat fee.",
+    "Skip the new launch and buy the previous-generation Pro. Apple keeps last year's Pro in the lineup at a lower price, and it remains an excellent phone for at least three years of iOS updates.",
+    "Trade-in values from carriers drop sharply once a new model launches. If you plan to trade in your current iPhone, sell it privately before the announcement to get the highest price."
+  ],
+  "faqSectionTitle": "iPhones in the US — common questions",
+  "faqs": [
+    {
+      "question": "Is the iPhone Pro worth it over the standard iPhone in the US?",
+      "answer": "If you use the camera heavily (telephoto lens, ProRes video, RAW photos) or want the ProMotion 120Hz display for scrolling and gaming, yes. If you mostly message, browse, stream and take the occasional photo, the standard iPhone delivers the same daily experience for meaningfully less money."
+    },
+    {
+      "question": "Where is the cheapest place to buy a new iPhone in the US?",
+      "answer": "It depends on whether you want an unlocked phone or a carrier-subsidized one. Unlocked, Apple holds list while Amazon and Best Buy typically match within hours and run small discounts around major sale events. Carrier-subsidized, Verizon, AT&T and T-Mobile run bill-credit promotions that bring the effective price well below the unlocked sticker when you trade in a recent model on an unlimited plan."
+    },
+    {
+      "question": "Should I buy the iPhone Air or the iPhone Pro Max?",
+      "answer": "The Air is for buyers who prioritize thinness, light weight and one-handed comfort over the very best camera and battery. The Pro Max is for power users who want the largest display, longest battery life and the full Pro camera system. They are deliberately different products aimed at different buyers, not a choice between better and worse."
+    },
+    {
+      "question": "Do US iPhones work internationally?",
+      "answer": "Unlocked US iPhones work on most global GSM and LTE networks, plus an increasing number of 5G bands. The US models do not include the physical SIM tray on some recent versions and rely on eSIM; make sure your destination country and carrier support eSIM activation before you travel."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-SG": "/best-iphones-singapore"
+  },
+  "categoryIntro": {
+    "heading": "Why iPhone prices in the US swing more than you think",
+    "body": "Three forces drive the spread between the cheapest and most expensive US iPhone listings on any given day. First, the model and storage: storage tiers step up in price more aggressively than most buyers expect, and the Pro Max with the largest storage can cost close to double the standard iPhone entry price. Second, retailer competition: Apple holds the list price, while Amazon, Best Buy and B&H match each other within hours and run small discounts around major sale events. Third, carrier bill-credit promotions can drop the effective price hundreds of dollars lower than any unlocked listing — but only if you stay on the carrier's unlimited plan for the full 36-month term and your trade-in passes inspection. The live cards on this page read current listings rather than a stale 'best price' table so you can compare what is actually available right now."
+  },
+  "owner": "Wave",
+  "reviewer": "Hue",
+  "queueRow": 26,
+  "inboundLinks": [
+    "/airpods-singapore",
+    "/iphone-16-price-singapore"
+  ]
+}

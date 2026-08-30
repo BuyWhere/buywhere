@@ -1,13 +1,16 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
+import Schema from "@/components/Schema";
+import MerchantIntakeForm from "@/components/MerchantIntakeForm";
+import { buildServiceSchema } from "@/lib/page-schema";
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Merchants — Get Discovered by AI Agents | BuyWhere",
   description:
     "List your catalog on BuyWhere and become discoverable to the next wave of AI-powered shopping experiences in Singapore.",
-};
+  path: "/merchants/",
+});
 
 const benefits = [
   {
@@ -56,10 +59,21 @@ const steps = [
 ];
 
 export default function MerchantsPage() {
+  const schema = buildServiceSchema({
+    path: "/merchants",
+    name: "List your catalog on BuyWhere",
+    description:
+      "Become discoverable to AI agents and price-comparison shoppers in Singapore, Southeast Asia, and the US. Get qualified leads with pay-per-click pricing.",
+    serviceType: "Merchant listing and lead generation",
+    areaServed: ["Singapore", "United States", "Malaysia", "Thailand", "Philippines", "Indonesia", "Vietnam"],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Nav />
 
+        <main id="main-content" tabIndex={-1}>
       {/* Hero */}
       <section className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -78,6 +92,28 @@ export default function MerchantsPage() {
             >
               List your catalog →
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Merchant intake form (BUY-75315 — writes to contacts table via /api/v1/contact) */}
+      <section id="apply" className="py-16 bg-white border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-start">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Apply to list your catalog</h2>
+              <p className="text-gray-600 leading-relaxed mb-4">
+                Tell us about your store and how you can feed BuyWhere. We onboard Singapore merchants at no cost during our beta period and respond within one business day.
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>• CSV feed, Shopify/Shopee/Lazada admin API, or existing product URL list</li>
+                <li>• Works alongside any existing channel — no exclusivity</li>
+                <li>• Products are normalized, deduplicated, and ranked deliverable-first</li>
+              </ul>
+            </div>
+            <div>
+              <MerchantIntakeForm />
+            </div>
           </div>
         </div>
       </section>
@@ -162,7 +198,7 @@ export default function MerchantsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/contact"
+              href="#apply"
               className="inline-flex items-center justify-center px-8 py-3 bg-white text-emerald-700 font-semibold rounded-xl hover:bg-emerald-50 transition-colors"
             >
               List your catalog →
@@ -177,7 +213,9 @@ export default function MerchantsPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

@@ -328,6 +328,10 @@ export const OPENAI_TOOL_SCHEMAS = {
               type: 'string',
               description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
             },
+            q: {
+              type: 'string',
+              description: 'Alias for product_name (deprecated, use product_name).',
+            },
             category: {
               type: 'string',
               description: 'Category to filter by (e.g., "electronics", "fashion")',
@@ -480,6 +484,7 @@ export const MCP_TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         product_name: { type: 'string', description: 'Product name to find best price for' },
+        q: { type: 'string', description: 'Alias for product_name (deprecated, use product_name).' },
         category: { type: 'string' },
         country: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'] },
         region: { type: 'string', enum: ['us', 'sea'] },

@@ -5,11 +5,13 @@ import Image from "next/image";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { AffiliateLink } from "@/components/AffiliateLink";
+import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { CrossMarketWidget } from "@/components/ui/CrossMarketWidget";
 import Link from "next/link";
 import { useCompare } from "@/lib/compare-context";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { useWishlist } from "@/lib/wishlist-context";
+import { buildUSProductSlug, normalizeUSMerchantPrice, type USProductOfferApiItem } from "@/lib/us-products";
 import WishlistButton from "@/components/WishlistButton";
 
 import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
@@ -36,6 +38,7 @@ interface USMerchantPrice {
 interface USProduct {
   id: string;
   name: string;
+  slug?: string;
   image: string;
   description: string;
   specs: Record<string, string>;
@@ -54,6 +57,7 @@ interface USProduct {
 
 interface RelatedProduct {
   id: string;
+  slug: string;
   name: string;
   image: string;
   price: string | null;
@@ -79,7 +83,7 @@ interface PriceHistoryResponse {
   period: string | null;
 }
 
-interface ProductMatchResponse {
+interface ProductMatchResponse extends USProductOfferApiItem {
   id: number;
   name: string;
   price: number;
@@ -221,6 +225,12 @@ const MERCHANT_INFO: Record<string, { color: string; bgColor: string; accentColo
     accentColor: "border-blue-300",
     icon: "🏪",
   },
+  "BuyWhere Catalog": {
+    color: "text-indigo-700",
+    bgColor: "bg-indigo-50",
+    accentColor: "border-indigo-200",
+    icon: "🔎",
+  },
 };
 
 function formatPrice(price: string | null, isZeroPrice?: boolean): string {
@@ -271,7 +281,7 @@ function USRetailerCard({
   productInCompare?: boolean;
   onToggleCompare?: () => void;
 }) {
-  const info = MERCHANT_INFO[price.merchant];
+  const info = MERCHANT_INFO[price.merchant] || MERCHANT_INFO["BuyWhere Catalog"];
 
   return (
     <div
@@ -386,7 +396,9 @@ function USRetailerCard({
             productId={productId}
             platform={price.merchant.toLowerCase().replace(".", "")}
             productName={productName}
-            href={price.url}
+            // BUY-75417: route through /r/direct/{id} so crawlers see a
+            // followable server-rendered href instead of an external domain.
+            href={buildAffiliateRedirectUrl(productId) || price.url}
             className="block w-full text-center px-4 py-3 font-semibold rounded-xl transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
           >
             View on {price.merchant}
@@ -394,7 +406,7 @@ function USRetailerCard({
         ) : (
           <button
             disabled
-            className="w-full px-4 py-3 font-semibold rounded-xl bg-gray-100 text-gray-400 cursor-not-allowed"
+            className="w-full px-4 py-3 font-semibold rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed"
           >
             Unavailable
           </button>
@@ -576,7 +588,7 @@ function ReviewsSection({ summary }: { summary: ReviewSummary }) {
             })}
           </div>
 
-          <p className="text-xs text-gray-400 mt-4 text-center">
+          <p className="text-xs text-gray-500 mt-4 text-center">
             Last updated: {new Date(summary.last_updated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </div>
@@ -585,130 +597,9 @@ function ReviewsSection({ summary }: { summary: ReviewSummary }) {
   );
 }
 
-function generateMockUSProducts(): USProduct[] {
-  const products: USProduct[] = [];
-  const productNames = [
-    "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
-    "Apple AirPods Pro 2nd Generation",
-    "Samsung Galaxy Buds2 Pro Earbuds",
-    "Bose QuietComfort 45 Headphones",
-    "JBL Tune 770NC Wireless Over-Ear Headphones",
-    "Apple Watch Series 9 GPS 45mm",
-    "Samsung Galaxy Watch 6 Classic",
-    "Fitbit Charge 6 Fitness Tracker",
-    "Garmin Forerunner 265 Smartwatch",
-    "Dyson V15 Detect Cordless Vacuum",
-    "iRobot Roomba j7+ Self-Emptying Robot Vacuum",
-    "Shark Navigator Lift-Away Upright Vacuum",
-    "Ninja Foodi 9-in-1 Pressure Cooker & Air Fryer",
-    "Instant Pot Pro Plus 8-Quart",
-    "KitchenAid Stand Mixer 5-Quart",
-  ];
-
-  const brands = ["Sony", "Apple", "Samsung", "Bose", "JBL", "Apple", "Samsung", "Fitbit", "Garmin", "Dyson", "iRobot", "Shark", "Ninja", "Instant Pot", "KitchenAid"];
-
-  productNames.forEach((name, idx) => {
-    const basePrice = 29 + Math.random() * 400;
-    const msrp = (basePrice * (1 + Math.random() * 0.2)).toFixed(2);
-    const prices: USMerchantPrice[] = [
-      {
-        merchant: "Amazon.com",
-        price: (basePrice + Math.random() * 15).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.15,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        primeEligible: Math.random() > 0.3,
-      },
-      {
-        merchant: "Walmart",
-        price: (basePrice - Math.random() * 10).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.1,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.4,
-      },
-      {
-        merchant: "Target",
-        price: (basePrice + Math.random() * 20).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.12,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.35,
-      },
-      {
-        merchant: "Best Buy",
-        price: (basePrice + Math.random() * 5).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.08,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-      },
-    ];
-
-    products.push({
-      id: `us-product-${idx}`,
-      name,
-      image: `https://picsum.photos/seed/us${idx}/400/400`,
-      description: `Compare prices for ${name} across Amazon, Walmart, Target, and Best Buy.`,
-      specs: {
-        Brand: brands[idx],
-        "Product Type": "Electronics",
-        Rating: `${(4.0 + Math.random()).toFixed(1)} / 5`,
-        Reviews: `${Math.floor(100 + Math.random() * 1000)}`,
-      },
-      prices: prices.sort((a, b) => {
-        if (a.price === null) return 1;
-        if (b.price === null) return -1;
-        return parseFloat(a.price) - parseFloat(b.price);
-      }),
-      msrp,
-      overallRating: 4.0 + Math.random(),
-      reviewCount: Math.floor(100 + Math.random() * 1000),
-      brand: brands[idx],
-      sku: `SKU-US-${1000 + idx}`,
-      asin: `B00${100000 + idx}`,
-      walmartId: `WM${10000000 + idx}`,
-      targetId: `TG${1000000 + idx}`,
-      bestBuyId: `BBY${10000000 + idx}`,
-      regions: ["US", "SG", "SEA"].filter(() => Math.random() > 0.3),
-    });
-  });
-
-  return products;
-}
-
-function generateMockReviewSummary(productName: string): ReviewSummary {
-  const retailers = ["Amazon.com", "Walmart", "Target", "Best Buy"];
-  const retailerReviews: RetailerReview[] = retailers.map((retailer) => ({
-    retailer,
-    rating: 3.5 + Math.random() * 1.5,
-    review_count: Math.floor(50 + Math.random() * 500),
-    review_url: "#",
-    last_review_date: new Date(Date.now() - Math.random() * 86400000 * 30).toISOString(),
-  }));
-
-  const totalReviews = retailerReviews.reduce((sum, r) => sum + r.review_count, 0);
-  const weightedRating = retailerReviews.reduce((sum, r) => sum + r.rating * r.review_count, 0) / totalReviews;
-
-  return {
-    product_id: 0,
-    product_name: productName,
-    overall_rating: Math.round(weightedRating * 10) / 10,
-    total_reviews: totalReviews,
-    retailer_reviews: retailerReviews,
-    summary: `Customers praise the ${productName} for its build quality and value proposition. Common positive themes include reliable performance and competitive pricing across retailers.`,
-    pros: ["Great value for money", "Reliable performance", "Wide availability"],
-    cons: ["Mixed availability", "Price varies by retailer"],
-    top_keywords: ["value", "quality", "performance", "price"],
-    last_updated: new Date().toISOString(),
-  };
-}
-
 interface USProductDetailProps {
   productId: string;
+  initialData?: USProduct;
 }
 
 function ProductLoadingSkeleton() {
@@ -789,7 +680,7 @@ function ProductNotFoundState() {
       <Nav />
       <div className="flex-1 flex flex-col items-center justify-center py-16 px-4">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
@@ -809,12 +700,12 @@ function ProductNotFoundState() {
   );
 }
 
-export default function USProductDetail({ productId }: USProductDetailProps) {
-  const [product, setProduct] = useState<USProduct | null>(null);
+export default function USProductDetail({ productId, initialData }: USProductDetailProps) {
+  const [product, setProduct] = useState<USProduct | null>(initialData ?? null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
-  const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [relatedProducts] = useState<RelatedProduct[]>([]);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -825,7 +716,8 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
   const { isInWishlist, updateWishlistItem } = useWishlist();
   const inCompare = product ? isInCompare(product.id) : false;
   const availablePrices = product?.prices.filter((p) => p.price !== null) ?? [];
-  const verifiedRetailerCount = product?.prices.filter((price) => MERCHANT_INFO[price.merchant]).length ?? 0;
+  const productSlug = product ? (product.slug || buildUSProductSlug(product)) : null;
+  const verifiedRetailerCount = product?.prices.filter((price) => Boolean(MERCHANT_INFO[price.merchant])).length ?? 0;
   const lowestPrice = availablePrices.length > 0
     ? availablePrices.reduce((min, p) => {
         const minVal = parseFloat(min.price!);
@@ -889,24 +781,27 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
         const matchesJson: ProductMatchesResponse = await matchesRes.json();
         if (matchesJson.matches && matchesJson.matches.length > 0) {
           const apiMatch = matchesJson.matches[0];
-          const priceEntries: USMerchantPrice[] = matchesJson.matches.slice(0, 4).map((m, idx) => ({
-            merchant: ["Amazon.com", "Walmart", "Target", "Best Buy"][idx] || `Retailer ${idx}`,
-            price: m.price.toString(),
-            url: "#",
-            inStock: true,
-            lastUpdated: new Date().toISOString(),
-          }));
+          const priceEntries = matchesJson.matches
+            .map(normalizeUSMerchantPrice)
+            .filter((price): price is USMerchantPrice => Boolean(price));
+
+          if (priceEntries.length === 0) {
+            setNotFound(true);
+            setLoading(false);
+            return;
+          }
 
           setProduct({
             id: productId,
             name: apiMatch.name,
-            image: `https://picsum.photos/seed/${productId}/400/400`,
-            description: `Compare prices for ${apiMatch.name} across top US retailers.`,
-            specs: { Brand: "Various", "Match Score": `${(apiMatch.match_score * 100).toFixed(0)}%` },
+            slug: buildUSProductSlug({ id: productId, name: apiMatch.name }),
+            image: "",
+            description: `Compare current catalog offers for ${apiMatch.name}.`,
+            specs: { "Match Score": `${(apiMatch.match_score * 100).toFixed(0)}%` },
             prices: priceEntries,
-            overallRating: 4.2,
-            reviewCount: 256,
-            brand: "Various",
+            overallRating: 0,
+            reviewCount: 0,
+            brand: "",
             sku: `SKU-${productId}`,
           });
           setNotFound(false);
@@ -915,28 +810,14 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
         }
       }
     } catch {
-      setError(true);
+      if (!product) {
+        setError(true);
+      }
       setLoading(false);
       return;
     }
 
-    const mockProducts = generateMockUSProducts();
-    const foundProduct = mockProducts.find((p) => p.id === productId);
-    if (foundProduct) {
-      setProduct(foundProduct);
-      setReviewSummary(generateMockReviewSummary(foundProduct.name));
-      const otherProducts = mockProducts.filter((p) => p.id !== productId).slice(0, 4);
-      setRelatedProducts(
-        otherProducts.map((p) => ({
-          id: p.id,
-          name: p.name,
-          image: p.image,
-          price: p.prices[0]?.price || null,
-          merchant: p.prices[0]?.merchant || "Various",
-        }))
-      );
-      setNotFound(false);
-    } else {
+    if (!product) {
       setNotFound(true);
     }
     setLoading(false);
@@ -964,11 +845,11 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
           image: product.image,
           price: lowest.price,
           merchant: lowest.merchant,
-          url: `/compare/us/${product.id}`,
+          url: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
         });
       }
     }
-  }, [product, addToRecentlyViewed]);
+  }, [product, productSlug, addToRecentlyViewed]);
 
   useEffect(() => {
     if (!product || !lowestPrice || !isInWishlist(product.id)) {
@@ -981,11 +862,11 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
       currentPrice: lowestPrice.price,
       merchant: lowestPrice.merchant,
       buyUrl: lowestPrice.url,
-      productUrl: `/products/us/${product.id}`,
+      productUrl: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
       brand: product.brand,
       apiProductId: numericProductId,
     });
-  }, [isInWishlist, lowestPrice, numericProductId, product, updateWishlistItem]);
+  }, [isInWishlist, lowestPrice, numericProductId, product, productSlug, updateWishlistItem]);
 
   if (loading) {
     return <ProductLoadingSkeleton />;
@@ -1085,7 +966,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
                     currentPrice: lowestPrice.price,
                     merchant: lowestPrice.merchant,
                     buyUrl: lowestPrice.url,
-                    productUrl: `/products/us/${product.id}`,
+                    productUrl: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
                     brand: product.brand,
                     apiProductId: numericProductId,
                   }}
@@ -1105,7 +986,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
               <ShareDealActions
                 productId={numericProductId}
                 productName={product.name}
-                productUrl={`/products/us/${product.id}`}
+                productUrl={productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`}
                 merchant={lowestPrice?.merchant || null}
                 priceText={lowestPrice ? formatPrice(lowestPrice.price) : null}
                 variant="menu"
@@ -1288,7 +1169,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
                     {relatedProducts.map((related) => (
                       <Link
                         key={related.id}
-                        href={`/compare/us/${related.id}`}
+                        href={`/products/us/${related.slug}/`}
                         className="group block bg-gray-50 rounded-xl p-3 hover:bg-gray-100 transition-colors"
                       >
                         <div className="relative w-full aspect-square bg-white rounded-lg overflow-hidden mb-3">

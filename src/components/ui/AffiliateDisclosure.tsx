@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface AffiliateDisclosureProps {
   region?: "US" | "SG" | "MY" | "OTHER";
   className?: string;
@@ -7,10 +9,10 @@ interface AffiliateDisclosureProps {
 }
 
 const DISCLOSURE_MESSAGES: Record<NonNullable<AffiliateDisclosureProps["region"]>, string> = {
-  US: "We may earn a commission if you purchase via our links.",
-  SG: "We may earn a commission if you purchase via our affiliate links.",
-  MY: "We may earn a commission if you purchase via our links.",
-  OTHER: "We may earn a commission if you purchase via our links.",
+  US: "BuyWhere may earn a commission when you buy through links on this site.",
+  SG: "BuyWhere may earn a commission when you buy through links on this site.",
+  MY: "BuyWhere may earn a commission when you buy through links on this site.",
+  OTHER: "BuyWhere may earn a commission when you buy through links on this site.",
 };
 
 export function AffiliateDisclosure({
@@ -27,7 +29,7 @@ export function AffiliateDisclosure({
         title={message}
       >
         <svg
-          className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help"
+          className="w-4 h-4 text-gray-500 hover:text-gray-600 cursor-help"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -75,7 +77,12 @@ export function AffiliateDisclosure({
             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
           />
         </svg>
-        {message}
+        <span>
+          {message}{" "}
+          <Link href="/affiliate-disclosure" className="underline hover:text-gray-700" aria-label="Read our full affiliate disclosure">
+            Learn more
+          </Link>
+        </span>
       </span>
     );
   }

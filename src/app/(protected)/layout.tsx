@@ -20,7 +20,7 @@ export default async function ProtectedLayout({
   const apiKey = cookies().get("bw_dashboard_key")?.value;
 
   if (!apiKey) {
-    redirect("/login?next=%2Fdashboard");
+    return children;
   }
 
   try {

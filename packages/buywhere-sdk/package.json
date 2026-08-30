@@ -1,6 +1,6 @@
 {
   "name": "@buywhere/sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Official BuyWhere SDK for product search, price comparison, and deals",
   "type": "module",
   "main": "dist/index.cjs",
@@ -28,23 +28,41 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "buywhere",
-    "product-search",
-    "price-comparison",
-    "deals",
     "shopping",
-    "agent-sdk"
+    "ecommerce",
+    "price comparison",
+    "product search",
+    "product discovery",
+    "singapore",
+    "southeast asia",
+    "sea",
+    "shopee",
+    "lazada",
+    "amazon",
+    "fairprice",
+    "deals",
+    "discounts",
+    "ai agent",
+    "mcp",
+    "ai tools",
+    "api integration",
+    "shopping assistant",
+    "price tracker",
+    "LangChain",
+    "LlamaIndex",
+    "OpenAI tools",
+    "Claude tools"
   ],
   "author": "BuyWhere",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/buywhere/buywhere-site.git",
+    "url": "git+https://github.com/buywhere/buywhere.git",
     "directory": "packages/buywhere-sdk"
   },
   "homepage": "https://buywhere.ai",
   "bugs": {
-    "url": "https://github.com/buywhere/buywhere-site/issues"
+    "url": "https://github.com/buywhere/buywhere/issues"
   },
   "publishConfig": {
     "access": "public",

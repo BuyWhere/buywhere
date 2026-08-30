@@ -39,6 +39,12 @@ export interface CompareProduct {
 interface CompareProductsGridProps {
   products: CompareProduct[];
   title?: string;
+  // BUY-72773: forward share-loop context to the embedded ComparisonShareButton so
+  // multi-product views emit the same canonical /compare?p=&from= URL.
+  productIds?: string[];
+  fromSurface?: string;
+  query?: string;
+  country?: string;
 }
 
 function formatPrice(price: number | null, currency: string): string {
@@ -68,6 +74,10 @@ function getFreshnessTier(lastUpdated: string | null): DataFreshness {
 export const CompareProductsGrid = memo(function CompareProductsGrid({
   products,
   title = 'Product Comparison',
+  productIds = [],
+  fromSurface = '',
+  query = '',
+  country = '',
 }: CompareProductsGridProps) {
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
   const [selectCount, setSelectCount] = useState(Math.min(products.length, 4));
@@ -155,7 +165,13 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-semibold text-slate-950">{title}</h2>
-          <ComparisonShareButton title={title} />
+          <ComparisonShareButton
+            title={title}
+            productIds={productIds}
+            fromSurface={fromSurface}
+            query={query}
+            country={country}
+          />
         </div>
         <div className="flex items-center gap-2">
           {[2, 3, 4].map((n) => (
@@ -211,7 +227,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                 </th>
               ))}
               {selectCount < products.length && (
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   +{products.length - selectCount} more
                 </th>
               )}
@@ -236,7 +252,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         />
                       </div>
                     ) : (
-                      <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-3xl text-slate-400">
+                      <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-3xl text-slate-500">
                         ◎
                       </div>
                     )}
@@ -290,7 +306,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         currency={product.currency}
                       />
                     ) : (
-                      <span className="text-sm text-slate-400">—</span>
+                      <span className="text-sm text-slate-500">—</span>
                     )}
                   </div>
                 </td>
@@ -327,7 +343,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         className="w-32"
                       />
                     ) : (
-                      <span className="text-xs text-slate-400">No history</span>
+                      <span className="text-xs text-slate-500">No history</span>
                     )}
                   </div>
                 </td>
@@ -400,7 +416,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                           prices: [{ merchant: product.merchant, price: product.price !== null ? formatPrice(product.price, product.currency) : null, url: product.href }],
                           lowestPrice: product.price !== null ? formatPrice(product.price, product.currency) : null,
                         })}
-                        className={`text-xs ${isInCompare(product.id) ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`text-xs ${isInCompare(product.id) ? 'text-amber-600' : 'text-slate-500 hover:text-slate-700'}`}
                       >
                         {isInCompare(product.id) ? '✓ In compare' : '+ Add to compare'}
                       </button>

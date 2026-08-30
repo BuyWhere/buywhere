@@ -1,0 +1,171 @@
+{
+  "slug": "rtx-5070-vs-rtx-5080-singapore",
+  "title": "RTX 5070 vs RTX 5080 in Singapore (2026) \u2014 which laptop GPU to buy",
+  "description": "RTX 5070 vs RTX 5080 laptop GPUs compared in Singapore for 2026: how the Blackwell architecture, VRAM, TGP and DLSS 4 change the upgrade math for Harvey Norman, Challenger, AftershockPC and Shopee Mall shoppers, with live SGD prices from MSI, ASUS, Lenovo and Razer.",
+  "heroEyebrow": "Singapore RTX 5070 vs RTX 5080 laptop comparison",
+  "heroTitle": "RTX 5070 vs RTX 5080 in Singapore (2026) \u2014 which should you buy",
+  "heroTitleTemplate": "2026 RTX 5070 vs RTX 5080 in Singapore \u2014 5070 from {floorPrice} today",
+  "heroBody": "NVIDIA's RTX 5070 and RTX 5080 laptop GPUs sit one tier apart in the Blackwell 50-series lineup, and in Singapore in 2026 that gap decides whether you are spending close to the entry sticker for a strong 1440p card or stepping up to a meaningful premium for the same games at native 4K with frame generation on. The 5070 ships with 12GB of GDDR7 and is the sensible pick for 1080p and 1440p gaming with ray tracing on a thin chassis; the 5080 doubles the VRAM to 16GB, opens up native 4K at high refresh, and pushes the ray-tracing budget meaningfully further. Both ship in the same MSI, ASUS ROG, Lenovo Legion, Razer Blade and AftershockPC chassis you see at Harvey Norman and Challenger, but the price gap between a 5070 SKU and the equivalent 5080 SKU at the same retailer can be the difference between a value buy and a flagship buy. This page pulls the live Singapore listings so you can see both floor prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the 5080 premium is worth the money to you.",
+  "inboundLinks": [
+    "/best-gaming-laptops-singapore",
+    "/categories/electronics",
+    "/search?q=rtx+5070+laptop"
+  ],
+  "canonicalPath": "/rtx-5070-vs-rtx-5080-singapore",
+  "country": "SG",
+  "currency": "SGD",
+  "locale": "en_SG",
+  "searchQuery": "rtx 5070 laptop",
+  "backupQueries": [
+    "MSI Stealth RTX 5080 laptop",
+    "ASUS ROG RTX 5070 laptop",
+    "Lenovo Legion RTX 5070 gaming laptop",
+    "AftershockPC RTX 5070"
+  ],
+  "minPrice": 1500,
+  "requiredProductTerms": [
+    "rtx 5070",
+    "rtx",
+    "laptop"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated August 25, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-08-25",
+  "productSectionTitle": "Live RTX 5070 laptop prices in Singapore",
+  "comparisonSectionTitle": "RTX 5070 vs RTX 5080 laptop \u2014 at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "RTX 5070 laptop (12GB)",
+    "RTX 5080 laptop (16GB)"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Architecture / process",
+      "values": [
+        "NVIDIA Blackwell, 5nm-class TSMC node",
+        "NVIDIA Blackwell, same 5nm-class TSMC node"
+      ]
+    },
+    {
+      "label": "CUDA cores",
+      "values": [
+        "4,608 CUDA cores",
+        "8,192 CUDA cores"
+      ]
+    },
+    {
+      "label": "Memory",
+      "values": [
+        "12GB GDDR7, 192-bit bus",
+        "16GB GDDR7, 256-bit bus"
+      ]
+    },
+    {
+      "label": "TGP range in shipping chassis",
+      "values": [
+        "80W to 140W depending on the chassis",
+        "120W to 175W depending on the chassis"
+      ]
+    },
+    {
+      "label": "DLSS / frame generation",
+      "values": [
+        "DLSS 4 with Multi Frame Generation (Transformer model)",
+        "DLSS 4 with Multi Frame Generation, more headroom"
+      ]
+    },
+    {
+      "label": "Native gaming resolution",
+      "values": [
+        "Comfortable at 1080p and 1440p high/ultra",
+        "Comfortable at 1440p ultra and 4K high in most titles"
+      ]
+    },
+    {
+      "label": "Typical SG floor price (laptop)",
+      "values": [
+        "Floor price visible on the live cards above; sits at the value end of the 50-series stack",
+        "Roughly 40\u201370% above a comparable 5070 chassis at the same retailer"
+      ]
+    },
+    {
+      "label": "Best reason to buy",
+      "values": [
+        "1080p/1440p gaming in a thin chassis; the smart pick if the price gap matters",
+        "Native 4K, heavier ray tracing, longer useful life if you keep the laptop 4+ years"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually changes between the RTX 5070 and RTX 5080 laptop",
+  "highlights": [
+    {
+      "title": "VRAM and the long tail of useful life",
+      "body": "The single biggest difference for shoppers who keep a laptop for four or more years is VRAM. The 5070 ships with 12GB GDDR7 on a 192-bit bus; the 5080 ships with 16GB on a wider 256-bit bus. Several 2026 games already nudge past 8GB at high textures and path-traced settings, and a handful of flagship releases in late 2026 and into 2027 will land closer to 12GB. A 5070 laptop is comfortable today but tighter by the end of its life; a 5080 laptop buys meaningful headroom."
+    },
+    {
+      "title": "CUDA cores and raster frame rate",
+      "body": "The 5080 has 8,192 CUDA cores versus 4,608 on the 5070 \u2014 roughly 75% more cores \u2014 and the gap shows up as a meaningful uplift in raster frame rate, especially at 1440p and 4K. If you play competitive esports at 1080p 240Hz you are CPU-bound on most titles and the difference is smaller; if you play modern AAA at native panel resolution, the 5080 pulls clearly ahead."
+    },
+    {
+      "title": "TGP and chassis cooling",
+      "body": "Both GPUs ship across a wide TGP range: an entry 5070 laptop can run at 80W and a high-TGP 5070 at 140W; the 5080 typically ships from 120W up to 175W in flagship chassis. The difference between an 80W and a 140W 5070 SKU can be 25% in sustained frame rate, and the same is true for the 5080. Always read the spec sheet \u2014 manufacturer stores and AftershockPC list TGP clearly, marketplace listings often do not."
+    },
+    {
+      "title": "Ray tracing and DLSS 4 headroom",
+      "body": "Both cards support DLSS 4 with Multi Frame Generation using the new Transformer model, but the 5080 has more raw compute to spend on the frame-generation budget. In path-traced titles the 5080 holds native panel refresh in scenes where a 5070 starts to dip. If you want full path tracing at 1440p with frame gen, the 5070 gets you there; at 4K with path tracing the 5080 is the card you actually want."
+    },
+    {
+      "title": "Power draw, thermals and battery",
+      "body": "Because the 5080 ships at higher TGPs, a 5080 laptop runs hotter and pulls more wattage than a 5070 in the same chassis class. Battery life under gaming load is meaningfully shorter on a 5080 SKU; under light productivity both are similar. If you travel often and play away from the charger, the 5070 is the kinder travel companion. If your laptop lives on a desk with a charger, the 5080's power draw is a non-issue."
+    }
+  ],
+  "adviceSectionTitle": "How to pick in Singapore in 2026",
+  "advicePoints": [
+    "Pick the RTX 5070 laptop if you game at 1080p or 1440p, mostly play esports and modern AAA without path tracing on, and want the best performance-per-dollar in the 50-series lineup. It is the smart Singapore buy for most shoppers and the floor price on the live cards above is well under the 5080's typical premium.",
+    "Pick the RTX 5080 laptop if you have a 1440p high-refresh or 4K panel, want full path tracing with DLSS 4 Multi Frame Generation, or plan to keep the laptop for four or more years. The 16GB VRAM and CUDA core count both buy real headroom past the 5070.",
+    "Always check the TGP in the spec sheet, not just the model name. A '5070 laptop' at 80W is meaningfully slower than the same name at 140W; AftershockPC, Harvey Norman and the manufacturer stores list TGP clearly, Shopee Mall and Amazon.sg listings often do not.",
+    "Match the GPU to your panel: a 1080p 240Hz screen pairs well with a 5070; a 1440p 240Hz or 4K 120Hz screen benefits from a 5080. Buying a 5080 to drive a 1080p 165Hz panel leaves performance on the table; buying a 5070 to drive a 4K 120Hz screen starves the display.",
+    "Time your buy around Challenger and Harvey Norman payday promotions and Shopee Mall / LazMall campaign days (9.9, 10.10, 11.11, 12.12). AftershockPC also runs promo pricing on chassis configurator changes. Outside those windows the live listings on this page show the current floor.",
+    "Consider an AftershockPC custom build if you want a specific TGP or RAM/storage split that the big-box retailer SKUs do not. AftershockPC lists TGP and exact part numbers on the configurator; a custom 5070 build at the right TGP often beats a flagship 5070 SKU at Harvey Norman on price.",
+    "Avoid listings well below the market floor on Carousell or unknown Shopee sellers \u2014 they are usually grey imports without Singapore distributor warranty, or refurbished units dressed up as new. MSI, ASUS ROG, Lenovo Legion and Razer chassis bought through authorised Singapore channels carry proper local warranty."
+  ],
+  "faqSectionTitle": "RTX 5070 vs RTX 5080 laptop in Singapore \u2014 common questions",
+  "faqs": [
+    {
+      "question": "Is the RTX 5080 laptop worth the premium over the RTX 5070 in Singapore?",
+      "answer": "If you have a 1440p or 4K panel, want full path tracing, or plan to keep the laptop four or more years, yes \u2014 the 16GB VRAM and 75% more CUDA cores pay back over the useful life of the machine. If you game at 1080p or 1440p without path tracing and plan to upgrade in three years, the 5070 is the smarter Singapore buy and the floor price on the live cards above is well below the 5080's typical premium."
+    },
+    {
+      "question": "How much more expensive is the RTX 5080 laptop than the 5070 in Singapore?",
+      "answer": "At the same retailer and chassis class, a 5080 SKU typically sits 40\u201370% above the equivalent 5070 SKU. The live cards above show the current SGD floor for 5070 chassis; 5080 chassis (MSI Stealth 18 HX, Lenovo Legion 9, ASUS ROG Strix) typically land well above that band. The exact gap moves with AftershockPC configurator pricing and the latest Harvey Norman promotion."
+    },
+    {
+      "question": "Does the RTX 5080 laptop support 4K gaming in Singapore?",
+      "answer": "Yes \u2014 the 5080 with 16GB VRAM and DLSS 4 Multi Frame Generation is comfortable at 4K high/ultra in most 2026 releases. The 5070 can also drive a 4K panel with DLSS, but you will see dips in path-traced scenes. If your laptop has a 4K 120Hz screen, the 5080 is the card that actually drives it well."
+    },
+    {
+      "question": "Should I wait for an RTX 5070 Ti or RTX 5080 Ti laptop in Singapore?",
+      "answer": "NVIDIA has not announced a 5070 Ti or 5080 Ti laptop variant for Singapore at the time of writing. The current 50-series mobile stack in Singapore runs RTX 5070, RTX 5070 Ti (in select chassis), RTX 5080 and RTX 5090. If you need a 50-series laptop today, buy the GPU that matches your workload from the options above; if you can wait, watch for any 5070 Ti refresh announcements and the next round of Harvey Norman and Challenger promotions."
+    },
+    {
+      "question": "Do RTX 5070 and 5080 laptops come with Windows preinstalled in Singapore?",
+      "answer": "Most SKUs at Harvey Norman, Challenger and AftershockPC ship with Windows 11 Home. Some AftershockPC custom builds can be ordered without an operating system for Linux users. Avoid Shopee Mall or Amazon.sg listings that say 'no operating system' if you need Windows \u2014 buying a license separately adds a meaningful line item to the total."
+    },
+    {
+      "question": "Do RTX 5070 and 5080 laptops bought in Singapore come with local warranty?",
+      "answer": "Chassis bought from authorised Singapore channels (Harvey Norman, Challenger, AftershockPC, authorised Shopee Mall and LazMall sellers) come with the manufacturer's Singapore distributor warranty \u2014 typically two years for MSI, ASUS ROG, Lenovo Legion and Razer. Parallel imports from Carousell or unverified Shopee sellers are cheaper but the manufacturer Singapore service centre will not service them under warranty."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-US": "/rtx-5070-vs-rtx-5080-us"
+  },
+  "categoryIntro": {
+    "heading": "Why RTX 5070 and 5080 laptop prices vary so much in Singapore",
+    "body": "Singapore sells 50-series laptops through Harvey Norman, Challenger, authorised Shopee Mall and LazMall sellers, and through AftershockPC for custom configurations. MSI, ASUS ROG, Lenovo Legion and Razer all hold list price at the big-box retailers, while marketplace official stores discount around 9.9, 10.10, 11.11 and 12.12 sale days, and AftershockPC runs its own configurator promotions. The same GPU can therefore carry very different price tags depending on the channel, which is why the live cards on this page read straight from the catalog \u2014 a static 'cheapest RTX 5080' article goes stale within a week."
+  },
+  "owner": "Surf",
+  "reviewer": "Fetch",
+  "queueRow": 103
+}

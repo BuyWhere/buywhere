@@ -1,9 +1,30 @@
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Schema from "@/components/Schema";
+import CategoryProductGrid from "@/components/CategoryProductGrid";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { fetchCategoryProducts } from "@/lib/category-products";
 
-export default function USLandingPage() {
+export default async function USLandingPage() {
+  const schema = buildWebPageSchema({
+    path: "/us",
+    name: "BuyWhere — AI-Powered Product Discovery in the United States",
+    description:
+      "Search, compare, and discover products across thousands of US stores with BuyWhere's MCP server and product catalog API.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "United States", path: "/us" },
+    ],
+  });
+  const products = await fetchCategoryProducts({
+    queries: ["laptop", "wireless headphones", "smartphone", "tv", "monitor", "camera"],
+    country: "US",
+    limit: 12,
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600">
@@ -27,6 +48,7 @@ export default function USLandingPage() {
         </div>
       </header>
 
+      <main id="main-content">
       <section className="bg-white py-20 md:py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center max-w-3xl mx-auto">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight" style={{ lineHeight: 1.1 }}>
@@ -37,6 +59,13 @@ export default function USLandingPage() {
           </p>
         </div>
       </section>
+
+      <CategoryProductGrid
+        products={products}
+        country="US"
+        title="Popular products with live prices"
+        description="Compare current retailer prices on popular electronics in the United States."
+      />
 
       <section className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
@@ -100,7 +129,9 @@ export default function USLandingPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

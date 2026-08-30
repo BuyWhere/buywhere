@@ -1,5 +1,5 @@
 export interface USMerchantPrice {
-  merchant: "Amazon.com" | "Walmart" | "Target" | "Best Buy";
+  merchant: string;
   price: string | null;
   url: string;
   inStock: boolean;
@@ -29,101 +29,6 @@ export interface USProduct {
   lastUpdated?: string;
 }
 
-export function generateMockUSProducts(): USProduct[] {
-  const products: USProduct[] = [];
-  const productNames = [
-    "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
-    "Apple AirPods Pro 2nd Generation",
-    "Samsung Galaxy Buds2 Pro Earbuds",
-    "Bose QuietComfort 45 Headphones",
-    "JBL Tune 770NC Wireless Over-Ear Headphones",
-    "Apple Watch Series 9 GPS 45mm",
-    "Samsung Galaxy Watch 6 Classic",
-    "Fitbit Charge 6 Fitness Tracker",
-    "Garmin Forerunner 265 Smartwatch",
-    "Dyson V15 Detect Cordless Vacuum",
-    "iRobot Roomba j7+ Self-Emptying Robot Vacuum",
-    "Shark Navigator Lift-Away Upright Vacuum",
-    "Ninja Foodi 9-in-1 Pressure Cooker & Air Fryer",
-    "Instant Pot Pro Plus 8-Quart",
-    "KitchenAid Stand Mixer 5-Quart",
-  ];
-
-  const brands = ["Sony", "Apple", "Samsung", "Bose", "JBL", "Apple", "Samsung", "Fitbit", "Garmin", "Dyson", "iRobot", "Shark", "Ninja", "Instant Pot", "KitchenAid"];
-
-  productNames.forEach((name, idx) => {
-    const basePrice = 29 + Math.random() * 400;
-    const msrp = (basePrice * (1 + Math.random() * 0.2)).toFixed(2);
-    const prices: USMerchantPrice[] = [
-      {
-        merchant: "Amazon.com",
-        price: (basePrice + Math.random() * 15).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.15,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        primeEligible: Math.random() > 0.3,
-      },
-      {
-        merchant: "Walmart",
-        price: (basePrice - Math.random() * 10).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.1,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.4,
-      },
-      {
-        merchant: "Target",
-        price: (basePrice + Math.random() * 20).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.12,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-        storePickup: Math.random() > 0.35,
-      },
-      {
-        merchant: "Best Buy",
-        price: (basePrice + Math.random() * 5).toFixed(2),
-        url: "#",
-        inStock: Math.random() > 0.08,
-        rating: 4.0 + Math.random(),
-        lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-      },
-    ];
-
-    products.push({
-      id: `us-product-${idx}`,
-      name,
-      image: `https://picsum.photos/seed/us${idx}/400/400`,
-      description: `Compare prices for ${name} across Amazon, Walmart, Target, and Best Buy.`,
-      specs: {
-        Brand: brands[idx],
-        "Product Type": "Electronics",
-        Rating: `${(4.0 + Math.random()).toFixed(1)} / 5`,
-        Reviews: `${Math.floor(100 + Math.random() * 1000)}`,
-      },
-      prices: prices.sort((a, b) => {
-        if (a.price === null) return 1;
-        if (b.price === null) return -1;
-        return parseFloat(a.price) - parseFloat(b.price);
-      }),
-      msrp,
-      overallRating: 4.0 + Math.random(),
-      reviewCount: Math.floor(100 + Math.random() * 1000),
-      brand: brands[idx],
-      sku: `SKU-US-${1000 + idx}`,
-      asin: `B00${100000 + idx}`,
-      walmartId: `WM${10000000 + idx}`,
-      targetId: `TG${1000000 + idx}`,
-      bestBuyId: `BBY${10000000 + idx}`,
-      lastUpdated: new Date(Date.now() - Math.random() * 86400000 * 2).toISOString(),
-    });
-  });
-
-  return products;
-}
-
 export interface USProductForSitemap {
   id: string;
   name: string;
@@ -131,8 +36,63 @@ export interface USProductForSitemap {
   lastUpdated: string;
 }
 
-interface GetUSProductsOptions {
-  allowMockFallback?: boolean;
+export interface USProductOfferApiItem {
+  merchant?: string | null;
+  merchant_name?: string | null;
+  source?: string | null;
+  platform?: string | null;
+  price?: number | string | null;
+  current_price?: number | string | null;
+  url?: string | null;
+  product_url?: string | null;
+  buy_url?: string | null;
+  affiliate_url?: string | null;
+  affiliate_redirect_url?: string | null;
+  click_url?: string | null;
+  in_stock?: boolean | null;
+  available?: boolean | null;
+  rating?: number | null;
+  last_updated?: string | null;
+  updated_at?: string | null;
+}
+
+export function normalizeUSMerchantPrice(item: USProductOfferApiItem): USMerchantPrice | null {
+  const merchant = (item.merchant || item.merchant_name || item.source || item.platform || "").trim();
+  const url = (
+    item.affiliate_redirect_url ||
+    item.click_url ||
+    item.affiliate_url ||
+    item.buy_url ||
+    item.url ||
+    item.product_url ||
+    ""
+  ).trim();
+
+  if (!merchant || !url || url === "#") return null;
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+
+  const rawPrice = item.price ?? item.current_price ?? null;
+  const price = rawPrice === null ? null : String(rawPrice);
+  const inStock = typeof item.in_stock === "boolean"
+    ? item.in_stock
+    : typeof item.available === "boolean"
+      ? item.available
+      : true;
+
+  return {
+    merchant,
+    price,
+    url,
+    inStock,
+    rating: typeof item.rating === "number" ? item.rating : undefined,
+    lastUpdated: item.last_updated || item.updated_at || new Date().toISOString(),
+  };
 }
 
 interface ProductListApiItem {
@@ -212,8 +172,8 @@ function normalizeUSProductItem(item: ProductListApiItem): USProductForSitemap |
 }
 
 async function loadUSProductsFromApi(): Promise<USProductForSitemap[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
-  const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const products: USProductForSitemap[] = [];
   const seenIds = new Set<string>();
   let offset = 0;
@@ -247,8 +207,7 @@ async function loadUSProductsFromApi(): Promise<USProductForSitemap[]> {
   return products;
 }
 
-export async function getUSProducts(options: GetUSProductsOptions = {}): Promise<USProductForSitemap[]> {
-  const { allowMockFallback = true } = options;
+export async function getUSProducts(): Promise<USProductForSitemap[]> {
   const now = Date.now();
 
   if (cachedUSProducts && now - cachedUSProducts.fetchedAt < PRODUCT_CACHE_TTL_MS) {
@@ -261,33 +220,16 @@ export async function getUSProducts(options: GetUSProductsOptions = {}): Promise
         cachedUSProducts = { products, fetchedAt: Date.now() };
         return products;
       })
-      .catch(() =>
-        generateMockUSProducts().map((product) => ({
-          id: product.id,
-          name: product.name,
-          slug: buildUSProductSlug(product),
-          lastUpdated: product.lastUpdated || new Date().toISOString(),
-        }))
-      )
+      .catch((err) => {
+        console.warn('[us-products] API fetch failed during build, returning empty product list:', err instanceof Error ? err.message : err);
+        return [];
+      })
       .finally(() => {
         inflightUSProducts = null;
       });
   }
 
-  try {
-    return await inflightUSProducts;
-  } catch {
-    if (allowMockFallback) {
-      return generateMockUSProducts().map((product) => ({
-        id: product.id,
-        name: product.name,
-        slug: buildUSProductSlug(product),
-        lastUpdated: product.lastUpdated || new Date().toISOString(),
-      }));
-    }
-
-    throw new Error("Failed to load US products");
-  }
+  return await inflightUSProducts;
 }
 
 export async function getAllUSProductIds(): Promise<string[]> {

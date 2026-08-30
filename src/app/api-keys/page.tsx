@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
 const USE_CASES = [
   "AI shopping assistant",
@@ -31,6 +34,10 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function ApiKeysPage() {
+  const agentRegisterCurl = `curl -X POST "https://api.buywhere.ai/v1/auth/register?verify=false" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name":"my-agent"}'`;
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [useCase, setUseCase] = useState("");
@@ -44,10 +51,19 @@ export default function ApiKeysPage() {
     setLoading(true);
 
     try {
+      // attribution (2026-08-22): forward utm params + referrer so api_keys
+      // records where this signup came from (was 100% blind).
+      const usp = new URLSearchParams(window.location.search);
+      const attribution: Record<string, string> = {};
+      for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
+        const v = usp.get(k);
+        if (v) attribution[k] = v.slice(0, 200);
+      }
+      if (document.referrer) attribution.referrer = document.referrer.slice(0, 500);
       const res = await fetch("/api/request-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, useCase }),
+        body: JSON.stringify({ name, email, useCase, ...attribution }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -63,16 +79,88 @@ export default function ApiKeysPage() {
   }
 
   const curlExample = apiKey
-    ? `curl "https://api.buywhere.ai/v1/search?q=wireless+headphones&limit=5" \\
+    ? `curl "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
   -H "Authorization: Bearer ${apiKey}"`
     : "";
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://buywhere.ai/api-keys#faq",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do I get a BuyWhere API key?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Enter your name and email on the BuyWhere API keys page and receive a working API key instantly. No credit card required during beta. The key is displayed on screen and emailed to you."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Is the BuyWhere API free?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes — during beta, BuyWhere offers a free tier with 1,000 API calls per month, no credit card required. Paid plans (Developer at $29/month for 50,000 calls, Business at $99/month for 500,000 calls) unlock more capacity and features like price history and webhooks."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What can I build with the BuyWhere API?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The BuyWhere API powers AI shopping assistants, price comparison tools, affiliate recommendation engines, e-commerce analytics, and LangChain or CrewAI agents. Any application that needs real-time product search, price comparison, or deal discovery can use the API."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What endpoints does the BuyWhere API offer?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The core endpoint is GET /v1/products/search for full-text product search. Additional endpoints include price comparison, product details by ID, deal discovery, and category browsing. The same catalog is available as MCP tools for AI agent integration."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Does BuyWhere support MCP (Model Context Protocol)?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes. BuyWhere publishes an official MCP server package (@buywhere/mcp-server) that exposes the product catalog as MCP tools. Install it with npx -y @buywhere/mcp-server and configure it with your API key to use BuyWhere inside Claude Desktop, Cursor, or any MCP-compatible agent."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What countries does BuyWhere cover?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "BuyWhere covers Singapore (SGD) with the full catalog live, and United States (USD) in preview. Additional Southeast Asian markets including Malaysia, Thailand, Vietnam, Philippines, and Indonesia are planned."
+        }
+      }
+    ]
+  };
+
+  const schema = buildWebPageSchema({
+    path: "/api-keys",
+    name: "API Keys — BuyWhere",
+    description:
+      "Create and manage your BuyWhere API keys. Free tier during beta, with 1,000 requests per month included.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "API Keys", path: "/api-keys" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(faqSchema)}
+      </Script>
       <Nav />
 
-      {/* Header */}
-      <section className="bg-indigo-600 text-white py-16">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        {/* Header */}
+        <section className="bg-indigo-600 text-white py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="inline-flex items-center gap-2 bg-indigo-500 text-indigo-100 text-xs font-medium px-3 py-1 rounded-full mb-4">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
@@ -87,6 +175,27 @@ export default function ApiKeysPage() {
 
       <section className="py-16 bg-white flex-1">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
+
+          {/* BUY-74006: agents-first self-serve key path. Human form remains below, unchanged. */}
+          <div className="mb-12 rounded-2xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8">
+            <h2 className="text-2xl font-bold text-gray-900">Agents: zero-human setup</h2>
+            <p className="mt-2 text-sm leading-7 text-gray-600">
+              No form, no email, no waiting — one HTTP call returns a working API key instantly.
+              Free tier: 1,000 requests/day.
+            </p>
+            <div className="mt-4 overflow-hidden rounded-xl bg-gray-900">
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+                <span className="text-xs text-gray-400 font-mono">bash</span>
+                <CopyButton text={agentRegisterCurl} />
+              </div>
+              <pre className="p-4 text-sm text-gray-300 font-mono overflow-x-auto leading-relaxed whitespace-pre">
+                <code>{agentRegisterCurl}</code>
+              </pre>
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              The response contains your <code className="rounded bg-white px-1 py-0.5">api_key</code> — start calling the API immediately. Humans can also use the form below.
+            </p>
+          </div>
 
           {!apiKey ? (
             <div className="grid md:grid-cols-5 gap-10">
@@ -164,10 +273,10 @@ export default function ApiKeysPage() {
                   <ul className="space-y-2 text-sm text-gray-600">
                     {[
                       "Instant API key — no waiting",
-                      "Access to /v1/search and /v1/products",
-                      "1M+ Singapore products indexed",
+                      "Access to GET /v1/products/search",
+                      "Product catalog across Singapore and Southeast Asia",
                       "Free usage during beta",
-                      "Email support at hello@buywhere.ai",
+                      "Support via our contact page",
                     ].map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <svg className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="none">
@@ -243,7 +352,7 @@ export default function ApiKeysPage() {
                   },
                   {
                     title: "Questions?",
-                    desc: "Reach us directly at hello@buywhere.ai or via the contact page.",
+                    desc: "Reach us via our contact page for questions, support, or partnership inquiries.",
                     href: "/contact",
                     cta: "Contact us →",
                   },
@@ -266,7 +375,10 @@ export default function ApiKeysPage() {
         </div>
       </section>
 
+      </main>
+
       <Footer />
     </div>
+  </>
   );
 }

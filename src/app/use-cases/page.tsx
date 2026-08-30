@@ -1,6 +1,17 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { PopularComparisons } from "@/components/PopularComparisons";
+
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
+  title: "Use Cases — BuyWhere",
+  description:
+    "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, and more.",
+  path: "/use-cases/",
+});
 
 const useCases = [
   {
@@ -13,7 +24,7 @@ const useCases = [
 API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={"q": "wireless keyboard under $80", "limit": 5},
 )
@@ -34,13 +45,13 @@ for p in products:
 API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={"q": "MacBook Pro M3", "limit": 20},
 )
 items = resp.json()["items"]
 
-# Sort by price across all merchants
+# Sort by price across the catalog
 sorted_items = sorted(items, key=lambda x: x["price"])
 for item in sorted_items:
     print(f"{item['source']:15} {item['currency']} {item['price']:>8.2f}  {item['name'][:40]}")`,
@@ -58,7 +69,7 @@ API_KEY = "bw_live_your_key_here"
 # LLM resolves "gifts for tech-savvy teenager under $50"
 # → structured query to BuyWhere
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={
         "q": "tech gadgets gifts under $50",
@@ -86,7 +97,7 @@ API_KEY = "bw_live_your_key_here"
 
 def find_available(product_name: str) -> list:
     resp = requests.get(
-        "https://api.buywhere.ai/v1/search",
+        "https://api.buywhere.ai/v1/products/search",
         headers={"Authorization": f"Bearer {API_KEY}"},
         params={"q": product_name, "limit": 20},
     )
@@ -117,7 +128,7 @@ def check_price_drops(queries: list[str]) -> list[dict]:
 
     for q in queries:
         resp = requests.get(
-            "https://api.buywhere.ai/v1/search",
+            "https://api.buywhere.ai/v1/products/search",
             headers={"Authorization": f"Bearer {API_KEY}"},
             params={"q": q, "limit": 1},
         )
@@ -140,10 +151,23 @@ def check_price_drops(queries: list[str]) -> list[dict]:
 ];
 
 export default function UseCasesPage() {
+  const schema = buildWebPageSchema({
+    path: "/use-cases",
+    name: "Use Cases — BuyWhere",
+    description:
+      "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, deal bots, and more.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Use Cases", path: "/use-cases" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       {/* Hero */}
       <section className="bg-gray-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -210,7 +234,11 @@ export default function UseCasesPage() {
         </div>
       </section>
 
+      <PopularComparisons variant="footer" />
+
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

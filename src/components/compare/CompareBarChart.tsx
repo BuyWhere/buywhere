@@ -44,7 +44,7 @@ export const CompareBarChart = memo(function CompareBarChart({
   if (!history || history.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center bg-slate-50 rounded-lg text-xs text-slate-400 ${className}`}
+        className={`flex items-center justify-center bg-slate-50 rounded-lg text-xs text-slate-500 ${className}`}
         style={{ height }}
         aria-label="No price history available"
         role="status"
@@ -58,7 +58,7 @@ export const CompareBarChart = memo(function CompareBarChart({
   if (prices.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center bg-slate-50 rounded-lg text-xs text-slate-400 ${className}`}
+        className={`flex items-center justify-center bg-slate-50 rounded-lg text-xs text-slate-500 ${className}`}
         style={{ height }}
         aria-label="No price history available"
         role="status"
@@ -102,7 +102,7 @@ export const CompareBarChart = memo(function CompareBarChart({
           );
         })}
       </div>
-      <div className="flex justify-between text-xs text-slate-400">
+      <div className="flex justify-between text-xs text-slate-500">
         <span>{formatDate(history[0]?.date)}</span>
         <span>{formatDate(history[history.length - 1]?.date)}</span>
       </div>

@@ -2,6 +2,22 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = {
+  ...buildPageMetadata({
+    title: "About BuyWhere — AI-Powered Product Catalog",
+    description:
+      "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+    path: "/about/",
+  }),
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
 const values = [
   {
     title: "Agent-first design",
@@ -22,10 +38,23 @@ const values = [
 ];
 
 export default function AboutPage() {
+  const schema = buildWebPageSchema({
+    path: "/about",
+    name: "About BuyWhere — AI-Powered Product Catalog",
+    description:
+      "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "About", path: "/about" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Nav />
 
+      <main id="main-content">
       {/* Hero */}
       <section className="bg-indigo-600 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -183,7 +212,9 @@ export default function AboutPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

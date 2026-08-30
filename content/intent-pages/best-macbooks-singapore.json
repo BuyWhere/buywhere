@@ -1,0 +1,199 @@
+{
+  "slug": "best-macbooks-singapore",
+  "title": "Best MacBooks in Singapore (2026) — live prices on every model",
+  "description": "Which MacBook is actually worth buying in Singapore right now: live Singapore listings for MacBook Air and MacBook Pro with M-series chips, compared on price, RAM, port count and who each one is really for.",
+  "heroEyebrow": "Singapore MacBook guide",
+  "heroTitle": "Best MacBooks in Singapore (2026) — 2026 Air and Pro picks at live prices",
+  "heroTitleTemplate": "2026 Best MacBooks in Singapore — from {floorPrice} today",
+  "heroBody": "Apple currently sells four MacBook lines in Singapore — MacBook Air 13, MacBook Air 15, MacBook Pro 14 and MacBook Pro 16 — at authorised resellers like Challenger, Harvey Norman and the Apple Store, plus Shopee Mall and LazMall official stores, and a meaningful parallel-import market at Sim Lim Square and Funan that undercuts the local set price. The right pick depends less on benchmarks and more on what you do every day: a university student writing papers, a designer rendering 3D, a coder compiling across containers, and a frequent flyer who values battery will all land on different machines. This page pulls live Singapore listings from BuyWhere's catalog so you can see what the Apple Store, Challenger, Harvey Norman and parallel importers are charging for each MacBook right now, with configuration advice that matters in Singapore.",
+  "canonicalPath": "/best-macbooks-singapore",
+  "country": "SG",
+  "currency": "SGD",
+  "locale": "en_SG",
+  "searchQuery": "MacBook",
+  "backupQueries": [
+    "MacBook Air",
+    "MacBook Pro",
+    "Apple laptop"
+  ],
+  "minPrice": 900,
+  "requiredProductTerms": [
+    "macbook",
+    "apple",
+    "laptop"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Prices checked August 29, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-08-29",
+  "productSectionTitle": "Live Singapore MacBook prices",
+  "comparisonSectionTitle": "Which MacBook is right for you — at a glance",
+  "comparisonColumns": [
+    "Best for",
+    "Key spec to prioritise",
+    "Typical Singapore price band",
+    "Watch out for"
+  ],
+  "comparisonRows": [
+    {
+      "label": "MacBook Air 13",
+      "values": [
+        "Students, writers, everyday users",
+        "16 GB RAM, 512 GB SSD",
+        "Often on back-to-school discount or Shopee voucher stack",
+        "8 GB is now too little — avoid the cheapest SKU"
+      ]
+    },
+    {
+      "label": "MacBook Air 15",
+      "values": [
+        "Anyone who wants a bigger screen without Pro money",
+        "16 GB RAM, 512 GB SSD",
+        "Modest discount vs list, bundles common",
+        "Heavier than the 13 and not much faster for most tasks"
+      ]
+    },
+    {
+      "label": "MacBook Pro 14",
+      "values": [
+        "Coders, designers, on-set editors",
+        "M4 Pro chip, 24 GB RAM, 512 GB+ SSD",
+        "Apple Singapore education pricing helps for students",
+        "Base M4 is fine for general use; Pro chip only if you push the CPU/GPU"
+      ]
+    },
+    {
+      "label": "MacBook Pro 16",
+      "values": [
+        "Heavy compile, 3D, video editing",
+        "M4 Pro or M4 Max, 32 GB+ RAM",
+        "Small authorised discounts; refurbs give the best value",
+        "Big and heavy; you will feel it in a backpack on the MRT"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What changed with MacBooks in Singapore this year",
+  "highlights": [
+    {
+      "title": "Apple Singapore renewed its line-up around the M4 chip family",
+      "body": "Apple Singapore refreshed the MacBook Air and MacBook Pro line-up in 2025-2026 around the M4, M4 Pro and M4 Max chips. The most meaningful consumer upgrade is 16 GB unified memory as the new floor across the Air line; older 8 GB configurations are still on shop shelves and remain poor value at any price in 2026 because they bottleneck Safari with many tabs and lock out on-device AI features. If you see an 8 GB M3 Air discounted heavily, check the dollar-per-month-of-use: three years from now, 8 GB will feel dated."
+    },
+    {
+      "title": "Parallel imports undercut local sets meaningfully",
+      "body": "Singapore's parallel-import MacBook market — concentrated at Sim Lim Square and Funan IT mall — typically prices a current-generation MacBook 10-18 percent below the Apple Singapore authorised price. The trade-off is no Apple Singapore warranty: a parallel-import MacBook will not be serviced free-of-charge at the Apple Store, and AppleCare+ cannot be purchased after the fact. If you keep laptops three years or less, parallel imports make sense; if you want a four-year machine with AppleCare, authorised is the smart pick."
+    },
+    {
+      "title": "Shopee and Lazada campaign days drive Singapore's deepest MacBook pricing",
+      "body": "The Apple Store and authorised resellers hold the listed price most of the year, then drop meaningfully during Shopee 9.9, 10.10, 11.11 and 12.12 sales where official Apple resellers on Shopee Mall and LazMall stack platform vouchers on top. Lazada's Birthday Sale in March is the second-strongest window. Outside these, the floor you see on this page is the current authorised Singapore price."
+    }
+  ],
+  "adviceSectionTitle": "How to buy a MacBook in Singapore without overpaying",
+  "advicePoints": [
+    "Buy 16 GB unified memory minimum. The 8 GB MacBook Air is the most common regret in Singapore's MacBook market two years in. The price difference to step up to 16 GB is small at the Air tier and zero at the Pro tier.",
+    "Match the chip to the work. The base M4 Air handles Safari, Office and light photo editing. The M4 Pro is the right pick for sustained compile, 3D and video work. M4 Max is only worth it if you know your toolchain uses the extra GPU bandwidth.",
+    "Decide local set vs parallel import before you walk in. Parallel imports save 10-18 percent but lose Apple Singapore warranty and AppleCare+ eligibility. If you commute daily on the MRT, a warranty-covered device is cheaper than a single repair.",
+    "Watch the Shopee Mall and LazMall voucher stack during 9.9 and 11.11. Official Apple resellers on these platforms stack 5-10 percent platform vouchers on top of an already-discounted MacBook; a careful buyer can land an Air under the parallel-import price with full Apple Singapore warranty.",
+    "Consider Apple Certified Refurbished if you can wait. Apple Singapore's refurbished store ships current-generation Air and Pro with full one-year Apple Singapore warranty and a new battery. Stock is limited but the discount is meaningful and the unit is functionally new."
+  ],
+  "faqSectionTitle": "MacBooks in Singapore — common questions",
+  "faqs": [
+    {
+      "question": "Is the MacBook Air enough for university in Singapore, or should I get the Pro?",
+      "answer": "For most university courses in Singapore — including engineering, business, design and humanities — the MacBook Air with 16 GB RAM is enough. Get the Pro only if your course uses Final Cut, Logic, AutoCAD or a code toolchain that compiles large projects daily; otherwise the Air's battery and weight will serve you better on campus and at the library."
+    },
+    {
+      "question": "Should I buy a parallel-import MacBook in Singapore?",
+      "answer": "Only if you are comfortable losing Apple Singapore warranty and you plan to replace the machine within three years. Parallel imports at Sim Lim Square and Funan price 10-18 percent below authorised, but Apple Singapore stores will not service them free under warranty. For a four-year machine, the authorised price is cheaper once repairs and battery service are factored in."
+    },
+    {
+      "question": "When is the MacBook cheapest in Singapore?",
+      "answer": "Shopee 9.9, 10.10, 11.11 and 12.12, plus Lazada's Birthday Sale in March, are the deepest sale windows. Apple's back-to-school promotion in July bundles AirPods on MacBook purchases for students. Outside these, prices hold near the Apple Singapore list and the floor you see is the daily authorised price."
+    },
+    {
+      "question": "Is the 8 GB MacBook Air still worth it in Singapore in 2026?",
+      "answer": "No, unless you only browse Safari with a handful of tabs and never edit photos or videos. macOS's on-device AI features, Xcode and Adobe Creative Cloud all assume 16 GB minimum now. The 8 GB Air still exists on shop shelves in Singapore and looks cheap, but it bottlenecks within two years of typical use."
+    }
+  ],
+  "fallbackProducts": [
+    {
+      "id": "f1",
+      "name": "Apple MacBook Air 13-inch M4, 16GB RAM, 256GB SSD",
+      "price": 1399,
+      "currency": "SGD",
+      "merchant": "Challenger",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+M4&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f2",
+      "name": "Apple MacBook Air 15-inch M4, 16GB RAM, 256GB SSD",
+      "price": 1699,
+      "currency": "SGD",
+      "merchant": "Challenger",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+15+M4&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f3",
+      "name": "Apple MacBook Pro 14-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 2499,
+      "currency": "SGD",
+      "merchant": "Harvey Norman",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M4+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f4",
+      "name": "Apple MacBook Pro 16-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 2999,
+      "currency": "SGD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+16+M4+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f5",
+      "name": "Apple MacBook Air 13-inch M3, 16GB RAM, 256GB SSD",
+      "price": 1199,
+      "currency": "SGD",
+      "merchant": "Shopee Mall",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+M3&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f6",
+      "name": "Apple MacBook Pro 14-inch M3 Pro, 18GB RAM, 512GB SSD",
+      "price": 2299,
+      "currency": "SGD",
+      "merchant": "Lazada Mall",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M3+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    }
+  ],
+  "hreflangAlternates": {
+    "en-US": "/best-macbooks-us"
+  },
+  "categoryIntro": {
+    "heading": "Why MacBook prices vary so much in Singapore",
+    "body": "Singapore has no single dominant electronics retailer, so the same MacBook is sold at the Apple Store and authorised resellers (Challenger, Harvey Norman, Best Denki) at full warranty price, on Shopee Mall and LazMall official stores at platform-voucher-stacked pricing, and through parallel importers at Sim Lim Square and Funan at meaningful discounts. Authorised retailers carry Singapore local sets with one-year Apple Singapore warranty and AppleCare+ eligibility; parallel imports skip the local distributor markup but lose Apple's Singapore warranty. The spread for the same configuration can reach 18 percent, which is why a static 'best price' article goes stale within days and why this page reads live listings instead."
+  },
+  "owner": "Buzz",
+  "reviewer": "Fetch",
+  "queueRow": 27,
+  "inboundLinks": [
+    "/airpods-singapore",
+    "/best-laptop-deals-singapore"
+  ]
+}

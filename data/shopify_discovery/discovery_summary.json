@@ -1,0 +1,25 @@
+{
+  "issue": "BUY-17962",
+  "pipeline": "shopify_feed_discovery",
+  "started_at": "2026-05-15T17:44:24.548460+00:00",
+  "completed_at": "2026-05-15T17:44:40.637111+00:00",
+  "total_input_domains": 131,
+  "total_probed": 131,
+  "shopify_discovered": 1,
+  "hit_rate_pct": 0.8,
+  "total_products_found": 69,
+  "stores_with_atom_feed": 1,
+  "avg_response_time_ms": 64.7,
+  "errors": 130,
+  "top_vendors": {
+    "Great Jones": 1
+  },
+  "top_product_types": {
+    "Bundle": 1
+  },
+  "output_files": {
+    "csv": "/home/paperclip/buywhere-api/data/shopify_discovery/discovered_stores.csv",
+    "ndjson": "/home/paperclip/buywhere-api/data/shopify_discovery/discovered_stores.ndjson",
+    "json": "/home/paperclip/buywhere-api/data/shopify_discovery/discovered_stores.json"
+  }
+}

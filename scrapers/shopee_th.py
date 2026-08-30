@@ -5,10 +5,19 @@ Scrapes electronics, home appliances, food & beverages, health, and pet supplies
 from Shopee TH and outputs structured JSON matching the BuyWhere catalog schema
 for ingestion via POST /v1/ingest/products.
 
+Uses ScraperAPI in HTTP proxy mode with ultra_premium and session support
+to bypass Shopee TH anti-bot protection.
+
 Usage:
-    SCRAPERAPI_KEY=... python -m scrapers.shopee_th --api-key <key> [--batch-size 100] [--delay 1.0]
-    SCRAPERAPI_KEY=... python -m scrapers.shopee_th --scrape-only --use-scraperapi
-    SCRAPERAPI_KEY=... python -m scrapers.shopee_th --scrape-only --use-scraperapi --limit 50000
+    SCRAPERAPI_KEY=... python -m scrapers.shopee_th \\
+        --use-scraperapi-proxy --scrape-only --limit 50000
+
+    # Scrape-only to JSONL:
+    SCRAPERAPI_KEY=... python -m scrapers.shopee_th \\
+        --use-scraperapi-proxy --scrape-only --limit 50000
+
+    # Ingest via bulk_ingest.py:
+    python bulk_ingest.py /tmp/shopee_th_<ts>.jsonl --batch-size 200
 
 Verticals covered:
 - Electronics: Phones, laptops, audio, cameras, accessories — target 15K
@@ -31,10 +40,12 @@ import httpx
 
 SCRAPERAPI_KEY = os.environ.get("SCRAPERAPI_KEY", "")
 
+SCRAPERAPI_PROXY = f"http://scraperapi:{SCRAPERAPI_KEY}:ultra_premium=true:session=true@proxy-server.scraperapi.com:8001"
+
 MERCHANT_ID = "shopee_th"
 SOURCE = "shopee_th"
 BASE_URL = "https://www.shopee.co.th"
-OUTPUT_DIR = "/home/paperclip/buywhere-api/data/shopee-th"
+OUTPUT_DIR = "/tmp"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -45,7 +56,7 @@ HEADERS = {
 }
 
 
-def build_scraperapi_url(target_url: str, ultra_premium: bool = True) -> str:
+def build_scraperapi_url(target_url: str) -> str:
     if not SCRAPERAPI_KEY:
         return target_url
     encoded_url = urllib.parse.quote(target_url, safe="")
@@ -83,6 +94,7 @@ class ShopeeTHScraper:
         delay: float = 1.0,
         scrape_only: bool = False,
         use_scraperapi: bool = False,
+        use_scraperapi_proxy: bool = False,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
@@ -90,7 +102,11 @@ class ShopeeTHScraper:
         self.delay = delay
         self.scrape_only = scrape_only
         self.use_scraperapi = use_scraperapi and bool(SCRAPERAPI_KEY)
-        self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS)
+        self.use_scraperapi_proxy = use_scraperapi_proxy and bool(SCRAPERAPI_KEY)
+        kwargs = {"timeout": 60.0, "headers": HEADERS, "verify": False}
+        if self.use_scraperapi_proxy:
+            kwargs["proxy"] = SCRAPERAPI_PROXY
+        self.client = httpx.AsyncClient(**kwargs)
         self.total_scraped = 0
         self.total_ingested = 0
         self.total_updated = 0
@@ -101,7 +117,7 @@ class ShopeeTHScraper:
     def _ensure_output_dir(self):
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
-        self.products_outfile = os.path.join(OUTPUT_DIR, f"products_{ts}.jsonl")
+        self.products_outfile = os.path.join(OUTPUT_DIR, f"shopee_th_{ts}.jsonl")
 
     async def close(self):
         await self.client.aclose()
@@ -129,11 +145,15 @@ class ShopeeTHScraper:
             "page_type": "search",
             "scenario": "PAGE_CATEGORY",
             "catid": self._extract_catid_from_url(category["url"]),
-            "page_size": 60,
-            "offset": (page - 1) * 60,
+            "page_size": 80,
+            "offset": (page - 1) * 80,
         }
         try:
-            if self.use_scraperapi:
+            if self.use_scraperapi_proxy:
+                resp = await self.client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+            elif self.use_scraperapi:
                 request_url = f"{url}?{urllib.parse.urlencode(params)}"
                 scraperapi_url = build_scraperapi_url(request_url)
                 resp = await self.client.get(scraperapi_url)
@@ -334,8 +354,9 @@ class ShopeeTHScraper:
 
     async def run(self, limit: int = 0) -> dict[str, Any]:
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
+        proxy_mode = "ScraperAPI (proxy)" if self.use_scraperapi_proxy else ("ScraperAPI (query)" if self.use_scraperapi else "direct")
         print(f"Shopee TH Scraper starting...")
-        print(f"Mode: {mode}")
+        print(f"Mode: {mode}, Proxy: {proxy_mode}")
         print(f"Batch size: {self.batch_size}, Delay: {self.delay}s")
         print(f"Output: {self.products_outfile}")
         print(f"Categories: {len(CATEGORIES)} verticals")
@@ -377,7 +398,8 @@ async def main():
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between batches (seconds)")
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
-    parser.add_argument("--use-scraperapi", action="store_true", help="Route requests through ScraperAPI")
+    parser.add_argument("--use-scraperapi", action="store_true", help="Route requests through ScraperAPI (query-param mode)")
+    parser.add_argument("--use-scraperapi-proxy", action="store_true", help="Route requests through ScraperAPI HTTP proxy (ultra_premium)")
     parser.add_argument("--limit", type=int, default=0, help="Max products to scrape (0 = unlimited)")
     args = parser.parse_args()
 
@@ -388,6 +410,7 @@ async def main():
         delay=args.delay,
         scrape_only=args.scrape_only,
         use_scraperapi=args.use_scraperapi,
+        use_scraperapi_proxy=args.use_scraperapi_proxy,
     )
 
     try:

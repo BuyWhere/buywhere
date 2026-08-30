@@ -16,6 +16,7 @@ export interface AuthResponse {
   api_key: string;
   user_id?: string;
   email?: string;
+  email_verified?: boolean;
 }
 
 class AuthError extends Error {

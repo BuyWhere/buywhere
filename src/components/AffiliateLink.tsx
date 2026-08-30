@@ -32,7 +32,10 @@ export function AffiliateLink({
   children,
   className,
   target = "_blank",
-  rel = "noopener noreferrer",
+  // BUY-75417: affiliate-standard rel — Google/FTC require nofollow sponsored on
+  // every affiliate anchor, whether the href is an /r/ redirect (product-detail
+  // buy buttons, compare-table "Open retailer") or a direct merchant URL.
+  rel = "noopener noreferrer nofollow sponsored",
   ...rest
 }: AffiliateLinkProps) {
   const platformName = platform.includes('_') ? platform.split('_')[1] || platform : platform;
@@ -96,15 +99,20 @@ export function AffiliateLink({
  */
 function useEnhancedHrefWithUTM(url: string, utmParams: Record<string, string>): string {
   try {
-    const urlObj = new URL(url, window.location.origin);
-    
+    // BUY-67036: Next 14.2.35 RSC navigation re-render pre-renders client
+    // components server-side. window is not defined there. Pass an empty
+    // string as base so URL() derives from the absolute URL.
+    const urlObj = typeof window !== "undefined"
+      ? new URL(url, window.location.origin)
+      : new URL(url);
+
     // Add UTM parameters
     Object.entries(utmParams).forEach(([key, value]) => {
       if (value) {
         urlObj.searchParams.set(key, value);
       }
     });
-    
+
     return urlObj.toString();
   } catch (e) {
     // If URL parsing fails, return original URL

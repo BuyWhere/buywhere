@@ -4,6 +4,7 @@ BuyWhere documentation covers the catalog API, authentication, MCP setup, SDKs, 
 
 ## Agent Reading List
 
+- [Agent DX (v2-first)](https://buywhere.ai/agent-dx): v2 wire reference — REQUIRED deliver_to, shopping_job_id, outbound_url. v1 tools in a deprecated section with the sunset clock.
 - [API Documentation](https://buywhere.ai/docs/API_DOCUMENTATION): REST API endpoints, schemas, examples, and response fields.
 - [Quickstart](https://buywhere.ai/quickstart): First API key and first query.
 - [Runnable API Examples](https://buywhere.ai/docs/quickstart): Python, Node.js, and curl quickstart snippets.

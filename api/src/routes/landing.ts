@@ -1,7 +1,19 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { db } from '../config';
+import { buildProduct, buildSearchResponse } from '../lib/response';
+import { lookupMerchantMap } from '../lib/merchantLookup';
 
 const router = Router();
+
+// BUY-71129 (re-applied): caller identity thread-through. Landing routes are
+// usually unauthenticated, so this returns null in most cases — but if a
+// logged-in agent hits a marketing landing page, the conversion still joins.
+function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
+  const rec = (req as Request & { apiKeyRecord?: { id?: string; key?: string } }).apiKeyRecord;
+  if (!rec || !rec.id || !rec.key) return null;
+  return { apiKeyId: rec.id, keyHash: createHash('sha256').update(rec.key).digest('hex') };
+}
 
 function baseUrl(req: Request): string {
   const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
@@ -28,6 +40,8 @@ function homepageMarkdown(base: string, locale: 'en_SG' | 'en_US'): string {
   return `# BuyWhere — AI-Native Product Catalog & Price Comparison
 
 **Region:** ${regionLabel} | **Currency:** ${isSG ? 'SGD' : 'USD'}
+
+**Get your free API key in 60 seconds → https://buywhere.ai/api-keys**
 
 ## What is BuyWhere?
 
@@ -76,7 +90,7 @@ ${regionMerchants}
 
 function homepageHtml(base: string, locale: 'en_SG' | 'en_US'): string {
   const isSG = locale === 'en_SG';
-  const canonicalPath = isSG ? '/' : '/us/';
+  const canonicalPath = isSG ? '/' : '/us';
   const regionLabel = isSG ? 'Singapore' : 'United States';
   const regionCurrency = isSG ? 'SGD' : 'USD';
   const regionMerchants = isSG
@@ -97,16 +111,26 @@ function homepageHtml(base: string, locale: 'en_SG' | 'en_US'): string {
 <meta property="og:locale" content="${locale}" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="alternate" hreflang="en-sg" href="${base}/" />
-<link rel="alternate" hreflang="en-us" href="${base}/us/" />
+<link rel="alternate" hreflang="en-us" href="${base}/us" />
 <link rel="alternate" hreflang="x-default" href="${base}/" />
-${!isSG ? `<link rel="canonical" href="${base}/us/" />` : ''}
+${!isSG ? `<link rel="canonical" href="${base}/us" />` : ''}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": "${base}/#website",
   "name": "BuyWhere",
   "url": "${base}/",
-  "description": "AI-native product catalog and price comparison API"
+  "description": "AI-native product catalog and price comparison API",
+  "inLanguage": "en",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "${base}/search?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
 }
 </script>
 <style>
@@ -408,45 +432,45 @@ const exampleResponse = {
   "results": [
     {
       "id": "prod_8f3k2j1h",
-      "source": "lazada_sg",
-      "domain": "Lazada",
-      "url": "https://www.lazada.sg/products/asus-vivobook-s14",
       "title": "ASUS Vivobook S14 S430UN-EB114T 14\" Laptop - Star Grey",
-      "price": 1899.00,
-      "currency": "SGD",
+      "price": { "amount": 1899.00, "currency": "SGD" },
+      "merchant": "lazada_sg",
+      "url": "https://www.lazada.sg/products/asus-vivobook-s14",
       "image_url": "https://example.com/vivobook-s14.jpg",
+      "region": "sg",
+      "country_code": "SG",
+      "updated_at": "2026-05-14T12:00:00Z",
       "metadata": {"brand": "ASUS", "rating": 4.5}
     },
     {
       "id": "prod_7g4l3m2n",
-      "source": "shopee_sg",
-      "domain": "Shopee",
-      "url": "https://shopee.sg/lenovo-ideapad-s340",
       "title": "Lenovo IdeaPad S340-14API 14\" Ryzen 5 Laptop",
-      "price": 1599.00,
-      "currency": "SGD",
+      "price": { "amount": 1599.00, "currency": "SGD" },
+      "merchant": "shopee_sg",
+      "url": "https://shopee.sg/lenovo-ideapad-s340",
       "image_url": "https://example.com/ideapad-s340.jpg",
+      "region": "sg",
+      "country_code": "SG",
+      "updated_at": "2026-05-14T11:30:00Z",
       "metadata": {"brand": "Lenovo", "rating": 4.3}
     },
     {
       "id": "prod_6h5m4n3o",
-      "source": "bestdenki_sg",
-      "domain": "Best Denki",
-      "url": "https://www.bestdenki.com.sg/hp-14s-dq5035tu",
       "title": "HP 14s-dq5035TU 14\" Core i5 Laptop - Silver",
-      "price": 1799.00,
-      "currency": "SGD",
+      "price": { "amount": 1799.00, "currency": "SGD" },
+      "merchant": "bestdenki_sg",
+      "url": "https://www.bestdenki.com.sg/hp-14s-dq5035tu",
       "image_url": "https://example.com/hp-14s.jpg",
+      "region": "sg",
+      "country_code": "SG",
+      "updated_at": "2026-05-14T10:00:00Z",
       "metadata": {"brand": "HP", "rating": 4.4}
     }
   ],
   "total": 847,
-  "meta": {
-    "total": 847,
-    "limit": 5,
-    "offset": 0,
-    "response_time_ms": 42
-  },
+  "page": { "limit": 5, "offset": 0 },
+  "response_time_ms": 42,
+  "cached": false,
   "demo": true
 };
 
@@ -460,10 +484,13 @@ function initExampleSection() {
   exampleResponse.results.forEach(function(product) {
     const div = document.createElement('div');
     div.className = 'example-product';
+    const brand = (product.metadata && product.metadata.brand) || product.merchant || 'Unknown';
+    const priceCurrency = product.price.currency || 'SGD';
+    const priceAmount = product.price.amount;
     div.innerHTML =
       '<div class="ep-name">' + product.title + '</div>' +
-      '<div class="ep-meta">' + product.metadata.brand + ' · ' + product.domain + ' · ' + product.currency + '</div>' +
-      '<div class="ep-price">SGD ' + product.price.toFixed(2) + '</div>' +
+      '<div class="ep-meta">' + brand + ' · ' + product.merchant + ' · ' + priceCurrency + '</div>' +
+      '<div class="ep-price">' + priceCurrency + ' ' + priceAmount.toFixed(2) + '</div>' +
       '<a class="ep-link" href="' + product.url + '" target="_blank">View product →</a>';
     productsEl.appendChild(div);
   });
@@ -502,9 +529,12 @@ async function runDemo() {
     pre.textContent = JSON.stringify(data, null, 2);
 
     const top = data.results[0];
+    const brand = (top.metadata && top.metadata.brand) || top.merchant || 'Unknown';
+    const priceCurrency = top.price ? top.price.currency : 'SGD';
+    const priceAmount = top.price ? top.price.amount : null;
     document.getElementById('demo-result-title').textContent = top.title;
-    document.getElementById('demo-result-meta').textContent = (top.brand || top.domain || 'Unknown') + ' · ' + top.currency;
-    document.getElementById('demo-result-price').textContent = top.price ? top.currency + ' ' + top.price.toFixed(2) : 'Price on request';
+    document.getElementById('demo-result-meta').textContent = brand + ' · ' + priceCurrency;
+    document.getElementById('demo-result-price').textContent = priceAmount != null ? priceCurrency + ' ' + priceAmount.toFixed(2) : 'Price on request';
     document.getElementById('demo-result-link').href = top.url || '#';
     topResult.style.display = 'block';
   } catch (e) {
@@ -545,11 +575,12 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '5'), 10);
 
     if (!q.trim()) {
-      res.json({ results: [], total: 0, demo: true });
+      res.json({ results: [], total: 0, page: { limit, offset: 0 }, response_time_ms: 0, cached: false, demo: true });
       return;
     }
 
-    const conditions: string[] = ['currency = $1'];
+    // BUY-60385: Exclude zero-price products (data quality guard)
+    const conditions: string[] = ['currency = $1', 'price > 0'];
     const params: unknown[] = [currency];
     let idx = 2;
 
@@ -566,10 +597,10 @@ router.get(
     const dataQuery = `
       SELECT id, sku AS source_id, source AS domain, url,
              title, price, currency, image_url, metadata, updated_at,
-             region, country_code
+             region, country_code, merchant_id
       FROM products
       ${whereClause}
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $2)) DESC, updated_at DESC
+      ORDER BY updated_at DESC
       LIMIT $${idx} OFFSET $${idx + 1}
     `;
     params.push(limit, 0);
@@ -581,27 +612,18 @@ router.get(
       ]);
 
       const total = parseInt(countResult.rows[0].count, 10);
-      const products = dataResult.rows.map((row) => ({
-        id: row.id,
-        source: row.source_id,
-        domain: row.domain,
-        url: row.url,
-        title: row.title,
-        price: row.price ? parseFloat(row.price) : null,
-        currency: row.currency,
-        image_url: row.image_url,
-        metadata: row.metadata,
-        region: row.region || null,
-        country_code: row.country_code || null,
-      }));
+      // BUY-74689: batched merchant lookup for the demo landing page search.
+      const landingMerchantMap = await lookupMerchantMap(
+        db,
+        dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
+      );
+      const products = dataResult.rows.map((row) =>
+        buildProduct(row as Record<string, unknown>, currency, false, landingMerchantMap, callerContextForUrl(req))
+      );
 
       const responseTimeMs = Date.now() - start;
-      res.json({
-        results: products,
-        total,
-        meta: { total, limit, offset: 0, response_time_ms: responseTimeMs },
-        demo: true,
-      });
+      const responseBody = buildSearchResponse(products, total, limit, 0, responseTimeMs, false);
+      res.json({ ...responseBody, demo: true });
     } catch (err) {
       console.error('[demo/search]', err);
       res.status(500).json({ error: 'Demo search failed' });

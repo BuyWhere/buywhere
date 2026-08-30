@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getApiBaseUrl } from "@/lib/billing";
-import { getDeveloperPreferences, defaultPreferences } from "./preferences/store";
-
-const API_BASE = getApiBaseUrl();
+// Prevent Next.js from trying to pre-render this route at build time.
+// It uses request.headers (dynamic), so must always be rendered at runtime.
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get("x-api-key") ?? request.cookies.get("bw_dashboard_key")?.value;
-
-  if (!apiKey) {
-    return NextResponse.json({ error: "API key required" }, { status: 401 });
-  }
-
   try {
-    const response = await fetch(`${API_BASE}/v1/developers/me`, {
+    // Get API key from Authorization header
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Missing or invalid authorization header" },
+        { status: 401 }
+      );
+    }
+
+    const apiKey = authHeader.substring(7); // Remove "Bearer " prefix
+
+    // Verify the API key and get developer profile
+    const response = await fetch(`${process.env.API_BASE_URL || "https://api.buywhere.ai"}/v1/dashboard/account`, {
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
         "Content-Type": "application/json",
       },
       cache: "no-store",
@@ -23,27 +28,22 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "Failed to fetch developer profile" },
+        { error: "Invalid API key" },
         { status: response.status }
       );
     }
 
-    const profile = await response.json();
-    const storedPrefs = getDeveloperPreferences(apiKey);
+    const data = await response.json();
 
     return NextResponse.json({
-      developer: {
-        id: profile.id,
-        email: profile.email,
-        plan: profile.plan,
-        created_at: profile.created_at,
-      },
-      notification_preferences: storedPrefs ?? defaultPreferences,
+      developer: data.developer || null,
     });
-  } catch {
+
+  } catch (error) {
+    console.error("Account fetch error:", error);
     return NextResponse.json(
-      { error: "Failed to reach API" },
-      { status: 502 }
+      { error: "Internal server error" },
+      { status: 500 }
     );
   }
 }

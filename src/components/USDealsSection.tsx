@@ -151,7 +151,7 @@ function DealOfTheDay({ deal }: { deal: DealProduct }) {
             </span>
             {deal.original_price && (
               <>
-                <span className="text-lg text-gray-400 line-through">
+                <span className="text-lg text-gray-500 line-through">
                   ${deal.original_price.toFixed(2)}
                 </span>
                 <span className="text-green-600 font-semibold">
@@ -217,11 +217,11 @@ function PriceDropFeed({ drops }: { drops: PriceDrop[] }) {
               {drop.title}
             </span>
             <span className="text-sm">
-              <span className="text-gray-400 line-through">${drop.oldPrice.toFixed(2)}</span>
+              <span className="text-gray-500 line-through">${drop.oldPrice.toFixed(2)}</span>
               <span className="text-green-600 font-bold mx-1">→${drop.newPrice.toFixed(2)}</span>
               <span className="text-green-600 text-xs">(-${(drop.oldPrice - drop.newPrice).toFixed(2)})</span>
             </span>
-            <span className="text-xs text-gray-400">{formatTimeAgo(drop.timestamp)}</span>
+            <span className="text-xs text-gray-600">{formatTimeAgo(drop.timestamp)}</span>
           </a>
         ))}
       </div>
@@ -292,55 +292,19 @@ function DealCard({ deal, priority = false }: { deal: DealProduct; priority?: bo
             ${deal.price.toFixed(2)}
           </span>
           {deal.original_price && deal.original_price > deal.price && (
-            <span className="text-sm text-gray-400 line-through">
+            <span className="text-sm text-gray-500 line-through">
               ${deal.original_price.toFixed(2)}
             </span>
           )}
         </div>
         {deal.ends_at && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-600">
             Ends {new Date(deal.ends_at).toLocaleDateString()}
           </p>
         )}
       </div>
     </a>
   );
-}
-
-function generateMockDeals(): DealProduct[] {
-  const mockProducts = [
-    { name: 'Sony WH-1000XM5 Wireless Headphones', merchant: 'Amazon', discount: 25 },
-    { name: 'Apple AirPods Pro 2nd Gen', merchant: 'Best Buy', discount: 20 },
-    { name: 'Dyson V15 Detect Vacuum', merchant: 'Walmart', discount: 15 },
-    { name: 'Ninja Foodi Pressure Cooker', merchant: 'Target', discount: 30 },
-    { name: 'Samsung Galaxy Watch 6', merchant: 'Amazon', discount: 22 },
-    { name: 'Apple Watch Series 9', merchant: 'Best Buy', discount: 18 },
-    { name: 'iRobot Roomba j7+', merchant: 'Walmart', discount: 25 },
-    { name: 'Bose QuietComfort 45', merchant: 'Amazon', discount: 28 },
-    { name: 'Instant Pot Pro Plus', merchant: 'Target', discount: 35 },
-    { name: 'Shark Navigator Vacuum', merchant: 'Amazon', discount: 40 },
-    { name: 'KitchenAid Stand Mixer', merchant: 'Best Buy', discount: 20 },
-    { name: 'Fitbit Charge 6', merchant: 'Walmart', discount: 15 },
-  ];
-
-  return mockProducts.map((product, index) => {
-    const basePrice = 49 + Math.random() * 350;
-    const originalPrice = basePrice * (1 + product.discount / 100);
-    return {
-      id: index + 1,
-      name: product.name,
-      price: basePrice,
-      original_price: originalPrice,
-      currency: 'USD',
-      discount_pct: product.discount,
-      merchant: product.merchant,
-      url: '#',
-      ends_at: new Date(Date.now() + Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      is_exclusive: Math.random() > 0.8,
-      rating: 4.0 + Math.random(),
-      review_count: Math.floor(100 + Math.random() * 15000),
-    };
-  });
 }
 
 export function USDealsSection() {
@@ -373,8 +337,10 @@ export function USDealsSection() {
       setDeals(data.deals || []);
       setLastUpdated(new Date());
     } catch {
-      setDeals(generateMockDeals());
-      setLastUpdated(new Date());
+      // BUY-60872 (governance rule #10): do NOT render invented catalog data on a
+      // production surface. Surface the error and let the empty state render honestly.
+      setDeals([]);
+      setLastUpdated(null);
     } finally {
       setLoading(false);
     }
@@ -427,7 +393,7 @@ export function USDealsSection() {
                 LIVE DEALS
               </span>
               {lastUpdated && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-600">
                   Updated {lastUpdated.toLocaleTimeString()}
                 </span>
               )}
@@ -472,8 +438,8 @@ export function USDealsSection() {
         </div>
 
         {error && (
-          <div className="text-center py-8 text-gray-500">
-            <p>Unable to load deals. Showing cached results.</p>
+          <div className="text-center py-8 text-amber-700 bg-amber-50 rounded-2xl border border-amber-200">
+            <p>Unable to load deals right now. We are not showing placeholder results.</p>
           </div>
         )}
 
@@ -496,7 +462,7 @@ export function USDealsSection() {
         )}
 
         <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-600">
             Auto-refreshes every 15 minutes · Prices and availability may vary
           </p>
         </div>

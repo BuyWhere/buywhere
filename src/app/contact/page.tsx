@@ -1,12 +1,34 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import ContactForm from "@/components/ContactForm";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
+  title: "Contact — BuyWhere",
+  description:
+    "Get in touch with BuyWhere. Request API access, ask questions, or discuss your use case.",
+  path: "/contact/",
+});
 
 export default function ContactPage() {
+  const schema = buildWebPageSchema({
+    path: "/contact",
+    name: "Contact BuyWhere",
+    description:
+      "Get in touch with the BuyWhere team. We respond to merchant and partner inquiries within one business day.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Contact", path: "/contact" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <Nav />
 
-      {/* Header */}
+      <main id="main-content" tabIndex={-1}>
       <section className="bg-indigo-600 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold mb-3">Get in touch</h1>
@@ -20,73 +42,11 @@ export default function ContactPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid md:grid-cols-2 gap-12">
 
-            {/* Form */}
-            <div>
+            <div id="contact-form">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Send us a message</h2>
-              <form className="space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Jane"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Smith"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Work email</label>
-                  <input
-                    type="email"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="jane@company.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">What are you building?</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-700">
-                    <option value="">Select a use case...</option>
-                    <option>AI shopping assistant</option>
-                    <option>Price comparison tool</option>
-                    <option>Affiliate recommendation engine</option>
-                    <option>E-commerce analytics</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                  <textarea
-                    rows={4}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                    placeholder="Tell us about your project, expected query volume, or any questions..."
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition-colors"
-                >
-                  Send message →
-                </button>
-
-                <p className="text-xs text-gray-400 text-center">
-                  We respond to all inquiries within 1 business day.
-                </p>
-              </form>
+              <ContactForm />
             </div>
 
-            {/* Info */}
             <div className="space-y-8">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Why reach out?</h2>
@@ -113,7 +73,7 @@ export default function ContactPage() {
                 <div className="space-y-3 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">✉</span>
-                    <span>hello@buywhere.ai</span>
+                    <a href="#contact-form" className="hover:text-indigo-600 hover:underline">Use the form on this page</a>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">🏢</span>
@@ -133,7 +93,9 @@ export default function ContactPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
+  </>
   );
 }

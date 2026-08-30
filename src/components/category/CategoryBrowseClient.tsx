@@ -221,7 +221,7 @@ export function CategoryBrowseClient({ config }: CategoryBrowseClientProps) {
           greatDealCount={greatDealCount}
         />
 
-        <main className="flex-1 p-5 min-w-0">
+        <main id="main-content" className="flex-1 p-5 min-w-0">
           <div className="hidden lg:block">
             <CategoryToolbar
               totalResults={filteredProducts.length}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import RootLayout from "../layout";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const viewport: Viewport = {
   themeColor: "#4F46E5",
@@ -49,28 +50,22 @@ export const metadata: Metadata = {
    openGraph: {
      type: "website",
      locale: "en_US",
-     url: "https://buywhere.ai/us",
+     url: toSiteUrl("/us"),
      siteName: "BuyWhere US",
      title: "BuyWhere US — Compare Prices from Amazon, Walmart, Target & More",
      description:
        "Compare product prices across Amazon, Walmart, Target, and other US retailers. Find the best deals and save money on every purchase with BuyWhere.",
-     images: [
-       {
-         url: "https://buywhere.ai/assets/img/og-image.png",
-         width: 1200,
-         height: 630,
-         alt: "BuyWhere US - Compare prices across Amazon, Walmart, Target and more",
-       },
-       {
-         url: "https://buywhere.ai/assets/img/og-image.svg",
-         width: 1200,
-         height: 630,
-         alt: "BuyWhere US - Compare prices across Amazon, Walmart, Target and more",
-       },
-     ],
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "BuyWhere US - Compare prices across Amazon, Walmart, Target and more",
+        },
+      ],
    },
    alternates: {
-     canonical: "https://buywhere.ai/us",
+     canonical: toSiteUrl("/us"),
    },
    icons: {
      icon: "/favicon.svg",

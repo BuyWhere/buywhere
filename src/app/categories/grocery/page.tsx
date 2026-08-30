@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Grocery Singapore | Compare Prices on Food, Beverages & Daily Essentials',
@@ -8,41 +9,48 @@ export const metadata = buildSgCategoryMetadata(
   'grocery'
 );
 
+const CATEGORY_URL = toSiteUrl('/categories/grocery');
+
 export default function GroceryCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/#breadcrumb",
         itemListElement: [
           {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
-            name: "Grocery"
+            name: "Grocery",
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Grocery Singapore | Compare Prices on Food, Beverages & Daily Essentials",
         description: "Compare grocery prices in Singapore. Find cheapest deals on rice, cooking ingredients, snacks, beverages, and daily essentials from NTUC, Sheng Siong, Cold Storage, and more.",
-        url: "https://buywhere.ai/categories/grocery",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
+          "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",
@@ -192,7 +200,7 @@ export default function GroceryCategoryPage() {
           <p className="text-lg text-gray-600 mb-8">
             Singapore&apos;s supermarket competition is fierce, with NTUC FairPrice, Sheng Siong, Cold Storage, Giant, and online platforms like RedMart and FairPrice Online constantly vying for your basket. BuyWhere monitors prices and promotions across all major retailers, helping you identify the best deals on the products you buy every week.
           </p>
-          <Link href="/search?q=grocery&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=grocery&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Grocery Deals →
           </Link>
         </section>
@@ -253,7 +261,7 @@ export default function GroceryCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Find the best grocery deals in Singapore with BuyWhere.
           </p>
-          <Link href="/search?q=grocery&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=grocery&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Compare Grocery Prices Now →
           </Link>
         </section>

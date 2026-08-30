@@ -1,13 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Retailer Coverage — BuyWhere",
   description:
     "Supported merchants, coverage depth, and data freshness for the BuyWhere product catalog. See which retailers are covered and how up-to-date our pricing data is.",
   alternates: {
-    canonical: "https://buywhere.ai/retailers",
+    canonical: toSiteUrl("/retailers"),
   },
   robots: {
     index: true,
@@ -293,6 +294,7 @@ export default function RetailersPage() {
         "@id": "https://buywhere.ai/#website",
         url: "https://buywhere.ai",
         name: "BuyWhere",
+        inLanguage: "en",
         publisher: { "@id": "https://buywhere.ai/#organization" },
         potentialAction: {
           "@type": "SearchAction",
@@ -305,9 +307,12 @@ export default function RetailersPage() {
       },
       {
         "@type": "ItemList",
+        "@id": "https://buywhere.ai/retailers#item-list",
         name: "Retailer Coverage",
         description: "Supported merchants, coverage depth, and data freshness for the BuyWhere product catalog.",
         numberOfItems: retailers.length,
+        url: "https://buywhere.ai/retailers",
+        mainEntityOfPage: "https://buywhere.ai/retailers",
         itemListElement: retailers.map((retailer, index) => ({
           "@type": "ListItem",
           position: index + 1,
@@ -345,7 +350,7 @@ export default function RetailersPage() {
         </div>
       </section>
 
-      <main className="flex-1 bg-gray-50">
+      <main id="main-content" className="flex-1 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
           <CoverageStats />
 

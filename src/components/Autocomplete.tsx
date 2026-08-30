@@ -75,7 +75,7 @@ export function Autocomplete({
       params.set('q', searchQuery);
       params.set('limit', '8');
 
-      const res = await fetch(`${apiUrl}/api/v1/search?${params.toString()}`, {
+      const res = await fetch(`${apiUrl}/v1/products/search?${params.toString()}`, {
         headers: { 'Content-Type': 'application/json' },
       });
 
@@ -84,7 +84,7 @@ export function Autocomplete({
       }
 
       const data = await res.json();
-      const items = data.items || [];
+      const items = data.data || data.items || [];
       setSuggestions(items);
       setIsOpen(true);
       setSelectedIndex(-1);
@@ -248,7 +248,7 @@ export function Autocomplete({
                   {product.image_url ? (
                     <Image
                       src={product.image_url}
-                      alt=""
+                      alt={product.name || "product image"}
                       width={48}
                       height={48}
                       className="object-cover rounded-lg bg-gray-100 shrink-0"

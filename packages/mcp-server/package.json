@@ -1,0 +1,60 @@
+{
+  "name": "@buywhere/mcp-server",
+  "version": "1.0.0",
+  "description": "BuyWhere MCP server — search and compare 300M+ products from 900,000+ merchants across Singapore, SEA, and US markets via Model Context Protocol. Cross-border e-commerce product catalog for AI agents.",
+  "type": "module",
+  "bin": {
+    "buywhere-mcp-server": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "check-drift": "node scripts/check-schema-drift.mjs",
+    "prepublishOnly": "node scripts/prepublish-guard.mjs"
+  },
+  "mcpName": "ai.buywhere/buywhere-mcp",
+  "keywords": [
+    "buywhere",
+    "mcp",
+    "model-context-protocol",
+    "product-search",
+    "price-comparison",
+    "shopping",
+    "ai-agent",
+    "claude",
+    "cursor",
+    "stdio",
+    "product-catalog",
+    "ecommerce",
+    "singapore",
+    "cross-border"
+  ],
+  "author": "BuyWhere",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuyWhere/buywhere.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://buywhere.ai",
+  "bugs": {
+    "url": "https://github.com/BuyWhere/buywhere/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  }
+}

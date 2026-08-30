@@ -25,23 +25,23 @@ const trustIndicators = [
         <polyline points="12,6 12,12 16,14" />
       </svg>
     ),
-    label: 'Avg. Latency',
-    value: '120ms',
-    badge: 'P50',
+    label: 'Search Latency',
+    value: '<250ms',
+    badge: 'P50 · cache hits <10ms',
     badgeColor: 'bg-slate-100 text-slate-700',
   },
 ];
 
 export function TrustLayer() {
   return (
-    <section className="py-16 bg-gray-50 border-t border-gray-100" aria-labelledby="trust-heading">
+    <section className="pt-10 pb-16 bg-gray-50 border-t border-gray-100" aria-labelledby="trust-heading">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
             <h2 id="trust-heading" className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
               Built for Reliability
             </h2>
-            <p className="text-gray-500 mb-8 leading-relaxed">
+            <p className="text-gray-600 mb-8 leading-relaxed">
               BuyWhere is production-ready infrastructure. We provide predictable latency, high uptime, and transparent versioning so your agents always know what to expect.
             </p>
             <div className="flex flex-col sm:flex-row gap-6">
@@ -50,10 +50,10 @@ export function TrustLayer() {
                 <div>
                   <div className="text-sm font-medium text-gray-900">Developer Support</div>
                   <Link
-                    href="mailto:support@buywhere.ai"
+                    href="/contact"
                     className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
                   >
-                    support@buywhere.ai
+                    Contact support
                   </Link>
                 </div>
               </div>
@@ -62,17 +62,17 @@ export function TrustLayer() {
                 <div>
                   <div className="text-sm font-medium text-gray-900">Enterprise Inquiries</div>
                   <Link
-                    href="mailto:enterprise@buywhere.ai"
+                    href="/contact"
                     className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
                   >
-                    enterprise@buywhere.ai
+                    Enterprise inquiries
                   </Link>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-3 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
             {trustIndicators.map((item) => (
               <div
                 key={item.label}
@@ -81,7 +81,7 @@ export function TrustLayer() {
                 <div className="flex items-center justify-center w-10 h-10 bg-indigo-50 rounded-lg text-indigo-600 mb-3 mx-auto">
                   {item.icon}
                 </div>
-                <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">{item.label}</div>
+                <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">{item.label}</div>
                 <div className="text-2xl font-bold text-gray-900 mb-2">{item.value}</div>
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${item.badgeColor}`}>
                   {item.badge}

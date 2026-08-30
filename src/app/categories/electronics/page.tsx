@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Electronics Singapore | Compare Best Prices on Gadgets & Tech',
@@ -8,41 +9,48 @@ export const metadata = buildSgCategoryMetadata(
   'electronics'
 );
 
+const CATEGORY_URL = toSiteUrl('/categories/electronics');
+
 export default function ElectronicsCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/#breadcrumb",
         itemListElement: [
           {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
-            name: "Electronics"
+            name: "Electronics",
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Electronics Singapore | Compare Best Prices on Gadgets & Tech",
         description: "Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers.",
-        url: "https://buywhere.ai/categories/electronics",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
+          "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",
@@ -119,7 +127,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Verified Merchant Data</h3>
               </div>
               <p className="text-gray-600">
-                All retailers are vetted for authenticity and customer service quality
+                The retailer is shown on every listing, so you can check authenticity and service before you buy
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -214,7 +222,7 @@ export default function ElectronicsCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Whether you are a tech enthusiast seeking the latest flagship device or a budget-conscious shopper looking for the best value, BuyWhere helps you make informed purchasing decisions.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=electronics&region=sg" rel="nofollow" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
             Browse Electronics Deals →
           </Link>
         </section>
@@ -267,7 +275,7 @@ export default function ElectronicsCategoryPage() {
           <p className="text-lg text-gray-600 mb-6">
             Start comparing electronics prices in Singapore today and find the best deals across all major retailers.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/search?q=electronics&region=sg" rel="nofollow" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
             Compare Electronics Prices Now →
           </Link>
         </section>

@@ -1,0 +1,78 @@
+{
+  "aid": "buywhere.ai:buywhere-public-api-index",
+  "name": "BuyWhere Public API Index",
+  "description": "Machine-readable index for BuyWhere's public developer API and agent integration surfaces.",
+  "url": "https://buywhere.ai/apis.json",
+  "type": "Index",
+  "specificationVersion": "0.18",
+  "created": "2026-05-01",
+  "modified": "2026-05-01",
+  "tags": [
+    "api",
+    "developer-tools",
+    "ecommerce",
+    "shopping",
+    "product-search",
+    "price-comparison",
+    "ai-agents",
+    "mcp"
+  ],
+  "maintainers": [
+    {
+      "FN": "BuyWhere",
+      "email": "api@buywhere.ai",
+      "url": "https://buywhere.ai"
+    }
+  ],
+  "apis": [
+    {
+      "aid": "buywhere.ai:catalog-api",
+      "name": "BuyWhere Catalog API",
+      "description": "Product search, offer comparison, and merchant handoff API for AI shopping agents.",
+      "baseURL": "https://api.buywhere.ai/v1",
+      "humanURL": "https://api.buywhere.ai/docs/guides/mcp",
+      "tags": [
+        "rest",
+        "openapi",
+        "mcp",
+        "ai-agents",
+        "product-search",
+        "commerce"
+      ],
+      "properties": [
+        {
+          "type": "Documentation",
+          "url": "https://api.buywhere.ai/docs/guides/mcp"
+        },
+        {
+          "type": "OpenAPI",
+          "url": "https://api.buywhere.ai/api/openapi.json"
+        },
+        {
+          "type": "OpenAPI Alias",
+          "url": "https://buywhere.ai/openapi.json"
+        },
+        {
+          "type": "Plugin Manifest",
+          "url": "https://api.buywhere.ai/.well-known/ai-plugin.json"
+        },
+        {
+          "type": "Signup",
+          "url": "https://api.buywhere.ai/v1/developers/signup"
+        },
+        {
+          "type": "Terms of Service",
+          "url": "https://buywhere.ai/terms"
+        },
+        {
+          "type": "Authentication",
+          "url": "https://api.buywhere.ai/docs/guides/mcp#authentication"
+        },
+        {
+          "type": "MCP Endpoint",
+          "url": "https://api.buywhere.ai/mcp"
+        }
+      ]
+    }
+  ]
+}

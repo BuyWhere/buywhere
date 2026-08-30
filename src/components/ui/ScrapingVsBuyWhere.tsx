@@ -100,11 +100,11 @@ export function ScrapingVsBuyWhere({ variant = 'default' }: ScrapingVsBuyWherePr
     return (
       <div className="flex flex-wrap items-center gap-6 text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Scraping:</span>
+          <span className="text-xs text-gray-500">Scraping:</span>
           <span className="text-red-600 font-medium">High maintenance</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">BuyWhere:</span>
+          <span className="text-xs text-gray-500">BuyWhere:</span>
           <span className="text-indigo-600 font-medium">Stable, licensed data</span>
         </div>
       </div>
@@ -129,7 +129,7 @@ export function ScrapingVsBuyWhere({ variant = 'default' }: ScrapingVsBuyWherePr
       <ComparisonTable rows={comparisonRows} />
 
       <div className="mt-6 pt-5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-500 text-center">
           BuyWhere maintains data partnerships so your agents never have to debug a broken scraper.
         </p>
       </div>

@@ -1,5 +1,3 @@
-import { generateMockUSProducts } from "@/lib/us-products";
-
 export type ComparisonOffer = {
   id: string;
   name: string;
@@ -28,6 +26,8 @@ type SearchLikeItem = {
   url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
+  affiliate_redirect_url?: string | null;
+  click_url?: string | null;
   affiliateLink?: string | null;
   brand?: string | null;
   category?: string | null;
@@ -46,6 +46,29 @@ export function parseIdsParam(ids?: string): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function normalizeRetailerHref(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (!value) continue;
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "#") continue;
+
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch {
+    }
+  }
+
+  return null;
+}
+
+export function hasRetailerHref(offer: Pick<ComparisonOffer, "href">): boolean {
+  return normalizeRetailerHref(offer.href) !== null;
 }
 
 export function formatMerchantName(value?: string | null): string {
@@ -114,7 +137,7 @@ export function normalizeComparisonOffer(
     price: normalizePrice(item.price),
     currency: item.currency || fallbackCurrency,
     imageUrl: item.image_url || item.image || null,
-    href: item.affiliate_url || item.affiliateLink || item.buy_url || item.url || "#",
+    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.affiliateLink || item.buy_url || item.url || "#",
     availability: availability.availability,
     inStock: availability.inStock,
     brand: item.brand || null,
@@ -135,67 +158,6 @@ export function sortComparisonOffers(offers: ComparisonOffer[]): ComparisonOffer
 
 export function findBestOffer(offers: ComparisonOffer[]): ComparisonOffer | null {
   return sortComparisonOffers(offers).find((offer) => offer.price !== null) || null;
-}
-
-export function buildFallbackComparisonOffers(query?: string, ids: string[] = []): ComparisonOffer[] {
-  const mockProducts = generateMockUSProducts();
-  const normalizedQuery = query?.trim().toLowerCase() || "";
-
-  let matchedProducts = mockProducts;
-
-  if (ids.length > 0) {
-    const idSet = new Set(ids);
-    matchedProducts = mockProducts.filter((product) => idSet.has(product.id));
-  } else if (normalizedQuery) {
-    matchedProducts = mockProducts.filter((product) => {
-      const haystack = [product.name, product.brand, product.description]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
-  }
-
-  const sourceProducts = matchedProducts.length > 0 ? matchedProducts : mockProducts.slice(0, 1);
-
-  if (sourceProducts.length === 1) {
-    const [product] = sourceProducts;
-    return sortComparisonOffers(
-      product.prices.map((price) => ({
-        id: `${product.id}-${price.merchant}`,
-        name: product.name,
-        merchant: price.merchant,
-        price: normalizePrice(price.price),
-        currency: "USD",
-        imageUrl: product.image,
-        href: price.url || "#",
-        availability: price.inStock ? "In stock" : "Out of stock",
-        inStock: price.inStock,
-        brand: product.brand,
-        category: product.specs["Product Type"] || null,
-        lastUpdated: price.lastUpdated || product.lastUpdated || null,
-      })),
-    );
-  }
-
-  return sortComparisonOffers(
-    sourceProducts.slice(0, 6).map((product) => {
-      const bestPrice = product.prices.find((price) => price.price !== null) || product.prices[0];
-      return {
-        id: product.id,
-        name: product.name,
-        merchant: bestPrice?.merchant || "BuyWhere seller",
-        price: normalizePrice(bestPrice?.price),
-        currency: "USD",
-        imageUrl: product.image,
-        href: bestPrice?.url || "#",
-        availability: bestPrice?.inStock ? "In stock" : "Out of stock",
-        inStock: bestPrice?.inStock ?? null,
-        brand: product.brand,
-        category: product.specs["Product Type"] || null,
-        lastUpdated: bestPrice?.lastUpdated || product.lastUpdated || null,
-      };
-    }),
-  );
 }
 
 export function formatOfferPrice(price: number | null, currency: string): string {

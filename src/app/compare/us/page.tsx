@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import { toSiteUrl } from "@/lib/site-url";
 
 const USPriceComparisonPage = dynamic(
   () => import("@/components/USPriceComparison"),
@@ -24,26 +25,25 @@ export const metadata: Metadata = {
     siteName: "BuyWhere US",
     images: [
       {
-        url: "https://buywhere.ai/assets/img/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Compare US Product Prices - Amazon vs Walmart vs Target | BuyWhere",
-      },
-      {
-        url: "https://buywhere.ai/assets/img/og-image.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Compare US Product Prices - Amazon vs Walmart vs Target | BuyWhere",
       },
     ],
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
   twitter: {
     card: "summary_large_image",
     title: "Compare US Product Prices - Amazon vs Walmart vs Target | BuyWhere",
     description: "Compare prices for popular products across Amazon, Walmart, and Target. Find the best deals on electronics, home goods, and more.",
+    images: ["/og-image.png"],
   },
   alternates: {
-    canonical: "https://buywhere.ai/compare/us",
+    canonical: toSiteUrl("/compare/us"),
   },
 };
 

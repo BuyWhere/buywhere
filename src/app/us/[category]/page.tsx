@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { USSearchAutocomplete } from "@/components/USSearchAutocomplete";
+import { USCategorySearch } from "@/components/USCategorySearch";
 import { USDealsSection } from "@/components/USDealsSection";
+import CategoryProductGrid from "@/components/CategoryProductGrid";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
+import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import { fetchCategoryProducts } from "@/lib/category-products";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -66,6 +70,13 @@ const DEFAULT_CATEGORY = {
   subcategories: [],
 };
 
+const CATEGORY_SEARCH_QUERIES: Record<string, string[]> = {
+  electronics: ["laptop", "monitor", "wireless headphones", "smartphone", "tv", "camera"],
+  fashion: ["shoes", "jeans", "jacket", "dress"],
+  "home-living": ["furniture", "kitchen", "mattress", "vacuum"],
+  beauty: ["shampoo", "skincare", "makeup"],
+};
+
 function formatCategoryName(slug: string): string {
   return slug
     .split("-")
@@ -95,14 +106,7 @@ function CategoryHero({ category }: { category: string }) {
           </p>
           <div className="max-w-xl mx-auto">
             <div className="relative">
-              <USSearchAutocomplete
-                value=""
-                onChange={() => {}}
-                onSubmit={(query) => {
-                  window.location.href = `/search?q=${encodeURIComponent(query)}&region=us&category=${category}`;
-                }}
-                placeholder={`Search ${categoryName.toLowerCase()} products...`}
-              />
+              <USCategorySearch category={category} categoryName={categoryName} />
             </div>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -125,13 +129,13 @@ function CategoryHero({ category }: { category: string }) {
   );
 }
 
-function TrustBadges() {
+function TrustBadges({ productCountLabel }: { productCountLabel: string }) {
   return (
     <section className="py-12 bg-white border-y border-gray-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
-            <div className="text-2xl font-bold text-gray-900">50M+</div>
+            <div className="text-2xl font-bold text-gray-900">{productCountLabel}</div>
             <div className="text-sm text-gray-500">Products indexed</div>
           </div>
           <div>
@@ -269,20 +273,14 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
        type: "website",
        locale: "en_US",
        siteName: "BuyWhere US",
-       images: [
-         {
-           url: "https://buywhere.ai/assets/img/og-image.png",
-           width: 1200,
-           height: 630,
-           alt: `${categoryData.title} - BuyWhere US`,
-         },
-         {
-           url: "https://buywhere.ai/assets/img/og-image.svg",
-           width: 1200,
-           height: 630,
-           alt: `${categoryData.title} - BuyWhere US`,
-         },
-       ],
+        images: [
+          {
+            url: "/og-image.png",
+            width: 1200,
+            height: 630,
+            alt: `${categoryData.title} - BuyWhere US`,
+          },
+        ],
      },
      twitter: {
        card: "summary_large_image",
@@ -290,7 +288,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
        description: categoryData.description,
      },
      alternates: {
-       canonical: `https://buywhere.ai/us/${category}`,
+       canonical: toSiteUrl(`/us/${category}`),
      },
    };
  }
@@ -299,10 +297,18 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
   const { category } = await params;
   const categoryData = CATEGORY_META[category] || DEFAULT_CATEGORY;
   const categoryName = formatCategoryName(category);
+  const stats = await fetchCatalogStats();
+  const productCountLabel = stats ? formatCompactProductCount(stats.totalProducts) : "Millions";
+  const products = await fetchCategoryProducts({
+    queries: CATEGORY_SEARCH_QUERIES[category] || [categoryName.toLowerCase()],
+    category,
+    country: "US",
+  });
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
+    "@id": "https://buywhere.ai/#breadcrumb",
     itemListElement: [
       {
         "@type": "ListItem",
@@ -352,9 +358,15 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
-        <TrustBadges />
+        <TrustBadges productCountLabel={productCountLabel} />
+        <CategoryProductGrid
+          products={products}
+          country="US"
+          title={`Popular ${categoryName} products with live prices`}
+          description={`Compare current ${categoryName.toLowerCase()} prices from retailers with crawler-visible merchant links.`}
+        />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />

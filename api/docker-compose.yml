@@ -33,9 +33,9 @@ services:
   redis:
     image: redis:7-alpine
     command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
-    ports:
-      # Expose on 6380 to avoid conflict with openclaw-redis on 127.0.0.1:6379
-      - "6380:6379"
+    # ports:
+    #   Expose on 6380 to avoid conflict with openclaw-redis on 127.0.0.1:6379
+    #   - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -65,8 +65,16 @@ services:
       REDIS_PORT: "6379"
       PORT: "3000"
       API_BASE_URL: https://api.buywhere.ai
+      # Paperclip JWT auth (BUY-8065) — verify agent tokens
+      PAPERCLIP_API_URL: ${PAPERCLIP_API_URL:-https://api.paperclip.ai}
       # Sentry error tracking (BUY-3415) — set via AWS Secrets Manager in prod
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # AWS SES (email verification — BUY-8736)
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL:-noreply@buywhere.ai}
+      # Awin affiliate programme (BUY-6873) — set via secrets manager in prod
+      AWIN_PUBLISHER_ID: ${AWIN_PUBLISHER_ID:-}
+      AWIN_ADVERTISER_IDS: ${AWIN_ADVERTISER_IDS:-}
     ports:
       - "3000:3000"
     healthcheck:

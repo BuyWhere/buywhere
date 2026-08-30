@@ -55,8 +55,8 @@ const categories: Category[] = [
     ),
   },
   {
-    slug: "health",
-    name: "Health",
+    slug: "health-wellness",
+    name: "Health & Wellness",
     productCount: 89234,
     color: "text-red-600",
     icon: (
@@ -100,6 +100,30 @@ const categories: Category[] = [
       </svg>
     ),
   },
+  {
+    slug: "books-stationery",
+    name: "Books & Stationery",
+    productCount: 41000,
+    color: "text-yellow-600",
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+      </svg>
+    ),
+  },
+  {
+    slug: "garden-outdoor",
+    name: "Garden & Outdoor",
+    productCount: 35000,
+    color: "text-green-600",
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M12 2c-1 3-3 5-3 8a3 3 0 006 0c0-3-2-5-3-8z" />
+        <path d="M12 10v12M8 22h8" />
+      </svg>
+    ),
+  },
 ];
 
 function formatCount(count: number): string {
@@ -119,7 +143,7 @@ export function FeaturedCategories() {
         <div className="flex items-center justify-between mb-10">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Featured Categories</h2>
-            <p className="text-sm text-gray-500 mt-1">Browse top categories across all retailers</p>
+            <p className="text-sm text-gray-500 mt-1">Browse top categories across 950,000+ stores</p>
           </div>
           <Link
             href="/categories"

@@ -2,14 +2,33 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
 import { getAllBlogPosts } from "@/lib/blog";
+import { buildPageMetadata } from "@/lib/page-metadata";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { toSiteUrl } from "@/lib/site-url";
 
+const BLOG_TITLE = "BuyWhere Blog — Buying Guides & Price-Comparison Reviews";
+const BLOG_DESCRIPTION =
+  "Read buying guides, price-comparison reviews, launch updates, and developer tutorials for commerce AI agents.";
+
+// BUY-68406: advertise the blog RSS feed via <link rel="alternate"
+// type="application/rss+xml"> so feed readers and agent-discovery consumers can
+// autodiscover the canonical feed URL from /blog. Layered on top of the shared
+// page-metadata helper to add the feed alternate without changing every caller.
 export const metadata: Metadata = {
-  title: "BuyWhere Blog",
-  description:
-    "Developer tutorials, launch updates, and SEO content about product APIs, shopping agents, and commerce infrastructure.",
+  ...buildPageMetadata({
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    path: "/blog",
+  }),
   alternates: {
-    canonical: "https://buywhere.ai/blog",
+    canonical: toSiteUrl("/blog"),
+    types: {
+      "application/rss+xml": [
+        { url: toSiteUrl("/blog/rss.xml"), title: BLOG_TITLE },
+      ],
+    },
   },
 };
 
@@ -26,12 +45,55 @@ export default function BlogIndexPage() {
   const posts = getAllBlogPosts();
   const featuredPost = posts[0];
   const remainingPosts = posts.slice(1);
+  const blogUrl = toSiteUrl("/blog");
+  const jsonLd = buildWebPageSchema({
+    path: "/blog",
+    name: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Blog", path: "/blog" },
+    ],
+    extraTypes: [
+      {
+        "@type": ["Blog", "CollectionPage"],
+        "@id": `${blogUrl}#blog`,
+        url: blogUrl,
+        name: BLOG_TITLE,
+        description: BLOG_DESCRIPTION,
+        inLanguage: "en-US",
+        mainEntityOfPage: { "@id": `${blogUrl}#webpage` },
+        blogPost: posts.slice(0, 10).map((post) => ({
+          "@type": "BlogPosting",
+          "@id": toSiteUrl(`/blog/${post.slug}`),
+          url: toSiteUrl(`/blog/${post.slug}`),
+          headline: post.title,
+          description: post.description,
+          datePublished: post.publishedAt,
+          author: { "@type": "Person", name: post.author },
+          mainEntityOfPage: toSiteUrl(`/blog/${post.slug}`),
+        })),
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${blogUrl}#itemlist`,
+        name: `${BLOG_TITLE} — Recent Posts`,
+        itemListElement: posts.slice(0, 10).map((post, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: toSiteUrl(`/blog/${post.slug}`),
+          name: post.title,
+        })),
+      },
+    ],
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Schema data={jsonLd} />
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-indigo-100 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_100%)]">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
             <div className="max-w-3xl">
@@ -105,7 +167,11 @@ export default function BlogIndexPage() {
                 <p className="mb-6 flex-1 text-sm leading-7 text-slate-600">{post.description}</p>
                 <div className="flex items-center justify-between text-sm text-slate-500">
                   <span>{formatDate(post.publishedAt)}</span>
-                  <Link href={`/blog/${post.slug}`} className="font-medium text-indigo-600">
+                  <Link
+                    href={`/blog/${post.slug}`}
+                    className="font-medium text-indigo-600"
+                    aria-label={`Read article: ${post.title}`}
+                  >
                     Read article →
                   </Link>
                 </div>

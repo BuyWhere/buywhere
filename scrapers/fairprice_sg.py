@@ -25,7 +25,7 @@ from typing import Any
 
 import httpx
 
-from scrapers.logging import get_logger
+from scrapers.scraper_logging import get_logger
 
 MERCHANT_ID = "fairprice_sg"
 SOURCE = "fairprice_sg"

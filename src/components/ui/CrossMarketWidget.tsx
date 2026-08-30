@@ -70,7 +70,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
             limit: '3',
           });
 
-          const res = await fetch(`${baseUrl}/v1/search?${params.toString()}`, {
+          const res = await fetch(`${baseUrl}/v1/products/search?${params.toString()}`, {
             headers: {
               Authorization: `Bearer ${apiKey}`,
             },
@@ -78,7 +78,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
 
           if (!res.ok) return null;
           const data = await res.json();
-          return data.items?.[0] || null;
+          return data.data?.[0] || data.items?.[0] || null;
         });
 
         const results = await Promise.all(fetchPromises);
@@ -125,7 +125,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
           <h3 className="text-base font-semibold text-gray-900">Also Available in Other Markets</h3>
         </div>
         <Link
-          href={`/search?q=${encodeURIComponent(productName)}`}
+          href={`/search?q=${encodeURIComponent(productName)}`} rel="nofollow"
           className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
         >
           Compare all markets →
@@ -151,15 +151,15 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-xs font-medium text-gray-500">{label}</span>
                   {marketInfo && (
-                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-gray-500">•</span>
                   )}
-                  <span className="text-xs text-gray-400 truncate">{product.lowest_price_merchant || product.source}</span>
+                  <span className="text-xs text-gray-500 truncate">{product.lowest_price_merchant || product.source}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-base font-semibold text-gray-900">
                     {formatPrice(product.price || (product.lowest_price ? parseFloat(product.lowest_price) : 0), currency)}
                   </span>
-                  <span className="text-xs text-gray-400">{currency}</span>
+                  <span className="text-xs text-gray-500">{currency}</span>
                 </div>
               </div>
               <AffiliateLink

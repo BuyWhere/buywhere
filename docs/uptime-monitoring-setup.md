@@ -11,6 +11,11 @@
 | Check interval | **5 minutes** (free tier) |
 | Status page | http://stats.uptimerobot.com/d9XfakUWga |
 
+| Routine | Frontend UI health check — buywhere.ai |
+| Replaced routine | `abdc04ff-8159-44d7-826a-ae078998fd8c` |
+| Scripted check | `scripts/check-frontend-health.sh` |
+| Frequency target | **5 minutes** (match existing API check cadence) |
+
 ## What is done
 
 - Monitor is **live** and checking `/health` every 5 minutes.
@@ -64,3 +69,5 @@ curl -X POST https://api.uptimerobot.com/v2/newAlertContact \
 - [ ] Monitor shows **Up** in UptimeRobot dashboard
 - [ ] Check interval = 1 minute (after paid upgrade)
 - [ ] Downtime alert fires to on-call Slack channel (after webhook wired)
+- [ ] Replace deprecated routine `abdc04ff-8159-44d7-826a-ae078998fd8c` with `Frontend UI health check — buywhere.ai (BUY-17936)`
+- [ ] Run `scripts/setup-frontend-uptime-monitoring.sh` on the monitoring host (if using this repo-maintained routine)

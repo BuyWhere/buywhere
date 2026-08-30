@@ -66,7 +66,7 @@ export function CategoryPageSkeleton() {
             </div>
           </div>
         </aside>
-        <main className="flex-1 p-5">
+        <main id="main-content" className="flex-1 p-5">
           <div className="flex justify-between items-center mb-5 pb-4 border-b border-gray-200">
             <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
             <div className="flex gap-3">

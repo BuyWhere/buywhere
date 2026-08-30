@@ -1,21 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import PartnershipInquiryForm from "@/components/partnership/PartnershipInquiryForm";
-
-export const metadata: Metadata = {
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Merchant Partnerships | BuyWhere",
   description:
     "Feature your products on BuyWhere and reach price-conscious shoppers, AI agents, and comparison experiences across Singapore and Southeast Asia.",
-  alternates: {
-    canonical: "https://buywhere.ai/partnership",
-  },
-};
+  path: "/partnership",
+});
 
 const valueProps = [
   {
-    stat: "3.8M+",
+    stat: "300M+",
     label: "products indexed across priority categories",
     detail: "Merchants join a catalog already used for search, comparison, and recommendation experiences.",
   },
@@ -54,11 +53,23 @@ const audienceMoments = [
 ];
 
 export default function PartnershipPage() {
+  const schema = buildWebPageSchema({
+    path: "/partnership",
+    name: "Merchant Partnerships | BuyWhere",
+    description:
+      "Feature your products on BuyWhere and reach price-conscious shoppers, AI agents, and comparison experiences across Singapore and Southeast Asia.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Partnership", path: "/partnership" },
+    ],
+  });
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <>
+      <Schema data={schema} />
+      <div className="min-h-screen bg-slate-950 text-white">
       <Nav />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.28),_transparent_28%),radial-gradient(circle_at_80%_20%,_rgba(250,204,21,0.18),_transparent_22%),linear-gradient(135deg,_#020617_0%,_#082f49_42%,_#0f172a_100%)]">
           <div className="absolute inset-0 opacity-30">
             <div className="absolute left-[-6rem] top-20 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
@@ -190,5 +201,6 @@ export default function PartnershipPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

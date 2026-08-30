@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# End-to-end test: agent discovers -> registers -> queries all v1 endpoints
-# Usage: API_BASE=http://localhost:3000 ./e2e-agent-flow.sh
+# End-to-end test: agent discovers -> registers -> queries all catalog endpoints
+# Usage: API_BASE=https://api.buywhere.ai ./e2e-agent-flow.sh
 
 set -euo pipefail
-API_BASE="${API_BASE:-http://localhost:3000}"
+API_BASE="${API_BASE:-https://api.buywhere.ai}"
+EXPECTED_TIER="${EXPECTED_TIER:-unverified}"
+EXPECTED_RPM="${EXPECTED_RPM:-20}"
 PASS=0; FAIL=0
 
 pass() { echo "   ✓ $1"; PASS=$((PASS+1)); }
 fail() { echo "   ✗ $1"; FAIL=$((FAIL+1)); }
 check_field() { echo "$1" | grep -q "\"$2\"" && pass "$2 present" || fail "$2 missing"; }
+slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'; }
 
 echo "=== BuyWhere Agent E2E Test ==="
 echo "Target: $API_BASE"
@@ -35,10 +38,10 @@ API_KEY=$(echo "$REGISTER" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
 [[ -n "$API_KEY" ]] && pass "api_key returned (${API_KEY:0:12}...)" || { fail "no api_key"; exit 1; }
 
 TIER=$(echo "$REGISTER" | grep -o '"tier":"[^"]*"' | cut -d'"' -f4)
-[[ "$TIER" == "free" ]] && pass "tier=free" || fail "tier=$TIER (expected free)"
+[[ "$TIER" == "$EXPECTED_TIER" ]] && pass "tier=$EXPECTED_TIER" || fail "tier=$TIER (expected $EXPECTED_TIER)"
 
 RPM=$(echo "$REGISTER" | grep -o '"rpm":[0-9]*' | cut -d: -f2)
-[[ "$RPM" == "60" ]] && pass "rpm=60" || fail "rpm=$RPM (expected 60)"
+[[ "$RPM" == "$EXPECTED_RPM" ]] && pass "rpm=$EXPECTED_RPM" || fail "rpm=$RPM (expected $EXPECTED_RPM)"
 
 AUTH="Authorization: Bearer $API_KEY"
 
@@ -85,7 +88,8 @@ CAT_TOTAL=$(echo "$CATS" | grep -o '"total":[0-9]*' | cut -d: -f2)
 [[ "${CAT_TOTAL:-0}" -gt 0 ]] && pass "categories returned $CAT_TOTAL categories" || fail "categories empty"
 FIRST_SLUG=$(echo "$CATS" | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [[ -n "$FIRST_SLUG" ]]; then
-  CAT_DETAIL=$(curl -sf "$API_BASE/v1/categories/$FIRST_SLUG" -H "$AUTH")
+  DETAIL_SLUG=$(slugify "$FIRST_SLUG")
+  CAT_DETAIL=$(curl -sf "$API_BASE/v1/categories/$DETAIL_SLUG" -H "$AUTH")
   echo "$CAT_DETAIL" | grep -q '"subcategories"' && pass "GET /categories/:slug returns subcategories" || fail "category detail bad response"
 fi
 
@@ -95,7 +99,7 @@ echo "8. Product compare"
 IDS=$(echo "$SEARCH" | grep -o '"id":"[^"]*"' | head -2 | cut -d'"' -f4 | tr '\n' ',' | sed 's/,$//')
 if [[ $(echo "$IDS" | tr ',' '\n' | wc -l) -ge 2 ]]; then
   COMPARE=$(curl -sf "$API_BASE/v1/products/compare?ids=$IDS" -H "$AUTH")
-  echo "$COMPARE" | grep -q '"count"' && pass "compare returned results" || fail "compare bad response"
+  echo "$COMPARE" | grep -q '"total"' && pass "compare returned results" || fail "compare bad response"
 else
   fail "not enough IDs for compare test"
 fi

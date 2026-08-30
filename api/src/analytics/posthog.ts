@@ -49,24 +49,46 @@ export function trackApiQuery(event: ApiQueryEvent): void {
 }
 
 export interface AffiliateClickEvent {
+  // BUY-71129 (re-applied, was clobbered by 554950c7): apiKeyId (api_keys.id
+  // uuid) takes distinct_id priority so the conversion joins the api_query /
+  // mcp_tool_call funnel; apiKey (sha256 hash) is the fallback; only truly
+  // anonymous clicks (no auth, no upstream agent context) collapse to
+  // 'anonymous'.
+  apiKeyId?: string | null;
   apiKey: string | null;
   productId: string;
   merchantId: string;
   affiliateLinkId: string;
   source: string;
+  pathname?: string | null;
+  currentUrl?: string | null;
+  referrer?: string | null;
+  sessionId?: string | null;
 }
 
 export function trackAffiliateClick(event: AffiliateClickEvent): void {
   const ph = getClient();
   if (!ph) return;
   ph.capture({
-    distinctId: event.apiKey || 'anonymous',
+    distinctId: event.apiKeyId || event.apiKey || 'anonymous',
     event: 'affiliate_click',
     properties: {
       product_id: event.productId,
       merchant_id: event.merchantId,
       affiliate_link_id: event.affiliateLinkId,
       source: event.source,
+      ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
+      ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
+      ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
+      ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
+      ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
+      // BUY-74988: $set ensures PostHog materializes source → mat_source so
+      // HogQL property-filtered queries (mat_source=NULL → 0 results) resolve.
+      $set: {
+        source: event.source,
+        ...(event.pathname ? { pathname: event.pathname } : {}),
+        ...(event.currentUrl ? { current_url: event.currentUrl } : {}),
+      },
     },
   });
 }
@@ -90,52 +112,6 @@ export function trackRegistration(apiKey: string, agentName: string, signupChann
       signup_channel: signupChannel,
       utm_source: utmSource,
       registered_at: new Date().toISOString(),
-    },
-  });
-}
-
-export interface ProductSearchEvent {
-  apiKey: string;
-  queryText: string;
-  resultCount: number;
-  responseTimeMs: number;
-  sourcePage?: string | null;
-}
-
-export function trackProductSearch(event: ProductSearchEvent): void {
-  const ph = getClient();
-  if (!ph) return;
-  ph.capture({
-    distinctId: event.apiKey,
-    event: 'product_search',
-    properties: {
-      query_text: event.queryText,
-      result_count: event.resultCount,
-      response_time_ms: event.responseTimeMs,
-      source_page: event.sourcePage,
-    },
-  });
-}
-
-export interface ProductViewEvent {
-  apiKey: string | null;
-  productId: string;
-  retailer: string;
-  category: string | null;
-  source?: string | null;
-}
-
-export function trackProductView(event: ProductViewEvent): void {
-  const ph = getClient();
-  if (!ph) return;
-  ph.capture({
-    distinctId: event.apiKey || 'anonymous',
-    event: 'product_view',
-    properties: {
-      product_id: event.productId,
-      retailer: event.retailer,
-      category: event.category,
-      source: event.source,
     },
   });
 }
@@ -190,4 +166,130 @@ export async function shutdownPostHog(): Promise<void> {
   if (client) {
     await client.shutdown();
   }
+}
+
+// BUY-22733: source-of-truth usage telemetry — one event per authenticated request.
+// `toolName` set on MCP `tools/call` → emits `mcp_tool_call`; otherwise `api_query`.
+// `timestamp` lets the backfill script post historical events at their original `query_log.created_at`.
+// BUY-31298: added behavioral context fields so route handlers can pass extra analytics
+// through res.locals without firing a separate legacy trackApiQuery event.
+export interface ApiUsageEvent {
+  apiKeyId: string;
+  endpoint: string;
+  method: string;
+  tier: string;
+  resultStatus: number;
+  latencyMs: number;
+  toolName?: string | null;
+  timestamp?: Date;
+  backfilled?: boolean;
+  queryIntent?: string | null;
+  productCategories?: string[] | null;
+  signupChannel?: string | null;
+  sourcePage?: string | null;
+  // 2026-08-25 attribution fix: one person per key (uuid), internal flag, person props
+  keyHash?: string | null;
+  isInternal?: boolean;
+  agentName?: string | null;
+}
+
+const aliased = new Set<string>();
+
+export function trackApiUsage(event: ApiUsageEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  const isMcpToolCall = !!event.toolName;
+  // Merge the key-hash identity (product_search/product_view/affiliate_click) into the uuid person, once per process.
+  if (event.keyHash && !aliased.has(event.apiKeyId)) {
+    aliased.add(event.apiKeyId);
+    try { ph.alias({ distinctId: event.apiKeyId, alias: event.keyHash }); } catch { /* never block */ }
+  }
+  const extra: Record<string, unknown> = {};
+  if (event.queryIntent) extra.query_intent = event.queryIntent;
+  if (event.productCategories?.length) extra.product_categories = event.productCategories;
+  if (event.signupChannel) extra.signup_channel = event.signupChannel;
+  if (event.sourcePage) extra.source_page = event.sourcePage;
+  ph.capture({
+    distinctId: event.apiKeyId,
+    event: isMcpToolCall ? 'mcp_tool_call' : 'api_query',
+    properties: {
+      endpoint: event.endpoint,
+      method: event.method,
+      tier: event.tier,
+      api_key_id: event.apiKeyId,
+      result_status: event.resultStatus,
+      latency_ms: event.latencyMs,
+      is_internal: event.isInternal === true,
+      agent_name: event.agentName ?? null,
+      $set: { is_internal: event.isInternal === true, tier: event.tier, agent_name: event.agentName ?? null },
+      ...(isMcpToolCall ? { tool_name: event.toolName } : {}),
+      ...(event.backfilled ? { backfilled: true } : {}),
+      ...extra,
+    },
+    ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+  });
+}
+
+export function trackEmailVerified(apiKeyId: string, email: string): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: apiKeyId,
+    event: 'email_verified',
+    properties: {
+      email,
+      verified_at: new Date().toISOString(),
+    },
+  });
+}
+
+export interface ProductSearchEvent {
+  apiKey: string;
+  apiKeyId: string;
+  queryText: string;
+  resultCount: number;
+  responseTimeMs: number;
+}
+
+export function trackProductSearch(event: ProductSearchEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: event.apiKeyId,
+    event: 'product_search',
+    properties: {
+      api_key_id: event.apiKeyId,
+      result_status: 200,
+      latency_ms: event.responseTimeMs,
+      query_text: event.queryText,
+      result_count: event.resultCount,
+      response_time_ms: event.responseTimeMs,
+    },
+  });
+}
+
+export interface ProductViewEvent {
+  apiKey: string;
+  apiKeyId: string;
+  productId: string;
+  retailer: string;
+  category: string | null;
+  latencyMs: number;
+}
+
+export function trackProductView(event: ProductViewEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: event.apiKeyId,
+    event: 'product_view',
+    properties: {
+      api_key_id: event.apiKeyId,
+      result_status: 200,
+      latency_ms: event.latencyMs,
+      product_id: event.productId,
+      retailer: event.retailer,
+      category: event.category,
+    },
+  });
 }

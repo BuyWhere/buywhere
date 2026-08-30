@@ -3,6 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import WishlistButton from '@/components/WishlistButton';
+import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
 
 export interface BrowseProduct {
   id: number;
@@ -91,17 +92,18 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
             {product.inStock ? '✓ In Stock' : 'Out of Stock'}
           </p>
         </div>
-        <div className="flex flex-col items-end justify-between">
+        <div className="flex flex-col items-end justify-between gap-1">
           <div className="text-right">
             <span className="text-lg font-bold text-indigo-600">
               ${product.price.toFixed(2)}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
-              <span className="block text-xs text-gray-400 line-through">
+              <span className="block text-xs text-gray-500 line-through">
                 ${product.originalPrice.toFixed(2)}
               </span>
             )}
           </div>
+          <AffiliateDisclosure variant="inline" className="justify-end" />
           <WishlistButton
             product={{
               id: String(product.id),
@@ -178,7 +180,7 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
             ${product.price.toFixed(2)}
           </span>
           {product.originalPrice && product.originalPrice > product.price && (
-            <span className="text-sm text-gray-400 line-through">
+            <span className="text-sm text-gray-500 line-through">
               ${product.originalPrice.toFixed(2)}
             </span>
           )}
@@ -192,6 +194,9 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
         <p className={`text-xs ${product.inStock ? 'text-green-600' : 'text-red-600'}`}>
           {product.inStock ? '✓ In Stock' : 'Out of Stock'}
         </p>
+        <div className="mt-2">
+          <AffiliateDisclosure variant="inline" />
+        </div>
       </div>
     </a>
   );

@@ -1,37 +1,27 @@
-# from scrapers.sephora_sg import SephoraScraper
-# from scrapers.redmart_sg import RedMartScraper
-# from scrapers.qoo10_sg import Qoo10Scraper
-# from scrapers.challenger_sg import ChallengerScraper
-# from scrapers.courts_sg import CourtsScraper
-from scrapers.ikea_sg import IKEAScraper
-# from scrapers.fortytwo_sg import FortyTwoScraper
-# from scrapers.giant_sg import GiantScraper
-# from scrapers.cold_storage_sg import ColdStorageScraper
-# from scrapers.shopee_sg import ShopeeScraper
-# from scrapers.watsons_sg import WatsonsSGScraper
-# from scrapers.guardian_sg import GuardianSGScraper
-# from scrapers.decathlon_sg import DecathlonScraper
-# from scrapers.nike_sg import NikeScraper
-# from scrapers.lazada_ph import LazadaPHScraper
-# from scrapers.lazada_id import LazadaIDScraper
-# from scrapers.zalora_sg import ZaloraScraper
+import importlib as _il
 
-__all__ = [
-    "SephoraScraper",
-    "RedMartScraper",
-    "Qoo10Scraper",
-    "ChallengerScraper",
-    "CourtsScraper",
-    "IKEAScraper",
-    "FortyTwoScraper",
-    "GiantScraper",
-    "ColdStorageScraper",
-    "ShopeeScraper",
-    "WatsonsSGScraper",
-    "GuardianSGScraper",
-    "DecathlonScraper",
-    "NikeScraper",
-    "LazadaPHScraper",
-    "LazadaIDScraper",
-    "ZaloraScraper",
-]
+from scrapers.proxy_config import (  # noqa: E402
+    Zone,
+    ZoneConfig,
+    get_zone_config,
+    list_zones,
+    proxy_config_for_httpx,
+    proxy_config_for_playwright,
+    proxy_config_for_requests,
+    proxy_url,
+)
+
+_SCRAPERS = {
+    "IKEAScraper": "ikea_sg",
+    "ColdStorageScraper": "cold_storage_sg",
+    "WatsonsSGScraper": "watsons_sg",
+    "GuardianSGScraper": "guardian_sg",
+    "UnitySGScraper": "unity_sg",
+}
+
+
+def __getattr__(name):
+    if name in _SCRAPERS:
+        mod = _il.import_module(f"scrapers.{_SCRAPERS[name]}")
+        return getattr(mod, name)
+    raise AttributeError(f"module scrapers has no attribute {name!r}")

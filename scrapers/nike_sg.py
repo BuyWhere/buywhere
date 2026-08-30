@@ -26,6 +26,8 @@ from typing import Any
 
 import httpx
 
+from scrapers.jsonld_utils import enrich_batch_with_identifiers
+
 MERCHANT_ID = "nike_sg"
 SOURCE = "nike_sg"
 BASE_URL = "https://www.nike.com/sg"
@@ -64,12 +66,14 @@ class NikeScraper:
         batch_size: int = 100,
         delay: float = 1.0,
         scrape_only: bool = False,
+        extract_gtin: bool = False,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.batch_size = batch_size
         self.delay = delay
         self.scrape_only = scrape_only
+        self.extract_gtin = extract_gtin
         self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS)
         self.total_scraped = 0
         self.total_ingested = 0
@@ -168,6 +172,8 @@ class NikeScraper:
 
             return {
                 "sku": sku,
+                "gtin": raw.get("gtin13") or raw.get("gtin") or "",
+                "mpn": raw.get("mpn") or "",
                 "merchant_id": MERCHANT_ID,
                 "title": title,
                 "description": raw.get("description", "") or "",
@@ -258,6 +264,8 @@ class NikeScraper:
                     counts["scraped"] += 1
 
                     if len(batch) >= self.batch_size:
+                        if self.extract_gtin:
+                            await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
                         i, u, f = await self.ingest_batch(batch)
                         counts["ingested"] += i
                         counts["updated"] += u
@@ -268,7 +276,7 @@ class NikeScraper:
                         batch = []
                         await asyncio.sleep(self.delay)
 
-            print(f"scraped={counts['scraped']}")
+            print(f"Page {page}: scraped={counts['scraped']}{', gtin=enabled' if self.extract_gtin else ''}")
 
             if len(products) < 60:
                 break
@@ -277,6 +285,8 @@ class NikeScraper:
             await asyncio.sleep(self.delay)
 
         if batch:
+            if self.extract_gtin:
+                await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
             i, u, f = await self.ingest_batch(batch)
             counts["ingested"] += i
             counts["updated"] += u
@@ -332,6 +342,7 @@ async def main():
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between batches (seconds)")
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
+    parser.add_argument("--extract-gtin", action="store_true", help="Fetch product pages to extract GTIN/EAN/UPC from JSON-LD")
     args = parser.parse_args()
 
     scraper = NikeScraper(
@@ -340,6 +351,7 @@ async def main():
         batch_size=args.batch_size,
         delay=args.delay,
         scrape_only=args.scrape_only,
+        extract_gtin=args.extract_gtin,
     )
 
     try:

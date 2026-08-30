@@ -1,0 +1,11 @@
+{
+  "sweep_date": "2026-08-18",
+  "generated_at": "2026-08-18T11:08:55.867Z",
+  "near_miss_cells": 3,
+  "classified_failures": 0,
+  "db_errors": 0,
+  "db_timeouts": 0,
+  "combinations_filed": 0,
+  "combinations_dry_run": 0,
+  "identifiers": []
+}

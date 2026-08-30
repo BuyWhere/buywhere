@@ -1,3 +1,6 @@
+// 2026-08-26 (BUY-75497): this route handler is THE robots.txt — it takes precedence over src/app/robots.ts
+// (deleted) and the old public/robots.txt (deleted). Keep every rule here. /search and /r/ are crawl-budget
+// leaks (4seen 2026-08-26 item 3); /r/ anchors also carry rel="nofollow sponsored".
 const robots = `User-agent: *
 Allow: /
 Disallow: /home/
@@ -6,7 +9,10 @@ Disallow: /BUY/
 Disallow: /v1/
 Disallow: /v2/
 Disallow: /api/
-Disallow: /api-reference
+Disallow: /api-reference/
+Disallow: /login
+Disallow: /search
+Disallow: /r/
 
 User-agent: GPTBot
 Allow: /
@@ -23,10 +29,11 @@ Allow: /
 
 Sitemap: https://buywhere.ai/sitemap.xml
 Sitemap: https://buywhere.ai/sitemap-compare.xml
-Sitemap: https://buywhere.ai/sitemap-products-sg.xml
 
 LLMs-Txt: https://buywhere.ai/llms.txt
+LLMs-Full-Txt: https://buywhere.ai/.well-known/llms-full.txt
 Agent-Card: https://buywhere.ai/.well-known/agent.json
+Plugin: https://buywhere.ai/.well-known/ai-plugin.json
 `;
 
 export function GET() {

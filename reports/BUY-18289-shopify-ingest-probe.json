@@ -1,0 +1,34 @@
+{
+  "started_at": "2026-05-16T01:46:24.237804+00:00",
+  "merchant_start": 0,
+  "merchant_end": 2,
+  "merchants": [
+    {
+      "domain": "peppermayo.com",
+      "status": "success",
+      "fetched": 2500,
+      "transformed": 2499,
+      "ingested": 2499,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "tigermist.com",
+      "status": "success",
+      "fetched": 1259,
+      "transformed": 1259,
+      "ingested": 1259,
+      "failed": 0,
+      "last_error": null
+    }
+  ],
+  "completed_at": "2026-05-16T01:47:11.201649+00:00",
+  "stats": {
+    "merchants_processed": 2,
+    "merchants_success": 2,
+    "merchants_failed": 0,
+    "total_products_fetched": 3759,
+    "total_products_ingested": 3758,
+    "total_products_failed": 0
+  }
+}

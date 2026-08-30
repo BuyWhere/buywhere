@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.buywhere.ai";
 const ACTIVE_WINDOW_HOURS = 6;
+const STALE_RUNNING_WINDOW_HOURS = 6;
 
 interface ScraperHealth {
   source: string;
@@ -354,11 +355,17 @@ function normalizeRun(run: Record<string, unknown>, index: number): RecentRun {
   const outputRatePerHour = durationMs
     ? Math.round(processedRows / (durationMs / (1000 * 60 * 60)))
     : 0;
+  const resolvedStatus = String(run.status ?? run.last_run_status ?? "unknown");
+  const isStaleRunning =
+    resolvedStatus === "running" &&
+    startedAt &&
+    Date.now() - startedAt.getTime() > STALE_RUNNING_WINDOW_HOURS * 60 * 60 * 1000;
+  const normalizedStatus = isStaleRunning ? "stale_running" : resolvedStatus;
 
   return {
     id: String(run.id ?? run.run_id ?? index + 1),
     source: String(run.source ?? run.platform ?? run.scraper ?? "unknown"),
-    status: String(run.status ?? run.last_run_status ?? "unknown"),
+    status: normalizedStatus,
     started_at: startedAt?.toISOString() ?? null,
     finished_at: finishedAt?.toISOString() ?? null,
     rows_inserted: rowsInserted,
@@ -400,12 +407,16 @@ function buildMonitorData(scraperReport: ScraperHealthReport, stats: IngestionSt
           ? scraper.hours_since_last_run
           : null;
       const rate = hoursSince && hoursSince > 0 ? Math.round(processedRows / Math.max(hoursSince, 0.25)) : processedRows;
+      const hasStaleRunning =
+        scraper.last_run_status === "running" &&
+        hoursSince !== null &&
+        hoursSince > ACTIVE_WINDOW_HOURS;
 
       return {
         source: scraper.source,
         status: normalizeScraperStatus(scraper),
         is_active:
-          scraper.last_run_status === "running" ||
+          (!hasStaleRunning && scraper.last_run_status === "running") ||
           (hoursSince !== null && hoursSince <= ACTIVE_WINDOW_HOURS),
         last_run_at: parseDate(scraper.last_run_at)?.toISOString() ?? null,
         last_run_status: scraper.last_run_status ?? null,
@@ -479,6 +490,16 @@ function buildMonitorData(scraperReport: ScraperHealthReport, stats: IngestionSt
             : "This scraper needs investigation."),
       });
     });
+
+  const staleRuns = last24hRuns.filter((run) => run.status === "stale_running");
+  staleRuns.slice(0, 3).forEach((run) => {
+    alerts.push({
+      id: `stale-run-${run.id}`,
+      severity: "warning",
+      title: `${run.source} run appears stale`,
+      message: `Run ${run.id} has been in the running state since ${run.started_at ?? "an unknown start time"} with no completion heartbeat.`,
+    });
+  });
 
   if (stats.failed_runs > 0) {
     alerts.push({

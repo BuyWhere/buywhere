@@ -3,10 +3,17 @@
 import * as React from 'react';
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Schema from '@/components/Schema';
+import { buildWebPageSchema } from '@/lib/page-schema';
 import { Button } from '@/components/ui/Button';
 import { AmazonLogo } from '@/components/logos/AmazonLogo';
 import { WalmartLogo } from '@/components/logos/WalmartLogo';
 import { TargetLogo } from '@/components/logos/TargetLogo';
+import {
+  CATALOG_STATS_FALLBACK_LABEL,
+  fetchCatalogStatsClient,
+  formatCompactProductCount,
+} from '@/lib/catalog-stats';
 
 interface SignupState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -14,7 +21,7 @@ interface SignupState {
 }
 
 interface ProductCount {
-  count: number;
+  label: string;
   loading: boolean;
   error: boolean;
 }
@@ -76,12 +83,12 @@ function ProductCountDisplay({ productCount }: { productCount: ProductCount }) {
   }
 
   if (productCount.error) {
-    return <span className="text-gray-500">10M+ products</span>;
+    return <span className="text-gray-500">{CATALOG_STATS_FALLBACK_LABEL} products</span>;
   }
 
   return (
     <span className="font-semibold text-indigo-600">
-      {productCount.count.toLocaleString()}+ products
+      {productCount.label} products
     </span>
   );
 }
@@ -190,33 +197,39 @@ function SignupForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 export default function USSignupPage() {
-  const [productCount, setProductCount] = useState<ProductCount>({ count: 0, loading: true, error: false });
+  const [productCount, setProductCount] = useState<ProductCount>({ label: '', loading: true, error: false });
   const [showThankYou, setShowThankYou] = useState(false);
 
   useEffect(() => {
-    async function fetchProductCount() {
-      try {
-        const res = await fetch('https://api.buywhere.ai/v1/catalog/stats', {
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProductCount({ count: data.total_products || 50000000, loading: false, error: false });
-        } else {
-          throw new Error('Failed to fetch');
-        }
-      } catch {
-        setProductCount({ count: 50000000, loading: false, error: true });
+    let cancelled = false;
+    fetchCatalogStatsClient().then((stats) => {
+      if (cancelled) return;
+      if (stats) {
+        setProductCount({ label: formatCompactProductCount(stats.totalProducts), loading: false, error: false });
+      } else {
+        setProductCount({ label: '', loading: false, error: true });
       }
-    }
-
-    fetchProductCount();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const schema = buildWebPageSchema({
+    path: "/us/signup",
+    name: "Sign up — BuyWhere United States",
+    description:
+      "Create your BuyWhere US account and get instant access to the product catalog API and MCP server for AI agents.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "United States", path: "/us" },
+      { name: "Sign up", path: "/us/signup" },
+    ],
+  });
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+    <>
+      <Schema data={schema} />
+      <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600">
@@ -237,7 +250,7 @@ export default function USSignupPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+      <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-16 md:py-24">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 text-sm font-medium rounded-full mb-6">
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
@@ -330,5 +343,6 @@ export default function USSignupPage() {
         </div>
       </footer>
     </div>
+  </>
   );
 }

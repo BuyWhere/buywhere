@@ -23,6 +23,8 @@ from urllib.parse import quote_plus, urljoin
 import httpx
 from bs4 import BeautifulSoup
 
+from scrapers.jsonld_utils import enrich_batch_with_identifiers
+
 MERCHANT_ID = "amazon_sg"
 SOURCE = "amazon_sg"
 BASE_URL = "https://www.amazon.sg"
@@ -91,6 +93,7 @@ class AmazonSGScraper:
         scrape_only: bool = False,
         output_dir: str | None = None,
         max_pages_per_keyword: int = 25,
+        extract_gtin: bool = False,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
@@ -99,6 +102,7 @@ class AmazonSGScraper:
         self.scrape_only = scrape_only
         self.output_dir = output_dir or OUTPUT_DIR
         self.max_pages_per_keyword = max_pages_per_keyword
+        self.extract_gtin = extract_gtin
         self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         self.total_scraped = 0
         self.total_ingested = 0
@@ -185,7 +189,11 @@ class AmazonSGScraper:
                 url = urljoin(BASE_URL, url)
 
             price = self._parse_price(raw.get("price"))
-            original_price = self._parse_price(raw.get("original_price")) or price
+            original_price = self._parse_price(raw.get("original_price"))
+            if original_price > price * 10:
+                original_price = price
+            elif original_price <= price:
+                original_price = price
             review_count = self._parse_int(raw.get("review_count"))
 
             rating = 0.0
@@ -200,6 +208,8 @@ class AmazonSGScraper:
 
             return {
                 "sku": asin,
+                "gtin": raw.get("gtin") or "",
+                "mpn": raw.get("mpn") or "",
                 "merchant_id": MERCHANT_ID,
                 "title": title,
                 "description": raw.get("description") or "",
@@ -339,6 +349,8 @@ class AmazonSGScraper:
                 counts["scraped"] += 1
 
                 if len(batch) >= self.batch_size:
+                    if self.extract_gtin:
+                        await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
                     i, u, f = await self.ingest_batch(batch)
                     counts["ingested"] += i
                     counts["updated"] += u
@@ -359,6 +371,8 @@ class AmazonSGScraper:
             await asyncio.sleep(self.delay)
 
         if batch:
+            if self.extract_gtin:
+                await enrich_batch_with_identifiers(batch, "url", self.client, max_concurrent=5)
             i, u, f = await self.ingest_batch(batch)
             counts["ingested"] += i
             counts["updated"] += u
@@ -415,6 +429,7 @@ async def main() -> None:
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
     parser.add_argument("--output-dir", help="Override output directory")
     parser.add_argument("--max-pages-per-keyword", type=int, default=25)
+    parser.add_argument("--extract-gtin", action="store_true", help="Fetch product pages to extract GTIN/EAN/UPC from JSON-LD")
     args = parser.parse_args()
 
     if not args.scrape_only and not args.api_key:
@@ -428,6 +443,7 @@ async def main() -> None:
         scrape_only=args.scrape_only,
         output_dir=args.output_dir,
         max_pages_per_keyword=args.max_pages_per_keyword,
+        extract_gtin=args.extract_gtin,
     )
 
     try:
