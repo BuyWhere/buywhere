@@ -3065,7 +3065,8 @@ export async function warmSearchCache(): Promise<void> {
       const result = await db.query(dataQuery, params);
       const hasMore = result.rows.length > limit;
       if (hasMore) result.rows.pop();
-      const total = result.rows.length + (hasMore ? 1 : 0);
+      // FIX BUY-77514: removed +1 from total calculation. Same bug as line 1848.
+      const total = result.rows.length;
 
       // BUY-74689: batched merchant lookup so warmed cache entries also carry
       // merchant_name / merchant_slug (they are stored in Redis for 1h so the
