@@ -39,7 +39,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost-b72744'; // BUY-72744: bust stale synthetic-Amazon search cache entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-cand-rank-v10-b77644'; // BUY-77644: bust stale degraded responses after tier cand/rank fix
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -324,9 +324,16 @@ async function tryTierSearch(
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-77644: project the columns needed for ranking into the cand CTE so the
+  // top CTE can rank against the bounded candidate set without a second join to
+  // search_products. The old plan joined search_products in top (BUY-54980) which
+  // forced 1000 PK lookups and blew the 4s tier timeout for broad terms like
+  // `s24 case` (~3.6s). Selecting title/category/source/price/updated_at in cand
+  // keeps the same ranking semantics in ~40-110ms.
+  const rankCols = `title, category, source, price, updated_at`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector FROM search_products sp
+      SELECT id, search_vector, ${rankCols} FROM search_products sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -336,16 +343,14 @@ async function tryTierSearch(
       -- over-fetch that inflated the bitmap into lossy territory for head terms.
       LIMIT 1000
     ), top AS (
-      -- BUY-54980: boost/penalty CASE expressions reference sp.title / sp.category,
-      -- but cand only exposes (id, search_vector). Without joining search_products
-      -- here, PostgreSQL errors at plan time and tryTierSearch silently falls back
-      -- to the slow archive path (~10s cold, occasional 504).
+      -- BUY-54980/BUY-77644: rank columns are now in cand, so no join needed here.
+      -- The CASE expressions reference the cand alias (c.*) directly.
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
-            (${laptopBoost}) *
-            (${laptopAccessoryPenalty}) *
-            (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) AS rank
-      FROM cand c JOIN search_products sp ON sp.id = c.id
+            (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+      FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -430,7 +435,13 @@ async function tryTierSearch(
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     if (rows.length === 0) {
-      if (rows.length === 0 && lexemes.length > 1) {
+      // BUY-77644: broad OR fallbacks on multi-word queries union huge posting lists
+      // (`running | shoes` = ~1.2M rows) and can exceed the 4s tier timeout even with
+      // a LIMIT, causing a degraded archive fallback. For multi-word broad terms we
+      // now skip the OR top-up entirely and let the faster archive path serve them.
+      // Single-lexeme head terms keep the OR fallback because their posting lists are
+      // smaller and the archive path is already fast for them.
+      if (rows.length === 0 && lexemes.length === 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
       if (rows.length === 0 && isGenericPhoneQuery) {
@@ -1638,6 +1649,11 @@ router.get(
     const products = dataResult.rows.map((row) =>
       buildProduct(row as Record<string, unknown>, currency, compact)
     );
+
+    // BUY-52290: pre-compute before field-selection so IDs are never stripped.
+    // Use the full products array (not filteredProducts) so no IDs are lost.
+    res.locals.returnedProductIds = products.map((p) => p.id).filter(Boolean).slice(0, 100);
+    res.locals.resultCount = products.length;
 
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;
