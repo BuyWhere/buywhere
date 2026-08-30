@@ -108,15 +108,15 @@ function PriceRangeFilter({
           value={localMin}
           onChange={(e) => setLocalMin(e.target.value)}
           placeholder="Min"
-          className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-16 px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-gray-500"
         />
-        <span className="text-gray-400">—</span>
+        <span className="text-gray-500" aria-hidden="true">—</span>
         <input
           type="text"
           value={localMax}
           onChange={(e) => setLocalMax(e.target.value)}
           placeholder="Max"
-          className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-16 px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-gray-500"
         />
       </div>
       <button
