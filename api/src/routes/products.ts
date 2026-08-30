@@ -215,12 +215,17 @@ async function tryTierSearch(
       -- over-fetch that inflated the bitmap into lossy territory for head terms.
       LIMIT 1000
     ), top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
+      -- BUY-54980: boost/penalty CASE expressions reference sp.title / sp.category,
+      -- but cand only exposes (id, search_vector). Without joining search_products
+      -- here, PostgreSQL errors at plan time and tryTierSearch silently falls back
+      -- to the slow archive path (~10s cold, occasional 504).
+      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) AS rank
-      FROM cand ORDER BY rank DESC LIMIT 200
+      FROM cand c JOIN search_products sp ON sp.id = c.id
+      ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
