@@ -1805,6 +1805,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // price" before the accessory filter existed, and zero offers after it, because the
     // filter stripped a window that contained nothing else. Rank accessories last in SQL
     // and widen the window so the real product survives to the filter.
+    // Detail fetch joins products, not the tier: search_products has no is_active,
+    // metadata, category_path or url_status columns, so joining the tier there raised
+    // "column does not exist" on every call and find_best_price always returned a
+    // degraded empty envelope (2026-08-29).
     const FILTER_POOL = Math.max(limit * 20, 200);
     tierParams.push(CANDIDATE_POOL, FILTER_POOL);
     result = await bestPriceClient.query(
@@ -1826,10 +1830,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
-       -- 2026-08-29: detail fetch joins `products`, not the tier. search_products has no
-       -- is_active / metadata / category_path / url_status columns, so joining the tier
-       -- here raised "column does not exist" on every call and find_best_price always
-       -- returned a degraded empty envelope.
        JOIN products p ON p.id = pi.id
        WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
