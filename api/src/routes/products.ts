@@ -685,24 +685,24 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
 
-    // BUY-77664/77677 REVERTED (BUY-77664 emergency): products_partitioned is empty
-    // for most countries (Rex pre-load stalled), and under sakura IO saturation the
-    // partitioned table scans time out even with LIMIT 1. Revert to 'products' parent
-    // table which has idx_products_active_country partial index.
-    const LIST_TABLE = 'products';
+    // BUY-77664/77677 FIX RE-APPLIED: Use partitioned tables for list endpoint.
+    // products_partitioned_{country} tables are now populated and much faster.
+    const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
 
     // pg_class reltuples is instant (system catalog, cached).
+    // Use the partition table name for count if available.
+    const countTable = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
     const countResult = await db.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+      [countTable]
     );
 
-    // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
-    // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
-    // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
+    // Use partitioned table which is much smaller and faster.
     let dataResult;
     const listClient = await db.connect();
     try {
-      await listClient.query(`SET statement_timeout = '15s'`);
+      // Partitioned tables are small enough that we don't need the aggressive timeout.
+      await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE}
