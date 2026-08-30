@@ -1320,8 +1320,27 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // BUY-73322: reject region=global on country-specific pages BEFORE normalization.
         // The search API's country=US filter passes region=global merchants (e.g.
         // google_shopping, woocommerce) that ship worldwide but aren't US retailers.
+        //
+        // BUY-78023: the blanket region=global reject is too aggressive when the
+        // row carries an explicit `country_code` matching the page's target
+        // market (e.g. region=global + country_code=US means a US-shippable
+        // merchant that the catalog classifies as worldwide). Drop the early
+        // reject when (a) the row's country_code matches the page market AND
+        // (b) the merchant slug is `google_shopping` or `woocommerce` (the two
+        // aggregator slugs BUY-73322 originally flagged). Rows without a
+        // matching country_code still fall through to the existing
+        // `isMerchantAllowedForCountry` gate below — so the istyle.cz /
+        // non-US case BUY-73322 originally caught (no usable country_code or
+        // non-matching country_code) is still dropped, but US-priced
+        // google_shopping rows that pass the merchant allowlist check are now
+        // allowed through to the per-item filters.
         const region = item.region?.toLowerCase();
-        if (config.country && region === "global") continue;
+        const itemCountryCode = (item.country_code ?? "").toString().toUpperCase();
+        if (config.country && region === "global") {
+          if (itemCountryCode !== config.country.toUpperCase()) continue;
+          const slug = (item.merchant ?? "").toString().toLowerCase();
+          if (slug !== "google_shopping" && slug !== "woocommerce") continue;
+        }
 
         // BUY-73640 / BUY-73322-FIX: the backend returns merchant metadata as a
         // bare string slug, not a nested object with region/countryCode. Hard
