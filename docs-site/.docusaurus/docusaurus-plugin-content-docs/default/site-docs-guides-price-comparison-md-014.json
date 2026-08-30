@@ -1,0 +1,27 @@
+{
+  "id": "guides/price-comparison",
+  "title": "Build a Price Comparison Tool",
+  "description": "Build a CLI tool that searches for a product across multiple retailers and shows the best prices, in under 50 lines of Python.",
+  "source": "@site/docs/guides/price-comparison.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/price-comparison",
+  "permalink": "/docs/guides/price-comparison",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "title": "Build a Price Comparison Tool"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Error Reference",
+    "permalink": "/docs/errors"
+  },
+  "next": {
+    "title": "MCP Integration",
+    "permalink": "/docs/guides/mcp-integration"
+  }
+}
