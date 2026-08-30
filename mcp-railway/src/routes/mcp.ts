@@ -723,10 +723,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
 
           if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+            // Vector-only: fetch top-N nearest neighbours from vector DB, then fetch details
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
+               ORDER BY embedding <=> $1::vector LIMIT ${Math.min(limit + offset, 200)}`,
               [queryVec]
             );
             const countryFiltered = await filterVectorByCountry(vecRows.rows.map(r => r.product_id));
@@ -736,12 +736,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             const [ftsResult, vecResult] = await Promise.all([
               // BUY-72082: FTS half of RRF via tier table (GIN-indexed, bounded)
               spQuery<{ id: string }>(
-                `SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`,
+                `SELECT sp.id FROM search_products sp ${tierWhere} LIMIT ${Math.min(limit + offset, 200)}`,
                 tierParams,
                 `tierh_${tierParams.length}`
               ),
               vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT ${Math.min(limit + offset, 200)}`,
                 [queryVec]
               ),
             ]);
@@ -788,17 +788,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         } else {
           // BUY-72082: Embed failed — fall through to tier keyword FTS.
           // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
-          // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-          // BUY-76552: REMOVED tierParams.push(limit + offset) — the tierFts SQL
-          // uses hardcoded LIMIT 1000 and LIMIT 200, not $3. The extra param caused
-          // 08P01 "bind message supplies 3 parameters but prepared statement requires 2".
+          // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
+          // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
           const tierFts = await spQuery<{ id: string; rank: number }>(
             `WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
                LIMIT 1000
              )
-             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`,
+             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`,
             tierParams,
             `fts_k${tierParams.length}`
           );
@@ -823,15 +821,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       } else {
         // BUY-72082: Keyword (FTS) path via search_products tier.
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
-        // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-        // BUY-76552: REMOVED tierParams.push(limit + offset) — same reason as above.
+        // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
+        // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
         const tierFts = await spQuery<{ id: string; rank: number }>(
           `WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`,
+           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`,
           tierParams,
           `fts_k${tierParams.length}`
         );
