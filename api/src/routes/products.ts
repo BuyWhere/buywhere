@@ -142,20 +142,43 @@ async function tryIdentifierLookup(
     const offsetIdx = i; params.push(p.offset); i++;
 
     await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '2000'`);
+    // BUY-72362 follow-on: parent `products` is 368M rows and cold lookups can
+    // exceed the original 2s budget. Use the country-specific child partition
+    // when the caller supplied a market (sub-100ms with the partition btree),
+    // and give the parent path the same headroom as the REST search tier.
+    await client.query(`SET LOCAL statement_timeout = '8000'`);
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
-      sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
-      sp.sku AS source_id, sp.brand, sp.mpn, sp.gtin, sp.category_path, sp.category, sp.merchant_id,
-      sp.avg_rating, sp.review_count, sp.created_at, sp.description, sp.metadata,
-      jsonb_build_object('brand', sp.brand, 'category', sp.category,
-        'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+    const cols = (alias: string) => `${alias}.id, ${alias}.source AS domain, ${alias}.url, al.destination_url AS affiliate_url,
+      ${alias}.title, ${alias}.price, ${alias}.currency, ${alias}.image_url, ${alias}.region, ${alias}.country_code, ${alias}.updated_at, ${alias}.in_stock,
+      ${alias}.sku AS source_id, ${alias}.brand, ${alias}.mpn, ${alias}.gtin, ${alias}.category_path, ${alias}.category, ${alias}.merchant_id,
+      ${alias}.avg_rating, ${alias}.review_count, ${alias}.created_at, ${alias}.description, ${alias}.metadata,
+      jsonb_build_object('brand', ${alias}.brand, 'category', ${alias}.category,
+        'availability', CASE WHEN ${alias}.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
     let rows: Array<Record<string, unknown>> = [];
-    let source = 'identifier_tier';
+    let source = 'identifier_partition';
+    const countryCode = p.countryCode?.toUpperCase();
+    const partitionTable = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : null;
     try {
+      if (partitionTable) {
+        await client.query('SAVEPOINT before_parent');
+        const r = await client.query(
+          `SELECT ${cols('sp')} FROM ${partitionTable} sp
+           LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+           ${whereSql}
+           ORDER BY sp.id DESC
+           LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+          params,
+        );
+        rows = r.rows;
+      } else {
+        throw new Error('no_country_code');
+      }
+    } catch (partitionErr) {
+      await client.query('ROLLBACK TO SAVEPOINT before_parent').catch(() => {});
+      source = 'identifier_parent';
       const r = await client.query(
-        `SELECT ${cols} FROM products sp
+        `SELECT ${cols('sp')} FROM products sp
          LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
          ${whereSql}
          ORDER BY sp.id DESC
@@ -163,24 +186,6 @@ async function tryIdentifierLookup(
         params,
       );
       rows = r.rows;
-    } catch (tierErr) {
-      await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
-      source = 'identifier_archive';
-      try {
-        await client.query('SAVEPOINT before_archive');
-        const r = await client.query(
-          `SELECT ${cols.replace(/sp\./g, 'products.')} FROM products
-           LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-           ${whereSql.replace(/sp\./g, 'products.')}
-           ORDER BY products.id DESC
-           LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-          params,
-        );
-        rows = r.rows;
-      } catch (archiveErr) {
-        await client.query('ROLLBACK TO SAVEPOINT before_archive').catch(() => {});
-        throw archiveErr;
-      }
     }
     await client.query('COMMIT');
     client.release();
