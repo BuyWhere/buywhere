@@ -179,6 +179,32 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   }
 });
 
+test("SEO landing products consume live API products payloads", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (!url.includes("/api/products/search")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
+
+    return new Response(
+      JSON.stringify({
+        products: [makeSearchItem("earbuds", "Sony WF-1000XM5 Wireless Earbuds", 199)],
+        total: 1,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-noise-canceling-headphones-us"]);
+    assert.equal(products[0].id, "earbuds");
+    assert.equal(products[0].name, "Sony WF-1000XM5 Wireless Earbuds");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("robot-vacuum landing page uses compact, unclipped product cards with complete offer data", () => {
   const pageSource = readFileSync(new URL("../components/seo/SeoLandingPage.tsx", import.meta.url), "utf8");
   const cardSource = readFileSync(new URL("../components/seo/ProductGridCard.tsx", import.meta.url), "utf8");

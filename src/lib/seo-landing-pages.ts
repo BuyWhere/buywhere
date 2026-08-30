@@ -150,6 +150,7 @@ type SearchApiResponse = {
   hint?: string;
   items?: SearchApiItem[];
   results?: SearchApiItem[];
+  products?: SearchApiItem[];
 };
 
 type ComparisonRow = Record<string, string>;
@@ -1326,7 +1327,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         continue;
       }
 
-      const items = data.data || data.items || data.results || [];
+      const items = data.data || data.items || data.results || data.products || [];
       if (!Array.isArray(items) || items.length === 0) {
         continue;
       }
