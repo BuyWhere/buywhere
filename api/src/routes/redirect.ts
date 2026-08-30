@@ -203,6 +203,56 @@ function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promi
   ]);
 }
 
+function normalizeQuerySlug(slug: string): string {
+  try {
+    return decodeURIComponent(slug).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  } catch {
+    return slug.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+// GET /r/:query — public shortcut used by intent pages and human-facing links.
+// Resolve a real priced product, then reuse the canonical product redirect path.
+const queryRedirectHandler = async (req: Request, res: Response) => {
+  const query = normalizeQuerySlug(req.params.query || '');
+  if (!query) {
+    res.redirect(302, FALLBACK_URL);
+    return;
+  }
+
+  try {
+    const result = await withTimeout(
+      db.query(
+        `SELECT id
+           FROM products
+          WHERE url IS NOT NULL
+            AND price IS NOT NULL
+            AND price > 0
+            AND (
+              search_vector @@ plainto_tsquery('english', $1)
+              OR lower(title) LIKE '%' || lower($1) || '%'
+            )
+          ORDER BY updated_at DESC NULLS LAST
+          LIMIT 1`,
+        [query]
+      ),
+      LOOKUP_TIMEOUT_MS,
+      'query redirect product lookup'
+    );
+
+    const productId = result.rows[0]?.id;
+    if (productId) {
+      req.params.affiliateSlug = 'direct';
+      req.params.productId = String(productId);
+      return redirectHandler(req, res);
+    }
+  } catch (err) {
+    console.warn('[redirect] query lookup failed:', (err as Error).message);
+  }
+
+  res.redirect(302, FALLBACK_URL);
+};
+
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
 // Log the affiliate click then redirect to destination
 const redirectHandler = async (req: Request, res: Response) => {
@@ -477,5 +527,6 @@ const redirectHandler = async (req: Request, res: Response) => {
 
 router.get('/direct/:merchantId/:productId', redirectHandler);
 router.get('/:affiliateSlug/:productId', redirectHandler);
+router.get('/:query', queryRedirectHandler);
 
 export default router;
