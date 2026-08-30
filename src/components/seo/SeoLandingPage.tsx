@@ -271,7 +271,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {config.heroBody}
               </p>
               <ul
-                className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100"
+                className="mt-8 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-slate-100"
                 aria-label="Page metadata"
                 data-ssr-prices-checked={checked.iso}
               >
