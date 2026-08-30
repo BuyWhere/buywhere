@@ -696,20 +696,39 @@ router.get(
     // BUY-77835: route the heavy catalog list query to the read replica (when
     // healthy) so it does not compete with interactive /v1/products/search on
     // the saturated primary. readDb() falls back to primary if replica is not
-    // configured or caught up.
-    const listDb = readDb();
+    // configured or caught up. connectionTimeoutMillis: 5000 on replica pool
+    // prevents indefinite hangs; BUY-77920 adds per-request try/catch + primary
+    // fallback so the endpoint degrades gracefully when the replica is unreachable.
+    let listDb = readDb();
 
     // pg_class reltuples is instant (system catalog, cached).
-    const countResult = await listDb.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-      [LIST_TABLE]
-    );
+    let countResult;
+    try {
+      countResult = await listDb.query(
+        `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+        [LIST_TABLE]
+      );
+    } catch (err) {
+      console.warn(`[products:list] readDb() query failed, falling back to primary: ${(err as Error).message}`);
+      listDb = db;
+      countResult = await listDb.query(
+        `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+        [LIST_TABLE]
+      );
+    }
 
     // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
     // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
     // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
     let dataResult;
-    const listClient = await listDb.connect();
+    let listClient;
+    try {
+      listClient = await listDb.connect();
+    } catch (err) {
+      console.warn(`[products:list] readDb().connect() failed, falling back to primary: ${(err as Error).message}`);
+      listDb = db;
+      listClient = await listDb.connect();
+    }
     try {
       await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
@@ -2393,23 +2412,46 @@ router.get(
     // BUY-77835: route featured to the country partition (or parent fallback)
     // so it does not scan the 413GB parent table. This mirrors the /v1/products
     // list routing and fixes the empty-response regression under primary I/O saturation.
+    // BUY-77920: wrap readDb() in try/catch so the endpoint falls back to primary
+    // if the replica is unreachable rather than 500-ing at the LB timeout.
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
       ? `products_partitioned_${countryCode.toLowerCase()}`
       : 'products';
-    const result = await readDb().query(
-      `SELECT id, sku AS source_id, source AS domain, url,
-              NULL::text AS affiliate_url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code
-       FROM ${FEATURED_TABLE}
-       WHERE is_active = true
-         AND country_code = $1
-         AND currency = $2
-         AND price IS NOT NULL
-       ORDER BY id DESC
-       LIMIT $3 OFFSET $4`,
-      [countryCode, currency, limit, offset]
-    );
+    let featuredDb = readDb();
+    let result;
+    try {
+      result = await featuredDb.query(
+        `SELECT id, sku AS source_id, source AS domain, url,
+                NULL::text AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM ${FEATURED_TABLE}
+         WHERE is_active = true
+           AND country_code = $1
+           AND currency = $2
+           AND price IS NOT NULL
+         ORDER BY id DESC
+         LIMIT $3 OFFSET $4`,
+        [countryCode, currency, limit, offset]
+      );
+    } catch (err) {
+      console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
+      featuredDb = db;
+      result = await featuredDb.query(
+        `SELECT id, sku AS source_id, source AS domain, url,
+                NULL::text AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM ${FEATURED_TABLE}
+         WHERE is_active = true
+           AND country_code = $1
+           AND currency = $2
+           AND price IS NOT NULL
+         ORDER BY id DESC
+         LIMIT $3 OFFSET $4`,
+        [countryCode, currency, limit, offset]
+      );
+    }
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
