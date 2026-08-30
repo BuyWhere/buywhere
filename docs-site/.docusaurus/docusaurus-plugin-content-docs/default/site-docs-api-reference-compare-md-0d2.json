@@ -1,0 +1,27 @@
+{
+  "id": "api-reference/compare",
+  "title": "Compare Products",
+  "description": "Side-by-side comparison of 2–10 products with normalized pricing and specs.",
+  "source": "@site/docs/api-reference/compare.md",
+  "sourceDirName": "api-reference",
+  "slug": "/api-reference/compare",
+  "permalink": "/docs/api-reference/compare",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5,
+    "title": "Compare Products"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Deals",
+    "permalink": "/docs/api-reference/deals"
+  },
+  "next": {
+    "title": "Price History",
+    "permalink": "/docs/api-reference/price-history"
+  }
+}

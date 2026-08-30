@@ -285,8 +285,8 @@ function NotFoundBrandContent({ slug }: { slug: string }) {
 
 function NotFoundInner() {
   const searchParams = useSearchParams();
-  const isBrandNotFound = searchParams.get("type") === "brand";
-  const slug = searchParams.get("slug") ?? "";
+  const isBrandNotFound = searchParams?.get("type") === "brand";
+  const slug = searchParams?.get("slug") ?? "";
 
   if (isBrandNotFound && slug) {
     return <NotFoundBrandContent slug={slug} />;
