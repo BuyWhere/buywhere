@@ -1,33 +1,34 @@
 {
   "slug": "dyson-v15-vs-dyson-v12-singapore",
-  "title": "Dyson V15 vs V12 in Singapore (2026) — Which should you buy?",
+  "title": "Dyson V15 vs V12 in Singapore (2026) \u2014 Which should you buy?",
   "description": "Dyson V15 Detect vs Dyson V12 Detect Slim for Singapore homes: compare live prices, suction class, weight, bin size, warranty, retailer risk and which cordless vacuum makes more sense for HDB flats, condos and pet households.",
   "heroEyebrow": "Singapore Dyson cordless comparison",
-  "heroTitle": "Dyson V15 vs V12 in Singapore — which cordless vacuum to buy in 2026",
-  "heroTitleTemplate": "Dyson V15 vs V12 in Singapore (2026) — from {floorPrice} today",
+  "heroTitle": "Dyson V15 vs V12 in Singapore \u2014 which cordless vacuum to buy in 2026",
+  "heroTitleTemplate": "Dyson V15 vs V12 in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "The Dyson V15 Detect and Dyson V12 Detect Slim look similar in a product card, but they solve different Singapore cleaning problems. The V15 is the stronger full-size option for larger condos, pets, rugs and weekend deep cleans. The V12 is the lighter daily-clean option for HDB flats, tight storerooms and anyone who wants a cordless vacuum they can grab with one hand after dinner. Singapore shoppers also need to check warranty source carefully: Dyson Singapore, authorised retailers and official marketplace stores are safer for local support, while parallel-import listings can look attractive until a battery, charger or motorised head needs servicing. This page pulls live Singapore listings from BuyWhere's catalog so you can compare the current floor across V15 and V12 listings, then use the guide below to decide whether power, weight or warranty should lead your decision.",
   "canonicalPath": "/dyson-v15-vs-dyson-v12-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Dyson V15 V12 Detect cordless vacuum Singapore",
+  "searchQuery": "Dyson V15 V12 Detect cordless vacuum",
   "backupQueries": [
-    "Dyson V15 Detect cordless vacuum Singapore",
-    "Dyson V12 Detect Slim cordless vacuum Singapore",
-    "Dyson Detect cordless vacuum Singapore SGD"
+    "Dyson V15 Detect cordless vacuum",
+    "Dyson V12 Detect Slim cordless vacuum",
+    "dyson detect v12"
   ],
-  "minPrice": 350,
+  "minPrice": 450,
   "requiredProductTerms": [
     "dyson",
     "detect",
-    "cordless"
+    "v15",
+    "v12"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-30",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live Dyson V15 and V12 prices in Singapore",
-  "comparisonSectionTitle": "Dyson V15 vs V12 — side by side for Singapore homes",
+  "comparisonSectionTitle": "Dyson V15 vs V12 \u2014 side by side for Singapore homes",
   "comparisonColumns": [
     "Buying factor",
     "Dyson V15 Detect",
@@ -105,7 +106,7 @@
     "Avoid accessory floods in marketplace search results. Filters, batteries, stands and replacement heads can look like Dyson bargains but are not vacuum listings; use the live cards here to stay on full-unit products.",
     "If you already own a working V11 or recent V12, upgrade only if you specifically need the laser dust head, lighter handling or better pet-hair performance. Otherwise, wait for a campaign bundle."
   ],
-  "faqSectionTitle": "Dyson V15 vs V12 in Singapore — common questions",
+  "faqSectionTitle": "Dyson V15 vs V12 in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "Is the Dyson V15 worth it over the V12 in Singapore?",
@@ -133,8 +134,9 @@
     "en-US": "/dyson-v15-vs-dyson-v12-us"
   },
   "inboundLinks": [
-    "/search?q=dyson%20v15%20v12%20singapore",
-    "/categories/electronics"
+    "/dyson-v15-price-singapore",
+    "/cheapest-dyson-v15-singapore",
+    "/best-robot-vacuums-singapore"
   ],
   "categoryIntro": {
     "heading": "Why Singapore Dyson comparisons need live prices",
