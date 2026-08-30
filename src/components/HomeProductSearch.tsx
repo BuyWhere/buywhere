@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 md:flex-row md:items-stretch md:gap-3">
+        <div className="flex flex-col gap-3 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:gap-2 md:flex-row md:items-stretch md:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"

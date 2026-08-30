@@ -297,15 +297,15 @@ export default function HomePage() {
               <span className="whitespace-nowrap">SG &amp; US</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Compare products and prices across 950,000+ stores.
+              Compare products and prices across stores.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              Compare prices and availability across 950,000+ stores — Singapore and the United States,
+              Compare prices and availability across merchants — Singapore and the United States,
               side by side, in one search.
             </p>
           </div>
           <HomeProductSearch />
-          <div className="max-w-3xl mx-auto text-center mt-8">
+          <div className="max-w-3xl mx-auto text-center mt-8 pb-6">
             <p className="text-base font-semibold text-white">
               Live product comparisons updated daily — real-time price tracking with a fast, agent-ready API.
             </p>
