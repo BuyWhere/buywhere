@@ -1461,14 +1461,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
       `WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at,
+         SELECT sp.id, sp.price, sp.updated_at, sp.title,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
          FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY rk DESC NULLS LAST,
+         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)' THEN 1 ELSE 0 END) ASC,
+                  rk DESC NULLS LAST,
                   (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
                   updated_at DESC
          LIMIT $${tierParams.length}
@@ -1531,7 +1532,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const neg = deviceFilter.negativeTerms;
 
+  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
   const isAccessory = (r: Record<string, unknown>) => {
+    if (ACCESSORY_PATTERN.test(String(r.title ?? ''))) return true;
     if (!deviceFilter.type) return false;
     const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata as Record<string, unknown> : {};
     const text = [
@@ -1973,8 +1976,22 @@ function validateCountryCode(toolName: string, args: Record<string, unknown>): v
     throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
   }
 }
+
+// 2026-08-30: same alias normalisation as the api tree, so both hosts accept the same
+// argument spellings (query/q/product_name, id/product_id, ids/product_ids).
+function normalizeToolArgAliases(args: Record<string, unknown>) {
+  const alias = (from: string, to: string) => {
+    if (args[to] === undefined && args[from] !== undefined) args[to] = args[from];
+  };
+  alias('query', 'q'); alias('q', 'query');
+  alias('q', 'product_name'); alias('product_name', 'q');
+  alias('product_id', 'id'); alias('id', 'product_id');
+  alias('product_ids', 'ids'); alias('ids', 'product_ids');
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>) {
   normalizeMarketArg(args);
+  normalizeToolArgAliases(args);
   validateCountryCode(name, args);
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
