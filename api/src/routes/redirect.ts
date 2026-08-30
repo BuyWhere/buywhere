@@ -228,8 +228,8 @@ const queryRedirectHandler = async (req: Request, res: Response) => {
           WHERE url IS NOT NULL
             AND price IS NOT NULL
             AND price > 0
-            AND lower(title) LIKE '%' || lower($1) || '%'
-          ORDER BY updated_at DESC NULLS LAST
+            AND search_vector @@ websearch_to_tsquery('english', $1)
+          ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', $1)) DESC, updated_at DESC NULLS LAST
           LIMIT 1`,
         [query]
       ),
