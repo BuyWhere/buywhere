@@ -1119,7 +1119,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // PASSING rows (same worst case as the unordered walk when filters are
     // selective), candidates are id-thin, and full rows join only for the
     // returned page. updated_at tiebreak preserved in SQL.
-    const candidateLimit = 2000;
+    // BUY-77834 fix: widen the candidate walk when a category filter is present —
+    // the post-fetch filter only sees the candidate set.
+    const candidateLimit = categoryLower ? 20000 : 2000;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
       `WITH cand AS (
@@ -1135,7 +1137,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
               p.url_last_checked_at, p.url_status,
-              p.discount_pct
+              p.discount_pct,
+              p.category, p.category_path
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${limit} OFFSET ${offset}`,
