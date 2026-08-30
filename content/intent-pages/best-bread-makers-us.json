@@ -4,7 +4,7 @@
   "description": "The best bread makers in the US for 2026: live prices from Amazon, Walmart, Target and major retailers, with a side-by-side on loaf size, cycle count, gluten-free settings and what separates a good bread maker from a countertop ornament.",
   "heroEyebrow": "US bread maker buying guide",
   "heroTitle": "Best Bread Makers in the US (2026) \u2014 which one actually bakes well",
-  "heroTitleTemplate": "Best bread makers in the US \u2014 from {floorPrice}",
+  "heroTitleTemplate": "Best bread makers in the US (2026) \u2014 from {floorPrice}",
   "heroBody": "A good bread maker turns flour, water and yeast into a fresh loaf while you sleep, but the market is littered with machines that produce dense, gummy loaves or break down after a year of weekend baking. The difference comes down to kneading power, crust control, the shape of the baking pan and whether the machine handles gluten-free and whole-wheat doughs without turning them into bricks. This page compares live US prices from Amazon, Walmart and Target so you can see what each model actually costs right now, and the guide below explains what to look for and what to avoid when choosing a bread maker in 2026.",
   "canonicalPath": "/best-bread-makers-us",
   "country": "US",
@@ -23,9 +23,9 @@
     "loaf"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live bread maker prices in the US",
   "comparisonSectionTitle": "Best bread makers in the US \u2014 at a glance",
   "comparisonColumns": [

@@ -1,11 +1,11 @@
 {
   "slug": "best-macbooks-us",
-  "title": "Best MacBooks in the US (2026) — live US prices on every model",
+  "title": "Best MacBooks in the US (2026) \u2014 live US prices on every model",
   "description": "Which MacBook is actually worth buying in the US right now: live US listings for MacBook Air and MacBook Pro with M-series chips, compared on price, RAM, port count and who each one is really for.",
   "heroEyebrow": "US MacBook guide",
-  "heroTitle": "Best MacBooks in the US (2026) — 2026 Air and Pro picks at live prices",
-  "heroTitleTemplate": "Best MacBooks in the US — from {floorPrice} today",
-  "heroBody": "Apple currently sells four MacBook lines in the US — MacBook Air 13, MacBook Air 15, MacBook Pro 14 and MacBook Pro 16 — and there is also a real used and refurbished market for older M-series machines. The right pick depends less on benchmarks and more on what you do every day: a college student writing papers, a designer rendering 3D, a coder compiling across containers, and a frequent flyer who values battery will all land on different machines. This page pulls live US listings from BuyWhere's catalog so you can see what Amazon, Best Buy, B&H and Apple itself are charging for each MacBook right now, with the configuration advice that matters.",
+  "heroTitle": "Best MacBooks in the US \u2014 2026 Air and Pro picks at live prices",
+  "heroTitleTemplate": "Best MacBooks in the US (2026) \u2014 from {floorPrice} today",
+  "heroBody": "Apple currently sells four MacBook lines in the US \u2014 MacBook Air 13, MacBook Air 15, MacBook Pro 14 and MacBook Pro 16 \u2014 and there is also a real used and refurbished market for older M-series machines. The right pick depends less on benchmarks and more on what you do every day: a college student writing papers, a designer rendering 3D, a coder compiling across containers, and a frequent flyer who values battery will all land on different machines. This page pulls live US listings from BuyWhere's catalog so you can see what Amazon, Best Buy, B&H and Apple itself are charging for each MacBook right now, with the configuration advice that matters.",
   "canonicalPath": "/best-macbooks-us",
   "country": "US",
   "currency": "USD",
@@ -23,11 +23,11 @@
     "laptop"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Prices checked August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-29",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live US MacBook prices",
-  "comparisonSectionTitle": "Which MacBook is right for you — at a glance",
+  "comparisonSectionTitle": "Which MacBook is right for you \u2014 at a glance",
   "comparisonColumns": [
     "Best for",
     "Key spec to prioritise",
@@ -41,7 +41,7 @@
         "Students, writers, everyday users",
         "16 GB RAM, 512 GB SSD",
         "Often on student or back-to-school discount",
-        "8 GB is now too little — avoid the cheapest SKU"
+        "8 GB is now too little \u2014 avoid the cheapest SKU"
       ]
     },
     {
@@ -76,7 +76,7 @@
   "highlights": [
     {
       "title": "16 GB of RAM is now the floor, not the upgrade",
-      "body": "Apple finally standardised 16 GB across the MacBook Air and Pro lines in 2025, and the live US listings reflect that. 8 GB MacBooks still turn up on the used market and at aggressive discount channels, but they feel sluggish once you have more than a handful of browser tabs open — Apple Intelligence and modern photo apps are particularly hungry for memory. If your budget stretches to 16 GB, take it."
+      "body": "Apple finally standardised 16 GB across the MacBook Air and Pro lines in 2025, and the live US listings reflect that. 8 GB MacBooks still turn up on the used market and at aggressive discount channels, but they feel sluggish once you have more than a handful of browser tabs open \u2014 Apple Intelligence and modern photo apps are particularly hungry for memory. If your budget stretches to 16 GB, take it."
     },
     {
       "title": "The Pro line is now split on purpose",
@@ -88,7 +88,7 @@
     },
     {
       "title": "Apple US Education Pricing and refurbished",
-      "body": "Apple's US Education Store quietly discounts most MacBooks by 5–8% year-round, with deeper cuts around back-to-school. Apple Certified Refurbished MacBooks carry a new one-year warranty and often sell out within hours of dropping. Both routes are worth checking before paying full price at a third-party retailer."
+      "body": "Apple's US Education Store quietly discounts most MacBooks by 5\u20138% year-round, with deeper cuts around back-to-school. Apple Certified Refurbished MacBooks carry a new one-year warranty and often sell out within hours of dropping. Both routes are worth checking before paying full price at a third-party retailer."
     }
   ],
   "adviceSectionTitle": "How to buy the right MacBook in the US",
@@ -97,10 +97,10 @@
     "Match the chip to the workload. The base M-series chip handles writing, browsing, light photo editing and most coding. The Pro chip is for sustained compile, large photo exports and Final Cut Pro timelines; the Max chip is for 3D, motion and high-resolution video.",
     "Watch for configuration traps. Apple's default SSD sizes often look generous on the spec sheet but fill up fast with Photos libraries and local caches. 512 GB is the right floor in 2026.",
     "Buy from Apple, B&H or Adorama for the cleanest US warranty. Amazon third-party MacBook listings are legitimate but make sure the seller is rated and that the listing says 'Apple US warranty' rather than 'international'.",
-    "Time the buy around back-to-school (July–September) and Black Friday. US MacBook discounts are deepest then; outside those windows the prices are largely flat.",
+    "Time the buy around back-to-school (July\u2013September) and Black Friday. US MacBook discounts are deepest then; outside those windows the prices are largely flat.",
     "Do not overpay for storage you will not use. A 1 TB or 2 TB SSD is a meaningful jump in price; external SSDs and iCloud Drive handle most overflow cheaply for most users."
   ],
-  "faqSectionTitle": "Best MacBooks in the US — common questions",
+  "faqSectionTitle": "Best MacBooks in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Which MacBook should I buy in the US in 2026?",
@@ -108,7 +108,7 @@
     },
     {
       "question": "Is the MacBook Air fast enough for coding and design work?",
-      "answer": "Yes, for most work. The current MacBook Air handles web development, light app builds, photo editing and design tools like Figma and Sketch without breaking a sweat. It only falls behind when you run sustained compile jobs, render large 3D scenes or edit high-resolution video — in which case the MacBook Pro with the Pro or Max chip is the right tool."
+      "answer": "Yes, for most work. The current MacBook Air handles web development, light app builds, photo editing and design tools like Figma and Sketch without breaking a sweat. It only falls behind when you run sustained compile jobs, render large 3D scenes or edit high-resolution video \u2014 in which case the MacBook Pro with the Pro or Max chip is the right tool."
     },
     {
       "question": "Should I buy a MacBook from Apple or from Amazon in the US?",
@@ -120,7 +120,7 @@
     },
     {
       "question": "Is the MacBook Pro worth it over the MacBook Air?",
-      "answer": "Only if you push the chip or need the extra ports and sustained performance. The MacBook Air is the better buy for most people — it is lighter, quieter, and battery life is comparable. The MacBook Pro earns its price when you regularly compile large codebases, export multi-stream video or render 3D."
+      "answer": "Only if you push the chip or need the extra ports and sustained performance. The MacBook Air is the better buy for most people \u2014 it is lighter, quieter, and battery life is comparable. The MacBook Pro earns its price when you regularly compile large codebases, export multi-stream video or render 3D."
     }
   ],
   "fallbackProducts": [],

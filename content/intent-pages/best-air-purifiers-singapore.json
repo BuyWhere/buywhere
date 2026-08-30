@@ -4,7 +4,7 @@
   "description": "Compare the best air purifiers in Singapore for 2026 with live BuyWhere prices, HDB room-fit guidance, HEPA/filter-cost advice, haze-season buying tips and SG retailer product cards.",
   "heroEyebrow": "Singapore air purifier prices, checked live",
   "heroTitle": "Best Air Purifiers in Singapore 2026 \u2014 live prices for HDB rooms, haze and allergies",
-  "heroTitleTemplate": "2026 Best air purifiers in Singapore \u2014 from {floorPrice}",
+  "heroTitleTemplate": "Best air purifiers in Singapore (2026) \u2014 from {floorPrice}",
   "heroBody": "Singapore shoppers looking for an air purifier face a crowded market: Dyson, Xiaomi, Blueair, Honeywell, Philips and a dozen other brands all compete across a wide price range, and the same model can be cheaper on Shopee one week and Amazon.sg the next. What actually matters for Singapore's tropical humidity, occasional haze seasons and HDB-sized rooms is different from what a US or European buyer cares about \u2014 CADR relative to your room size, filter replacement cost over two years, energy consumption and whether the unit is quiet enough to run overnight. This page pulls live Singapore listings from BuyWhere's catalog and turns them into a practical shortlist for the way people actually shop: bedroom versus living-room coverage, haze readiness, allergy and pet-dander control, ongoing filter costs and which retailer has the current product card.",
   "canonicalPath": "/best-air-purifiers-singapore",
   "country": "SG",
@@ -23,9 +23,9 @@
     "HEPA"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 27, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-27",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live air purifier prices in Singapore",
   "comparisonSectionTitle": "Best air purifiers in Singapore \u2014 at a glance",
   "comparisonColumns": [
