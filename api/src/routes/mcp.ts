@@ -1797,17 +1797,27 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
 
-    tierParams.push(CANDIDATE_POOL, limit);
+    // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
+    // model query every accessory title contains all the query terms, so the ten
+    // highest-ranked rows for "sony wh-1000xm5" were ear pads, headband assemblies and
+    // repair kits — the headphones themselves never entered the window. That produced
+    // both failure modes seen in the external benchmark: a $6.49 repair kit as "best
+    // price" before the accessory filter existed, and zero offers after it, because the
+    // filter stripped a window that contained nothing else. Rank accessories last in SQL
+    // and widen the window so the real product survives to the filter.
+    const FILTER_POOL = Math.max(limit * 20, 200);
+    tierParams.push(CANDIDATE_POOL, FILTER_POOL);
     result = await bestPriceClient.query(
       `WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at,
+         SELECT sp.id, sp.price, sp.updated_at, sp.title,
                 ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
          FROM ${tierTable} sp ${tierWhere}
          LIMIT $${tierParams.length - 1}
        ), page_ids AS (
          SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY rk DESC NULLS LAST,
+         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|charging cable|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare part|for use with|compatible with)' THEN 1 ELSE 0 END) ASC,
+                  rk DESC NULLS LAST,
                   (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
                   updated_at DESC
          LIMIT $${tierParams.length}
@@ -2231,6 +2241,48 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 }
 
 
+
+// 2026-08-29: find_similar used to throw -32001 whenever a product had no vector yet.
+// With the Flow backfill still running that is the expected state for most of the
+// catalog, and a tool that errors on an expected state is a broken tool. Fall back to
+// keyword similarity on the product's own title and label the result honestly so the
+// caller knows it is not semantic.
+async function keywordSimilarFallback(productId: string, limit: number, reason: string) {
+  const client = await servingReadDbConnect();
+  try {
+    const ref = await client.query<{ title: string; country_code: string | null; category: string | null }>(
+      'SELECT title, country_code, category FROM products WHERE id = $1::bigint LIMIT 1',
+      [productId]
+    );
+    if (ref.rowCount === 0) {
+      return { data: [], meta: { total: 0, similarity: 'none', reason: 'product_not_found' } };
+    }
+    const { title, country_code } = ref.rows[0];
+    const params: unknown[] = [title, productId];
+    let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint AND is_active = true";
+    if (country_code) { params.push(country_code); where += ` AND country_code = $${params.length}`; }
+    params.push(limit);
+    const rows = await client.query(
+      `SELECT id, title, price, currency, url, image_url, country_code, category
+       FROM search_products WHERE ${where}
+       ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT $${params.length}`,
+      params
+    );
+    return {
+      data: rows.rows,
+      meta: {
+        total: rows.rowCount,
+        similarity: 'keyword',
+        semantic_available: false,
+        reason,
+        note: 'Keyword similarity on the product title. Semantic similarity becomes available for this product once its embedding is generated.',
+      },
+    };
+  } finally {
+    releaseClientSafely(client);
+  }
+}
+
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productId = (args.product_id as string || '').trim();
@@ -2248,7 +2300,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   }
 
   if (!vectorDb) {
-    throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+    return keywordSimilarFallback(productId, limit, 'vector_db_unavailable');
   }
 
   // Step 1: get reference embedding from vector DB
@@ -2259,10 +2311,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       [productId]
     );
   } catch {
-    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+    return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
   }
   if (!refResult.rows.length) {
-    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+    return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
   }
   const refEmbedding = refResult.rows[0].embedding;
 
@@ -2276,10 +2328,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       [refEmbedding, productId, limit]
     );
   } catch {
-    throw { code: -32001, message: 'No similar products found' };
+    return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
   }
   if (!nearResult.rows.length) {
-    throw { code: -32001, message: 'No similar products found' };
+    return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
   }
 
   // Step 3: fetch product details from main DB
