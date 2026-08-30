@@ -306,6 +306,25 @@ test("BUY-77675 second follow-up: power banks, holders, and risers are demoted",
   );
 });
 
+test("BUY-77675 third follow-up: handbag/hangbag compound nouns are demoted", () => {
+  // Word-bounded regex saw 'bag' alone (matched 'Handbag' as 'bag' substring)
+  // but the boundary '\bbag\b' does NOT match inside 'Handbag' (no boundary
+  // between 'D' and 'b'). Explicit 'handbag' / 'hangbag' entries are
+  // needed to catch the actual catalog titles.
+  assert.equal(
+    isAccessoryProduct(card("tomtoc TheHerA21 Laptop Handbag - Gray 14inch", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("Tomtoc TheHer A21 Laptop Hangbag 14-inch (Blue)", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("tomtoc A21F2D1 TheHer A21 Laptop Handbag 16-inch (Grey)", null)),
+    true,
+  );
+});
+
 test("BUY-77675: real laptop titles are NOT flagged as accessories", () => {
   // Each of these is a real laptop title without any accessory keyword.
   assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.razerBlade13, null)), false);

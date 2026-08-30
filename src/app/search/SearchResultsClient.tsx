@@ -372,6 +372,11 @@ const ACCESSORY_KEYWORDS = [
   'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
   'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
   'stand', 'stands', 'mat', 'mats', 'tablet',
+  // BUY-77675: explicitly match compound forms because word-boundary regex
+  // can't see "bag" inside "Handbag". The catalog uses both 'Handbag' (real)
+  // and 'Hangbag' (typo common in product titles).
+  'handbag', 'hangbag', 'handbags', 'hangbags', 'tote bag', 'tote bags',
+  'shoulder bag', 'shoulder bags', 'laptop bag', 'laptop bags', 'laptop case', 'laptop sleeve', 'laptop sleeves',
   // BUY-77675: 7 leak classes QA flagged on the SG laptop search:
   // Boya / lavalier mics, IEMs / headphones, laptop desks / standing desks,
   // portable monitors, privacy screens, keyboards (without laptop token),
