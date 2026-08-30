@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/Button";
 import { Search } from "lucide-react";
-import NotFoundBrands from "./brands/[slug]/not-found";
 
 const popularLinks = [
   { href: "/compare/electronics", label: "Electronics" },
@@ -25,18 +24,6 @@ const categoryLinks = [
   { href: "/categories/beauty-health", label: "Beauty & Health" },
   { href: "/categories/grocery", label: "Grocery" },
 ];
-
-// Wrapper that reads searchParams (requires Suspense boundary)
-function NotFoundInner() {
-  const searchParams = useSearchParams();
-  const isBrandNotFound = searchParams?.get("type") === "brand";
-  const brandSlug = searchParams?.get("slug") ?? "";
-
-  if (isBrandNotFound) {
-    return <NotFoundBrands slug={brandSlug} />;
-  }
-  return <NotFoundGeneric />;
-}
 
 function NotFoundGeneric() {
   const router = useRouter();
@@ -149,9 +136,5 @@ function NotFoundGeneric() {
 }
 
 export default function NotFound() {
-  return (
-    <Suspense fallback={<div className="flex flex-col min-h-screen"><Header /><main className="flex-1" /><Footer /></div>}>
-      <NotFoundInner />
-    </Suspense>
-  );
+  return <NotFoundGeneric />;
 }
