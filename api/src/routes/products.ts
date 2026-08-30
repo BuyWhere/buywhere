@@ -696,20 +696,41 @@ router.get(
     // BUY-77835: route the heavy catalog list query to the read replica (when
     // healthy) so it does not compete with interactive /v1/products/search on
     // the saturated primary. readDb() falls back to primary if replica is not
-    // configured or caught up.
-    const listDb = readDb();
+    // configured or caught up. connectionTimeoutMillis: 5000 guard on the replica
+    // pool prevents indefinite hangs when the replica is unreachable; BUY-77920.
+    let listDb = readDb();
 
     // pg_class reltuples is instant (system catalog, cached).
-    const countResult = await listDb.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-      [LIST_TABLE]
-    );
+    let countResult;
+    try {
+      countResult = await listDb.query(
+        `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+        [LIST_TABLE]
+      );
+    } catch (err) {
+      // Replica query failed (connection timeout, unreachable host). Fall back to
+      // primary so the endpoint still serves data rather than 500-ing.
+      console.warn(`[products:list] readDb() query failed, falling back to primary: ${(err as Error).message}`);
+      listDb = db;
+      countResult = await listDb.query(
+        `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
+        [LIST_TABLE]
+      );
+    }
 
     // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
     // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
     // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
     let dataResult;
-    const listClient = await listDb.connect();
+    let listClient;
+    try {
+      listClient = await listDb.connect();
+    } catch (err) {
+      // Replica connect failed. Fall back to primary (BUY-77920).
+      console.warn(`[products:list] readDb().connect() failed, falling back to primary: ${(err as Error).message}`);
+      listDb = db;
+      listClient = await listDb.connect();
+    }
     try {
       await listClient.query(`SET statement_timeout = '30s'`);
       dataResult = await listClient.query(
@@ -813,9 +834,8 @@ router.get(
     // Whitelist mirrors VALID_SORT below (defined later in this scope).
     const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
-    // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
-    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
-    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
+    // Default to SG when neither is specified (BUY-6598: prevent cross-region pollution).
+    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -995,11 +1015,9 @@ router.get(
       baseParams.push(region);
       baseIdx++;
     }
-    if (countryCode) {
-      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
-      baseParams.push(countryCode);
-      baseIdx++;
-    }
+    baseConditions.push(`country_code = $${baseIdx}`);
+    baseParams.push(countryCode);
+    baseIdx++;
     if (category) {
       baseConditions.push(`category ILIKE $${baseIdx}`);
       baseParams.push(`%${category}%`);
@@ -1785,8 +1803,8 @@ router.get(
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
-    const currency = (req.query.currency as string) || 'SGD';
-    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
+    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
+    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
     const minDiscount = parseFloat((req.query.min_discount as string) || '10');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
@@ -1872,11 +1890,9 @@ router.get(
     dealParams.push(minDiscount);
     dealIdx++;
 
-    if (countryCode) {
-      dealConditions.push(`country_code = $${dealIdx}`);
-      dealParams.push(countryCode);
-      dealIdx++;
-    }
+    dealConditions.push(`country_code = $${dealIdx}`);
+    dealParams.push(countryCode);
+    dealIdx++;
 
     const dealWhere = dealConditions.join(' AND ');
 
@@ -2396,20 +2412,43 @@ router.get(
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
       ? `products_partitioned_${countryCode.toLowerCase()}`
       : 'products';
-    const result = await readDb().query(
-      `SELECT id, sku AS source_id, source AS domain, url,
-              NULL::text AS affiliate_url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code
-       FROM ${FEATURED_TABLE}
-       WHERE is_active = true
-         AND country_code = $1
-         AND currency = $2
-         AND price IS NOT NULL
-       ORDER BY id DESC
-       LIMIT $3 OFFSET $4`,
-      [countryCode, currency, limit, offset]
-    );
+    let featuredDb = readDb();
+    let result;
+    try {
+      result = await featuredDb.query(
+        `SELECT id, sku AS source_id, source AS domain, url,
+                NULL::text AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM ${FEATURED_TABLE}
+         WHERE is_active = true
+           AND country_code = $1
+           AND currency = $2
+           AND price IS NOT NULL
+         ORDER BY id DESC
+         LIMIT $3 OFFSET $4`,
+        [countryCode, currency, limit, offset]
+      );
+    } catch (err) {
+      // Replica query failed (connection timeout, unreachable host). Fall back to
+      // primary so the endpoint still serves data rather than 500-ing (BUY-77920).
+      console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
+      featuredDb = db;
+      result = await featuredDb.query(
+        `SELECT id, sku AS source_id, source AS domain, url,
+                NULL::text AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM ${FEATURED_TABLE}
+         WHERE is_active = true
+           AND country_code = $1
+           AND currency = $2
+           AND price IS NOT NULL
+         ORDER BY id DESC
+         LIMIT $3 OFFSET $4`,
+        [countryCode, currency, limit, offset]
+      );
+    }
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);

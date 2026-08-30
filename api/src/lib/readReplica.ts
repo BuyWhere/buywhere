@@ -55,6 +55,11 @@ export const replicaPool: Pool | null = REPLICA_URL
       connectionString: REPLICA_URL,
       max: REPLICA_POOL_MAX,
       idleTimeoutMillis: 30000,
+      // Guard: fail fast if the replica host is unreachable. Without this the
+      // pg pool can hang indefinitely on connect (no default timeout), causing
+      // Railway LB 30s timeouts that look like 500s. The probe catches
+      // unhealthy replicas, but a network partition can still occur between
+      // probe runs; this is the last-resort guard.
       connectionTimeoutMillis: 5000,
     })
   : null;
