@@ -674,23 +674,25 @@ router.get(
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+    // BUY-77664 FIX: Use partitioned tables for list endpoint (much faster than 413GB parent).
+    const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
+
+    // Use dynamic table alias based on which table we're querying
+    const TABLE_ALIAS = LIST_TABLE;
+    const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
                 NULL::text AS affiliate_url,
-                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
-                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+                ${TABLE_ALIAS}.title, ${TABLE_ALIAS}.price, ${TABLE_ALIAS}.currency, ${TABLE_ALIAS}.image_url, ${TABLE_ALIAS}.metadata, ${TABLE_ALIAS}.updated_at,
+                ${TABLE_ALIAS}.region, ${TABLE_ALIAS}.country_code, ${TABLE_ALIAS}.created_at, ${TABLE_ALIAS}.description, ${TABLE_ALIAS}.brand, ${TABLE_ALIAS}.mpn, ${TABLE_ALIAS}.gtin,
+                ${TABLE_ALIAS}.category_path, ${TABLE_ALIAS}.category, ${TABLE_ALIAS}.merchant_id, ${TABLE_ALIAS}.avg_rating, ${TABLE_ALIAS}.review_count`;
 
     // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
     // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
-    const orderBy = `ORDER BY products.id DESC`;
-
-    // BUY-77664 FIX: Use partitioned tables for list endpoint (much faster than 413GB parent).
-    const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
+    const orderBy = `ORDER BY ${TABLE_ALIAS}.id DESC`;
 
     // pg_class reltuples is instant (system catalog, cached).
     const countResult = await db.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = '${LIST_TABLE}'`
     );
 
     // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
