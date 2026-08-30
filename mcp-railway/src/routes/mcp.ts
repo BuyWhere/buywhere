@@ -1141,7 +1141,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               p.category, p.category_path
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
-       LIMIT ${limit} OFFSET ${offset}`,
+       LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`,
       candidateParams
     );
     total = dataResult.rows.length;
@@ -1160,7 +1160,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
           .join(' ');
         return catText.includes(categoryLower) || catPath.includes(categoryLower);
       });
-      products = matched.map((r) => buildProduct(r, currency, false));
+      products = matched.slice(offset, offset + limit).map((r) => buildProduct(r, currency, false));
       total = matched.length;
     } else {
       products = dataResult.rows.map((r: Record<string, unknown>) =>
