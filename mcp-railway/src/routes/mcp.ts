@@ -802,6 +802,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           );
           if (tierFts.rows.length === 0) {
             rows = [];
+            total = 0;
           } else {
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
@@ -816,6 +817,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // Preserve tier ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
             rows = tierIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            // BUY-77819: Apply offset and limit to the final result set
+            rows = rows.slice(offset, offset + limit);
+            // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
+            total = tierFts.rows.length + offset;
           }
         }
       } else {
@@ -835,6 +840,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         );
         if (tierFts.rows.length === 0) {
           rows = [];
+          total = 0;
         } else {
           const tierIds = tierFts.rows.map(r => r.id);
           const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
@@ -849,6 +855,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // Preserve tier ranking order
           const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
           rows = tierIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+          // BUY-77819: Apply offset and limit to the final result set
+          rows = rows.slice(offset, offset + limit);
+          // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
+          total = tierFts.rows.length + offset;
         }
       }
     } else {
@@ -887,9 +897,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
-    // Derive total from search results since we skipped the count query.
-    total = (rows as Record<string, unknown>[] | null)?.length ?? 0;
-    console.log(`[search_products] DEBUG: SUCCESS total=${total}`);
+    console.log(`[search_products] DEBUG: SUCCESS total=${total} results=${rows?.length}`);
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
     // BUY-74597: classify and return the canonical degraded envelope. Never throw

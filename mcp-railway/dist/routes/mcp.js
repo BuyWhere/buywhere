@@ -657,9 +657,9 @@ async function handleSearchProducts(args) {
                         return vecIds.filter(id => inCountry.has(id));
                     }
                     if (mode === 'semantic') {
-                        // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+                        // Vector-only: fetch top-N nearest neighbours from vector DB, then fetch details
                         const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+               ORDER BY embedding <=> $1::vector LIMIT ${Math.min(limit + offset, 200)}`, [queryVec]);
                         const countryFiltered = await filterVectorByCountry(vecRows.rows.map(r => r.product_id));
                         candidateIds = countryFiltered.slice(0, limit + offset);
                     }
@@ -667,8 +667,8 @@ async function handleSearchProducts(args) {
                         // Hybrid: app-level RRF of FTS ranks + vector ranks
                         const [ftsResult, vecResult] = await Promise.all([
                             // BUY-72082: FTS half of RRF via tier table (GIN-indexed, bounded)
-                            spQuery(`SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`, tierParams, `tierh_${tierParams.length}`),
-                            config_1.vectorDb.query(`SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]),
+                            spQuery(`SELECT sp.id FROM search_products sp ${tierWhere} LIMIT ${Math.min(limit + offset, 200)}`, tierParams, `tierh_${tierParams.length}`),
+                            config_1.vectorDb.query(`SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT ${Math.min(limit + offset, 200)}`, [queryVec]),
                         ]);
                         const vecCountryFiltered = await filterVectorByCountry(vecResult.rows.map(r => r.product_id));
                         const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
@@ -707,18 +707,17 @@ async function handleSearchProducts(args) {
                 else {
                     // BUY-72082: Embed failed — fall through to tier keyword FTS.
                     // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
-                    // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-                    // BUY-76552: REMOVED tierParams.push(limit + offset) — the tierFts SQL
-                    // uses hardcoded LIMIT 1000 and LIMIT 200, not $3. The extra param caused
-                    // 08P01 "bind message supplies 3 parameters but prepared statement requires 2".
+                    // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
+                    // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
                     const tierFts = await spQuery(`WITH cand AS (
                SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
                LIMIT 1000
              )
-             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams, `fts_k${tierParams.length}`);
+             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`, tierParams, `fts_k${tierParams.length}`);
                     if (tierFts.rows.length === 0) {
                         rows = [];
+                        total = 0;
                     }
                     else {
                         const tierIds = tierFts.rows.map(r => r.id);
@@ -730,22 +729,27 @@ async function handleSearchProducts(args) {
                         // Preserve tier ranking order
                         const byId = new Map(detailResult.rows.map(r => [r.id, r]));
                         rows = tierIds.map(id => byId.get(id)).filter(Boolean);
+                        // BUY-77819: Apply offset and limit to the final result set
+                        rows = rows.slice(offset, offset + limit);
+                        // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
+                        total = tierFts.rows.length + offset;
                     }
                 }
             }
             else {
                 // BUY-72082: Keyword (FTS) path via search_products tier.
                 // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
-                // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-                // BUY-76552: REMOVED tierParams.push(limit + offset) — same reason as above.
+                // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
+                // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
                 const tierFts = await spQuery(`WITH cand AS (
              SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams, `fts_k${tierParams.length}`);
+           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`, tierParams, `fts_k${tierParams.length}`);
                 if (tierFts.rows.length === 0) {
                     rows = [];
+                    total = 0;
                 }
                 else {
                     const tierIds = tierFts.rows.map(r => r.id);
@@ -757,6 +761,10 @@ async function handleSearchProducts(args) {
                     // Preserve tier ranking order
                     const byId = new Map(detailResult.rows.map(r => [r.id, r]));
                     rows = tierIds.map(id => byId.get(id)).filter(Boolean);
+                    // BUY-77819: Apply offset and limit to the final result set
+                    rows = rows.slice(offset, offset + limit);
+                    // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
+                    total = tierFts.rows.length + offset;
                 }
             }
         }
@@ -790,9 +798,7 @@ async function handleSearchProducts(args) {
                 rows = rawResult.rows.slice(offset, offset + limit);
             }
         }
-        // Derive total from search results since we skipped the count query.
-        total = rows?.length ?? 0;
-        console.log(`[search_products] DEBUG: SUCCESS total=${total}`);
+        console.log(`[search_products] DEBUG: SUCCESS total=${total} results=${rows?.length}`);
         recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
     }
     catch (err) {
