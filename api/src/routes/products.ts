@@ -693,8 +693,7 @@ router.get(
 
     // pg_class reltuples is instant (system catalog, cached).
     const countResult = await db.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
-      [LIST_TABLE]
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = '${LIST_TABLE}'`
     );
 
     // Use partitioned table which is much smaller and faster.
@@ -702,14 +701,8 @@ router.get(
     const listClient = await db.connect();
     try {
       await listClient.query(`SET statement_timeout = '30s'`);
-      dataResult = await listClient.query(
-        `SELECT ${SELECT_COLUMNS}
-         FROM ${LIST_TABLE}
-         ${whereClause}
-         ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, limit, offset]
-      );
+      const query = `SELECT ${SELECT_COLUMNS} FROM ${LIST_TABLE} ${whereClause} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`;
+      dataResult = await listClient.query(query, [...params, limit, offset]);
     } finally {
       listClient.release(true);
     }
