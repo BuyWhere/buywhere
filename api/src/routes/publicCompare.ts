@@ -167,7 +167,7 @@ router.get('/', async (req: Request, res: Response) => {
   <img src="${p.image_url ? escHtml(p.image_url) : ''}" alt="${escHtml(p.title)}" style="max-width:150px;max-height:150px;object-fit:contain" loading="lazy">
   <p style="font-size:.9em;margin-top:8px"><a href="/p/${p.id}" style="color:#0969da">${escHtml(p.title.slice(0, 60))}</a></p>
   ${p.price ? `<div style="font-weight:700;color:#0a7c59">${p.currency || 'SGD'} ${parseFloat(p.price).toFixed(2)}</div>` : ''}
-  <a href="/r/buywhere/${p.id}" rel="sponsored" style="display:inline-block;margin-top:8px;padding:8px 14px;background:#0a7c59;color:#fff;border-radius:6px;text-decoration:none;font-size:.9em">View deal</a>
+  <a href="/r/direct/${p.id}" rel="sponsored" style="display:inline-block;margin-top:8px;padding:8px 14px;background:#0a7c59;color:#fff;border-radius:6px;text-decoration:none;font-size:.9em">View deal</a>
 </div>`
     )
     .join('');
