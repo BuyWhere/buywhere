@@ -397,6 +397,15 @@ const ACCESSORY_KEYWORDS = [
   // "Mighty Mouse" still match (that's still an accessory) but "computer
   // mouse" (a phrase) is preserved via the multi-word "computer mouse".
   'mouse', 'mice', 'wireless mouse', 'bluetooth mouse', 'computer mouse',
+  // BUY-77675 second follow-up: post-deploy probe of the SG laptop top-20
+  // showed 4 power banks, 2 laptop holders, 1 riser still leaking through.
+  // Power banks aren't strictly laptop-specific, but "Laptop Power Bank" /
+  // "PowerBank" titles are accessory-shaped. Holders + risers are
+  // ergonomic stands / furniture, not laptops. Each is multi-word where
+  // possible to avoid false-positives on real laptop model names.
+  'power bank', 'power banks', 'powerbank', 'powerbanks',
+  'laptop holder', 'laptop holders',
+  'riser', 'risers', 'laptop riser', 'laptop risers',
 ];
 
 function isAccessoryProduct(product: SearchCardProduct): boolean {

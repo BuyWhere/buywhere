@@ -280,6 +280,32 @@ test("BUY-77675 follow-up: wireless mice + tempered-glass screen protectors are 
   );
 });
 
+test("BUY-77675 second follow-up: power banks, holders, and risers are demoted", () => {
+  // SG laptop top-20 after the first deploy still had 4 power banks, 2 holders,
+  // 1 riser that escaped the keyword list. Each is accessory-shaped but not
+  // a laptop itself.
+  assert.equal(
+    isAccessoryProduct(card("Cygnett CY5128PBCHE VertPWR 25K Laptop Power Bank (Champagne)", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("Belkin BPB020btBK BoostCharge Pro 3-Port Laptop Power Bank 20K", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("DLab SPB30P 27000mAh PD 140W Laptop PowerBank", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("ORICO NSN-C1-GY Laptop Holder (Gray)", null)),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("Fellowes F8032001 Laptop Riser", null)),
+    true,
+  );
+});
+
 test("BUY-77675: real laptop titles are NOT flagged as accessories", () => {
   // Each of these is a real laptop title without any accessory keyword.
   assert.equal(isAccessoryProduct(card(LAPTOP_TITLES.razerBlade13, null)), false);
