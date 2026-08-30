@@ -4,7 +4,7 @@
   "description": "The best budget TVs you can buy in the United States right now: live prices from Walmart, Amazon, Best Buy and Target, ranked daily, plus expert advice on panel type, size, Roku vs Fire TV and what to avoid.",
   "heroEyebrow": "US budget TV buying guide",
   "heroTitle": "Best Budget TVs in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best Budget TVs in the US \u2014 from {floorPrice} today",
+  "heroTitleTemplate": "Best Budget TVs in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "Budget TVs in 2026 are no longer the compromise purchase they used to be: a mid-range 55-inch 4K TV now ships with proper HDR, low input lag for console gaming, and at least three streaming platforms built in. The US budget market is dominated by TCL, Hisense and Amazon's Omni Fire TV line in the entry band, with Sony and Samsung competing at the mid-range boundary. This page pulls live listings from BuyWhere's catalog every few minutes so the price on each card is what US retailers are actually charging right now, not a snapshot from earlier in the year.",
   "canonicalPath": "/best-budget-tvs-us",
   "country": "US",
@@ -23,9 +23,9 @@
     "4k"
   ],
   "excludeAccessories": false,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live budget TV prices in the US",
   "comparisonSectionTitle": "Which budget TV should you buy in the US? At a glance",
   "comparisonColumns": [

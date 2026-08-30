@@ -1,32 +1,77 @@
 {
   "slug": "ps5-price-singapore",
-  "title": "PS5 Price in Singapore (2026) — Slim, Digital, Disc & Pro live prices",
+  "title": "PS5 Price in Singapore (2026) \u2014 Slim, Digital, Disc & Pro live prices",
   "description": "Current PS5 price in Singapore for every model: PS5 Slim disc, Digital Edition, older bundles and PS5 Pro. Live prices from Amazon.sg, Shopee, Lazada and local game stores, with model-by-model buying advice and warranty guidance.",
   "heroEyebrow": "Singapore PS5 price guide",
-  "heroTitle": "PS5 Price in Singapore (2026) — live prices for every model",
-  "heroTitleTemplate": "PS5 Price in Singapore — from {floorPrice} today",
+  "heroTitle": "PS5 Price in Singapore (2026) \u2014 live prices for every model",
+  "heroTitleTemplate": "PS5 Price in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "The PlayStation 5 is widely available in Singapore in 2026, but the price you pay depends heavily on which model you choose and where you buy it. Sony's official line-up now includes the PS5 Slim disc console, the smaller Digital Edition and the more powerful PS5 Pro, while authorised retailers and marketplace sellers still clear older bundle stock at varying discounts. This page tracks live PS5 prices in Singapore dollars across Amazon.sg, Shopee, Lazada and local game stores so you can see the current cost of each model, understand what is included and avoid paying for a bundle you do not need.",
-  "inboundLinks": ["/cheapest-ps5-singapore", "/best-oled-tvs-singapore", "/search?q=PlayStation+5+Singapore"],
+  "inboundLinks": [
+    "/cheapest-ps5-singapore",
+    "/best-oled-tvs-singapore",
+    "/search?q=PlayStation+5+Singapore"
+  ],
   "canonicalPath": "/ps5-price-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "PlayStation 5",
-  "backupQueries": ["Sony PS5", "PS5 console", "PlayStation 5 console"],
+  "backupQueries": [
+    "Sony PS5",
+    "PS5 console",
+    "PlayStation 5 console"
+  ],
   "minPrice": 250,
-  "requiredProductTerms": ["ps5", "playstation", "sony"],
+  "requiredProductTerms": [
+    "ps5",
+    "playstation",
+    "sony"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live PS5 prices in Singapore by model",
-  "comparisonSectionTitle": "PS5 model prices in Singapore — at a glance",
-  "comparisonColumns": ["Model", "What you get", "Typical Singapore price position", "Best for"],
+  "comparisonSectionTitle": "PS5 model prices in Singapore \u2014 at a glance",
+  "comparisonColumns": [
+    "Model",
+    "What you get",
+    "Typical Singapore price position",
+    "Best for"
+  ],
   "comparisonRows": [
-    { "label": "PS5 Slim (disc)", "values": ["Smaller redesign with built-in 4K UHD disc drive", "Mid-range; the safe default for most buyers", "Families, disc-game buyers and anyone who borrows or trades physical games"] },
-    { "label": "PS5 Digital Edition", "values": ["Same performance as the disc Slim without the drive", "Usually the lowest official model price", "Digital-only buyers who get every game from the PlayStation Store"] },
-    { "label": "PS5 Pro", "values": ["GPU upgrade, better ray tracing, AI upscaling (PSSR)", "Highest official model price", "Enthusiasts with a 4K 120 Hz TV who want the best performance"] },
-    { "label": "Older bundle stock", "values": ["Original PS5 or Slim bundled with a game or controller", "Varies; can be great value or filler", "Buyers who want the included game or accessory at a real discount"] }
+    {
+      "label": "PS5 Slim (disc)",
+      "values": [
+        "Smaller redesign with built-in 4K UHD disc drive",
+        "Mid-range; the safe default for most buyers",
+        "Families, disc-game buyers and anyone who borrows or trades physical games"
+      ]
+    },
+    {
+      "label": "PS5 Digital Edition",
+      "values": [
+        "Same performance as the disc Slim without the drive",
+        "Usually the lowest official model price",
+        "Digital-only buyers who get every game from the PlayStation Store"
+      ]
+    },
+    {
+      "label": "PS5 Pro",
+      "values": [
+        "GPU upgrade, better ray tracing, AI upscaling (PSSR)",
+        "Highest official model price",
+        "Enthusiasts with a 4K 120 Hz TV who want the best performance"
+      ]
+    },
+    {
+      "label": "Older bundle stock",
+      "values": [
+        "Original PS5 or Slim bundled with a game or controller",
+        "Varies; can be great value or filler",
+        "Buyers who want the included game or accessory at a real discount"
+      ]
+    }
   ],
   "highlightSectionTitle": "What shapes the PS5 price you see in Singapore",
   "highlights": [
@@ -56,7 +101,7 @@
     "Be sceptical of listings well below the live market floor. Stolen photos, pre-order wording on in-stock items and no-return sellers are common warning signs.",
     "If you already own a launch PS5, neither the Slim nor the Pro is a must-upgrade. Spend the money on storage, games or a better TV instead."
   ],
-  "faqSectionTitle": "PS5 price in Singapore — common questions",
+  "faqSectionTitle": "PS5 price in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "How much does a PS5 cost in Singapore in 2026?",

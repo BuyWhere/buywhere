@@ -4,7 +4,7 @@
   "description": "RTX 5070 vs RTX 5080 desktop graphics cards compared in the United States for 2026: how Blackwell architecture, 12GB vs 16GB VRAM, TBP and DLSS 4 Multi Frame Generation change the upgrade math for Newegg, Best Buy, B&H, Amazon and Micro Center shoppers, with live USD prices from MSI, ASUS, ZOTAC, Gigabyte and PNY.",
   "heroEyebrow": "US RTX 5070 vs RTX 5080 desktop GPU comparison",
   "heroTitle": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 which should you buy",
-  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US \u2014 5070 from {floorPrice} today",
+  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 5070 from {floorPrice} today",
   "heroBody": "NVIDIA's RTX 5070 and RTX 5080 desktop graphics cards sit one tier apart in the Blackwell 50-series lineup, and in the US in 2026 that gap decides whether you are spending close to the entry sticker for a strong 1440p card with 12GB of VRAM or stepping up to a meaningful premium for the same games at native 4K with frame generation on. The 5070 ships with 12GB of GDDR7 and is the sensible pick for 1080p and 1440p gaming with ray tracing; the 5080 doubles the VRAM to 16GB, opens up native 4K at high refresh, and pushes the ray-tracing budget meaningfully further. Both ship on MSI Gaming, MSI Ventus, MSI Shadow, ZOTAC Twin Edge, ASUS TUF and PNY boards at Newegg, Best Buy, B&H and Micro Center, but the price gap between a 5070 SKU and the equivalent 5080 SKU at the same retailer can be the difference between a value buy and a flagship buy. This page pulls the live US listings so you can see both floor prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the 5080 premium is worth the money to you.",
   "inboundLinks": [
     "/best-gaming-laptops-us",
@@ -29,9 +29,9 @@
     "gpu"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 26, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-26",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live RTX 5070 prices in the US",
   "comparisonSectionTitle": "RTX 5070 vs RTX 5080 desktop \u2014 at a glance",
   "comparisonColumns": [
