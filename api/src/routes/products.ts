@@ -685,26 +685,31 @@ router.get(
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
 
-    // BUY-77664/77677 FIX RE-APPLIED: Use partitioned tables for list endpoint.
-    // products_partitioned_{country} tables are now populated and much faster.
-    // For countries with empty partitions (PH/TH), the query will naturally return empty results
-    // which is acceptable vs the 15s timeout from the 413GB parent table.
+    // BUY-77664 FIX: Use partitioned tables for list endpoint (much faster than 413GB parent).
     const LIST_TABLE = countryCode ? `products_partitioned_${countryCode.toLowerCase()}` : 'products';
 
     // pg_class reltuples is instant (system catalog, cached).
     const countResult = await db.query(
-      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = '${LIST_TABLE}'`
+      `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`
     );
 
-    // Use partitioned table which is much smaller and faster.
+    // BUY-77664 emergency: use a dedicated client with a short statement_timeout so
+    // IO-saturated scans fail fast (returning 500) instead of hanging the Railway LB
+    // timeout (30s -> 502). The pool's default timeout is 30s which causes 502s.
     let dataResult;
     const listClient = await db.connect();
     try {
-      await listClient.query(`SET statement_timeout = '30s'`);
-      const query = `SELECT ${SELECT_COLUMNS} FROM ${LIST_TABLE} ${whereClause} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`;
-      dataResult = await listClient.query(query, [...params, limit, offset]);
+      await listClient.query(`SET statement_timeout = '15s'`);
+      dataResult = await listClient.query(
+        `SELECT ${SELECT_COLUMNS}
+         FROM ${LIST_TABLE}
+         ${whereClause}
+         ${orderBy}
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, limit, offset]
+      );
     } finally {
-      listClient.release(true);
+      listClient.release(true); // release back to pool, rolling back any open transaction
     }
 
     const total = parseInt(countResult.rows[0].count, 10);
