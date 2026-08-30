@@ -5,11 +5,19 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
-const { Client } = require('pg');
+
+let Client;
+try {
+  ({ Client } = require('pg'));
+} catch (error) {
+  if (error?.code !== 'MODULE_NOT_FOUND') throw error;
+  ({ Client } = require(path.join(__dirname, '..', 'api', 'node_modules', 'pg')));
+}
 
 const TARGET_INSERTS_PER_HOUR = 150_000;
 const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const ROUNDHOUSE_HOST = 'roundhouse.proxy.rlwy.net';
 const SOURCE_V6 = 'v6';
 const CYCLE_MARKER_DIRS = [
   'data/buy30590',
@@ -200,6 +208,10 @@ function buildConnectionString() {
   const raw = process.env.CANONICAL_DATABASE_URL || process.env.MAGLEV_DB_URL || process.env.DATABASE_URL || process.env.BUYWHERE_DATABASE_URL;
   if (!raw) {
     throw new Error('Set CANONICAL_DATABASE_URL, MAGLEV_DB_URL, DATABASE_URL, or BUYWHERE_DATABASE_URL for the canonical DB.');
+  }
+  const hostname = new URL(raw).hostname;
+  if (hostname === ROUNDHOUSE_HOST) {
+    throw new Error(`Refusing canonical DB connection to control-plane host ${ROUNDHOUSE_HOST}`);
   }
   return raw;
 }
@@ -470,6 +482,9 @@ async function run(options = {}) {
     // reconciliation_status / reconciliation_gap / reconciliation_reason.
     try {
       const freshnessScript = path.resolve(__dirname, 'source_mix_freshness_check.js');
+      if (!fs.existsSync(freshnessScript)) {
+        console.error('[freshness-check:skip] source_mix_freshness_check.js not present');
+      } else {
       const execFileAsync = promisify(execFile);
       const hourISO = hourStart.toISOString();
       const { stdout, stderr } = await execFileAsync(process.execPath, [
@@ -491,6 +506,7 @@ async function run(options = {}) {
       if (stderr && stderr.trim()) {
         const errLines = stderr.trim().split('\n');
         console.error('[freshness-check:err]', errLines.slice(0, 3).join('  '));
+      }
       }
     } catch (freshnessErr) {
       // Non-blocking guardrail: log but do not fail the dispatcher tick.
