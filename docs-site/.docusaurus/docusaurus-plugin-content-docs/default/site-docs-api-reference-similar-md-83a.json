@@ -1,0 +1,27 @@
+{
+  "id": "api-reference/similar",
+  "title": "Similar Products",
+  "description": "Find products similar to a given product, based on brand, category, and title matching.",
+  "source": "@site/docs/api-reference/similar.md",
+  "sourceDirName": "api-reference",
+  "slug": "/api-reference/similar",
+  "permalink": "/docs/api-reference/similar",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7,
+    "title": "Similar Products"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Price History",
+    "permalink": "/docs/api-reference/price-history"
+  },
+  "next": {
+    "title": "Bulk Lookup",
+    "permalink": "/docs/api-reference/bulk"
+  }
+}
