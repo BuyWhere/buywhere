@@ -31,7 +31,9 @@
     "fx-refresh": "ts-node src/jobs/fxRefreshRunner.ts",
     "start:fx-refresh": "node dist/jobs/fxRefreshRunner.js",
     "outbound-probe": "ts-node src/jobs/outboundLinkProbeRunner.ts",
-    "start:outbound-probe": "node dist/jobs/outboundLinkProbeRunner.js"
+    "start:outbound-probe": "node dist/jobs/outboundLinkProbeRunner.js",
+    "catalog-quality": "ts-node src/jobs/catalogQualityRunner.ts",
+    "start:catalog-quality": "node dist/jobs/catalogQualityRunner.js"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",
