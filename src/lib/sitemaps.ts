@@ -409,10 +409,45 @@ export async function fetchApiCategories(): Promise<ApiCategoryRecord[]> {
   return Array.from(bySlug.values()).sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+// BUY-77803 / BUY-78651: /categories/laptops/{country} is a public SEO alias of
+// computers. /v1/categories is hard-capped at 50 by product_count, so `laptops`
+// is often missing from the live list even though the sitemap still emits it.
+const CATEGORY_SLUG_ALIASES: Record<string, string> = {
+  laptops: "computers",
+  laptop: "computers",
+};
+
 export async function getApiCategoryBySlug(slug: string): Promise<ApiCategoryRecord | null> {
   const normalizedSlug = normalizeCategorySlug(slug);
   const categories = await fetchApiCategories();
-  return categories.find((category) => category.slug === normalizedSlug) ?? null;
+  const direct = categories.find((category) => category.slug === normalizedSlug);
+  if (direct) return direct;
+
+  const aliasTarget = CATEGORY_SLUG_ALIASES[normalizedSlug];
+  if (aliasTarget) {
+    const canonical = categories.find((category) => category.slug === aliasTarget);
+    if (canonical) {
+      return {
+        ...canonical,
+        slug: normalizedSlug,
+        name: formatCategoryName(normalizedSlug, canonical.name),
+      };
+    }
+    return {
+      slug: normalizedSlug,
+      name: formatCategoryName(normalizedSlug),
+    };
+  }
+
+  // Last-resort: sitemap-emitted fallback slugs must still resolve to a page
+  // even when the live top-50 list dropped them (BUY-78651).
+  if ((CATEGORY_API_FALLBACK_SLUGS as readonly string[]).includes(normalizedSlug)) {
+    return {
+      slug: normalizedSlug,
+      name: formatCategoryName(normalizedSlug),
+    };
+  }
+  return null;
 }
 
 export async function getPopulatedCompareCategories(): Promise<PopulatedCompareCategory[]> {

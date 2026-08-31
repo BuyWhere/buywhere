@@ -49,8 +49,15 @@ router.get(
     try {
       const summaryCheck = await db.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
       if (summaryCheck.rows[0]?.tbl) {
+        // BUY-78651: pin SEO aliases (laptops) that rank below the top-50 cutoff.
         const summaryResult = await db.query(
-          `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`
+          `SELECT slug, name, product_count FROM (
+             SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50
+             UNION
+             SELECT slug, name, product_count FROM mcp_category_summary
+              WHERE LOWER(slug) IN ('laptops', 'computers')
+           ) pinned
+           ORDER BY product_count DESC`
         );
         if (summaryResult.rows.length > 0) {
           const categories = summaryResult.rows.map((row) => {

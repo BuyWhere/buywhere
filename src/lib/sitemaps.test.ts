@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
+import { getApiCategoryBySlug, getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
 
 test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", async () => {
@@ -48,6 +48,12 @@ test("getCategorySitemapEntries includes only real category slugs that exist in 
       `expected /categories/${slug} in sitemap`,
     );
   }
+});
+
+test("BUY-78651: getApiCategoryBySlug resolves laptops even when API top-50 omits it", async () => {
+  const category = await getApiCategoryBySlug("laptops");
+  assert.ok(category, "laptops must resolve (alias of computers or fallback slug)");
+  assert.equal(category!.slug, "laptops");
 });
 
 test("getCategorySitemapEntries emits API category-country combinations once (BUY-65150)", async () => {
