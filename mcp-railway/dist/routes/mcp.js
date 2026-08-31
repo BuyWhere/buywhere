@@ -584,6 +584,9 @@ async function handleSearchProducts(args) {
         tierParams.push(country.toUpperCase());
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    if (useChildTable) {
+        tierConditions.push('sp.is_active = true');
+    }
     // NOTE: category ILIKE intentionally omitted — search_products has category
     // as a slug; REST tier uses exact match. Add tierParams/tierConditions here
     // if category filtering on the tier becomes needed.

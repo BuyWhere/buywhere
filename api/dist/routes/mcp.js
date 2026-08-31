@@ -48,6 +48,21 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 ]);
 const router = (0, express_1.Router)();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-78735: MCP clients (and the 5s 0-byte hang probes) abort well before PG's
+// 30s statement_timeout. Bound catalog_search / get_deals / FBP to a wall-clock
+// so tools/call always flushes a JSON degraded envelope. PG timeout is kept
+// slightly under the wall so cancelled queries don't occupy the pool after we
+// have already responded.
+const MCP_CATALOG_WALL_MS = parseInt(process.env.MCP_CATALOG_WALL_MS || '3500', 10);
+const MCP_CATALOG_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.MCP_CATALOG_STATEMENT_TIMEOUT_MS || String(Math.max(1000, MCP_CATALOG_WALL_MS - 500)), 10));
+const MCP_CATALOG_WALL_TOOLS = new Set([
+    'search_products',
+    'search_products_v2',
+    'get_deals',
+    'get_deals_v2',
+    'find_best_price',
+    'find_best_price_v2',
+]);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -92,7 +107,7 @@ function recordMcpCircuitFailure(tool, stage, country) {
 function classifyMcpDegradedKind(err) {
     const e = err;
     const message = String(e?.message || '');
-    if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || /timeout/i.test(message))
+    if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || message.includes('mcp_catalog_wall_timeout') || /timeout/i.test(message))
         return 'timeout';
     if (e?.code === '28P01' || e?.code === '28000' || e?.code === '42501' || /auth|password|permission/i.test(message))
         return 'auth_failure';
@@ -507,7 +522,7 @@ async function handleSearchProducts(args, caller) {
     // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
     // refactors; this re-applies and documents the contract on both handlers.
     const q = (args.q || args.query || '').trim();
-    const mode = args.mode || 'hybrid';
+    const mode = args.mode || 'keyword';
     const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
@@ -684,16 +699,23 @@ async function handleSearchProducts(args, caller) {
         tierParams.push(region);
         tierConditions.push(`sp.region = $${tierParams.length}`);
     }
-    if (country) {
+    const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
+    const ftsTable = useChildTable
+        ? `products_partitioned_${(country || 'SG').toLowerCase()}`
+        : 'search_products';
+    if (country && !useChildTable) {
         tierParams.push(country.toUpperCase());
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
+    }
+    if (useChildTable) {
+        tierConditions.push('sp.is_active = true');
     }
     // NOTE: category ILIKE intentionally omitted — search_products has category
     // as a slug; REST tier uses exact match. Add tierParams/tierConditions here
     // if category filtering on the tier becomes needed.
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
-    let rows;
-    let total;
+    let rows = [];
+    let total = 0;
     // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
     // automated testing), the 50-connection pool can saturate when US-partition
     // queries hold connections for 5-12s. Without .catch(), the raw pg PoolError
@@ -731,7 +753,7 @@ async function handleSearchProducts(args, caller) {
         // costs nothing and prevents 25P02 from failing every MCP query.
         await searchClient.query('ROLLBACK').catch(() => { });
         await searchClient.query('BEGIN');
-        await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+        await searchClient.query(`SET LOCAL statement_timeout = '${MCP_CATALOG_STATEMENT_TIMEOUT_MS}'`);
         await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
         await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await searchClient.query(`SET LOCAL work_mem = '64MB'`);
@@ -747,19 +769,10 @@ async function handleSearchProducts(args, caller) {
         // under cold-cache conditions. The planner naturally chooses the GIN index
         // path when it's optimal; forcing it backfires on the tier table. Keep
         // enable_seqscan=off for get_deals/find_best_price (different query patterns).
-        const COUNT_CAP = 1001;
         if (q) {
-            // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
-            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM search_products sp ${tierWhere} LIMIT ${COUNT_CAP}) _sub`, tierParams);
-            total = parseInt(countResult.rows[0].count, 10);
-            // BUY-73908: if the lexical catalog tier has zero matches, do not let
-            // hybrid/vector recall resurrect unrelated rows for a must-miss query.
-            // The L2 leak was q=zzzz_no_match returning Google Shopping synthetic
-            // rows via vector-only candidates while REST correctly returned no_match.
-            if (total === 0) {
-                rows = [];
-            }
-            else if (useVector) {
+            // BUY-78767: do not COUNT(*) search_products — that plan times out (>2.5s)
+            // while child-table FTS returns in <10ms. Derive total from the page.
+            if (useVector) {
                 // 2026-08-29: the vector stage runs catalog queries on searchClient INSIDE the
                 // search transaction and its catch blocks "fall back to FTS". A failure there
                 // left the transaction aborted, so the main FTS query then died with 25P02 and
@@ -907,26 +920,21 @@ async function handleSearchProducts(args, caller) {
                 // BUY-72082: Keyword (FTS) path via search_products tier.
                 // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
                 // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
+                const pageLimit = Math.min(limit + offset, 200);
                 const tierFts = await searchClient.query(`WITH cand AS (
-             SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-             FROM search_products sp ${tierWhere}
+             SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
+                    sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
+                    ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+             FROM ${ftsTable} sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams);
-                if (tierFts.rows.length === 0) {
-                    rows = [];
-                }
-                else {
-                    const tierIds = tierFts.rows.map(r => r.id);
-                    const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-                    const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code,
-                    category, category_path, url_last_checked_at, url_status
-             FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds);
-                    // Preserve tier ranking order
-                    const byId = new Map(detailResult.rows.map(r => [r.id, r]));
-                    rows = tierIds.map(id => byId.get(id)).filter(Boolean);
-                }
+           SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                  image_url, metadata, updated_at, region, country_code, category,
+                  category_path, url_last_checked_at, url_status, rank
+           FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`, tierParams);
+                rows = tierFts.rows.slice(offset, offset + limit);
+                total = tierFts.rows.length + offset;
             }
         }
         else {
@@ -1251,7 +1259,7 @@ async function handleGetDeals(args, caller) {
         // BUY-64112: strict discount-first query only. The prior recent-window sample
         // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
         // real discounted products. Query the indexed discount predicate directly.
-        await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; mirror of mcp-railway/src/routes/mcp.ts to avoid drift. FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave.
+        await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78735: wall-clock fail-fast; was 30s which hung MCP tools/call 0-byte.
         // BUY-68615: force index path on production catalog DB.
         // At 400M+ rows, the planner may choose seqscan even with the discount index,
         // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
@@ -1624,7 +1632,7 @@ async function handleFindBestPrice(args) {
             }
             throw err;
         });
-        await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+        await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78735: wall-clock fail-fast; was 30s which hung MCP tools/call 0-byte.
         await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
         // BUY-72082: Tier search via search_products partitioned table (97M rows,
         // GIN-indexed, country-partitioned) instead of the 368M-row products table.
@@ -2258,26 +2266,85 @@ function normalizeToolArgAliases(args) {
     alias('product_ids', 'ids');
     alias('ids', 'product_ids');
 }
+function mcpCatalogWallEnvelope(name, args, startedAt) {
+    const country = String((args.deliver_to || args.country_code || args.country || 'SG')).toUpperCase();
+    const limit = Math.min(Number(args.limit) || 20, 100);
+    const offset = Number(args.offset) || 0;
+    const deliverToPresent = Boolean((typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+        (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+        (typeof args.country === 'string' && args.country.trim() !== ''));
+    const responseTimeMs = Date.now() - startedAt;
+    if (name.startsWith('find_best_price')) {
+        recordMcpCircuitFailure('find_best_price', 'catalog_search', country);
+        return buildMcpDegradedBestPriceResponse({
+            productName: String((args.product_name || args.q || args.query || '')),
+            country,
+            responseTimeMs,
+            kind: 'timeout',
+            stage: 'catalog_search',
+            deliverToPresent,
+        });
+    }
+    const tool = name.startsWith('get_deals') ? 'get_deals' : 'search_products';
+    const stage = name.startsWith('get_deals') ? 'offer_aggregation' : 'catalog_search';
+    recordMcpCircuitFailure(tool, stage, country);
+    return buildMcpDegradedSearchResponse({
+        tool,
+        stage,
+        kind: 'timeout',
+        limit,
+        offset,
+        responseTimeMs,
+        country,
+        deliverToPresent,
+    });
+}
+async function withMcpCatalogWall(name, args, work) {
+    if (!MCP_CATALOG_WALL_TOOLS.has(name))
+        return work();
+    const startedAt = Date.now();
+    let timer;
+    const wall = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+    });
+    try {
+        return await Promise.race([work(), wall]);
+    }
+    catch (err) {
+        const message = String(err?.message || '');
+        if (message.includes('mcp_catalog_wall_timeout')) {
+            console.warn(`[mcp] BUY-78735: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+            return mcpCatalogWallEnvelope(name, args, startedAt);
+        }
+        throw err;
+    }
+    finally {
+        if (timer)
+            clearTimeout(timer);
+    }
+}
 async function dispatchTool(name, args, caller) {
     normalizeMarketArg(args);
     normalizeToolArgAliases(args);
-    switch (name) {
-        case 'search_products': return handleSearchProducts(args, caller);
-        case 'get_product': return handleGetProduct(args, caller);
-        case 'compare_products': return handleCompareProducts(args, caller);
-        case 'get_deals': return handleGetDeals(args, caller);
-        case 'list_categories': return handleListCategories(args);
-        case 'find_best_price': return handleFindBestPrice(args);
-        case 'ingest_products': return handleIngestProducts(args);
-        case 'find_similar': return handleFindSimilar(args);
-        case 'search_products_v2': return handleSearchProductsV2(args);
-        case 'get_product_v2': return handleGetProductV2(args);
-        case 'compare_products_v2': return handleCompareProductsV2(args);
-        case 'get_deals_v2': return handleGetDealsV2(args);
-        case 'find_best_price_v2': return handleFindBestPriceV2(args);
-        default:
-            throw { code: -32601, message: `Unknown tool: ${name}` };
-    }
+    return withMcpCatalogWall(name, args, async () => {
+        switch (name) {
+            case 'search_products': return handleSearchProducts(args, caller);
+            case 'get_product': return handleGetProduct(args, caller);
+            case 'compare_products': return handleCompareProducts(args, caller);
+            case 'get_deals': return handleGetDeals(args, caller);
+            case 'list_categories': return handleListCategories(args);
+            case 'find_best_price': return handleFindBestPrice(args);
+            case 'ingest_products': return handleIngestProducts(args);
+            case 'find_similar': return handleFindSimilar(args);
+            case 'search_products_v2': return handleSearchProductsV2(args);
+            case 'get_product_v2': return handleGetProductV2(args);
+            case 'compare_products_v2': return handleCompareProductsV2(args);
+            case 'get_deals_v2': return handleGetDealsV2(args);
+            case 'find_best_price_v2': return handleFindBestPriceV2(args);
+            default:
+                throw { code: -32601, message: `Unknown tool: ${name}` };
+        }
+    });
 }
 // BUY-72533: v2 surface — REQUIRED deliver_to, plus v2-specific response fields.
 // v2 validates `deliver_to` is present (rejects with -32602 INVALID_ARGUMENT otherwise),

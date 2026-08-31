@@ -593,7 +593,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
   // refactors; this re-applies and documents the contract on both handlers.
   const q = ((args.q as string) || (args.query as string) || '').trim();
-  const mode = (args.mode as string) || 'hybrid';
+  const mode = (args.mode as string) || 'keyword';
   const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
   const useVector = vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
@@ -780,17 +780,24 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(region);
     tierConditions.push(`sp.region = $${tierParams.length}`);
   }
-  if (country) {
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
+  const ftsTable = useChildTable
+    ? `products_partitioned_${(country || 'SG').toLowerCase()}`
+    : 'search_products';
+  if (country && !useChildTable) {
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
+  }
+  if (useChildTable) {
+    tierConditions.push('sp.is_active = true');
   }
   // NOTE: category ILIKE intentionally omitted — search_products has category
   // as a slug; REST tier uses exact match. Add tierParams/tierConditions here
   // if category filtering on the tier becomes needed.
   const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
-  let rows: unknown[];
-  let total: number;
+  let rows: unknown[] = [];
+  let total = 0;
 
   // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
   // automated testing), the 50-connection pool can saturate when US-partition
@@ -845,21 +852,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // under cold-cache conditions. The planner naturally chooses the GIN index
     // path when it's optimal; forcing it backfires on the tier table. Keep
     // enable_seqscan=off for get_deals/find_best_price (different query patterns).
-    const COUNT_CAP = 1001;
     if (q) {
-      // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM search_products sp ${tierWhere} LIMIT ${COUNT_CAP}) _sub`,
-        tierParams
-      );
-      total = parseInt(countResult.rows[0].count, 10);
-      // BUY-73908: if the lexical catalog tier has zero matches, do not let
-      // hybrid/vector recall resurrect unrelated rows for a must-miss query.
-      // The L2 leak was q=zzzz_no_match returning Google Shopping synthetic
-      // rows via vector-only candidates while REST correctly returned no_match.
-      if (total === 0) {
-        rows = [];
-      } else if (useVector) {
+      // BUY-78767: do not COUNT(*) search_products — that plan times out (>2.5s)
+      // while child-table FTS returns in <10ms. Derive total from the page.
+      if (useVector) {
         // 2026-08-29: the vector stage runs catalog queries on searchClient INSIDE the
         // search transaction and its catch blocks "fall back to FTS". A failure there
         // left the transaction aborted, so the main FTS query then died with 25P02 and
@@ -1030,31 +1026,24 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         // BUY-72082: Keyword (FTS) path via search_products tier.
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
         // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-        const tierFts = await searchClient.query<{ id: string; rank: number }>(
+        const pageLimit = Math.min(limit + offset, 200);
+        const tierFts = await searchClient.query<Record<string, unknown>>(
           `WITH cand AS (
-             SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-             FROM search_products sp ${tierWhere}
+             SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
+                    sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
+                    ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+             FROM ${ftsTable} sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`,
+           SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                  image_url, metadata, updated_at, region, country_code, category,
+                  category_path, url_last_checked_at, url_status, rank
+           FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
           tierParams
         );
-        if (tierFts.rows.length === 0) {
-          rows = [];
-        } else {
-          const tierIds = tierFts.rows.map(r => r.id);
-          const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-          const detailResult = await searchClient.query(
-            `SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code,
-                    category, category_path, url_last_checked_at, url_status
-             FROM products WHERE id IN (${ph}) AND is_active = true`,
-            tierIds
-          );
-          // Preserve tier ranking order
-          const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-          rows = tierIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
-        }
+        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
+        total = tierFts.rows.length + offset;
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
