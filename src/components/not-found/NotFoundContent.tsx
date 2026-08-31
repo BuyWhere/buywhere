@@ -558,11 +558,11 @@ export function NotFoundCompare({
 
 // ---------------------------------------------------------------------------
 // NotFoundProduct — slate palette
-// Triggered when /p/{id} or /products/{id} references a delisted or unknown
-// product. Note: /products/my (unsupported country) returns bare __next_error__
-// today — this component is for the product-not-found case only.
+// Triggered when:
+// - /p/{id} or /products/{id} references a delisted or unknown product
+// - /products/{unsupported-country} (BUY-77134)
 // ---------------------------------------------------------------------------
-export function NotFoundProduct({ id }: { id: string }) {
+export function NotFoundProduct({ id, country }: { id?: string; country?: string }) {
   const [query, setQuery] = useState("");
 
   const handleSearch = (e: React.FormEvent) => {
@@ -571,6 +571,31 @@ export function NotFoundProduct({ id }: { id: string }) {
       window.location.assign(`/search?q=${encodeURIComponent(query.trim())}&country=us`);
     }
   };
+
+  // Unsupported country case (BUY-77134)
+  const isUnsupportedCountry = !!country;
+  const countryLabel = (cc: string) => {
+    const labels: Record<string, string> = {
+      us: "United States",
+      sg: "Singapore",
+      my: "Malaysia",
+      th: "Thailand",
+      id: "Indonesia",
+      ph: "Philippines",
+      vn: "Vietnam",
+    };
+    return labels[cc?.toLowerCase()] ?? cc?.toUpperCase() ?? cc;
+  };
+
+  const supportedCountries = [
+    { href: "/products/us", label: "United States" },
+    { href: "/products/sg", label: "Singapore" },
+    { href: "/products/my", label: "Malaysia" },
+    { href: "/products/th", label: "Thailand" },
+    { href: "/products/id", label: "Indonesia" },
+    { href: "/products/ph", label: "Philippines" },
+    { href: "/products/vn", label: "Vietnam" },
+  ];
 
   return (
     <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12">
@@ -595,16 +620,35 @@ export function NotFoundProduct({ id }: { id: string }) {
 
         <p className="text-lg font-semibold text-slate-500 mb-3">404</p>
         <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-4">
-          Product not found
+          {isUnsupportedCountry ? "Country not supported" : "Product not found"}
         </h1>
-        <p className="text-gray-500 mb-2 leading-relaxed">
-          Product{" "}
-          <code className="bg-slate-100 rounded px-2 py-0.5 text-sm text-slate-700">{id}</code>
-          {" "}isn&apos;t in our catalog.
-        </p>
-        <p className="text-gray-400 mb-8 text-sm">
-          It may have been delisted, or the link could be malformed.
-        </p>
+        {isUnsupportedCountry ? (
+          <>
+            <p className="text-gray-500 mb-2 leading-relaxed">
+              BuyWhere doesn&apos;t support{" "}
+              <code className="bg-slate-100 rounded px-2 py-0.5 text-sm text-slate-700">{countryLabel(country || "")}</code>{" "}
+              yet.
+            </p>
+            <p className="text-gray-400 mb-4 text-sm">
+              We currently cover{" "}
+              {["us", "sg", "my", "th", "id", "ph", "vn"].map((cc) => (
+                <code key={cc} className="bg-slate-100 rounded px-1.5 py-0.5 text-xs text-slate-700 mx-0.5">{cc}</code>
+              ))}
+              . More countries coming soon.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-500 mb-2 leading-relaxed">
+              Product{" "}
+              <code className="bg-slate-100 rounded px-2 py-0.5 text-sm text-slate-700">{id}</code>
+              {" "}isn&apos;t in our catalog.
+            </p>
+            <p className="text-gray-400 mb-8 text-sm">
+              It may have been delisted, or the link could be malformed.
+            </p>
+          </>
+        )}
 
         <form onSubmit={handleSearch} className="max-w-md mx-auto mb-10">
           <div className="relative">
@@ -624,41 +668,64 @@ export function NotFoundProduct({ id }: { id: string }) {
         </form>
 
         <div className="grid gap-6 sm:grid-cols-2 mb-10 text-left">
-          <div className="bg-slate-100 rounded-xl p-5">
-            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
-              </svg>
-              Browse categories
-            </h2>
-            <ul className="space-y-2">
-              {categoryLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="text-sm text-gray-600 hover:text-slate-600 transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {isUnsupportedCountry ? (
+            <div className="bg-slate-100 rounded-xl p-5 col-span-full sm:col-span-1 sm:col-start-1">
+              <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                Supported countries
+              </h2>
+              <ul className="space-y-2">
+                {supportedCountries.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="bg-slate-100 rounded-xl p-5">
+              <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
+                </svg>
+                Browse categories
+              </h2>
+              <ul className="space-y-2">
+                {categoryLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div className="bg-amber-50 rounded-xl p-5">
-            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-              </svg>
-              Popular searches
-            </h2>
-            <ul className="space-y-2">
-              {popularLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className={isUnsupportedCountry ? "sm:col-start-1 sm:row-start-2" : ""}>
+            <div className="bg-amber-50 rounded-xl p-5">
+              <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" className="flex-shrink-0" aria-hidden="true">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                </svg>
+                Popular searches
+              </h2>
+              <ul className="space-y-2">
+                {popularLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
 

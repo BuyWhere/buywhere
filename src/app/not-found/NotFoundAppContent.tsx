@@ -38,7 +38,8 @@ function NotFoundInner() {
         />
       );
     case "product":
-      return <NotFoundProduct id={id} />;
+      // Support both id= (product not found) and country= (unsupported country)
+      return <NotFoundProduct id={id || undefined} country={country || undefined} />;
   }
 
   // Fall-through: no recognised type, or missing required params

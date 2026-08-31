@@ -830,6 +830,45 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // BUY-77134: /products/{country} redirect for unsupported countries.
+  // Supported: us, sg, my, th, id, ph, vn. Anything else → friendly 404.
+  const SUPPORTED_COUNTRIES = new Set(["us", "sg", "my", "th", "id", "ph", "vn"]);
+  const productsCountryMatch = /^\/products\/([^/]+)\/?$/.exec(pathname);
+  if (productsCountryMatch) {
+    const cc = productsCountryMatch[1].toLowerCase();
+    if (!SUPPORTED_COUNTRIES.has(cc)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "product");
+      url.searchParams.set("country", cc);
+      return tagAgent(NextResponse.redirect(url, 302));
+    }
+  }
+
+  // BUY-77134: /compare/{cc} or /compare/{cc1}/{cc2} redirect for unsupported countries.
+  // Supported single: us, sg. Supported pairs: us/sg, sg/us.
+  // Any other single or pair → friendly 404.
+  const compareMatch = pathname.match(/^\/compare\/([^/]+)(?:\/([^/]+))?\/?$/);
+  if (compareMatch) {
+    const cc1 = compareMatch[1].toLowerCase();
+    const cc2 = compareMatch[2]?.toLowerCase();
+
+    // Check if valid single country (us or sg for now)
+    const validSingle = cc1 === "us" || cc1 === "sg";
+    // Check if valid pair (us/sg or sg/us)
+    const validPair =
+      (cc1 === "us" && cc2 === "sg") || (cc1 === "sg" && cc2 === "us");
+
+    if (!validSingle && !validPair) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "compare");
+      url.searchParams.set("country1", cc1);
+      if (cc2) url.searchParams.set("country2", cc2);
+      return tagAgent(NextResponse.redirect(url, 302));
+    }
+  }
+
   // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
   // These expose SEO-friendly URLs that render via the /search page internally.
   const INTENT_LOCATION_MAP: Record<string, string> = {
