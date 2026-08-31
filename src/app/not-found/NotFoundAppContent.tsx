@@ -2,17 +2,46 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { NotFoundBrand, NotFoundGeneric } from "@/components/not-found/NotFoundContent";
+import {
+  NotFoundGeneric,
+  NotFoundBrand,
+  NotFoundCategory,
+  NotFoundCompare,
+  NotFoundProduct,
+} from "@/components/not-found/NotFoundContent";
 
 function NotFoundInner() {
   const searchParams = useSearchParams();
-  const isBrandNotFound = searchParams?.get("type") === "brand";
+  const type = searchParams?.get("type") ?? "";
   const slug = searchParams?.get("slug") ?? "";
+  const country = searchParams?.get("country") ?? "";
+  const country1 = searchParams?.get("country1") ?? "";
+  const country2 = searchParams?.get("country2") ?? "";
+  const id = searchParams?.get("id") ?? "";
 
-  if (isBrandNotFound && slug) {
-    return <NotFoundBrand slug={slug} />;
+  switch (type) {
+    case "brand":
+      if (slug) return <NotFoundBrand slug={slug} />;
+      break;
+    case "category":
+      return (
+        <NotFoundCategory
+          slug={slug}
+          country={country}
+        />
+      );
+    case "compare":
+      return (
+        <NotFoundCompare
+          country1={country1}
+          country2={country2}
+        />
+      );
+    case "product":
+      return <NotFoundProduct id={id} />;
   }
 
+  // Fall-through: no recognised type, or missing required params
   return <NotFoundGeneric />;
 }
 
