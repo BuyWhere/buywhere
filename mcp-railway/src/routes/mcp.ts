@@ -815,7 +815,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
           const pageLimit = Math.min(limit + offset, 200);
           const cand = await spQuery<{ id: string }>(
-            `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT 1000`,
+            `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT ${pageLimit}`,
             tierParams,
             `fts_idfb${tierParams.length}`
           );
@@ -849,7 +849,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // columns + ts_rank in the GIN scan prevents early-stop and times out
         // the 3.5s MCP wall even on products_partitioned_sg.
         const cand = await spQuery<{ id: string }>(
-          `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT 1000`,
+          `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT ${pageLimit}`,
           tierParams,
           `fts_id${tierParams.length}`
         );
