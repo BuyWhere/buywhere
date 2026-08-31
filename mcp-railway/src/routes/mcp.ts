@@ -635,7 +635,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     tierParams.push(region);
     tierConditions.push(`sp.region = $${tierParams.length}`);
   }
-  if (country) {
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
+  const ftsTable = useChildTable
+    ? `products_partitioned_${(country || 'SG').toLowerCase()}`
+    : 'search_products';
+  const detailTable = useChildTable ? ftsTable : 'products';
+  // Child tables are already country-partitioned; extra country_code filter
+  // on search_products is what forced the slow global GIN recheck.
+  if (country && !useChildTable) {
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
@@ -675,13 +682,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
   }
 
-  // BUY-78767: child-table PK join for fast countries. search_products ids
-  // and products parent ids do not overlap (child ≤37M, search up to 1e18);
-  // joining FTS candidates to `products` times out. Mirror BUY-76909.
-  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
-  const detailTable = useChildTable
-    ? `products_partitioned_${(country || 'SG').toLowerCase()}`
-    : 'products';
   try {
     // BUY-78767: transaction + SET LOCAL so timeout/work_mem apply to this
     // request only (session SET on pooled connections leaked / was overwritten).
@@ -817,7 +817,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                       sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
                       sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
                       ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-               FROM search_products sp ${tierWhere}
+               FROM ${ftsTable} sp ${tierWhere}
                LIMIT 1000
              )
              SELECT id, sku AS source, source AS domain, url, title, price, currency,
@@ -840,7 +840,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                     sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
                     sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
                     ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-             FROM search_products sp ${tierWhere}
+             FROM ${ftsTable} sp ${tierWhere}
              LIMIT 1000
            )
            SELECT id, sku AS source, source AS domain, url, title, price, currency,
