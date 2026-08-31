@@ -804,29 +804,24 @@ export async function middleware(request: NextRequest) {
           signal: AbortSignal.timeout(3000),
         }
       );
-      if (!apiRes.ok) {
-        // Any non-2xx from the upstream brand API (including 500 on non-existent
-        // slugs) means no brand data exists for this slug. Redirect to the branded
-        // not-found page instead of returning a 0-byte 404 (BUY-75133).
-        // The upstream /v1/brand/:slug currently returns 500 (not 404) for
-        // unknown slugs due to a backend bug — catch all non-OK responses here.
+      if (apiRes.status === 404) {
+        // Definitive 404: brand does not exist. Redirect to branded not-found page.
         const url = request.nextUrl.clone();
         url.pathname = "/not-found";
         url.searchParams.set("type", "brand");
         url.searchParams.set("slug", slug);
         return tagAgent(NextResponse.redirect(url, 302));
       }
+      // For 429 (rate limit), 500 (transient backend error), 401 (missing key),
+      // or any other non-404 non-OK status: fall through to let the page handler
+      // render the brand page (which has its own error handling).
+      // Previously this caught ALL non-OK responses including 429, which broke
+      // brand pages when the API was rate-limiting (BUY-78382).
     } catch {
-      // BUY-75133: probe failure OR timeout = no brand data for this slug. The
-      // upstream /v1/brand/{slug} hangs ~30s and returns 500 (never a real brand
-      // page) for the placeholder slugs that were de-sitemapped in 8d1804055,
-      // so the 3s AbortSignal fires here before the 404/500 arrives. Redirect to
-      // the branded not-found page instead of returning a 0-byte 404 (BUY-75133).
-      const url = request.nextUrl.clone();
-      url.pathname = "/not-found";
-      url.searchParams.set("type", "brand");
-      url.searchParams.set("slug", slug);
-      return tagAgent(NextResponse.redirect(url, 302));
+      // BUY-75133: probe failure OR timeout — the brand API may be slow or
+      // unreachable. Fall through to let the page handler render the brand
+      // page with its own error handling (503 UI for transient failures).
+      // The 3s AbortSignal fires before the 30s hang on placeholder slugs.
     }
   }
 
