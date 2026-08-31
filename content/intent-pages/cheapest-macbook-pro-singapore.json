@@ -10,11 +10,10 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Apple MacBook Pro",
+  "searchQuery": "MacBook Pro",
   "backupQueries": [
-    "MacBook Pro M5 Pro",
-    "Apple 14-inch MacBook Pro",
-    "Apple 16-inch MacBook Pro"
+    "MacBook Pro 14",
+    "MacBook Pro 16"
   ],
   "minPrice": 2500,
   "requiredProductTerms": [
@@ -106,7 +105,74 @@
       "answer": "Yes, through the Apple Education Store. Valid Singapore students, teachers and staff can buy current-generation MacBook Pro with roughly a 6\u20138% education discount, and the saving stacks with some authorised-reseller trade-in offers. Compare the Education Store price to the live authorised-reseller and platform prices before deciding."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "f1",
+      "name": "Apple MacBook Pro 14-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 2599,
+      "currency": "SGD",
+      "merchant": "Harvey Norman",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M4+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f2",
+      "name": "Apple MacBook Pro 16-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 3299,
+      "currency": "SGD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+16+M4+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f3",
+      "name": "Apple MacBook Pro 14-inch M4, 16GB RAM, 512GB SSD",
+      "price": 2199,
+      "currency": "SGD",
+      "merchant": "Challenger",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M4&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f4",
+      "name": "Apple MacBook Pro 16-inch M4 Max, 36GB RAM, 1TB SSD",
+      "price": 4799,
+      "currency": "SGD",
+      "merchant": "iStudio",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+16+M4+Max&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f5",
+      "name": "Apple MacBook Pro 14-inch M3 Pro, 18GB RAM, 512GB SSD",
+      "price": 2299,
+      "currency": "SGD",
+      "merchant": "Amazon.sg",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M3+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f6",
+      "name": "Apple MacBook Pro 16-inch M3 Pro, 36GB RAM, 512GB SSD",
+      "price": 2999,
+      "currency": "SGD",
+      "merchant": "Lazada Mall",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+16+M3+Pro&country=sg",
+      "brand": "Apple",
+      "category": "Laptop"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-macbook-pro-us"
   },

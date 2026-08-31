@@ -123,7 +123,74 @@
       "answer": "Only if you push the chip or need the extra ports and sustained performance. The MacBook Air is the better buy for most people \u2014 it is lighter, quieter, and battery life is comparable. The MacBook Pro earns its price when you regularly compile large codebases, export multi-stream video or render 3D."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "f1",
+      "name": "Apple MacBook Air 13-inch M4, 16GB RAM, 512GB SSD",
+      "price": 1099,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+M4+13&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f2",
+      "name": "Apple MacBook Air 15-inch M4, 16GB RAM, 512GB SSD",
+      "price": 1299,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+M4+15&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f3",
+      "name": "Apple MacBook Pro 14-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 1999,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M4+Pro&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f4",
+      "name": "Apple MacBook Pro 16-inch M4 Pro, 24GB RAM, 512GB SSD",
+      "price": 2499,
+      "currency": "USD",
+      "merchant": "Apple Store",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+16+M4+Pro&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f5",
+      "name": "Apple MacBook Pro 14-inch M4, 16GB RAM, 512GB SSD",
+      "price": 1599,
+      "currency": "USD",
+      "merchant": "B&H",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Pro+14+M4&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "f6",
+      "name": "Apple MacBook Air 13-inch M3, 16GB RAM, 256GB SSD (Certified Refurbished)",
+      "price": 899,
+      "currency": "USD",
+      "merchant": "Apple Certified Refurbished",
+      "imageUrl": null,
+      "href": "/search?q=MacBook+Air+M3+Refurbished&country=us",
+      "brand": "Apple",
+      "category": "Laptop"
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-macbooks-singapore"
   },
