@@ -13,8 +13,6 @@ import { adminAuth } from './auth';
 
 const router = Router();
 
-router.use(adminAuth);
-
 interface EndpointRow {
   endpoint: string;
   total: string;          // bigint -> string from pg
@@ -35,7 +33,7 @@ interface RegionRow {
 
 const num = (v: string | null | undefined): number => (v == null ? 0 : Number(v));
 
-router.get('/v1/admin/uptime', async (req: Request, res: Response) => {
+router.get('/v1/admin/uptime', adminAuth, async (req: Request, res: Response) => {
   const daysRaw = parseInt(String(req.query.days ?? '30'), 10);
   const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(daysRaw, 365)) : 30;
   const region = typeof req.query.region === 'string' && req.query.region.length > 0

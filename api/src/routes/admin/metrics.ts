@@ -11,8 +11,6 @@ import { db } from '../../config';
 
 const router = Router();
 
-router.use(adminAuth);
-
 // Parse "30m", "5m", "1h" into seconds. Default 30m.
 function parseWindowToSeconds(raw: unknown): number {
   if (typeof raw !== 'string' || raw.length === 0) return 30 * 60;
@@ -24,7 +22,7 @@ function parseWindowToSeconds(raw: unknown): number {
   return Math.max(1, Math.min(n * mult, 24 * 60 * 60));
 }
 
-router.get('/v1/admin/metrics', (_req: Request, res: Response) => {
+router.get('/v1/admin/metrics', adminAuth, (_req: Request, res: Response) => {
   const snap = snapshotHistograms();
   res.json({
     window_seconds: snap.window_seconds,
@@ -34,7 +32,7 @@ router.get('/v1/admin/metrics', (_req: Request, res: Response) => {
   });
 });
 
-router.get('/v1/admin/metrics/window', (req: Request, res: Response) => {
+router.get('/v1/admin/metrics/window', adminAuth, (req: Request, res: Response) => {
   // Convenience endpoint — same shape as /v1/admin/metrics but lets the caller
   // request a (shorter) window. The ring buffer always holds 30m of data, so
   // the response is just a filtered subset of the same samples.

@@ -12,9 +12,8 @@ const config_1 = require("../../config");
 const latency_1 = require("../../middleware/latency");
 const auth_1 = require("./auth");
 const router = (0, express_1.Router)();
-router.use(auth_1.adminAuth);
 const num = (v) => (v == null ? 0 : Number(v));
-router.get('/v1/admin/uptime', async (req, res) => {
+router.get('/v1/admin/uptime', auth_1.adminAuth, async (req, res) => {
     const daysRaw = parseInt(String(req.query.days ?? '30'), 10);
     const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(daysRaw, 365)) : 30;
     const region = typeof req.query.region === 'string' && req.query.region.length > 0
