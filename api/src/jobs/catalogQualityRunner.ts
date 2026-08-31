@@ -12,8 +12,11 @@
  * Run manually with `npm run catalog-quality` to execute immediately and exit.
  */
 
-import { spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { resolve } from 'path';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 const HOUR_UTC = parseInt(process.env.QUALITY_SNAPSHOT_HOUR_UTC ?? '2', 10);
 const MIN_UTC  = parseInt(process.env.QUALITY_SNAPSHOT_MIN_UTC  ?? '0',  10);
@@ -43,59 +46,38 @@ async function tick(): Promise<void> {
   console.log('[catalog-quality-runner] Job triggered — spawning Python snapshot script');
   const start = Date.now();
 
-  await new Promise<void>((resolve, reject) => {
-    // Inherit DATABASE_URL from the environment so the Python script
-    // can pick it up via its own config / BUYWHERE_DATABASE_URL fallback.
-    const child = spawn(
+  try {
+    const { stdout, stderr } = await execFileAsync(
       'python3',
       [PYTHON_SCRIPT, '--once'],
       {
         cwd: resolve(__dirname, '..', '..'),
         env: { ...process.env },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024, // 10MB
       }
     );
 
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    child.on('close', (code: number | null) => {
-      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      if (code === 0) {
-        console.log(`[catalog-quality-runner] Completed in ${elapsed}s`);
-        if (stdout.trim()) {
-          // Print last few lines of output for visibility
-          const lines = stdout.trim().split('\n').slice(-5);
-          lines.forEach((l) => console.log(`  ${l}`));
-        }
-        resolve();
-      } else {
-        console.error(`[catalog-quality-runner] Script exited with code ${code}`);
-        if (stdout.trim()) {
-          console.error('--- stdout ---');
-          stdout.trim().split('\n').forEach((l) => console.error(`  ${l}`));
-        }
-        if (stderr.trim()) {
-          console.error('--- stderr ---');
-          stderr.trim().split('\n').forEach((l) => console.error(`  ${l}`));
-        }
-        reject(new Error(`Snapshot script exited ${code}`));
-      }
-    });
-
-    child.on('error', (err: Error) => {
-      console.error('[catalog-quality-runner] Failed to spawn Python script:', err.message);
-      reject(err);
-    });
-  });
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    console.log(`[catalog-quality-runner] Completed in ${elapsed}s`);
+    if (stdout?.trim()) {
+      const lines = stdout.trim().split('\n').slice(-5);
+      lines.forEach((l: string) => console.log(`  ${l}`));
+    }
+    if (stderr?.trim()) {
+      console.error('[catalog-quality-runner] stderr:', stderr.trim().slice(0, 500));
+    }
+  } catch (err: any) {
+    console.error(`[catalog-quality-runner] Script failed: ${err.message}`);
+    if (err.stdout?.trim()) {
+      console.error('--- stdout ---');
+      err.stdout.trim().split('\n').forEach((l: string) => console.error(`  ${l}`));
+    }
+    if (err.stderr?.trim()) {
+      console.error('--- stderr ---');
+      err.stderr.trim().split('\n').forEach((l: string) => console.error(`  ${l}`));
+    }
+    // Don't rethrow — keep the scheduler alive
+  }
 
   schedule();
 }
@@ -106,7 +88,7 @@ function schedule(): void {
     `[catalog-quality-runner] Next run at ${HOUR_UTC.toString().padStart(2, '0')}:${MIN_UTC.toString().padStart(2, '0')} UTC ` +
     `— in ${formatDelay(delay)}`
   );
-  setTimeout(() => { void tick(); }, delay);
+  setTimeout(() => { tick().catch((err) => console.error('[catalog-quality-runner] Tick error:', err)); }, delay);
 }
 
 async function main(): Promise<void> {
