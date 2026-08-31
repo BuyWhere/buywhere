@@ -10,11 +10,11 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "iPhone 17",
+  "searchQuery": "iPhone 17 unlocked",
   "backupQueries": [
-    "Apple iPhone 17 unlocked",
-    "iPhone 17 256GB",
-    "iPhone 17 Verizon AT&T T-Mobile"
+    "iPhone 17 Pro",
+    "Apple iPhone 17",
+    "iPhone 17 256GB"
   ],
   "minPrice": 500,
   "requiredProductTerms": [
