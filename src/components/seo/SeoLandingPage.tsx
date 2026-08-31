@@ -251,7 +251,8 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             ) : (
               <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
                 {(products.length > 0 ? products : (config.fallbackProducts ?? [])).map((product) => (
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
+                  // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
+                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
                 ))}
               </div>
             )}

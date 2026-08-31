@@ -28,7 +28,7 @@ function formatPrice(price: number | null, currency: string) {
   }).format(price);
 }
 
-export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
+export function ProductGridCard({ product, compact = false, pathname }: { product: LandingProduct; compact?: boolean; pathname?: string | null }) {
   // BUY-76340 / BUY-75417: the whole card must lead to a server-rendered,
   // crawlable affiliate redirect so AI crawlers (GPTBot, ClaudeBot) and real
   // users both earn commission (target 10K affiliate clicks/day from intent
@@ -36,8 +36,9 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
   // NOTE: only use buildAffiliateRedirectUrl when affiliateUrl exists (meaning
   // the product HAS a DB record); static fallback products (lp* IDs) have no
   // DB record, so /r/direct/lp* redirects to homepage.
+  // BUY-78335: pass pathname to capture source_page at render time for SSR/bots
   const affiliateHref = product.affiliateUrl
-    ? (buildAffiliateRedirectUrl(product.id) || product.href || "#")
+    ? (buildAffiliateRedirectUrl(product.id, pathname) || product.href || "#")
     : (product.href || "#");
 
   // A card is a "merchant offer" when it has a real external/affiliate target

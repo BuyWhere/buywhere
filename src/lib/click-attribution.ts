@@ -37,16 +37,25 @@ function isCuratedSlotId(id: string): boolean {
  * the fallback URL (buywhere.ai homepage) instead of the merchant link.
  * Returning null for non-numeric IDs lets ProductGridCard fall back to
  * `product.href` (a search-result deep-link) instead of a broken /r/ redirect.
+ *
+ * BUY-78335: include ?pathname= at render time so source_page is captured
+ * even for bot clicks that don't execute client-side JS.
  */
 export function buildAffiliateRedirectUrl(
   productId: string | number | null | undefined,
+  pathname?: string | null,
 ): string | null {
   if (productId == null) return null;
   const id = String(productId);
   // Curated slot ids (lp1, g3, etc.) and non-numeric IDs get null
   // so callers fall back to internal search links
   if (isCuratedSlotId(id) || !/^\d+$/.test(id)) return null;
-  return `/r/direct/${encodeURIComponent(id)}`;
+  let url = `/r/direct/${encodeURIComponent(id)}`;
+  // Add source_page attribution at render time (SSR) so bots also capture it
+  if (pathname) {
+    url += `?pathname=${encodeURIComponent(pathname)}`;
+  }
+  return url;
 }
 
 function safePostHogSessionId(): string | null {
