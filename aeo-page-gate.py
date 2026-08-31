@@ -181,6 +181,48 @@ def gate_live(slug):
     if not re.search(r'(from|under)\s+(US\$|S\$|\$)\s?\d|retailers compared', title, re.I): print('   WARN title: no price range / retailer count in <title> ("from US$749 at Walmart · 6 retailers compared")')
     if 'AggregateOffer' not in body: print('   WARN schema: no AggregateOffer (ships with BUY-74926)')
     if 'BreadcrumbList' not in body: print('   WARN schema: no BreadcrumbList')
+    # Atlas QA 2026-08-31: hreflang pair check (warn-level — directive §2.7, no SG/US crosslink rule today, but flag the gap).
+    # SG-page slug ends in '-singapore' / has 'singapore' in title; US-page slug ends in '-us' / has 'united states'.
+    hls = re.findall(r'<link[^>]+hreflang="([^"]+)"[^>]+href="([^"]+)"', body, re.I)
+    hl_langs = set(l.lower() for l, _ in hls)
+    if 'singapore' in slug or 'singapore' in title.lower():
+        if 'en-sg' not in hl_langs: print('   WARN hreflang: SG page missing hreflang="en-SG"')
+        if 'en-us' not in hl_langs: print('   WARN hreflang: SG page has no en-US alternate (cross-country link)')
+    if slug.endswith('-us') or 'united states' in title.lower():
+        if 'en-us' not in hl_langs: print('   WARN hreflang: US page missing hreflang="en-US"')
+        if 'en-sg' not in hl_langs: print('   WARN hreflang: US page has no en-SG alternate (cross-country link)')
+    # Atlas QA 2026-08-31: price sanity vs catalog (warn-level). Sample prices from the rendered page, probe the
+    # live /v1/products/search with the page's inferred query, and warn if median catalog price diverges >50% from
+    # the page's median. This catches stale prices and currency mismatches silently.
+    page_prices = []
+    for m in re.finditer(r'(?:US\$|S\$|A\$|RM|£|\$)\s?(\d{1,4}(?:[.,]\d{2})?)', txt):
+        try:
+            v = float(m.group(1).replace(',', ''))
+            if 1 <= v <= 50_000: page_prices.append(v)
+        except Exception: pass
+    if page_prices and len(page_prices) >= 3:
+        page_med = sorted(page_prices)[len(page_prices)//2]
+        # Heuristic query: try the slug's first meaningful token + country
+        cc = 'SG' if ('singapore' in slug or 'singapore' in title.lower()) else ('US' if (slug.endswith('-us') or 'united states' in title.lower()) else None)
+        q = re.sub(r'-(singapore|us|malaysia|australia|uk|vs.*)$', '', slug).replace('-', ' ').strip()
+        if cc and q:
+            try:
+                k2 = api_key()
+                u2 = f"{API}/v1/products/search?q={urllib.parse.quote(q)}&country_code={cc}&limit=12"
+                st, b2 = fetch(u2, {"Authorization": f"Bearer {k2}"} if k2 else None)
+                d2 = json.loads(b2)
+                cat_prices = []
+                for p in d2.get('data', []):
+                    pr = p.get('price')
+                    amt = pr.get('amount') if isinstance(pr, dict) else (pr if isinstance(pr, (int, float)) else None)
+                    if isinstance(amt, (int, float)) and 1 <= amt <= 50_000: cat_prices.append(float(amt))
+                if len(cat_prices) >= 3:
+                    cat_med = sorted(cat_prices)[len(cat_prices)//2]
+                    if page_med > 0 and cat_med > 0:
+                        ratio = page_med / cat_med
+                        if ratio < 0.5 or ratio > 2.0:
+                            print(f'   WARN price sanity: page median ${page_med:.0f} vs catalog median ${cat_med:.0f} for "{q}" in {cc} (ratio {ratio:.2f}x) — stale currency or out-of-date prices?')
+            except Exception: pass
     return u, f
 
 if __name__ == '__main__':
