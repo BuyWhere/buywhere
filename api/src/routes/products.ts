@@ -205,8 +205,9 @@ async function tryIdentifierLookup(
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    const total = p.offset + rows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
+    const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -488,8 +489,9 @@ async function tryTierSearch(
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    const total = p.offset + rows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
+    const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
