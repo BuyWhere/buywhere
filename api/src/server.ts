@@ -6,6 +6,7 @@ import authRouter from './routes/auth';
 import billingRouter from './routes/billing';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
+import mcpListingsRouter from './routes/mcpListings';
 import brandsRouter from './routes/brands';
 import redirectRouter from './routes/redirect';
 import wellknownRouter, { sendOpenApiSpec } from './routes/wellknown';
@@ -250,6 +251,8 @@ export function createApp() {
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
+  // The MCP listings ledger: shared state for every external surface we appear on.
+  app.use('/v1/mcp-listings', mcpListingsRouter);
   app.use('/v1/brand', brandsRouter);
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
