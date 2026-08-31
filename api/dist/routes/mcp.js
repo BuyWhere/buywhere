@@ -927,7 +927,7 @@ async function handleSearchProducts(args, caller) {
                     sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
                     ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM ${ftsTable} sp ${tierWhere}
-             LIMIT 1000
+             LIMIT ${pageLimit}
            )
            SELECT id, sku AS source, source AS domain, url, title, price, currency,
                   image_url, metadata, updated_at, region, country_code, category,
