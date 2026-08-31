@@ -36,24 +36,47 @@ interface CatalogStatsResult {
 // BUY-31222: Full COUNT(*) on 32M rows times out at 60s on Railway Postgres.
 // Use pg_class.reltuples for totals, TABLESAMPLE for active ratio,
 // and exact count on the much-smaller merchants table.
-async function collectStats(): Promise<CatalogStatsResult> {
-  const now = new Date().toISOString();
+async function collectExactSnapshot(): Promise<CatalogStatsResult | null> {
+  // BUY-74088: never serve pg_class.reltuples from /v1/catalog/stats.
+  // catalog_product_counts is maintained by the daily reconciliation job with
+  // real COUNT(*) values. Reading one row is O(1) and stays under the gateway.
+  const reader = readDb();
+  try {
+    const result = await reader.query(`
+      SELECT total_products, active_products, total_merchants, snapshot_at
+        FROM catalog_product_counts
+       ORDER BY snapshot_at DESC
+       LIMIT 1
+    `);
+    const row = result.rows?.[0];
+    if (!row) return null;
+    return {
+      total_products: Number(row.total_products),
+      active_products: Number(row.active_products),
+      total_merchants: Number(row.total_merchants),
+      approximate: false,
+      source: CATALOG_STATS_SOURCE_EXACT,
+      collected_at: new Date(row.snapshot_at).toISOString(),
+    };
+  } catch (err) {
+    console.warn('[catalog/stats] catalog_product_counts read failed', err);
+    return null;
+  }
+}
 
-  // BUY-74205: route stats reads to the read replica (readDb) so the 407 GB
-  // products table scan does not saturate the primary catalog pool.  Removing the
-  // TABLESAMPLE active-ratio query: on a 368 M-row table it exceeds the statement
-  // timeout and makes /v1/catalog/stats time out whenever the cache is cold.
+async function collectStats(): Promise<CatalogStatsResult> {
+  const snapshot = await collectExactSnapshot();
+  if (snapshot) return snapshot;
+
+  const now = new Date().toISOString();
   const reader = readDb();
   const [
     productsEst,
     merchantsExact,
   ] = await Promise.all([
-    // Total products: pg_class.reltuples (instant, no table scan)
     reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
       .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
       .catch(() => 0),
-
-    // Total merchants: exact count (smaller table, completes fast)
     reader.query(`SELECT count(*) AS cnt FROM merchants`)
       .then(r => Number(r.rows?.[0]?.cnt || 0))
       .catch(() =>
@@ -62,15 +85,10 @@ async function collectStats(): Promise<CatalogStatsResult> {
           .catch(() => 0)
       ),
   ]);
-
-  // Approximate active ratio. TABLESAMPLE was too slow on the live table;
-  // overall active ratio has been steady at ~99 %, so use that fixed estimate.
   const activeRatio = 0.99;
-
   let activeProducts = Math.round(productsEst * activeRatio);
   if (activeProducts > productsEst) activeProducts = productsEst;
   if (activeProducts < 0) activeProducts = productsEst;
-
   return {
     total_products: productsEst,
     active_products: activeProducts,
@@ -165,7 +183,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
       // "force exact recount" made every call run count(*) over 365M rows on the search replica
       // (it never finished inside 25 s, so callers got the estimate anyway after a 25 s full scan).
       // Exact counts are opt-in via ?exact=1 (or POST /stats/refresh).
-      if (!stats.approximate || _req.query.exact !== '1') {
+      if (!stats.approximate) {
         triggerBackgroundRefresh().catch(() => {});
         res.json({
           data: {
@@ -174,7 +192,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
             active_products: stats.active_products,
           },
           meta: {
-            approximate: stats.approximate,
+            approximate: false,
             source: stats.source,
             ts: stats.collected_at,
           },
@@ -199,7 +217,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
     // fails fast enough for the route to surface the degraded envelope
     // (meta.approximate=true) rather than a 30s+ gateway timeout followed by
     // an opaque stale total.
-    const exact = _req.query.exact === '1' ? await tryExactCount(25000) : null;
+    const exact = await collectExactSnapshot() || (_req.query.exact === '1' ? await tryExactCount(25000) : null);
     if (exact) {
       await redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL).catch(() => {});
       triggerBackgroundRefresh().catch(() => {});
