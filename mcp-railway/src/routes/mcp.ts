@@ -2631,9 +2631,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
-// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
-// POST /mcp/rpc is a backward-compatible alias for callers that used the older path.
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler for POST /mcp.
 async function handleMcpAuthenticated(req: Request, res: Response): Promise<void> {
   const body = req.body;
 
@@ -2793,12 +2791,5 @@ async function handleMcpAuthenticated(req: Request, res: Response): Promise<void
 
 // POST /mcp — authenticated methods: tools/call (and any future additions)
 router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
-
-// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
-// Mount the same handler so both paths accept standard bw_* API keys.
-// Previously this path returned 401 "Invalid admin key" because it was gated
-// by an admin-only middleware that no longer exists in the deployed code.
-// Keeping it as an alias ensures any callers using /mcp/rpc continue working.
-router.post('/rpc', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), handleMcpAuthenticated);
 
 export default router;
