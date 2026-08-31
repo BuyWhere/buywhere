@@ -530,7 +530,12 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     ).catch(() => {});
   }
 
-  if (dailyRequestCount >= dailyLimit) {
+  // BUY-78624: first-party / is_internal keys (Cat A smokes, fleet heartbeat,
+  // fetch-monitoring) must not share the customer daily cap. Still increment
+  // counters for observability; skip the 429.
+  const skipDailyCap = row.is_internal === true || row.tier === 'monitoring' || row.tier === 'internal';
+
+  if (!skipDailyCap && dailyRequestCount >= dailyLimit) {
     sendDailyLimitError(res, row.tier, dailyLimit, dailyResetAt.toISOString());
     return;
   }
