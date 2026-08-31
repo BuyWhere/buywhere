@@ -70,13 +70,48 @@ async def _run_once() -> None:
     session = get_async_session()
     try:
         report = await build_catalog_quality_report_fast(session)
-        snapshot = await persist_catalog_quality_snapshot(session, report)
+        overview = report["overview"]
+        field_completeness = overview["field_completeness"]
+        payload = {
+            "by_source": report["aggregates"]["by_source"],
+            "by_region": report["aggregates"]["by_region"],
+            "by_category": report["aggregates"]["by_category"],
+            "re_scrape_recommendations": report["re_scrape_recommendations"],
+            "stale_products": report["stale_products"],
+        }
+
+        from app.services.catalog_quality import _json_safe
+        from sqlalchemy import text
+        import json
+
+        # Use raw SQL insert to avoid ORM transaction issues
+        await session.execute(
+            text("""
+                INSERT INTO data_quality_metrics
+                    (snapshot_date, total_products, products_with_image_pct,
+                     products_with_description_pct, products_with_price_pct,
+                     products_with_brand_pct, overall_quality_score, per_platform_scores)
+                VALUES
+                    (:snapshot_date, :total_products, :image_pct,
+                     :desc_pct, :price_pct, :brand_pct, :overall_score, :payload::jsonb)
+            """),
+            {
+                "snapshot_date": report["snapshot_date"],
+                "total_products": overview["total_products"],
+                "image_pct": float(field_completeness["image_url_pct"]),
+                "desc_pct": float(field_completeness["description_pct"]),
+                "price_pct": float(field_completeness["price_pct"]),
+                "brand_pct": float(field_completeness["brand_pct"]),
+                "overall_score": float(round(overview["overall_quality_score"] * 100, 2)),
+                "payload": json.dumps(_json_safe(payload)),
+            }
+        )
         await session.commit()
         log.info(
             "Snapshot persisted for %s: total_products=%s overall_quality_score=%s",
-            snapshot.snapshot_date,
-            snapshot.total_products,
-            snapshot.overall_quality_score,
+            report["snapshot_date"],
+            overview["total_products"],
+            round(overview["overall_quality_score"] * 100, 2),
         )
     except Exception:
         log.exception("Failed to build or persist catalog quality snapshot")
