@@ -1435,13 +1435,10 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // have zero rows in the top 2000 yet thousands of live deals).
     const candidateLimit = categoryLower ? 20000 : 2000;
     const candidateParams = [...params, candidateLimit];
-    const dealsTable = FAST_CHILD_TABLE_COUNTRIES.has((effectiveCountry || '').toUpperCase())
-      ? `products_partitioned_${(effectiveCountry || 'SG').toLowerCase()}`
-      : 'products';
     const dataResult = await dealsClient.query(
       `WITH cand AS (
          SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
-         FROM ${dealsTable}
+         FROM products
          WHERE ${whereClause}
          ORDER BY discount_pct DESC
          LIMIT $${candidateParams.length}
@@ -1454,12 +1451,19 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
               p.url_last_checked_at, p.url_status,
               p.discount_pct,
               p.category, p.category_path
-       FROM cand JOIN ${dealsTable} p ON p.id = cand.id
+       FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`,
       candidateParams
     );
     total = dataResult.rows.length;
+    if (effectiveCountry) {
+      const cc = effectiveCountry.toUpperCase();
+      dataResult.rows = (dataResult.rows as Record<string, unknown>[]).filter(
+        (r) => String(r.country_code || '').toUpperCase() === cc,
+      );
+      total = dataResult.rows.length;
+    }
     // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
     // WHERE was kept category-free so the (currency, discount_pct DESC) index
     // walk stays bounded. Match caller input against `category` text AND
