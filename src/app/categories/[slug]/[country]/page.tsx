@@ -15,6 +15,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   us: "United States",
   sg: "Singapore",
   my: "Malaysia",
+  hk: "Hong Kong",
   th: "Thailand",
   id: "Indonesia",
   ph: "Philippines",

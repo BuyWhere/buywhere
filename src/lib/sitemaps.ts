@@ -294,7 +294,7 @@ export interface ApiCategoryRecord {
   product_count?: number;
 }
 
-export const CATEGORY_SITEMAP_COUNTRIES = ["us", "sg", "my", "th", "id", "ph", "vn"] as const;
+export const CATEGORY_SITEMAP_COUNTRIES = ["us", "sg", "my", "hk", "th", "id", "ph", "vn"] as const;
 
 export function formatCategoryName(slug: string, fallback?: string): string {
   return (fallback || slug)
