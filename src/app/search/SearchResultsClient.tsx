@@ -50,6 +50,8 @@ type SearchResultsClientProps = {
   initialNextCursor?: string | null;
   initialDegraded?: boolean;
   initialDegradedHint?: string | null;
+  // BUY-78335: pathname for source_page attribution on /r/ links
+  pathname?: string | null;
 };
 
 export type SearchApiItem = {
@@ -915,7 +917,7 @@ function deriveBrandFromTitle(title: string | null | undefined): string | null {
   return candidate;
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, pathname?: string | null): SearchCardProduct {
   const priceValue =
     item.price && typeof item.price === 'object' && 'amount' in item.price
       ? item.price.amount
@@ -1005,7 +1007,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
       : null,
     // BUY-75417: prefer /r/direct/{id} for server-rendered crawlers, fall
     // back to the API affiliate redirect, then click_url, etc.
-    href: buildAffiliateRedirectUrl(item.id)
+    href: buildAffiliateRedirectUrl(item.id, pathname)
       || item.affiliate_redirect_url
       || item.click_url
       || item.affiliate_url
@@ -1272,6 +1274,7 @@ export default function SearchResultsClient({
   initialNextCursor = null,
   initialDegraded = false,
   initialDegradedHint = null,
+  pathname = '/search',
 }: SearchResultsClientProps) {
   const initialSearchQuery = initialQuery.trim();
   const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
@@ -1279,10 +1282,10 @@ export default function SearchResultsClient({
   const initialCountryOption = getCountryOption(initialCountryValue);
   const initialProducts = useMemo(
     () => sortProductsByRelevance(
-      initialItems.map((item) => normalizeProduct(item, initialCountryOption.currency)),
+      initialItems.map((item) => normalizeProduct(item, initialCountryOption.currency, pathname)),
       initialSearchQuery
     ).slice(0, PAGE_SIZE),
-    [initialCountryOption.currency, initialItems, initialSearchQuery]
+    [initialCountryOption.currency, initialItems, initialSearchQuery, pathname]
   );
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1577,7 +1580,7 @@ export default function SearchResultsClient({
         setDegradedHint(null);
       }
       const normalizedItems = sortProductsByRelevance(
-        rawItems.map((item) => normalizeProduct(item, activeCountry.currency)),
+        rawItems.map((item) => normalizeProduct(item, activeCountry.currency, pathname)),
         query
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
@@ -1617,7 +1620,7 @@ export default function SearchResultsClient({
         setLoadingMore(false);
       }
     }
-  }, [activeCountry.apiValue, activeCountry.currency, country, debouncedQuery]);
+  }, [activeCountry.apiValue, activeCountry.currency, country, debouncedQuery, pathname]);
 
   useEffect(() => {
     if (initialResultsServedRef.current) {

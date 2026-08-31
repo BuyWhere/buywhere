@@ -199,6 +199,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         initialNextCursor={initialResults?.nextCursor}
         initialDegraded={initialResults?.degraded}
         initialDegradedHint={initialResults?.degradedHint}
+        pathname="/search"
       />
     </>
   );
