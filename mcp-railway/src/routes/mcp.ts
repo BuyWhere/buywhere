@@ -55,6 +55,23 @@ const FAST_CHILD_TABLE_COUNTRIES = new Set([
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-78767: MCP clients abort well before a 8–30s PG timeout. Bound catalog
+// tools to a wall-clock so tools/call always flushes JSON. PG timeout is kept
+// slightly under the wall so cancelled queries don't occupy the pool after we
+// have already responded. Mirror of api/src/routes/mcp.ts BUY-78735.
+const MCP_CATALOG_WALL_MS = parseInt(process.env.MCP_CATALOG_WALL_MS || '3500', 10);
+const MCP_CATALOG_STATEMENT_TIMEOUT_MS = Math.max(
+  1000,
+  parseInt(process.env.MCP_CATALOG_STATEMENT_TIMEOUT_MS || String(Math.max(1000, MCP_CATALOG_WALL_MS - 500)), 10),
+);
+const MCP_CATALOG_WALL_TOOLS = new Set([
+  'search_products',
+  'search_products_v2',
+  'get_deals',
+  'get_deals_v2',
+  'find_best_price',
+  'find_best_price_v2',
+]);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
 // Override via MCP_FTS_CACHE_TTL_SECONDS env.
@@ -114,7 +131,7 @@ function recordMcpCircuitFailure(tool: McpDegradedTool, stage: McpDegradedStage,
 function classifyMcpDegradedKind(err: unknown): McpDegradedKind {
   const e = err as { code?: string; message?: string } | null;
   const message = String(e?.message || '');
-  if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || /timeout/i.test(message)) return 'timeout';
+  if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || message.includes('mcp_catalog_wall_timeout') || /timeout/i.test(message)) return 'timeout';
   if (e?.code === '28P01' || e?.code === '28000' || e?.code === '42501' || /auth|password|permission/i.test(message)) return 'auth_failure';
   return 'upstream_exception';
 }
@@ -496,7 +513,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // fixed twice before (BUY-68587, BUY-70288) and re-broken by intervening
   // refactors; this re-applies and documents the contract on both handlers.
   const q = ((args.q as string) || (args.query as string) || '').trim();
-  const mode = (args.mode as string) || 'hybrid';
+  // BUY-78767: default keyword so canonical tools/call search_products matches
+  // REST FTS latency. Hybrid/semantic still available when mode is explicit.
+  const mode = (args.mode as string) || 'keyword';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
@@ -523,6 +542,19 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
     (typeof args.country === 'string' && args.country.trim() !== '')
   );
+
+  if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
+    return buildMcpDegradedSearchResponse({
+      tool: 'search_products',
+      stage: 'catalog_search',
+      kind: 'circuit_open',
+      limit,
+      offset,
+      responseTimeMs: Date.now() - t0,
+      country: country || null,
+      deliverToPresent,
+    });
+  }
 
   const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
@@ -643,35 +675,22 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
   }
 
-  // BUY-78702: do NOT COUNT(*) search_products here. That diagnostic ran
-  // before statement_timeout and hung tools/call (0-byte client timeout).
+  // BUY-78767: child-table PK join for fast countries. search_products ids
+  // and products parent ids do not overlap (child ≤37M, search up to 1e18);
+  // joining FTS candidates to `products` times out. Mirror BUY-76909.
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
+  const detailTable = useChildTable
+    ? `products_partitioned_${(country || 'SG').toLowerCase()}`
+    : 'products';
   try {
-    await searchClient.query(`SET statement_timeout = '8000'`);
-    const dbCheck = await searchClient.query<{db: string, has_sp: boolean}>(`
-      SELECT current_database() as db,
-             EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_sp
-    `);
-    console.log(`[search_products] DEBUG: connected to db=${dbCheck.rows[0].db} has_sp=${dbCheck.rows[0].has_sp}`);
-  } catch (dbErr) {
-    console.error(`[search_products] DEBUG: dbCheck FAILED:`, dbErr);
-  }
-  try {
-    // BUY-56185 / BUY-76552: raised from 12s to 30s. Under cold-cache conditions
-    // the GIN bitmap plan on the non-partitioned search_products table (96M rows)
-    // with country_code filter takes ~13s for broad queries like 'laptop' (246K+
-    // global matches rechecked against country filter). The 12s timeout caused
-    // every v2 search to throw upstream_exception → degraded 0 results.
-    // 30s matches REST tier timeout headroom while still failing fast vs
-    // runaway queries.
-    // BUY-76553: no transaction, no SET LOCAL - pool-level statement_timeout applies
-    // Pool-level SET happens on every new connection (config.ts: db.on('connect', ...)
-    // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
-    // The non-partitioned search_products table with country_code filter produces
-    // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
-    // when seqscan is off, pushing the count query past the 12s statement_timeout
-    // under cold-cache conditions. The planner naturally chooses the GIN index
-    // path when it's optimal; forcing it backfires on the tier table. Keep
-    // enable_seqscan=off for get_deals/find_best_price (different query patterns).
+    // BUY-78767: transaction + SET LOCAL so timeout/work_mem apply to this
+    // request only (session SET on pooled connections leaked / was overwritten).
+    await searchClient.query('ROLLBACK').catch(() => {});
+    await searchClient.query('BEGIN');
+    await searchClient.query(`SET LOCAL statement_timeout = '${MCP_CATALOG_STATEMENT_TIMEOUT_MS}'`);
+    await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+    await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    await searchClient.query(`SET LOCAL work_mem = '64MB'`);
     const COUNT_CAP = 1001;
     if (q) {
       // BUY-76553: SKIP separate count query — run the main FTS search directly.
@@ -778,7 +797,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM ${detailTable} WHERE id IN (${ph}) AND is_active = true`,
               pageIds,
               `det_p${pageIds.length}`
             );
@@ -791,76 +810,48 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
           // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
           // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
-          const tierFts = await spQuery<{ id: string; rank: number }>(
+          const pageLimit = Math.min(limit + offset, 200);
+          const tierFts = await spQuery<Record<string, unknown>>(
             `WITH cand AS (
-               SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+               SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
+                      sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
+                      sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
+                      ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
                FROM search_products sp ${tierWhere}
                LIMIT 1000
              )
-             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`,
+             SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                    image_url, metadata, updated_at, region, country_code, category,
+                    category_path, url_last_checked_at, url_status, rank
+             FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
             tierParams,
             `fts_k${tierParams.length}`
           );
-          if (tierFts.rows.length === 0) {
-            rows = [];
-            total = 0;
-          } else {
-            const tierIds = tierFts.rows.map(r => r.id);
-            const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await spQuery(
-              `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code,
-                      category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              tierIds,
-              `det_t${tierIds.length}`
-            );
-            // Preserve tier ranking order
-            const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-            rows = tierIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
-            // BUY-77819: Apply offset and limit to the final result set
-            rows = rows.slice(offset, offset + limit);
-            // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
-            total = tierFts.rows.length + offset;
-          }
+          rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
+          total = tierFts.rows.length + offset;
         }
       } else {
-        // BUY-72082: Keyword (FTS) path via search_products tier.
-        // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
-        // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
-        // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
-        const tierFts = await spQuery<{ id: string; rank: number }>(
+        // BUY-78767: Keyword FTS returns columns from search_products itself.
+        // PK-joining to products (373M) times out; REST tryTierSearch does the same.
+        const pageLimit = Math.min(limit + offset, 200);
+        const tierFts = await spQuery<Record<string, unknown>>(
           `WITH cand AS (
-             SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+             SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
+                    sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
+                    ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM search_products sp ${tierWhere}
              LIMIT 1000
            )
-           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT ${Math.min(limit + offset, 200)}`,
+           SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                  image_url, metadata, updated_at, region, country_code, category,
+                  category_path, url_last_checked_at, url_status, rank
+           FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
           tierParams,
           `fts_k${tierParams.length}`
         );
-        if (tierFts.rows.length === 0) {
-          rows = [];
-          total = 0;
-        } else {
-          const tierIds = tierFts.rows.map(r => r.id);
-          const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-          const detailResult = await spQuery(
-            `SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code,
-                    category, category_path, url_last_checked_at, url_status
-             FROM products WHERE id IN (${ph}) AND is_active = true`,
-            tierIds,
-            `det_t${tierIds.length}`
-          );
-          // Preserve tier ranking order
-          const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-          rows = tierIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
-          // BUY-77819: Apply offset and limit to the final result set
-          rows = rows.slice(offset, offset + limit);
-          // Estimate total from candidate count (we skipped the actual count query per BUY-76553)
-          total = tierFts.rows.length + offset;
-        }
+        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
+        total = tierFts.rows.length + offset;
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -879,7 +870,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 price, currency, image_url, metadata, updated_at,
                 url_last_checked_at, url_status,
                 region, country_code
-         FROM products
+         FROM ${detailTable}
          ORDER BY updated_at DESC
          LIMIT $1`,
         [fetchLimit],
@@ -898,9 +889,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
-    console.log(`[search_products] DEBUG: SUCCESS total=${total} results=${rows?.length}`);
+    await searchClient.query('COMMIT').catch(() => {});
+    console.log(`[search_products] SUCCESS total=${total} results=${rows?.length} table=${detailTable}`);
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
+    await searchClient.query('ROLLBACK').catch(() => {});
     // BUY-74597: classify and return the canonical degraded envelope. Never throw
     // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
     const degradedKind = classifyMcpDegradedKind(err);
@@ -1108,9 +1101,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let total = 0;
   try {
     dealsClient = await acquireMcpClient();
-    await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave. 30s = 3x headroom, still fast-fail vs tail.
-    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave. 30s = 3x headroom, still fast-fail vs tail.
+    await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
     // BUY-69340 + BUY-69646 merged (2026-08-15): walk the deals index IN ORDER
     // (currency, discount_pct DESC) so the response is the TRUE top discounts —
@@ -1505,7 +1496,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 10s → 30s; top_ids CTE mean=10s/p99.9=370s under load, 10s window tripped -32603 on lock-waves
+    await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
     await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan; without this, planner picks seq scan on SG partition (largest) and times out at 25s
     tierParams.push(CANDIDATE_POOL, limit);
     result = await bestPriceClient.query(
@@ -2038,10 +2029,68 @@ function normalizeToolArgAliases(args: Record<string, unknown>) {
   alias('product_ids', 'ids'); alias('ids', 'product_ids');
 }
 
+function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, startedAt: number) {
+  const country = String((args.deliver_to || args.country_code || args.country || 'SG') as string).toUpperCase();
+  const limit = Math.min(Number(args.limit) || 20, 100);
+  const offset = Number(args.offset) || 0;
+  const deliverToPresent = Boolean(
+    (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+    (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+    (typeof args.country === 'string' && args.country.trim() !== ''),
+  );
+  const responseTimeMs = Date.now() - startedAt;
+  if (name.startsWith('find_best_price')) {
+    recordMcpCircuitFailure('find_best_price', 'catalog_search', country);
+    return buildMcpDegradedBestPriceResponse({
+      productName: String((args.product_name || args.q || args.query || '') as string),
+      country,
+      responseTimeMs,
+      kind: 'timeout',
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
+  }
+  const tool: McpDegradedTool = name.startsWith('get_deals') ? 'get_deals' : 'search_products';
+  const stage: McpDegradedStage = name.startsWith('get_deals') ? 'offer_aggregation' : 'catalog_search';
+  recordMcpCircuitFailure(tool, stage, country);
+  return buildMcpDegradedSearchResponse({
+    tool,
+    stage,
+    kind: 'timeout',
+    limit,
+    offset,
+    responseTimeMs,
+    country,
+    deliverToPresent,
+  });
+}
+
+async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
+  if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
+  const startedAt = Date.now();
+  let timer: NodeJS.Timeout | undefined;
+  const wall = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+  });
+  try {
+    return await Promise.race([work(), wall]);
+  } catch (err) {
+    const message = String((err as { message?: string })?.message || '');
+    if (message.includes('mcp_catalog_wall_timeout')) {
+      console.warn(`[mcp] BUY-78767: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+      return mcpCatalogWallEnvelope(name, args, startedAt) as T;
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>) {
   normalizeMarketArg(args);
   normalizeToolArgAliases(args);
   validateCountryCode(name, args);
+  return withMcpCatalogWall(name, args, async () => {
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
@@ -2059,6 +2108,7 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
   }
+  });
 }
 
 // BUY-72537: v2 surface — REQUIRED deliver_to, plus v2-specific response fields.
