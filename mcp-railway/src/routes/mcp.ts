@@ -690,6 +690,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // Child-table FTS is <10ms; extra SET LOCAL hops were burning the 3.5s wall
     // under pool contention.
     await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
+    if (useChildTable) {
+      await searchClient.query(`SET enable_seqscan = off`);
+    }
     if (q) {
       // BUY-76553: SKIP separate count query — run the main FTS search directly.
       // The COUNT(*) subquery was choosing a slow bitmap plan on the replica (26s+
