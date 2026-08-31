@@ -39,7 +39,15 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-cand-rank-v10-b77644'; // BUY-77644: bust stale degraded responses after tier cand/rank fix
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v11-b77812'; // BUY-77812: REST search on products_partitioned_{cc}
+// BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
+// <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
+// missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
+const FAST_CHILD_TABLE_COUNTRIES = new Set([
+  'SG','US','MY','TH','VN','PH','ID','GB','CA','AU','IN','IT','ES','MX',
+  'ZA','BR','NZ','NL','PL','SE','CH','DK','JP','DE','FR','IE','NO',
+  'BE','AT','PT',
+]);
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -244,6 +252,15 @@ async function tryTierSearch(
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return false;
   const tsOr = lexemes.join(' | ');
+  // BUY-77812: route FTS to products_partitioned_{cc} when the country has a
+  // child table (MCP already does this). search_products + country_code recheck
+  // times out at 4s for head terms (phone/laptop) because idx_sp_fts_my/us are
+  // INVALID and even idx_sp_fts_sg still expands a huge bitmap.
+  const ccUpper = (p.countryCode || '').toUpperCase();
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
+  const ftsTable = useChildTable
+    ? `products_partitioned_${ccUpper.toLowerCase()}`
+    : 'search_products';
   // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
   // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
   // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
@@ -265,7 +282,10 @@ async function tryTierSearch(
   const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
   const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
   if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; } // hotfix: currency restricts recall only when price-filtering
-  if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
+  // Child partition already scoped to country; extra country_code predicate
+  // can push the planner off the per-partition GIN onto a seq scan.
+  if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
+  if (useChildTable) { conds.push('sp.is_active = true'); }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
@@ -343,7 +363,7 @@ async function tryTierSearch(
   const rankCols = `title, category, source, price, updated_at`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector, ${rankCols} FROM search_products sp
+      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
@@ -351,7 +371,7 @@ async function tryTierSearch(
       -- below ranks the bounded candidate set.
       -- BUY-67275-bitmap: 5000 -> 1000. The top CTE keeps only 200 rows, so 5000 was a 10x
       -- over-fetch that inflated the bitmap into lossy territory for head terms.
-      LIMIT 1000
+      LIMIT 200
     ), top AS (
       -- BUY-54980/BUY-77644: rank columns are now in cand, so no join needed here.
       -- The CASE expressions reference the cand alias (c.*) directly.
@@ -364,7 +384,7 @@ async function tryTierSearch(
       ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
+    FROM top JOIN ${ftsTable} sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -389,29 +409,29 @@ async function tryTierSearch(
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id FROM ${ftsTable} sp
       WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id FROM ${ftsTable} sp
       WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
-      SELECT sp.id FROM search_products sp
+      SELECT sp.id FROM ${ftsTable} sp
       WHERE (
         lower(coalesce(sp.category,'')) ~* '\\m(smartphone|smartphones|cell phone|cell phones|mobile phone|mobile phones)\\M'
         OR lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
@@ -424,7 +444,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    FROM pcand JOIN ${ftsTable} sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -443,9 +463,10 @@ async function tryTierSearch(
     // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
     // eating 4s of the 10s handler budget before the archive even starts. FTS
     // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
-    let rows = isGenericPhoneQuery
-      ? (await client.query(phoneCategoryFallbackQuery, params)).rows
-      : (await client.query(mkQuery(andMatch), params)).rows;
+    // BUY-77812: always lead with FTS. The phone-category regex scan on
+    // search_products (and even on 667k-row SG child) can eat the 4s timeout
+    // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
+    let rows = (await client.query(mkQuery(andMatch), params)).rows;
     if (rows.length === 0 && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
