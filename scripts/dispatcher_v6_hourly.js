@@ -378,9 +378,18 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
         non_drain_runs = EXCLUDED.non_drain_runs,
         source = EXCLUDED.source,
         recorded_at = now()
+      WHERE canonical_throughput_hourly.delta_computed_at IS NULL
       RETURNING *
+    ),
+    selected AS (
+      SELECT * FROM upserted
+      UNION ALL
+      SELECT *
+      FROM canonical_throughput_hourly
+      WHERE hour_start = $1::timestamptz
+        AND NOT EXISTS (SELECT 1 FROM upserted)
     )
-    SELECT * FROM upserted
+    SELECT * FROM selected
   `, [sqlTimestamp(hourStart), SOURCE_V6]);
 
   if (!result.rows[0]) throw new Error('Snapshot upsert returned no row.');
