@@ -686,15 +686,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
 
   try {
-    // BUY-78767: transaction + SET LOCAL so timeout/work_mem apply to this
-    // request only (session SET on pooled connections leaked / was overwritten).
-    await searchClient.query('ROLLBACK').catch(() => {});
-    await searchClient.query('BEGIN');
-    await searchClient.query(`SET LOCAL statement_timeout = '${MCP_CATALOG_STATEMENT_TIMEOUT_MS}'`);
-    await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
-    await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    await searchClient.query(`SET LOCAL work_mem = '64MB'`);
-    const COUNT_CAP = 1001;
+    // BUY-78767: one SET statement_timeout, no BEGIN/SET LOCAL round-trips.
+    // Child-table FTS is <10ms; extra SET LOCAL hops were burning the 3.5s wall
+    // under pool contention.
+    await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
     if (q) {
       // BUY-76553: SKIP separate count query — run the main FTS search directly.
       // The COUNT(*) subquery was choosing a slow bitmap plan on the replica (26s+
@@ -844,36 +839,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       } else {
         // BUY-78767: Keyword FTS returns columns from search_products itself.
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
-        const pageLimit = Math.min(limit + offset, 200);
-        // BUY-78702: id-only cand CTE (REST tryTierSearch). Selecting wide
-        // columns + ts_rank in the GIN scan prevents early-stop and times out
-        // the 3.5s MCP wall even on products_partitioned_sg.
-        const cand = await spQuery<{ id: string }>(
-          `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT ${pageLimit}`,
+        const pageLimit = Math.min(Math.max(limit + offset, 1), 20);
+        const tierFts = await searchClient.query<Record<string, unknown>>(
+          `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                  sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
+                  sp.category_path, sp.url_last_checked_at, sp.url_status
+           FROM ${ftsTable} sp ${tierWhere}
+           LIMIT ${pageLimit}`,
           tierParams,
-          `fts_id${tierParams.length}`
         );
-        const candIds = cand.rows.map(r => r.id);
-        if (candIds.length === 0) {
-          rows = [];
-          total = 0;
-        } else {
-          const ph = candIds.map((_, i) => `$${i + 1}`).join(',');
-          const detailResult = await spQuery<Record<string, unknown>>(
-            `SELECT id, sku AS source, source AS domain, url, title, price, currency,
-                    image_url, metadata, updated_at, region, country_code, category,
-                    category_path, url_last_checked_at, url_status,
-                    ts_rank(search_vector, plainto_tsquery('english', $${candIds.length + 1})) AS rank
-             FROM ${ftsTable}
-             WHERE id IN (${ph})
-             ORDER BY rank DESC
-             LIMIT ${pageLimit}`,
-            [...candIds, q],
-            `fts_det${candIds.length}`
-          );
-          rows = detailResult.rows.slice(offset, offset + limit);
-          total = candIds.length + offset;
-        }
+        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
+        total = tierFts.rows.length + offset;
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -911,7 +887,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
-    await searchClient.query('COMMIT').catch(() => {});
     console.log(`[search_products] SUCCESS total=${total} results=${rows?.length} table=${detailTable}`);
     recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
