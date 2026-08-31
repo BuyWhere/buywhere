@@ -124,9 +124,13 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
+  const title = row.title as string;
   const base: CanonicalProduct = {
     id: productId,
-    title: row.title as string,
+    title,
+    // BUY-78151: expose `name` alias (schema.org/Product canonical field) so agents
+    // calling `.name` do not get null. `title` remains the primary field for compat.
+    name: title,
     price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl,

@@ -12,6 +12,8 @@ export interface ComparisonAttribute {
 export interface CanonicalProduct {
   id: string;
   title: string;
+  // BUY-78151: agents expect schema.org/Product `name`; alias to title for backward compat.
+  name: string;
   price: ProductPrice;
   merchant: string;
   // BUY-74689: opaque `merchants.id` reference. Distinct from `merchant` (the
