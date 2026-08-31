@@ -120,7 +120,44 @@
       "answer": "Parallel-imported rice cookers are often meaningfully cheaper than the local authorised-reseller price but ship without the brand's Singapore warranty. If you are buying a basic entry-tier unit the savings are small and the local-warranty path does not matter much; if you are buying a premium IH or pressure-IH model the local warranty path is worth paying for. The live cards on this page indicate which listings are local authorised versus parallel-imported where the listing data makes that distinction clear."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "38155674",
+      "name": "Tiger 1L Induction Heating Rice Cooker JPW-G10S",
+      "price": 549,
+      "currency": "SGD",
+      "merchant": "Harvey Norman",
+      "imageUrl": null,
+      "href": "/r/direct/38155674",
+      "affiliateUrl": "/r/direct/38155674",
+      "brand": "Tiger",
+      "category": "Rice cooker"
+    },
+    {
+      "id": "60451446",
+      "name": "Zojirushi NS-ZAQ10 Rice Cooker 1L",
+      "price": 285,
+      "currency": "SGD",
+      "merchant": "Shopify",
+      "imageUrl": null,
+      "href": "/r/direct/60451446",
+      "affiliateUrl": "/r/direct/60451446",
+      "brand": "Zojirushi",
+      "category": "Rice cooker"
+    },
+    {
+      "id": "254287013",
+      "name": "Tiger IH Rice Cooker 5.5 Cups JPW-G10A",
+      "price": 529,
+      "currency": "SGD",
+      "merchant": "Shopify",
+      "imageUrl": null,
+      "href": "/r/direct/254287013",
+      "affiliateUrl": "/r/direct/254287013",
+      "brand": "Tiger",
+      "category": "Rice cooker"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-rice-cookers-us"
   },
