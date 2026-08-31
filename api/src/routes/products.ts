@@ -39,7 +39,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v11-b77812'; // BUY-77812: REST search on products_partitioned_{cc}
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v12-b77812'; // BUY-77812: skip LIKE/regex fallbacks on child FTS
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -456,6 +456,11 @@ async function tryTierSearch(
     await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    // BUY-77812: under catalog IO starvation the US child GIN bitmap still
+    // plans correctly but seqscan alternatives win on cost. Pin GIN.
+    if (useChildTable) {
+      await client.query(`SET LOCAL enable_seqscan = off`);
+    }
     // BUY-67275-headterm (2026-08-09): do NOT lead with titleFallbackQuery for
     // single-lexeme queries. `lower(sp.title) LIKE lower($1||'%')` cannot use
     // idx_sp_trgm (the lower() wrapper defeats it; that index has idx_scan=0), so
@@ -467,7 +472,13 @@ async function tryTierSearch(
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
-    if (rows.length === 0 && !isGenericPhoneQuery && lexemes.length === 1) {
+    // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
+    // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
+    // starvation (Oracle INITCAP aggregations) and always eat the 4s
+    // statement_timeout → archive degraded 10s. Empty FTS (MY=343 rows, 0
+    // 'phone' hits) must fail fast so we can return 200 empty, not degraded.
+    const skipSlowFallbacks = useChildTable;
+    if (rows.length === 0 && !skipSlowFallbacks && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     if (rows.length === 0) {
@@ -480,14 +491,16 @@ async function tryTierSearch(
       if (rows.length === 0 && lexemes.length === 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
-      if (rows.length === 0 && isGenericPhoneQuery) {
-        rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
-      }
-      if (rows.length === 0) {
-        rows = (await client.query(titleFallbackQuery, params)).rows;
-      }
-      if (rows.length === 0 && lexemes.length === 1) {
-        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+      if (!skipSlowFallbacks) {
+        if (rows.length === 0 && isGenericPhoneQuery) {
+          rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
+        }
+        if (rows.length === 0) {
+          rows = (await client.query(titleFallbackQuery, params)).rows;
+        }
+        if (rows.length === 0 && lexemes.length === 1) {
+          rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+        }
       }
     }
     // deliver_to local-first pass (2026-07-14): the cand CTE gathers the NEWEST 5000
@@ -508,6 +521,20 @@ async function tryTierSearch(
     await client.query('COMMIT');
     client.release();
     if (rows.length === 0) {
+      // BUY-77812: child-table FTS already scanned the country's live rows.
+      // Falling through to the 97M-row archive burns the remaining handler
+      // budget (8–10s degraded). Empty is the truthful answer for thin
+      // markets (MY=343) and is cheaper than a timeout for US under IO load.
+      if (useChildTable) {
+        if (res.headersSent) return true;
+        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false) as unknown as Record<string, unknown>;
+        emptyBody.source = 'search_products_tier';
+        annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+        redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
+        res.set('X-Search-Tier', '1');
+        res.json(emptyBody);
+        return true;
+      }
       return false;
     }
     if (res.headersSent) return true;
