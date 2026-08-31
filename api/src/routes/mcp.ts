@@ -1371,7 +1371,8 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     params.push(region);
     conditions.push(`region = $${params.length}`);
   }
-  if (effectiveCountry) {
+  const dealsUseChild = FAST_CHILD_TABLE_COUNTRIES.has((effectiveCountry || '').toUpperCase());
+  if (effectiveCountry && !dealsUseChild) {
     params.push(effectiveCountry);
     conditions.push(`country_code = $${params.length}`);
   }
@@ -1551,7 +1552,7 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+      if (Array.isArray(parsed.data) && parsed.data.length > 0 && parsed.data.some((row: { product_count?: number }) => Number(row.product_count) > 0)) {
         return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
       }
     }
