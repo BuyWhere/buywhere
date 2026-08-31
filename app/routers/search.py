@@ -521,7 +521,9 @@ async def search_products(
         invalid = [c for c in country_codes if c not in COUNTRY_NAMES]
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid country code(s): {', '.join(invalid)}. Supported: {', '.join(COUNTRY_NAMES.keys())}")
-        base_query = base_query.where(Product.country_code.in_(country_codes))
+        # BUY-78539: NULL country_code rows must be excluded when filtering by country.
+        # SQL IN (...) excludes NULLs — WHERE country_code IN ('SG') returns no rows where country_code IS NULL.
+        base_query = base_query.where(Product.country_code.isnot(None)).where(Product.country_code.in_(country_codes))
     if region is not None and country is None:
         region_codes = [r.strip().lower() for r in region.split(",")]
         base_query = base_query.where(func.lower(Product.region).in_(region_codes))
@@ -541,6 +543,8 @@ async def search_products(
             count_conditions.append(Product.in_stock == in_stock)
         if country is not None:
             country_codes_count = [c.strip().upper() for c in country.split(",")]
+            # BUY-78539: exclude NULL country_code rows
+            count_conditions.append(Product.country_code.isnot(None))
             count_conditions.append(Product.country_code.in_(country_codes_count))
         if region is not None and country is None:
             region_codes_count = [r.strip().lower() for r in region.split(",")]
@@ -606,7 +610,8 @@ async def search_products(
             invalid = [c for c in country_codes if c not in COUNTRY_NAMES]
             if invalid:
                 raise HTTPException(status_code=422, detail=f"Invalid country code(s): {', '.join(invalid)}. Supported: {', '.join(COUNTRY_NAMES.keys())}")
-            facet_base_query = facet_base_query.where(Product.country_code.in_(country_codes))
+            # BUY-78539: exclude NULL country_code rows
+            facet_base_query = facet_base_query.where(Product.country_code.isnot(None)).where(Product.country_code.in_(country_codes))
         if region is not None and country is None:
             region_codes = [r.strip().lower() for r in region.split(",")]
             facet_base_query = facet_base_query.where(func.lower(Product.region).in_(region_codes))
