@@ -1416,7 +1416,10 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // selective), candidates are id-thin, and full rows join only for the
     // returned page. updated_at tiebreak preserved in SQL.
     await dealsClient.query('SET enable_seqscan = off');
-    const candidateLimit = 2000;
+    // BUY-77834 fix: when a category filter is present, widen the candidate walk —
+    // filtering the top-2000 global discounts post-fetch is lossy (a category may
+    // have zero rows in the top 2000 yet thousands of live deals).
+    const candidateLimit = categoryLower ? 20000 : 2000;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
       `WITH cand AS (
@@ -1432,10 +1435,11 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
               p.url_last_checked_at, p.url_status,
-              p.discount_pct
+              p.discount_pct,
+              p.category, p.category_path
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
-       LIMIT ${limit} OFFSET ${offset}`,
+       LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`,
       candidateParams
     );
     total = dataResult.rows.length;
@@ -1454,7 +1458,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
           .join(' ');
         return catText.includes(categoryLower) || catPath.includes(categoryLower);
       });
-      products = matched.map((r) => buildProduct(r, currency, false, undefined, caller));
+      products = matched.slice(offset, offset + limit).map((r) => buildProduct(r, currency, false, undefined, caller));
       total = matched.length;
     } else {
       products = dataResult.rows.map((r: Record<string, unknown>) =>

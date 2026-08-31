@@ -203,6 +203,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promi
   ]);
 }
 
+function normalizeQuerySlug(slug: string): string {
+  try {
+    return decodeURIComponent(slug).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  } catch {
+    return slug.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+// GET /r/:query — public shortcut used by legacy human-facing links.
+// Do not require API auth and do not run broad catalog scans on the redirect path.
+const queryRedirectHandler = async (req: Request, res: Response) => {
+  const query = normalizeQuerySlug(req.params.query || '');
+  if (!query) {
+    res.redirect(302, FALLBACK_URL);
+    return;
+  }
+
+  res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
+};
+
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
 // Log the affiliate click then redirect to destination
 const redirectHandler = async (req: Request, res: Response) => {
@@ -477,5 +497,6 @@ const redirectHandler = async (req: Request, res: Response) => {
 
 router.get('/direct/:merchantId/:productId', redirectHandler);
 router.get('/:affiliateSlug/:productId', redirectHandler);
+router.get('/:query', queryRedirectHandler);
 
 export default router;

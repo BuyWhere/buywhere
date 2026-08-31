@@ -1419,7 +1419,7 @@ test("BUY-77675: laptop token floor requires strict model OR loose+signal", () =
   const extractStringArray = (label: string): string[] => {
     const start = source.indexOf(`const ${label} = [`);
     if (start === -1) throw new Error(`missing ${label}`);
-    let bodyStart = start + `const ${label} = [`.length;
+    const bodyStart = start + `const ${label} = [`.length;
     let i = bodyStart;
     let depth = 1;
     while (i < source.length && depth > 0) {

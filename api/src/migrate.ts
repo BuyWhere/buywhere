@@ -118,6 +118,23 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash) WHERE is_acti
 UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+
+-- BUY-74863: DB-backed intent/SEO pages API.
+CREATE TABLE IF NOT EXISTS seo_pages (
+  id BIGSERIAL PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published')),
+  country VARCHAR(2) NOT NULL CHECK (country IN ('US', 'SG')),
+  search_query TEXT NOT NULL,
+  reviewer TEXT,
+  page JSONB NOT NULL,
+  published_at TIMESTAMPTZ,
+  date_modified TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_seo_pages_slug_status ON seo_pages (slug, status);
+CREATE INDEX IF NOT EXISTS idx_seo_pages_country_status ON seo_pages (country, status);
 CREATE INDEX IF NOT EXISTS idx_api_keys_email_token ON api_keys(email_verification_token) WHERE email_verification_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_keys_pending_verify ON api_keys(tier, created_at) WHERE tier = 'pending_verify';

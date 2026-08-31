@@ -35,7 +35,9 @@ describe('buildProduct', () => {
     assert.equal(product.country_code, 'SG');
     assert.ok(product.updated_at);
     assert.deepEqual(product.category_path, ['Electronics', 'Laptops']);
+    // BUY-78233: both meta and metadata must be exposed
     assert.deepEqual(product.metadata, { brand: 'Test', category: 'Electronics' });
+    assert.deepEqual(product.meta, { brand: 'Test', category: 'Electronics' });
     assert.equal(product.has_affiliate_tracking, true);
     assert.equal(product.is_affiliate, true);
     assert.match(product.affiliate_disclosure, /commission/i);

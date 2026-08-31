@@ -217,7 +217,10 @@ export function buildProduct(
     base.structured_specs = structured_specs;
     base.comparison_attributes = comparison_attributes;
   } else {
+    // BUY-78233: restore product-level meta alias — both meta and metadata
+    // must be exposed on non-compact products for API contract compatibility
     base.metadata = row.metadata as Record<string, unknown> | null;
+    base.meta = row.metadata as Record<string, unknown> | null;
   }
 
   if (row.original_price != null) {

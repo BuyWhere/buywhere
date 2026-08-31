@@ -1044,10 +1044,6 @@ const LAPTOP_REQUIRED_STRICT_TOKENS = [
 ];
 // BUY-77675: kept for backward compatibility. Now treated as the loose
 // laptop-signal list — see isExcludedAccessory.
-const LAPTOP_REQUIRED_TOKENS = [
-  "laptop",
-  ...LAPTOP_REQUIRED_STRICT_TOKENS,
-];
 // Loose laptop-series signals. A product that ONLY contains the bare
 // "laptop" word AND none of these is still an accessory. (A real laptop
 // that omits all model/brand names will at least say "ultrabook",
@@ -1383,17 +1379,21 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        // BUY-73322: reject region=global on country-specific pages BEFORE normalization.
-        // The search API's country=US filter passes region=global merchants (e.g.
-        // google_shopping, woocommerce) that ship worldwide but aren't US retailers.
+        // BUY-73322: reject region=global on country-specific pages BEFORE normalization,
+        // UNLESS the product has a valid affiliate_redirect_url (meaning it has a working
+        // /r/ affiliate link). Many google_shopping and woocommerce products are marked
+        // region=global but still have valid /r/ links that should be shown.
         const region = item.region?.toLowerCase();
-        if (config.country && region === "global") continue;
+        const hasAffiliateRedirect = Boolean(item.affiliate_redirect_url);
+        if (config.country && region === "global" && !hasAffiliateRedirect) continue;
 
         // BUY-73640 / BUY-73322-FIX: the backend returns merchant metadata as a
         // bare string slug, not a nested object with region/countryCode. Hard
         // gate on the raw slug before normalization so CompuMarts / non-US / no
         // merchant rows never enter the live card set or downstream JSON-LD.
-        if (!isMerchantAllowedForCountry(item, allowlistCountry)) continue;
+        // BUY-78306: skip allowlist check if product has valid affiliate_redirect_url
+        // (these are typically google_shopping/woocommerce aggregators with working /r/ links)
+        if (!hasAffiliateRedirect && !isMerchantAllowedForCountry(item, allowlistCountry)) continue;
 
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;

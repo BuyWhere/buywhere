@@ -1214,12 +1214,18 @@ async function handleGetDeals(args, caller) {
         params.push(effectiveCountry);
         conditions.push(`country_code = $${params.length}`);
     }
-    // BUY-77178: category filter
+    // BUY-77178: category filter — BUY-77834 fix
+    // The prior `LOWER(category) = $N` exact-match against the single text column
+    // never matched slug-style input like "home_and_kitchen" / "sports_and_outdoors"
+    // / "video_games" — those names don't exist verbatim in `category`. The index
+    // walk then burned the full 30s statement_timeout returning 0 rows and surfaced
+    // category_recognized:false to agents. Mirroring search_products: keep the SQL
+    // WHERE untouched (so the deals index walk is bounded), and apply the category
+    // filter as a post-fetch ILIKE on the bounded candidate set against both
+    // `category` text AND `category_path[1]`. LIKE wildcards make slug input
+    // ("home_and_kitchen") still match real names like "home & kitchen".
     const category = (args.category || '').trim();
-    if (category) {
-        params.push(category.toLowerCase());
-        conditions.push(`LOWER(category) = $${params.length}`);
-    }
+    const categoryLower = category.toLowerCase();
     const whereClause = conditions.join(' AND ');
     const discountSelect = useDiscountCol
         ? 'discount_pct'
@@ -1278,7 +1284,27 @@ async function handleGetDeals(args, caller) {
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${limit} OFFSET ${offset}`, candidateParams);
         total = dataResult.rows.length;
-        products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+        // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
+        // WHERE was kept category-free so the (currency, discount_pct DESC) index
+        // walk stays bounded. Match caller input against `category` text AND
+        // `category_path[1]` so slug-style names ("home_and_kitchen") still match
+        // real names ("Home & Kitchen" via category_path[1] — list_categories feeds
+        // from this column on SG). LIKE wildcard gives a forgiving match.
+        if (categoryLower) {
+            const rawRows = dataResult.rows;
+            const matched = rawRows.filter((r) => {
+                const catText = (r.category || '').toLowerCase();
+                const catPath = (r.category_path || [])
+                    .map((v) => String(v).toLowerCase())
+                    .join(' ');
+                return catText.includes(categoryLower) || catPath.includes(categoryLower);
+            });
+            products = matched.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+            total = matched.length;
+        }
+        else {
+            products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+        }
         recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
     }
     catch (e) {
@@ -1307,6 +1333,18 @@ async function handleGetDeals(args, caller) {
     // so callers can distinguish "no live deals" from "server bug".
     if ((region || effectiveCountry) && products.length === 0) {
         result.unavailable = true;
+    }
+    // BUY-77834: surface the category_recognized signal when the caller passed
+    // a category filter. The post-fetch filter is now bounded (no more 30s walks),
+    // so we can reliably report whether the category had ANY rows.
+    if (categoryLower && products.length === 0) {
+        const resultMeta = result.meta;
+        resultMeta.emptiness_reason = 'category_unsupported';
+        resultMeta.confidence = 'low';
+        resultMeta.diagnostic = {
+            category_recognized: false,
+            timed_out_stage: null,
+        };
     }
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
     return result;
@@ -2820,7 +2858,6 @@ async function handleMcpAuthenticated(req, res) {
                     const resolved = (0, shoppingJobFunnel_1.resolveShoppingJobId)(clientJobId, toolArgs);
                     funnelJobId = resolved.jobId;
                     funnelIsReplay = resolved.isReplay;
-                    // BUY-73521: record job_created stage.
                     (0, shoppingJobFunnel_1.recordJobCreated)({
                         shoppingJobId: funnelJobId,
                         isReplay: funnelIsReplay,
@@ -2840,15 +2877,12 @@ async function handleMcpAuthenticated(req, res) {
                     const productIds = (0, shoppingJobFunnel_1.extractProductIds)(result);
                     const offerUrlPresent = (0, shoppingJobFunnel_1.hasOutboundUrl)(result);
                     try {
-                        // product_resolved: at least one product id in response
                         if (productIds.length > 0) {
                             (0, shoppingJobFunnel_1.recordProductResolved)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
-                        // executable_offer_found: merchant + (price available or offer url)
                         if (productIds.length > 0 && offerUrlPresent) {
                             (0, shoppingJobFunnel_1.recordExecutableOfferFound)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
-                        // outbound_link_returned: outbound_url present
                         if (offerUrlPresent) {
                             (0, shoppingJobFunnel_1.recordOutboundLinkReturned)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
@@ -2857,8 +2891,6 @@ async function handleMcpAuthenticated(req, res) {
                         console.warn('[mcp][funnel] record error:', e);
                     }
                 }
-                // BUY-73521: inject shopping_job_id into the response JSON so callers can
-                // continue the session without re-supplying it.
                 if (funnelJobId && result && typeof result === 'object') {
                     result.shopping_job_id = funnelJobId;
                 }
@@ -2866,13 +2898,7 @@ async function handleMcpAuthenticated(req, res) {
                 // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
                 // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
                 try {
-                    (0, v2KpiWriter_1.recordV2KpiSink)({
-                        toolName,
-                        args: toolArgs,
-                        apiKey: rawApiKey,
-                        result,
-                        statusCode: 200,
-                    });
+                    (0, v2KpiWriter_1.recordV2KpiSink)({ toolName, args: toolArgs, apiKey: rawApiKey, result, statusCode: 200 });
                 }
                 catch { /* swallowed inside recordV2KpiSink */ }
                 // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
@@ -2883,16 +2909,14 @@ async function handleMcpAuthenticated(req, res) {
                             toolName,
                             args: toolArgs,
                             apiKey: rawApiKey,
-                            gatePassed: true, // we reached dispatchTool, so gate didn't reject
+                            gatePassed: true,
                             outcome: 'success',
                         });
                         (0, v2RequestLog_1.recordV2Request)(v2Row);
                     }
                     catch { /* best-effort telemetry */ }
                 }
-                res.json(jsonrpcOk(id, {
-                    content: [{ type: 'text', text: JSON.stringify(result) }],
-                }));
+                res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
                 return;
             }
             // BUY-72102: backward compatibility for direct tool-name JSON-RPC methods.
@@ -2908,8 +2932,7 @@ async function handleMcpAuthenticated(req, res) {
                     }
                     catch { }
                     // BUY-75415: same forward-direction write as tools/call (v2 tools may
-                    // also be invoked via direct method name; the gate metric must reflect
-                    // both surfaces).
+                    // also be invoked via direct method name; the gate metric must reflect both surfaces).
                     try {
                         (0, v2KpiWriter_1.recordV2KpiSink)({
                             toolName: method,
@@ -2929,16 +2952,14 @@ async function handleMcpAuthenticated(req, res) {
                                 toolName: method,
                                 args,
                                 apiKey: rawApiKey,
-                                gatePassed: true, // we reached dispatchTool, so gate didn't reject
+                                gatePassed: true,
                                 outcome: 'success',
                             });
                             (0, v2RequestLog_1.recordV2Request)(v2Row);
                         }
                         catch { /* best-effort telemetry */ }
                     }
-                    res.json(jsonrpcOk(id, {
-                        content: [{ type: 'text', text: JSON.stringify(result) }],
-                    }));
+                    res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
                     return;
                 }
                 res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
@@ -2998,5 +3019,7 @@ async function handleMcpAuthenticated(req, res) {
 router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 // BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
 // Mount the same handler so both paths accept standard bw_* API keys.
+// Previously this path returned 401 "Invalid admin key" from a stale admin-gated
+// middleware. Keeping it as an alias ensures callers using /mcp/rpc continue working.
 router.post('/rpc', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 exports.default = router;

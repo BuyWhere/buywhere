@@ -15,6 +15,7 @@ import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
 import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
+import seoPagesRouter from './routes/seoPages';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
 import revenueRouter from './routes/revenue';
@@ -263,6 +264,7 @@ export function createApp() {
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/catalog', catalogRouter);
+  app.use('/v1/seo-pages', seoPagesRouter);
   app.use('/v1/keys', keysRouter);
   app.use('/v1/usage', usageRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);

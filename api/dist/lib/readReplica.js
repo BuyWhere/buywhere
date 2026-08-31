@@ -129,9 +129,15 @@ async function probeLag() {
         // lag_ms: report LSN gap in bytes (true replication backlog). When
         // matched, this is 0. Never use the xact timestamp here.
         lastLagMs = lsnMatched ? 0 : lastLsnGapBytes;
+        // BUY-77835: accept the replica as soon as it is in recovery and the WAL
+        // receive/replay positions are caught up. During heavy primary I/O the
+        // wal_receiver status can sit in 'catchup' even though the LSN gap is
+        // already zero, causing readDb() to keep hammering the saturated primary.
+        // The LSN gap is the authoritative freshness signal (BUY-54916).
+        const walStatusHealthy = row.wal_status === 'streaming' || row.wal_status === 'catchup';
         replicaHealthy =
             row.in_recovery === true &&
-                row.wal_status === 'streaming' &&
+                walStatusHealthy &&
                 lsnMatched;
     }
     catch (err) {
