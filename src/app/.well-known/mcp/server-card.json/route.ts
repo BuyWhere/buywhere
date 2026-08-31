@@ -241,11 +241,6 @@ function buildServerCard() {
         type: "streamable-http",
         url: "https://api.buywhere.ai/mcp",
       },
-      {
-        type: "sse",
-        url: "https://api.buywhere.ai/mcp/sse",
-        notes: "Legacy SSE endpoint for clients that explicitly require SSE transport.",
-      },
     ],
     authentication: {
       type: "apiKey",

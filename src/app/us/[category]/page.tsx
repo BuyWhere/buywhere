@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { USCategorySearch } from "@/components/USCategorySearch";
 import { USDealsSection } from "@/components/USDealsSection";
+import CategoryProductGrid from "@/components/CategoryProductGrid";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
 import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
+import { fetchCategoryProducts } from "@/lib/category-products";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -66,6 +68,13 @@ const DEFAULT_CATEGORY = {
   description: "Compare prices from Amazon, Walmart, Target, and Best Buy. Find the best deals on products you love.",
   keywords: ["price comparison", "Amazon", "Walmart", "Target", "Best Buy", "deals"],
   subcategories: [],
+};
+
+const CATEGORY_SEARCH_QUERIES: Record<string, string[]> = {
+  electronics: ["laptop", "monitor", "wireless headphones", "smartphone", "tv", "camera"],
+  fashion: ["shoes", "jeans", "jacket", "dress"],
+  "home-living": ["furniture", "kitchen", "mattress", "vacuum"],
+  beauty: ["shampoo", "skincare", "makeup"],
 };
 
 function formatCategoryName(slug: string): string {
@@ -290,6 +299,11 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
   const categoryName = formatCategoryName(category);
   const stats = await fetchCatalogStats();
   const productCountLabel = stats ? formatCompactProductCount(stats.totalProducts) : "Millions";
+  const products = await fetchCategoryProducts({
+    queries: CATEGORY_SEARCH_QUERIES[category] || [categoryName.toLowerCase()],
+    category,
+    country: "US",
+  });
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -347,6 +361,12 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
       <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
         <TrustBadges productCountLabel={productCountLabel} />
+        <CategoryProductGrid
+          products={products}
+          country="US"
+          title={`Popular ${categoryName} products with live prices`}
+          description={`Compare current ${categoryName.toLowerCase()} prices from retailers with crawler-visible merchant links.`}
+        />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />

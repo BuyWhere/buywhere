@@ -16,7 +16,7 @@ const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "One API, one schema, 300M+ products across 900,000+ merchants. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
+    desc: "One API, one schema, 300M+ products across 950,000+ merchants. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
     cta: "Read the docs",
     ctaHref: "/developers",
   },
@@ -123,7 +123,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. 300M+ products across 900,000+ merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
+    "Product catalog API and MCP server for AI agents. 300M+ products across 950,000+ merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",
@@ -224,7 +224,7 @@ const jsonLd = {
       url: "https://buywhere.ai",
       name: "BuyWhere",
       description:
-        "MCP server and product catalog API for AI agents. 300M+ products across 900,000+ merchants worldwide, with location-aware deliver_to ranking and availability labels.",
+        "MCP server and product catalog API for AI agents. 300M+ products across 950,000+ merchants worldwide, with location-aware deliver_to ranking and availability labels.",
       publisher: { "@id": "https://buywhere.ai/#organization" },
       inLanguage: "en",
       potentialAction: {
@@ -286,7 +286,7 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-8">
-            <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
+            <div className="hero-badge mx-auto inline-flex max-w-[calc(100vw-2rem)] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
               <span className="inline-flex shrink-0 items-center gap-x-1.5">
                 <span className="status-dot inline-block h-2 w-2 shrink-0 self-center rounded-full bg-green-600" aria-hidden="true"></span>
                 <span className="whitespace-nowrap">360M+ products</span>
@@ -297,17 +297,17 @@ export default function HomePage() {
               <span className="whitespace-nowrap">SG &amp; US</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Compare products and prices across 150,000+ stores.
+              Compare products and prices across stores.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              Compare prices and availability across 950,000+ stores — Singapore and the United States,
+              Compare prices and availability across merchants — Singapore and the United States,
               side by side, in one search.
             </p>
           </div>
           <HomeProductSearch />
-          <div className="max-w-3xl mx-auto text-center mt-8">
-            <p className="text-base font-semibold text-white">
-              Live product comparisons updated daily — prices second, API third.
+          <div className="max-w-3xl mx-auto text-center mt-8 pb-8">
+            <p className="text-base font-semibold text-white leading-snug px-4">
+              Live product comparisons updated daily — real-time price tracking with a fast, agent-ready API.
             </p>
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function HomePage() {
               across multiple retailers and ships with a server-rendered table AI crawlers can read.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {[
               { slug: "iphone-16-price-singapore", title: "iPhone 16 — Singapore", tagline: "Compare across authorised resellers" },
               { slug: "best-gaming-laptops-us", title: "Best gaming laptops — US 2026", tagline: "6 top models, priced live" },
@@ -332,9 +332,9 @@ export default function HomePage() {
               <Link
                 key={slug}
                 href={`/${slug}`}
-                className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-5 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-5 hover:border-indigo-300 hover:bg-indigo-50 transition-colors min-w-0"
               >
-                <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 truncate">{title}</h3>
                 <p className="text-sm text-gray-600">{tagline}</p>
                 <p className="mt-3 text-sm font-medium text-indigo-600">View comparison →</p>
               </Link>
@@ -365,6 +365,7 @@ export default function HomePage() {
               <Link
                 key={href}
                 href={href}
+                prefetch={false}
                 className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
               >
                 {label}
@@ -372,7 +373,7 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-6">
-            <Link href="/deals" className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm">
+            <Link href="/deals" prefetch={false} className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm">
               Browse all deals →
             </Link>
           </div>
@@ -507,7 +508,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index 300M+ products across 900,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 300M+ products across 950,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"
@@ -563,6 +564,7 @@ export default function HomePage() {
               <Link
                 key={href}
                 href={href}
+                prefetch={false}
                 className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
               >
                 {label}
@@ -591,6 +593,7 @@ export default function HomePage() {
           </div>
           <Link
             href="/compare"
+            prefetch={false}
             className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm"
           >
             Browse all price comparisons →

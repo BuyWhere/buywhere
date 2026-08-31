@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-landing-pages";
 import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
+import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
@@ -316,10 +317,16 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
             {(() => {
               const ctaUrl = pickPrimaryCtaUrl(product);
               const fallbackHref = `/${region}/${merchantSlug}/products/`;
-              const targetUrl = ctaUrl ?? fallbackHref;
-              const isExternal = ctaUrl
-                ? /^https?:\/\//i.test(ctaUrl)
-                : false;
+              // BUY-75417: route affiliate links through /r/direct/{id} so
+              // AI crawlers see a followable server-rendered href instead of
+              // an external domain they cannot follow.
+              const redirectHref = buildAffiliateRedirectUrl(product.id);
+              const targetUrl = redirectHref ?? ctaUrl ?? fallbackHref;
+              const isExternal = redirectHref
+                ? false
+                : ctaUrl
+                  ? /^https?:\/\//i.test(ctaUrl)
+                  : false;
               // BUY-65451: PDP must ship a primary action button so SEO landing
               // cards don't dead-end on a detail page without an exit. Fall
               // back to the merchant listing on BuyWhere when no affiliate URL
@@ -331,9 +338,11 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
                     {...(isExternal
                       ? {
                           target: "_blank",
-                          rel: "noopener noreferrer sponsored",
+                          rel: "noopener noreferrer nofollow sponsored",
                         }
-                      : {})}
+                      : {
+                          rel: "nofollow sponsored",
+                        })}
                     className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                   >
                     {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}

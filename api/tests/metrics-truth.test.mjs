@@ -170,7 +170,7 @@ describe('/v1/admin/metrics/truth', () => {
     assert.equal(status, 200);
 
     // Top-level keys
-    for (const k of ['window','window_days','generated_at','cache_hit','cache_age_seconds','clicks','api','catalog','indexation','traffic','growth','dead_links']) {
+    for (const k of ['window','window_days','generated_at','cache_hit','cache_age_seconds','clicks','api','catalog','throughput','indexation','traffic','growth','dead_links']) {
       assert.ok(k in json, `missing top-level ${k}`);
     }
 
@@ -186,6 +186,12 @@ describe('/v1/admin/metrics/truth', () => {
       json.catalog.gross_new_products_per_day,
       json.catalog.catalog_rows_reltuples,
       json.catalog.merchants_with_products,
+      json.throughput.inserts_24h,
+      json.throughput.rows_by_source_24h,
+      json.throughput.merchants_scraped_by_pool_24h,
+      json.throughput.keepa_runs_done_24h,
+      json.throughput.dedupe_done_total,
+      json.throughput.embeddings_24h,
       json.indexation.index_line,
       json.traffic.human_pageviews,
       json.traffic.fetcher_pageviews,
@@ -253,6 +259,15 @@ describe('/v1/admin/metrics/truth', () => {
     for (const row of json.clicks.by_source) {
       assert.ok(row.source.length > 0);
       assert.match(row.definition, /origin|product_card|api_response|referrer|api_key/i);
+    }
+  });
+
+  it('throughput counters expose the hourly quota sentinel fields', async () => {
+    const { json } = await getTruth('30d');
+    for (const k of ['inserts_24h','rows_by_source_24h','merchants_scraped_by_pool_24h','keepa_runs_done_24h','dedupe_done_total','embeddings_24h']) {
+      assert.ok(k in json.throughput, `missing throughput.${k}`);
+      assert.ok(typeof json.throughput[k].definition === 'string' && json.throughput[k].definition.length > 5);
+      assert.ok(typeof json.throughput[k].source === 'string' && json.throughput[k].source.length > 0);
     }
   });
 

@@ -504,7 +504,7 @@ export async function middleware(request: NextRequest) {
   // strip in commit 27113c030 but the merge into main (12bcfd452) dropped it
   // from src/middleware.ts; live still 500s on the populated __PAGE__ shape
   // that VidMee + BUY-66904 measured. For RSC navigation requests to /search
-  // and /compare, strip the Next-Router-State-Tree header so Next.js falls
+  // /compare, and /deals, strip the Next-Router-State-Tree header so Next.js falls
   // back to a fresh route render (still 200, still the intended content). The
   // route is force-dynamic + has per-route error.tsx + Promise<searchParams>,
   // so a fresh render is safe.
@@ -513,7 +513,7 @@ export async function middleware(request: NextRequest) {
   if (
     rscFlag === "1" &&
     routerStateHeader &&
-    (pathname === "/search" || pathname === "/compare")
+    (pathname === "/search" || pathname === "/compare" || pathname === "/deals")
   ) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.delete("next-router-state-tree");
@@ -536,7 +536,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return tagAgent(NextResponse.rewrite(url));
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
 
@@ -620,6 +620,14 @@ export async function middleware(request: NextRequest) {
   // route and remains the sitemap canonical; SG single-segment slugs stay 410'd
   // above because their page is still client-only thin content.
 
+  // BUY-77001: Skip trailing-slash redirect for /r/ and /go/ paths — these are
+  // handled by the Express server (api/src/routes/redirect.ts) and should not
+  // be canonicalized by the Next.js middleware. Without this, /r/?u=... gets
+  // redirected to /r?u=... which returns 404.
+  if (pathname.startsWith("/r/") || pathname.startsWith("/go/")) {
+    return NextResponse.next();
+  }
+
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.
   // GSC flagged 9 URL pairs (BUY-55695) where slash and non-slash variants both
   // returned HTTP 200 and were indexed as duplicates.  The previous rewrite
@@ -682,14 +690,10 @@ export async function middleware(request: NextRequest) {
   // feeds, archived sitemaps).
   const productsShortNumericMatch = /^\/products\/(\d{1,7})\/?$/.exec(pathname);
   if (productsShortNumericMatch) {
-    return tagAgent(new NextResponse("Product Not Found", {
-      status: 404,
-      statusText: "Product Not Found",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Robots-Tag": "noindex, nofollow",
-      },
-    }));
+    // Redirect to /not-found to render the full not-found.tsx page
+    const url = request.nextUrl.clone();
+    url.pathname = "/not-found";
+    return tagAgent(NextResponse.redirect(url, 302));
   }
 
   // BUY-71642: /products/{numeric-id} soft-404 fix. The route /products/[region]/page.tsx
@@ -715,16 +719,16 @@ export async function middleware(request: NextRequest) {
   // The page handler /p/[productId]/page.tsx (and the [region] page) calls notFound()
   // for short IDs, but notFound() streams as HTTP 200 (soft-404). No real BuyWhere
   // product has a <8 digit ID — return a hard 404 with noindex directly, no API call.
+  // BUY-71641: Redirect short /p/{1-7 digit} ids to /not-found. notFound() inside the
+  // /p/[id] page streams an empty __next_error__ shell (RSC not-found tree renders
+  // null for this dynamic route), so a redirect is the only path that renders the
+  // full not-found.tsx page (Header/Footer/styled CTAs). /not-found itself serves
+  // HTTP 404, so the hard-404 contract from BUY-72180 is preserved.
   const pShortIdMatch = /^\/p\/(\d{1,7})\/?$/.exec(pathname);
   if (pShortIdMatch) {
-    return tagAgent(new NextResponse("Product Not Found", {
-      status: 404,
-      statusText: "Product Not Found",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Robots-Tag": "noindex, nofollow",
-      },
-    }));
+    const url = request.nextUrl.clone();
+    url.pathname = "/not-found";
+    return tagAgent(NextResponse.redirect(url, 302));
   }
 
   // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
@@ -744,30 +748,121 @@ export async function middleware(request: NextRequest) {
   const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(pathname);
   if (pIdMatch) {
     const productId = pIdMatch[1];
-    // Check via internal API - if 404, return hard 404 before page streams.
+    // BUY-71641: probe the API; on an actual product-not-found (HTTP 404, not a
+    // transient 429/5xx), redirect to /not-found so the full styled 404 page
+    // renders. An empty 404 NextResponse (the pre-fix shape) or notFound() in
+    // the page both stream a blank __next_error__ shell — the redirect is the
+    // only path that renders not-found.tsx. Transient failures fall through to
+    // the page handler as before (BUY-72409).
     try {
       const apiRes = await fetch(
-        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${encodeURIComponent(productId)}`,
         {
-          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}`,
+          },
           signal: AbortSignal.timeout(3000),
         }
       );
       if (apiRes.status === 404) {
-        return tagAgent(new NextResponse(null, { status: 404, statusText: "Product Not Found" }));
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        return tagAgent(NextResponse.redirect(url, 302));
       }
-      // Transient errors (429/401/403/5xx): do NOT 404 — fall through and let the
-      // page handler render. The PDP route will fetch the product itself and show
-      // its own error/loading state. 404-ing here on rate-limit would otherwise
-      // take down every /p/{id} for the duration of the throttle window.
     } catch {
-      // Network error - let page render (will show its own error state)
+      // probe failure/timeout — fall through and let the page render
     }
   }
 
   // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through
   // to the page handler (no middleware redirect/rewrite needed).
   // This is already handled by the static file bypass above.
+
+  // BUY-75133: /brands/{slug} soft-404 hard-404 gate. The page handler at
+  // src/app/brands/[slug]/page.tsx calls notFound() when /api/v1/brand/{slug}
+  // returns 404, but Next.js App Router streams the not-found shell as HTTP 200
+  // (the same soft-404 anti-pattern that BUY-71642 fixed for /p/{id}). The 10
+  // slugs advertised in sitemap-brands.xml (apple, samsung, sony, nike, dyson,
+  // nintendo, dell, lenovo, canon, xiaomi) all soft-404 today because the
+  // upstream catalog has no brand rows for them — surfacing them in the
+  // sitemap burns crawl budget and ChatGPT-User / ClaudeBot fetches return
+  // empty bodies. Mirror the /p/{id} pattern: probe the upstream API, and on
+  // an actual 404 (NOT transient 429/5xx) return a hard 404 before the page
+  // streams. Transient failures fall through and let the page render.
+  const brandsSlugMatch = /^\/brands\/([^/]+)\/?$/.exec(pathname);
+  if (brandsSlugMatch) {
+    const slug = brandsSlugMatch[1];
+    try {
+      const apiRes = await fetch(
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/brand/${encodeURIComponent(slug)}`,
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}`,
+          },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (apiRes.status === 404) {
+        // Definitive 404: brand does not exist. Redirect to branded not-found page.
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        url.searchParams.set("type", "brand");
+        url.searchParams.set("slug", slug);
+        return tagAgent(NextResponse.redirect(url, 302));
+      }
+      // For 429 (rate limit), 500 (transient backend error), 401 (missing key),
+      // or any other non-404 non-OK status: fall through to let the page handler
+      // render the brand page (which has its own error handling).
+      // Previously this caught ALL non-OK responses including 429, which broke
+      // brand pages when the API was rate-limiting (BUY-78382).
+    } catch {
+      // BUY-75133: probe failure OR timeout — the brand API may be slow or
+      // unreachable. Fall through to let the page handler render the brand
+      // page with its own error handling (503 UI for transient failures).
+      // The 3s AbortSignal fires before the 30s hang on placeholder slugs.
+    }
+  }
+
+  // BUY-77134: /products/{country} redirect for unsupported countries.
+  // Supported: us, sg, my, th, id, ph, vn. Anything else → friendly 404.
+  const SUPPORTED_COUNTRIES = new Set(["us", "sg", "my", "th", "id", "ph", "vn"]);
+  const productsCountryMatch = /^\/products\/([^/]+)\/?$/.exec(pathname);
+  if (productsCountryMatch) {
+    const cc = productsCountryMatch[1].toLowerCase();
+    if (!SUPPORTED_COUNTRIES.has(cc)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "product");
+      url.searchParams.set("country", cc);
+      return tagAgent(NextResponse.redirect(url, 302));
+    }
+  }
+
+  // BUY-77134: /compare/{cc} or /compare/{cc1}/{cc2} redirect for unsupported countries.
+  // Supported single: us, sg. Supported pairs: us/sg, sg/us.
+  // Any other single or pair → friendly 404.
+  const compareMatch = pathname.match(/^\/compare\/([^/]+)(?:\/([^/]+))?\/?$/);
+  if (compareMatch) {
+    const cc1 = compareMatch[1].toLowerCase();
+    const cc2 = compareMatch[2]?.toLowerCase();
+
+    // Check if valid single country (us or sg for now)
+    const validSingle = cc1 === "us" || cc1 === "sg";
+    // Check if valid pair (us/sg or sg/us)
+    const validPair =
+      (cc1 === "us" && cc2 === "sg") || (cc1 === "sg" && cc2 === "us");
+
+    if (!validSingle && !validPair) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "compare");
+      url.searchParams.set("country1", cc1);
+      if (cc2) url.searchParams.set("country2", cc2);
+      return tagAgent(NextResponse.redirect(url, 302));
+    }
+  }
 
   // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
   // These expose SEO-friendly URLs that render via the /search page internally.
@@ -822,7 +917,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/developers/sitemap-index.xml") {
     const url = request.nextUrl.clone();
     url.pathname = "/sitemap-index.xml";
-    return tagAgent(NextResponse.rewrite(url));
+    return tagAgent(NextResponse.redirect(url, 301));
   }
 
   // Content negotiation: rewrite to dedicated markdown route handlers.

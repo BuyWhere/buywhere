@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
+const apiKey_1 = require("./apiKey");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
     /mozilla/i,
@@ -196,6 +197,9 @@ function queryLogMiddleware(endpoint) {
                 try {
                     (0, posthog_1.trackApiUsage)({
                         apiKeyId: apiKeyRecord.id,
+                        keyHash: apiKeyRecord.key ? (0, apiKey_1.hashKey)(apiKeyRecord.key) : null,
+                        isInternal: apiKeyRecord.isInternal === true,
+                        agentName: apiKeyRecord.agentName ?? null,
                         endpoint,
                         method: req.method,
                         tier: apiKeyRecord.tier,

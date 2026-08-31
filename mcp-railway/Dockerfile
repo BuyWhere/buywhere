@@ -2,6 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Build context is mcp-railway/ so paths are relative to that directory
 COPY package.json package-lock.json ./
 RUN npm ci
 

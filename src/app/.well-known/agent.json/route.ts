@@ -1,7 +1,7 @@
 const AGENT_JSON = {
   name: 'BuyWhere',
   description:
-    'Agent-native product catalog API for AI shopping agents: 300M+ products from 900,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
+    'Agent-native product catalog API for AI shopping agents: 300M+ products from 950,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
   provider: {
     organization: 'BuyWhere',
@@ -45,7 +45,7 @@ const AGENT_JSON = {
       id: 'cross-storefront-comparison',
       name: 'Cross-Storefront Product Comparison',
       description:
-        'Compare products, prices, attributes, and availability across 900,000+ independent storefronts worldwide.',
+        'Compare products, prices, attributes, and availability across 950,000+ independent storefronts worldwide.',
       tags: ['comparison', 'price-comparison', 'affiliate', 'merchant'],
       examples: [
         'Compare iPhone 16 Pro Max prices across stores that ship to Singapore',
@@ -69,11 +69,7 @@ const AGENT_JSON = {
       serverUrl: 'https://api.buywhere.ai/mcp',
       transport: 'streamable-http',
       notes:
-        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
+        'Canonical MCP endpoint: JSON-RPC over HTTP POST (Streamable HTTP).',
     },
     rest: {
       serverUrl: 'https://api.buywhere.ai/v1',

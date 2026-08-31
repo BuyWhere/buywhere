@@ -17,7 +17,7 @@
 // (no bind params) so it can be concatenated into any candidate WHERE clause
 // exactly like the existing laptop-accessory penalty expressions.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.STORAGE_CATEGORY_SQL_TIER_JOIN = exports.STORAGE_QUERY_TOKENS = exports.DEVICE_FAMILY_TOKENS = void 0;
+exports.LAPTOP_ACCESSORY_PG_RE_SOURCE = exports.LAPTOP_ACCESSORY_SOFT_TOKENS = exports.STORAGE_CATEGORY_SQL_TIER_JOIN = exports.STORAGE_QUERY_TOKENS = exports.DEVICE_FAMILY_TOKENS = void 0;
 exports.tierStorageExclusionNeeded = tierStorageExclusionNeeded;
 exports.isDeviceQuery = isDeviceQuery;
 exports.isStorageQuery = isStorageQuery;
@@ -167,3 +167,71 @@ function deviceStorageExclusionFragmentProducts(q) {
         return '';
     return ` AND NOT ${STORAGE_CATEGORY_SQL_PRODUCTS}`;
 }
+// ─────────────────────────────────────────────────────────────────────────
+// BUY-77675: laptop-accessory token list.
+//
+// QA repro 2026-08-30 captured 72% non-laptop results for q=laptop&country=sg:
+// microphones (Boya), IEMs, laptop desks, portable monitors, privacy screens,
+// keyboards, screen cleaners. The pre-existing laptopAccessoryPenalty regex
+// in routes/products.ts only caught skin/case/bag/stand/etc. — it missed
+// every category above.
+//
+// The SEO landing page regex (LAPTOP_ACCESSORY_RE in
+// buywhere-api/src/lib/seo-landing-pages.ts) and the API tier regex
+// (laptopAccessoryPenalty in api/src/routes/products.ts) live in different
+// build pipelines (Next.js vs. Express) and use different syntax (JS regex
+// vs. Postgres ARE regex), so the literal strings CAN'T be shared without
+// a workspace refactor. This module exposes the canonical token list so
+// both call-sites import the same source of truth — each call-site still
+// wraps the tokens in its own regex flavour.
+//
+// `laptopAccessoryPenalty` in routes/products.ts is the canonical API-side
+// penalty expression. When widening the list, update BOTH the SEO regex
+// AND the API regex to keep the live page and the public API consistent.
+exports.LAPTOP_ACCESSORY_SOFT_TOKENS = [
+    // Audio (Boya lavalier mics, rockpapa headphones, IEMs)
+    'microphone', 'microphones', 'mic', 'lavalier', 'lapel', 'boya',
+    'headphone', 'headphones', 'headset', 'earbud', 'earbuds',
+    'earphone', 'earphones', 'airpod', 'airpods',
+    'in-ear monitor', 'in ear monitor', 'in ear monitors', 'iem', 'iems',
+    // Furniture (laptop desks, standing desks, lap desks, bed tables)
+    'standing desk', 'lap desk', 'bed desk', 'bed table', 'bed tray',
+    'folding table', 'breakfast tray',
+    // Display accessories (portable monitors, screen extenders)
+    'portable monitor', 'external monitor', 'screen extender',
+    'external display', 'travel monitor', 'second screen', 'triple monitor',
+    'privacy screen', 'privacy filter',
+    // Cleaning (screen cleaners, sprays, wipes)
+    'screen cleaner', 'cleaning spray', 'screen wipes', 'cleaning wipes',
+    'screen cleaning',
+    // Pre-existing tokens from the original regex. Note: bare 'pad'/'pads' is
+    // omitted because it matches inside model names like "ThinkPad" and
+    // "IdeaPad" — the multi-word forms ('cooling pad', 'mouse pad',
+    // 'mousepad') still cover the actual accessory intent without false-
+    // positive risk on real laptop model names.
+    'skin', 'skins', 'sleeve', 'sleeves', 'cover', 'covers', 'case', 'cases',
+    'stand', 'stands', 'cooler', 'coolers', 'bag', 'bags', 'backpack', 'backpacks',
+    'sticker', 'stickers', 'decal', 'decals', 'cooling pad',
+    'mat', 'mats', 'mouse pad', 'mousepad',
+    'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs', 'lock', 'locks',
+    'charger', 'chargers', 'cable', 'cables', 'messenger', 'shell', 'shells',
+    'replacement battery', 'replacement batteries', 'replacement keyboard',
+    'replacement fan', 'replacement hinge', 'replacement screen',
+    // Keyboard when paired with a laptop context. Bare 'keyboard' is omitted
+    // because it would match legitimate keyboards sold as laptop bundles or
+    // laptop-replacement keyboards; we only penalise laptop-style keyboards
+    // when they appear alongside a wireless/bluetooth/foldable signal.
+    'wireless keyboard', 'foldable keyboard', 'bluetooth keyboard',
+];
+// Postgres ARE regex alternation source. Each token is split on whitespace
+// (so multi-word phrases like "standing desk" only match when the words
+// appear consecutively) and word-bounded with `\m` / `\M`. The token list
+// contains no single quotes so the result is safe to interpolate into a
+// SQL string literal.
+exports.LAPTOP_ACCESSORY_PG_RE_SOURCE = exports.LAPTOP_ACCESSORY_SOFT_TOKENS
+    .map((t) => {
+    const parts = t.split(/\s+/);
+    return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+})
+    .map((re) => `\\m(?:${re})\\M`)
+    .join('|');

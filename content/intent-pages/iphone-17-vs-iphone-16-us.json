@@ -1,34 +1,86 @@
 {
   "slug": "iphone-17-vs-iphone-16-us",
-  "title": "iPhone 17 vs iPhone 16 in the US (2026) — which should you buy",
+  "title": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 which should you buy",
   "description": "iPhone 17 vs iPhone 16 compared for US buyers: live prices from Apple, Amazon, Best Buy, Walmart and major carriers, plus a side-by-side on display, chip, camera, battery and whether iPhone 16 owners should upgrade.",
   "heroEyebrow": "US iPhone comparison",
-  "heroTitle": "iPhone 17 vs iPhone 16 in the US (2026) — live prices and which to buy",
-  "heroTitleTemplate": "iPhone 17 vs iPhone 16 in the US — from {floorPrice} today",
+  "heroTitle": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 live prices and which to buy",
+  "heroTitleTemplate": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "The iPhone 17 arrived in late 2025 with a redesigned camera bar, the A19 Pro chip, a brighter 120 Hz ProMotion display across the line-up and meaningful battery gains. In the United States the iPhone 16 is still widely sold at carrier and retailer discounts, so the choice is less about which phone is newer and more about whether the 17's upgrades justify the price gap for how you actually use a phone. This page pulls live US listings from Apple, Amazon, Best Buy, Walmart and carrier stores so you can compare current iPhone 17 and iPhone 16 prices in US$ side by side.",
-  "inboundLinks": ["/best-iphones-us", "/search?q=iPhone+16+US", "/search?q=iPhone+17+US"],
+  "inboundLinks": [
+    "/best-iphones-us",
+    "/search?q=iPhone+16+US",
+    "/search?q=iPhone+17+US"
+  ],
   "canonicalPath": "/iphone-17-vs-iphone-16-us",
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
   "searchQuery": "iPhone 17 vs iPhone 16",
-  "backupQueries": ["iPhone 17", "iPhone 16", "Apple iPhone"],
+  "backupQueries": [
+    "iPhone 17",
+    "iPhone 16",
+    "Apple iPhone"
+  ],
   "minPrice": 400,
-  "requiredProductTerms": ["iphone", "apple", "smartphone"],
+  "requiredProductTerms": [
+    "iphone",
+    "apple",
+    "smartphone"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPhone 17 and iPhone 16 prices in the US",
-  "comparisonSectionTitle": "iPhone 17 vs iPhone 16 — at a glance",
-  "comparisonColumns": ["Spec / feature", "iPhone 17", "iPhone 16"],
+  "comparisonSectionTitle": "iPhone 17 vs iPhone 16 \u2014 at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "iPhone 17",
+    "iPhone 16"
+  ],
   "comparisonRows": [
-    { "label": "Display", "values": ["Super Retina XDR with ProMotion 120 Hz, brighter outdoor peak", "Super Retina XDR 60 Hz on base model, 120 Hz only on Pro models"] },
-    { "label": "Chip", "values": ["A19 Pro — faster GPU and improved ray tracing", "A18 — still fast for everyday apps and most games"] },
-    { "label": "Camera system", "values": ["New camera bar layout, improved main sensor and low-light fusion", "Dual-camera layout; excellent but a step behind in low light and zoom"] },
-    { "label": "Battery life", "values": ["Larger battery and more efficient modem — longest iPhone battery yet", "All-day battery for most users; heavy travel days need a top-up"] },
-    { "label": "Build and materials", "values": ["Thinner chassis with refined titanium-aluminium frame", "Aluminium and glass; slightly heavier and thicker"] },
-    { "label": "Who it is for", "values": ["Buyers who keep a phone 3+ years, shoot video and want the smoothest display", "Buyers who want a modern iPhone at a lower total cost, especially with carrier deals"] }
+    {
+      "label": "Display",
+      "values": [
+        "Super Retina XDR with ProMotion 120 Hz, brighter outdoor peak",
+        "Super Retina XDR 60 Hz on base model, 120 Hz only on Pro models"
+      ]
+    },
+    {
+      "label": "Chip",
+      "values": [
+        "A19 Pro \u2014 faster GPU and improved ray tracing",
+        "A18 \u2014 still fast for everyday apps and most games"
+      ]
+    },
+    {
+      "label": "Camera system",
+      "values": [
+        "New camera bar layout, improved main sensor and low-light fusion",
+        "Dual-camera layout; excellent but a step behind in low light and zoom"
+      ]
+    },
+    {
+      "label": "Battery life",
+      "values": [
+        "Larger battery and more efficient modem \u2014 longest iPhone battery yet",
+        "All-day battery for most users; heavy travel days need a top-up"
+      ]
+    },
+    {
+      "label": "Build and materials",
+      "values": [
+        "Thinner chassis with refined titanium-aluminium frame",
+        "Aluminium and glass; slightly heavier and thicker"
+      ]
+    },
+    {
+      "label": "Who it is for",
+      "values": [
+        "Buyers who keep a phone 3+ years, shoot video and want the smoothest display",
+        "Buyers who want a modern iPhone at a lower total cost, especially with carrier deals"
+      ]
+    }
   ],
   "highlightSectionTitle": "What changed from iPhone 16 to iPhone 17",
   "highlights": [
@@ -58,7 +110,7 @@
     "If you already own an iPhone 16, the 17 is a noticeable but not essential upgrade. Wait for the 18 if your current phone is in good condition and the 120 Hz display alone does not justify the switch.",
     "Check storage before checking colour. The entry storage tier fills quickly with 4K video and large apps; a 256 GB or 512 GB model usually ages better than the base capacity."
   ],
-  "faqSectionTitle": "iPhone 17 vs iPhone 16 in the US — common questions",
+  "faqSectionTitle": "iPhone 17 vs iPhone 16 in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the iPhone 17 worth it over the iPhone 16 in the US?",
@@ -70,7 +122,7 @@
     },
     {
       "question": "Should I upgrade from iPhone 16 to iPhone 17?",
-      "answer": "Only if one of the 17 upgrades — ProMotion display, camera low-light improvement or battery life — solves a real pain point for you. For most iPhone 16 owners the difference is nice-to-have, not must-have."
+      "answer": "Only if one of the 17 upgrades \u2014 ProMotion display, camera low-light improvement or battery life \u2014 solves a real pain point for you. For most iPhone 16 owners the difference is nice-to-have, not must-have."
     },
     {
       "question": "Do US iPhone 17 models work worldwide?",

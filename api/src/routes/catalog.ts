@@ -174,7 +174,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
             active_products: stats.active_products,
           },
           meta: {
-            approximate: false,
+            approximate: stats.approximate,
             source: stats.source,
             ts: stats.collected_at,
           },

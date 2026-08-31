@@ -47,15 +47,31 @@ const config_1 = require("../config");
 const REPLICA_URL = process.env.REPLICA_DATABASE_URL || '';
 const MAX_LAG_MS = parseInt(process.env.REPLICA_MAX_LAG_MS || '2000');
 const PROBE_INTERVAL_MS = parseInt(process.env.REPLICA_PROBE_INTERVAL_MS || '5000');
-const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '20');
+const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '50'); // raised 20->50: absorb concurrent-search bursts
+// hotfix: search tolerates a small replication backlog. Byte-exact LSN match
+// never holds under continuous primary writes, so treat the replica as fresh
+// when the un-replayed WAL gap is within a bounded threshold (default 50MB).
+const LSN_GAP_HEALTHY_BYTES = parseInt(process.env.REPLICA_LSN_GAP_HEALTHY_BYTES || '52428800');
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
+// BUY-76552: set prepareThreshold=0 to disable server-side prepared statements.
+// Railway's PostgreSQL proxy misroutes Prepare/Execute when a single connection is
+// reused across multiple query shapes with different param counts, causing 08P01
+// "bind message supplies N parameters but prepared statement requires M". With
+// prepareThreshold=0, every query uses the simple text protocol — no Prepare/Execute
+// cycle, no proxy confusion, no 08P01. Slightly higher wire overhead (~5%) is
+// acceptable vs catastrophic 0-result outages.
 exports.replicaPool = REPLICA_URL
-    ? new pg_1.Pool({
-        connectionString: REPLICA_URL,
-        max: REPLICA_POOL_MAX,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-    })
+    ? (() => {
+        const pool = new pg_1.Pool({
+            connectionString: REPLICA_URL,
+            max: REPLICA_POOL_MAX,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+        });
+        // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+        pool.options.prepareThreshold = 0;
+        return pool;
+    })()
     : null;
 if (exports.replicaPool) {
     // Replica connections are read-only; apply the same statement timeout guard
@@ -121,7 +137,7 @@ async function probeLag() {
         // data, regardless of how long the receiver has been quiet or how large
         // the xact-timestamp gap is. We deliberately do NOT use the xact
         // timestamp or the recv-age for the health decision (BUY-54916).
-        const lsnMatched = lastLsnGapBytes === 0;
+        const lsnMatched = lastLsnGapBytes !== null && lastLsnGapBytes <= LSN_GAP_HEALTHY_BYTES;
         // lag_ms: report LSN gap in bytes (true replication backlog). When
         // matched, this is 0. Never use the xact timestamp here.
         lastLagMs = lsnMatched ? 0 : lastLsnGapBytes;

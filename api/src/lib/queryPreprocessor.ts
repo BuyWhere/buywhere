@@ -67,6 +67,12 @@ const NOISE_WORDS = new Set([
   'deal', 'deals', 'discount', 'sale',
 ]);
 
+const SEO_BOILERPLATE_PATTERNS = [
+  /\b(?:best|top)\s+(.+?)\s+(?:in|for)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+  /\b(.+?)\s+(?:in|for)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+  /\b(.+?)\s+(?:singapore|sg|us|usa|united\s+states)\b/i,
+];
+
 export function preprocessSearchQuery(
   q: string,
   existingMinPrice?: number,
@@ -143,6 +149,20 @@ export function preprocessSearchQuery(
 function cleanQueryText(text: string): string {
   let cleaned = text;
 
+  // Intent-page titles can reach the API as SEO phrases like
+  // "best wireless earbuds in Singapore 2026". Keep the product intent and
+  // drop page/ranking/locality boilerplate before building broad FTS OR lists.
+  for (const pattern of SEO_BOILERPLATE_PATTERNS) {
+    const match = cleaned.match(pattern);
+    if (match?.[1]) {
+      cleaned = match[1];
+      break;
+    }
+  }
+
+  cleaned = cleaned.replace(/\b(?:near\s+me|online|reviews?|review|guide|guides|comparison|compare)\b/gi, ' ');
+  cleaned = cleaned.replace(/\b(?:20\d{2})\b/g, ' ');
+
   // Remove price literals: "$50", "50 dollars", "50 sgd"
   cleaned = cleaned.replace(/\$\s*(\d+[.,]?\d*)\b/g, '');
   cleaned = cleaned.replace(/\b(\d+[.,]?\d*)\s*(dollars|sgd|usd|gbp|eur)\b/gi, '');
@@ -157,4 +177,63 @@ function cleanQueryText(text: string): string {
   cleaned = cleaned.replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 
   return cleaned;
+}
+
+/**
+ * Country token patterns to strip from queries.
+ * Order matters: longer patterns first to avoid partial matches.
+ */
+const COUNTRY_TOKEN_PATTERNS = [
+  // Full country names (case-insensitive)
+  /\b(singapore|singapore's)\b/gi,
+  /\b(united\s*states|united\s*states['\s]*|usa\s*|america['\s]*)\b/gi,
+  /\b(america)\b/gi,
+  // ISO codes (case-insensitive)
+  /\b(SG|SG['\s]*)\b/gi,
+  /\b(US|USA|USA['\s]*)\b/gi,
+];
+
+/**
+ * Full country names for display.
+ */
+const COUNTRY_DISPLAY_NAMES: Record<string, string> = {
+  'sg': 'Singapore',
+  'us': 'United States',
+  'usa': 'United States',
+};
+
+/**
+ * BUY-76486: Strip country tokens from search query for verdict template generation.
+ * When the query already contains "Singapore" and the verdict says "in SG today",
+ * the result is redundant: "air purifier Singapore in SG today".
+ *
+ * Also converts country codes to full names for better readability:
+ * "in SG" -> "in Singapore", "in US" -> "in United States"
+ *
+ * @param query - The original search query (may contain country tokens)
+ * @param countryCode - The ISO country code (e.g., "SG", "US")
+ * @returns The cleaned query with country tokens removed
+ */
+export function stripCountryTokens(query: string, countryCode: string): string {
+  let cleaned = query;
+
+  // Strip country tokens from the query
+  for (const pattern of COUNTRY_TOKEN_PATTERNS) {
+    cleaned = cleaned.replace(pattern, ' ');
+  }
+
+  // Collapse multiple spaces and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+}
+
+/**
+ * Get the full country name for display in verdict templates.
+ *
+ * @param countryCode - The ISO country code (e.g., "SG", "US")
+ * @returns The full country name (e.g., "Singapore", "United States")
+ */
+export function getCountryDisplayName(countryCode: string): string {
+  return COUNTRY_DISPLAY_NAMES[countryCode.toLowerCase()] ?? countryCode;
 }

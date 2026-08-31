@@ -71,12 +71,12 @@ export function PopularComparisons({ variant = "hero" }: PopularComparisonsProps
           </p>
           <h2 className="text-3xl font-bold text-gray-900">Popular price guides</h2>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-5 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-5">
           {MARKETING_PAGES.map((page) => (
             <Link
               key={page.slug}
               href={`https://buywhere.ai/${page.slug}`}
-              className="group flex flex-col rounded-2xl border border-gray-100 bg-gray-50 overflow-hidden transition-all hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5"
+              className="group flex flex-col rounded-2xl border border-gray-100 bg-gray-50 overflow-hidden transition-all hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5 max-w-[100vw]"
             >
               {/* Placeholder image area */}
               <div className="aspect-[4/3] bg-[radial-gradient(circle_at_top,_rgba(79,70,229,0.12),_rgba(248,250,252,0.9)_70%)] flex items-center justify-center">

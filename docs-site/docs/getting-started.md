@@ -1,5 +1,4 @@
 ---
-slug: /
 sidebar_position: 1
 title: Getting Started
 ---
@@ -128,8 +127,8 @@ See [Pricing](https://buywhere.ai/pricing) for full details.
 
 ## What's Next
 
-- [Authentication](/authentication) — API key usage, rate limits, and headers
-- [API Reference](/api-reference/search) — full endpoint documentation
-- [Error Reference](/errors) — all error codes and responses
-- [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart guide
-- [MCP Integration](/guides/mcp-integration) — connect BuyWhere to Claude Desktop, Cursor, and other AI tools
+- [Authentication](/docs/authentication) — API key usage, rate limits, and headers
+- [API Reference](/docs/api-reference/search) — full endpoint documentation
+- [Error Reference](/docs/errors) — all error codes and responses
+- [Build a Price Comparison Tool](/docs/guides/price-comparison) — Python quickstart guide
+- [MCP Integration](/docs/guides/mcp-integration) — connect BuyWhere to Claude Desktop, Cursor, and other AI tools

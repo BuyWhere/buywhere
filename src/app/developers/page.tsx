@@ -9,7 +9,7 @@ import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
-    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 900,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
+    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 950,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
   path: "/developers",
 });
 
@@ -134,7 +134,7 @@ export default function DevelopersPage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes five MCP tools: search_products (full-text product search across 150,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), and list_categories (browse product categories)."
+          text: "BuyWhere exposes five MCP tools: search_products (full-text product search across 950,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), and list_categories (browse product categories)."
         }
       },
       {
@@ -206,7 +206,7 @@ export default function DevelopersPage() {
             Launch your shopping agent with one clear setup path.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 900,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
+            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 950,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
           </p>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
             Start with one API request, then add the published MCP package when you want BuyWhere tools inside Claude Desktop, Cursor, or another MCP client.
@@ -234,7 +234,7 @@ export default function DevelopersPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-center">
             <span>300M+ products</span>
             <span className="hidden sm:block text-indigo-600">·</span>
-            <span>900,000+ merchants</span>
+            <span>950,000+ merchants</span>
             <span className="hidden sm:block text-indigo-600">·</span>
             <span>Real-time pricing</span>
           </div>

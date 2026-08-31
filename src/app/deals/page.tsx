@@ -1,6 +1,4 @@
-import Schema from '@/components/Schema';
-import { buildPageMetadata } from '@/lib/page-metadata';
-import { buildCollectionPageSchema } from '@/lib/page-schema';
+import type { Metadata } from 'next';
 
 export const revalidate = 900;
 
@@ -29,34 +27,32 @@ async function getDeals(): Promise<Deal[]> {
   }
 }
 
-const DEALS_TITLE = "Today's Best Deals on BuyWhere";
-const DEALS_DESCRIPTION =
-  'Find live discounts and compare prices across retailers so you can save on top products.';
-
-export const metadata = buildPageMetadata({
-  title: DEALS_TITLE,
-  description: DEALS_DESCRIPTION,
-  path: '/deals',
-});
+export const metadata: Metadata = {
+  title: 'Today\'s Best Deals — BuyWhere AI',
+  description:
+    'Find the best deals and discounts across retailers. Compare prices and save on top products.',
+  alternates: { canonical: '/deals' },
+};
 
 export default async function DealsPage() {
   const deals = await getDeals();
 
-  const jsonLd = buildCollectionPageSchema({
-    path: '/deals',
-    name: DEALS_TITLE,
-    description: DEALS_DESCRIPTION,
-    // BUY-69732: Home > Deals breadcrumb for the deals route.
-    breadcrumb: [
-      { name: 'Home', path: '/' },
-      { name: 'Deals', path: '/deals' },
-    ],
-  });
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: "Today's Best Deals",
+    description:
+      'Find the best deals and discounts across retailers.',
+    url: '/deals',
+  };
 
   return (
     <>
-      <Schema data={jsonLd} />
-      <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">
@@ -114,10 +110,64 @@ export default async function DealsPage() {
               </div>
             </section>
           ) : (
-            <section className="text-center py-12">
-              <p className="text-gray-500 text-lg">
-                No deals available right now. Check back soon!
+            <section className="flex flex-col items-center justify-center py-16">
+              <div className="bg-blue-50 rounded-full p-8 mb-6">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-16 w-16 text-blue-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185zM9.75 9h.008v.008H9.75V9zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 4.5h.008v.008h-.008V13.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-3">
+                No deals available right now
+              </h2>
+              <p className="text-gray-500 text-center max-w-md mb-8">
+                We&apos;re constantly scouting the best discounts across retailers.
+                Check back soon or browse categories to find great prices now.
               </p>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <a
+                  href="/categories/electronics"
+                  className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Browse Electronics
+                </a>
+                <a
+                  href="/search"
+                  className="inline-flex items-center px-5 py-2.5 bg-white text-blue-600 font-medium rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                >
+                  Search Products
+                </a>
+                <button
+                  type="button"
+                  className="inline-flex items-center px-5 py-2.5 bg-white text-gray-600 font-medium rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                    />
+                  </svg>
+                  Notify Me
+                </button>
+              </div>
             </section>
           )}
         </div>

@@ -177,11 +177,31 @@ export function queryLogMiddleware(endpoint: string) {
 
     // Intercept res.json to capture result count from the response body
     // before it's sent to the client (the finish handler reads res.locals).
+    // BUY-52290: route handlers pre-compute these before field-selection transforms
+    // the product array, so prefer their values over body re-extraction.
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
-      res.locals.resultCount = extractResultCount(body, res.statusCode);
-      res.locals.returnedProductIds = extractReturnedProductIds(body, res.statusCode);
-      res.locals.degradedKind = extractDegradedKind(body, res.statusCode);
+      // Only extract if the route handler hasn't already set these (it pre-computes
+      // before field-selection so IDs are never stripped).
+      const ids = res.locals.returnedProductIds != null
+        ? res.locals.returnedProductIds
+        : extractReturnedProductIds(body, res.statusCode);
+      const count = res.locals.resultCount != null
+        ? res.locals.resultCount
+        : extractResultCount(body, res.statusCode);
+      if (endpoint === 'products.search' && body && typeof body === 'object' && !ids) {
+        const b = body as Record<string, unknown>;
+        const hasData = Array.isArray(b.data) || Array.isArray(b.products) || Array.isArray(b.results);
+        console.error('[queryLog:debug] products.search extract failed:', {
+          status: res.statusCode,
+          hasData,
+          dataLen: Array.isArray(b.data) ? b.data.length : Array.isArray(b.products) ? b.products.length : 'N/A',
+          dataKeys: Object.keys(b).slice(0, 10),
+        });
+      }
+      res.locals.resultCount = count;
+      res.locals.returnedProductIds = ids;
+      res.locals.degradedKind = res.locals.degradedKind ?? extractDegradedKind(body, res.statusCode);
       // WP5: thread shopping_job_id into every click_url (runs after the route's
       // cache write serialized the body, so the decoration is never cached).
       const jobId = extractJobId(req);
@@ -248,8 +268,9 @@ export function queryLogMiddleware(endpoint: string) {
           extractJobId(req),
           res.locals.degradedKind ?? null,
         ]
-      ).catch(() => {
+      ).catch((err) => {
         // Fire-and-forget — don't crash on log failure
+        console.error('[queryLog] INSERT failed:', err.message);
       });
 
       // BUY-22733: source-of-truth usage telemetry to PostHog.

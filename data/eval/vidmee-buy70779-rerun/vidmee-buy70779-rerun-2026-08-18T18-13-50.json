@@ -1,0 +1,421 @@
+{
+  "runTimestamp": "2026-08-18T18:13:50.119Z",
+  "deploySha": "ee56197",
+  "deployTime": "Tue Aug 18 2026",
+  "selectorSetFile": "/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/repo/buywhere/data/eval/vidmee-buy70779-selectors.json",
+  "outputFile": "/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/repo/buywhere/data/eval/vidmee-buy70779-rerun/vidmee-buy70779-rerun-2026-08-18T18-13-50.json",
+  "totalUrls": 6,
+  "passedGate": 0,
+  "failedGate": 0,
+  "totalIssues": 12,
+  "issues": [
+    {
+      "entry": {
+        "id": "70779-selector-01",
+        "url": "https://buywhere.ai",
+        "selector": "button.btn-outline-developer",
+        "description": "Secondary CTA — developer button contrast",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 0,
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "status": "success",
+        "elapsed_ms": 4407,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "category": "content",
+            "severity": "medium",
+            "description": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "fingerprint": "4cb75031af2deab8",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".hero-badge",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "category": "accessibility",
+            "severity": "low",
+            "description": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "fingerprint": "60cd98f10675def1",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": "a.btn-secondary, button.btn-outline",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    },
+    {
+      "entry": {
+        "id": "70779-selector-02",
+        "url": "https://buywhere.ai",
+        "selector": ".text-gray-400",
+        "description": "Gray utility text — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 1,
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "status": "success",
+        "elapsed_ms": 7707,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "category": "content",
+            "severity": "medium",
+            "description": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "fingerprint": "4cb75031af2deab8",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".hero-badge",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "category": "accessibility",
+            "severity": "low",
+            "description": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "fingerprint": "60cd98f10675def1",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": "a.btn-secondary, button.btn-outline",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    },
+    {
+      "entry": {
+        "id": "70779-selector-03",
+        "url": "https://buywhere.ai",
+        "selector": ".text-indigo-200",
+        "description": "Indigo-200 on indigo background — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 2,
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "status": "success",
+        "elapsed_ms": 4571,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "category": "content",
+            "severity": "medium",
+            "description": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "fingerprint": "4cb75031af2deab8",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".hero-badge",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "category": "accessibility",
+            "severity": "low",
+            "description": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "fingerprint": "60cd98f10675def1",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": "a.btn-secondary, button.btn-outline",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    },
+    {
+      "entry": {
+        "id": "70779-selector-04",
+        "url": "https://buywhere.ai",
+        "selector": ".ml-2",
+        "description": "Margin utility — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 3,
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "status": "success",
+        "elapsed_ms": 4613,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "category": "content",
+            "severity": "medium",
+            "description": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "fingerprint": "4cb75031af2deab8",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".hero-badge",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "category": "accessibility",
+            "severity": "low",
+            "description": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "fingerprint": "60cd98f10675def1",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": "a.btn-secondary, button.btn-outline",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    },
+    {
+      "entry": {
+        "id": "70779-selector-05",
+        "url": "https://buywhere.ai/laptop-singapore",
+        "selector": ".bg-slate-100",
+        "description": "Merchant badge muted gray on slate — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 4,
+      "inspectResult": {
+        "url": "https://buywhere.ai/laptop-singapore",
+        "status": "success",
+        "elapsed_ms": 14291,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Near-identical duplicate product cards ('Asus Zenbook A14 (Snapdragon\\u00ae X...') from the same merchant (Harvey Norman SG) appear adjacent to each other in the top row of the catalog snapshot.",
+            "category": "content",
+            "severity": "medium",
+            "description": "Near-identical duplicate product cards ('Asus Zenbook A14 (Snapdragon\\u00ae X...') from the same merchant (Harvey Norman SG) appear adjacent to each other in the top row of the catalog snapshot.",
+            "fingerprint": "6b75858e6a0a7bff",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".catalog-grid .product-card:nth-child(1), .catalog-grid .product-card:nth-child(2)",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Raw unformatted hardware spec strings in product card headings are prematurely truncated with ellipses (e.g. '...16GB/1TB SSD)...'), degrading readability.",
+            "category": "typography",
+            "severity": "low",
+            "description": "",
+            "fingerprint": "",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".product-card__title",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    },
+    {
+      "entry": {
+        "id": "70779-selector-06",
+        "url": "https://buywhere.ai",
+        "selector": ".text-gray-600",
+        "description": "Merchant badge fallback — BUY-60877 fix target",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "rowIndex": 5,
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "status": "success",
+        "elapsed_ms": 4493,
+        "issueCount": 2
+      },
+      "gateResult": {
+        "reopen": [],
+        "downgrade": [],
+        "passThrough": [
+          {
+            "id": "issue_1",
+            "title": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "category": "content",
+            "severity": "medium",
+            "description": "Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').",
+            "fingerprint": "4cb75031af2deab8",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": ".hero-badge",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          },
+          {
+            "id": "issue_2",
+            "title": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "category": "accessibility",
+            "severity": "low",
+            "description": "Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.",
+            "fingerprint": "60cd98f10675def1",
+            "evidence": {
+              "axe_rule": null,
+              "dom_selector": "a.btn-secondary, button.btn-outline",
+              "console_error": null
+            },
+            "_parseWarning": "Recovered from malformed VidMee JSON; gate treats missing RFC fields as insufficient evidence.",
+            "_gate": {
+              "action": "pass-through"
+            }
+          }
+        ],
+        "gateSummary": {
+          "total": 2,
+          "reopen": 0,
+          "downgrade": 0,
+          "passThrough": 2,
+          "reRunSelectors": null
+        }
+      },
+      "passedGate": 0,
+      "failedGate": 0
+    }
+  ]
+}

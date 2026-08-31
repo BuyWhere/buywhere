@@ -1,9 +1,19 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { db } from '../config';
 import { buildProduct, buildSearchResponse } from '../lib/response';
 import { lookupMerchantMap } from '../lib/merchantLookup';
 
 const router = Router();
+
+// BUY-71129 (re-applied): caller identity thread-through. Landing routes are
+// usually unauthenticated, so this returns null in most cases — but if a
+// logged-in agent hits a marketing landing page, the conversion still joins.
+function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
+  const rec = (req as Request & { apiKeyRecord?: { id?: string; key?: string } }).apiKeyRecord;
+  if (!rec || !rec.id || !rec.key) return null;
+  return { apiKeyId: rec.id, keyHash: createHash('sha256').update(rec.key).digest('hex') };
+}
 
 function baseUrl(req: Request): string {
   const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
@@ -608,7 +618,7 @@ router.get(
         dataResult.rows.map((row) => (row.merchant_id as string | null) ?? null),
       );
       const products = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false, landingMerchantMap)
+        buildProduct(row as Record<string, unknown>, currency, false, landingMerchantMap, callerContextForUrl(req))
       );
 
       const responseTimeMs = Date.now() - start;

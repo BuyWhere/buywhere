@@ -16,11 +16,19 @@ if (!process.env.DATABASE_URL) {
         'which will fail ECONNREFUSED inside this container. Check the Railway service ' +
         'reference to Postgres / `maglev`.');
 }
+// BUY-76552: prepareThreshold=0 prevents Railway PostgreSQL proxy from mishandling
+// the Prepare/Execute cycle across connections reused for multiple query shapes.
 exports.db = new pg_1.Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/buywhere',
     max: parseInt(process.env.PG_POOL_MAX || '50'),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+});
+// @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+exports.db.options.prepareThreshold = 0;
+// Set statement_timeout on new connections to match Railway Postgres default
+exports.db.on('connect', (client) => {
+    client.query(`SET statement_timeout = '4000'`).catch(() => { });
 });
 // Replica DB pool for read-heavy operations (e.g., embedding pipeline).
 // Explicitly gated by REPLICA_DATABASE_URL so callers can enforce replica-only
@@ -30,12 +38,17 @@ exports.db = new pg_1.Pool({
 // (57014) instead of waiting for the Railway proxy idle-client teardown (~3 min).
 const replicaStatementTimeout = parseInt(process.env.REPLICA_STATEMENT_TIMEOUT || '60000');
 exports.replicaDb = process.env.REPLICA_DATABASE_URL
-    ? new pg_1.Pool({
-        connectionString: process.env.REPLICA_DATABASE_URL,
-        max: parseInt(process.env.PG_POOL_MAX || '20'),
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-    })
+    ? (() => {
+        const pool = new pg_1.Pool({
+            connectionString: process.env.REPLICA_DATABASE_URL,
+            max: parseInt(process.env.PG_POOL_MAX || '20'),
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+        });
+        // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+        pool.options.prepareThreshold = 0;
+        return pool;
+    })()
     : null;
 if (exports.replicaDb) {
     exports.replicaDb.on('connect', (client) => {
@@ -54,12 +67,17 @@ exports.db.on('connect', (client) => {
 // maglev catalog (~127M) when CATALOG_DATABASE_URL is set; otherwise they fall back
 // to the primary `db` (zero behavior change). Auth and ALL writes stay on `db`.
 exports.catalogDb = process.env.CATALOG_DATABASE_URL
-    ? new pg_1.Pool({
-        connectionString: process.env.CATALOG_DATABASE_URL,
-        max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-    })
+    ? (() => {
+        const pool = new pg_1.Pool({
+            connectionString: process.env.CATALOG_DATABASE_URL,
+            max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+        });
+        // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+        pool.options.prepareThreshold = 0;
+        return pool;
+    })()
     : exports.db;
 if (process.env.CATALOG_DATABASE_URL) {
     exports.catalogDb.on('connect', (client) => {
@@ -116,6 +134,8 @@ exports.vectorDb = process.env.VECTOR_DB_URL
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 10000,
         });
+        // @ts-ignore prepareThreshold not in pg@8 PoolConfig types but accepted at runtime
+        pool.options.prepareThreshold = 0;
         pool.on('connect', (client) => {
             client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => { });
         });

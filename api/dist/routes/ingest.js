@@ -1,10 +1,43 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.COUNTRY_TO_CURRENCY = void 0;
+exports.validateCurrencyForCountry = validateCurrencyForCountry;
 const express_1 = require("express");
 const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
 const pricing_1 = require("../lib/pricing");
 const router = (0, express_1.Router)();
+// BUY-78311: Expected currency per country code. This validation rejects
+// rows where stored currency does not match the expected currency for the
+// merchant's country. Use INGEST_CURRENCY_OVERRIDES env var (JSON) to
+// override specific merchant_id values for cross-border cases.
+const COUNTRY_TO_CURRENCY = {
+    'MY': 'MYR',
+    'SG': 'SGD',
+    'US': 'USD',
+    'TH': 'THB',
+    'PH': 'PHP',
+    'ID': 'IDR',
+    'VN': 'VND',
+};
+exports.COUNTRY_TO_CURRENCY = COUNTRY_TO_CURRENCY;
+// Load merchant-level currency overrides from env var JSON:
+// INGEST_CURRENCY_OVERRIDES='{"merchant_id_A": "USD", "merchant_id_B": "EUR"}'
+let merchantCurrencyOverrides = {};
+try {
+    const overridesEnv = process.env.INGEST_CURRENCY_OVERRIDES;
+    if (overridesEnv) {
+        merchantCurrencyOverrides = JSON.parse(overridesEnv);
+        if (typeof merchantCurrencyOverrides !== 'object' || merchantCurrencyOverrides === null) {
+            throw new Error('INGEST_CURRENCY_OVERRIDES must be a JSON object');
+        }
+        console.log('[ingest] Loaded currency overrides for', Object.keys(merchantCurrencyOverrides).length, 'merchant(s)');
+    }
+}
+catch (e) {
+    console.error('[ingest] Failed to parse INGEST_CURRENCY_OVERRIDES, using empty:', e.message);
+    merchantCurrencyOverrides = {};
+}
 const SOURCE_NORMALIZATION = {
     'challenger': 'challenger_sg',
     'challenger.sg': 'challenger_sg',
@@ -234,6 +267,43 @@ async function ensureProductsConflictTarget() {
 function normalizeSource(source) {
     return SOURCE_NORMALIZATION[source] || source;
 }
+// BUY-78311: Validate that currency matches expected currency for country_code.
+// Returns {valid: true} if ok, {valid: false, reason} if invalid.
+function validateCurrencyForCountry(currency, country_code, merchant_id) {
+    if (!country_code) {
+        // If no country_code, we can't validate — accept but log
+        console.warn(`[ingest] currency validation skipped: no country_code (merchant=${merchant_id}, currency=${currency})`);
+        return { valid: true };
+    }
+    const countryCodeUpper = country_code.toUpperCase();
+    const currencyUpper = currency.toUpperCase();
+    // Check merchant-level override first
+    const merchantOverride = merchantCurrencyOverrides[merchant_id];
+    if (merchantOverride) {
+        const overrideUpper = merchantOverride.toUpperCase();
+        if (currencyUpper !== overrideUpper) {
+            return {
+                valid: false,
+                reason: `currency=${currency} does not match merchant override (${merchantOverride}) for merchant=${merchant_id}`,
+            };
+        }
+        return { valid: true };
+    }
+    // Check country-level expected currency
+    const expectedCurrency = COUNTRY_TO_CURRENCY[countryCodeUpper];
+    if (!expectedCurrency) {
+        // Unknown country code — accept but log
+        console.warn(`[ingest] unknown country_code=${country_code} (merchant=${merchant_id}, currency=${currency}), skipping validation`);
+        return { valid: true };
+    }
+    if (currencyUpper !== expectedCurrency) {
+        return {
+            valid: false,
+            reason: `currency=${currency} does not match expected currency ${expectedCurrency} for country_code=${country_code}`,
+        };
+    }
+    return { valid: true };
+}
 function validateProduct(item, index, source) {
     if (!item || typeof item !== 'object') {
         return {
@@ -264,12 +334,27 @@ function validateProduct(item, index, source) {
     }
     if (!p.url || typeof p.url !== 'string')
         return { valid: null, error: err('Missing url', 'validation_url_invalid') };
+    // BUY-78311: Validate currency matches country_code
+    const merchantId = String(p.merchant_id);
+    const currency = typeof p.currency === 'string' ? p.currency : 'SGD';
+    let countryCode = undefined;
+    if (typeof p.country_code === 'string')
+        countryCode = p.country_code;
+    else if (p.metadata && typeof p.metadata === 'object') {
+        const meta = p.metadata;
+        if (typeof meta.country_code === 'string')
+            countryCode = meta.country_code;
+    }
+    const currencyCheck = validateCurrencyForCountry(currency, countryCode, merchantId);
+    if (!currencyCheck.valid) {
+        return { valid: null, error: err(currencyCheck.reason || 'Currency mismatch', 'validation_currency_mismatch') };
+    }
     const product = {
         sku,
-        merchant_id: String(p.merchant_id),
+        merchant_id: merchantId,
         title: String(p.title).slice(0, 1000),
         price: p.price,
-        currency: typeof p.currency === 'string' ? p.currency : 'SGD',
+        currency,
         url: String(p.url),
     };
     if (typeof p.description === 'string')
@@ -296,13 +381,8 @@ function validateProduct(item, index, source) {
         product.last_checked = p.last_checked;
     if (p.metadata && typeof p.metadata === 'object')
         product.metadata = p.metadata;
-    if (typeof p.country_code === 'string')
-        product.country_code = p.country_code;
-    else if (p.metadata && typeof p.metadata === 'object') {
-        const meta = p.metadata;
-        if (typeof meta.country_code === 'string')
-            product.country_code = meta.country_code;
-    }
+    if (countryCode)
+        product.country_code = countryCode;
     if (typeof p.region === 'string')
         product.region = p.region;
     else if (p.metadata && typeof p.metadata === 'object') {

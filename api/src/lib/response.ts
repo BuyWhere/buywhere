@@ -17,7 +17,7 @@ export const CURRENCY_RATES: Record<string, number> = {
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
 export const COUNTRY_CURRENCY: Record<string, string> = {
-  SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
   // Single-currency regions stored under EUR/USD on the catalog:
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
@@ -66,6 +66,15 @@ export function buildProduct(
   // pass nothing and get `merchantName: null` (same as an orphaned merchant_id). The
   // platform slug (`merchant` / `source`) is preserved unchanged.
   merchantMap?: Record<string, MerchantMapEntry>,
+  // BUY-71129 (re-applied, was clobbered by 554950c7): caller context for
+  // thread-through attribution. api_key_id + key_hash travel on /r/ and
+  // /api/click URLs as ?k= + ?aid= so the redirect handler can attribute the
+  // conversion back to the originating agent even though the browser click
+  // carries no Bearer header. Null/omitted = anonymous click, as before.
+  caller?: {
+    apiKeyId?: string | null;
+    keyHash?: string | null;
+  } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -97,10 +106,21 @@ export function buildProduct(
   // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
   // `affiliate_url` keeps its precomputed wrapper when present.
   const clickUrl = destinationUrl
-    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    ? buildClickUrl({
+        productId,
+        destinationUrl,
+        merchantId: merchant || null,
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const affiliateRedirectUrl = destinationUrl
-    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    ? buildAffiliateRedirectUrl({
+        productId,
+        source: 'product_card',
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
@@ -197,7 +217,10 @@ export function buildProduct(
     base.structured_specs = structured_specs;
     base.comparison_attributes = comparison_attributes;
   } else {
+    // BUY-78233: restore product-level meta alias — both meta and metadata
+    // must be exposed on non-compact products for API contract compatibility
     base.metadata = row.metadata as Record<string, unknown> | null;
+    base.meta = row.metadata as Record<string, unknown> | null;
   }
 
   if (row.original_price != null) {
@@ -227,9 +250,18 @@ export function buildSearchResponse(
     diagnostic: EmptinessDiagnostic;
     degraded_kind?: import('../types/product').DegradedKind;
   } | null,
+  mode?: 'keyword' | 'semantic' | 'hybrid',
 ): SearchResponse {
   const isEmpty = products.length === 0;
   const status: SearchResponse['meta']['status'] | undefined = degraded ? 'degraded' : undefined;
+  // BUY-76440: mode-identity. When the search handler passes the mode it actually
+  // ran, surface it so integrators can verify semantic/hybrid really executed the
+  // embedding-ranked path. mapModeEngine pairs each mode with its engine name.
+  const mode_used_engine = mode
+    ? (mode === 'semantic' ? 'semantic (pgvector hnsw)'
+       : mode === 'hybrid' ? 'hybrid (rrf + pgvector hnsw)'
+       : 'keyword (fts)')
+    : undefined;
   return {
     data: products,
     // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
@@ -244,6 +276,7 @@ export function buildSearchResponse(
       offset,
       response_time_ms: responseTimeMs,
       cached,
+      ...(mode != null && { mode_used: mode, mode_used_engine }),
       ...(degraded != null && { degraded }),
       ...(status && { status }),
       ...(hasMore != null && { has_more: hasMore }),

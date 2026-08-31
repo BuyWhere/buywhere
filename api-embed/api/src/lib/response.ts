@@ -27,6 +27,11 @@ export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
   compact: boolean,
+  // BUY-71129 (re-applied): caller context for thread-through attribution. See api version.
+  caller?: {
+    apiKeyId?: string | null;
+    keyHash?: string | null;
+  } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -41,10 +46,21 @@ export function buildProduct(
   // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
   // `affiliate_url` keeps its precomputed wrapper when present.
   const clickUrl = destinationUrl
-    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    ? buildClickUrl({
+        productId,
+        destinationUrl,
+        merchantId: merchant || null,
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const affiliateRedirectUrl = destinationUrl
-    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    ? buildAffiliateRedirectUrl({
+        productId,
+        source: 'product_card',
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
 
   const base: CanonicalProduct = {

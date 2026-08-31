@@ -1,38 +1,28 @@
 import { Pool } from 'pg';
 import { createHash } from 'crypto';
 
-// BUY-52466: switch query + embed-worker paths from Cohere/Jina to Google
-// Gemini `gemini-embedding-001` with `outputDimensionality=512`. Direction
-// per Rich (comment f5773f92 on BUY-52089): the Jina key is INVALID and the
-// previous Cohere spec (BUY-51459) is obsolete. This module is the single
-// call site for both:
-//   - query side:  `embedQuery(q, geminiKey)`  → taskType=RETRIEVAL_QUERY
-//   - index side:  `runEmbedBatch(...)`        → taskType=RETRIEVAL_DOCUMENT
+// BUY-76567: switch from Gemini gemini-embedding-001 (512-dim, $0.15/M) to
+// Flow AI flow-embed-1 (Qwen3-Embedding-4B, 1024-dim, ~$0.02/M).
+// Flow AI is OpenAI-compatible: POST /v1/embeddings with Bearer auth.
+// The existing Gemini-512 vectors are incompatible and preserved in the
+// old `embedding` column; new vectors go into `embedding_v2 vector(1024)`.
 //
-// The function signatures still take a single `apiKey: string` so callers
-// (routes/products.ts, routes/mcp.ts, jobs/embedRunner.ts) only need to
-// change which env var they read.
-//
-// BUY-60368: the previous `runEmbedBatch` issued a single query against
-// `sourceDb` that LEFT JOINed `product_embeddings pe` to filter stale
-// rows. `product_embeddings` only lives in `vectorDb` (vectordb / pgvector),
-// so every 6h tick failed with `42P01 relation "product_embeddings" does
-// not exist`. We now (1) pull the existing `(product_id, text_hash)` set
-// from `vectorDb` once per run and (2) issue a flat `SELECT` against
-// `sourceDb` over a candidate id list, then drop the LEFT JOIN entirely.
-// This is Option A from BUY-60368 (no schema change, no FDW).
+// BUY-60368: hash-gate approach unchanged — load existing hashes from
+// vectorDb, filter stale candidates, embed only changed/new products.
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001';
-const MODEL_VER      = 'gemini-embedding-001@512';
-const EMBED_DIM      = 512;   // outputDimensionality
-const BATCH_SIZE     = 64;    // BUY-41133 requirement: batch size 64 per API call
-const MAX_TEXT_CHARS = 8000;  // gemini-embedding-001 input limit is ~2k tokens; ~8k chars safe
+const FLOWAI_EMBED_URL = (process.env.FLOWAI_API_BASE || 'https://api.flowaiapi.com') + '/v1/embeddings';
+const MODEL_VER        = 'flow-embed-1@1024';
+const EMBED_DIM        = 1024;
+const BATCH_SIZE       = 64;    // measured 2026-08-29: Flow AI 400s above 64 strings per call
+const MAX_TEXT_CHARS    = 8000;
 
 export interface EmbedSummary {
   processed: number;
   skipped:   number;
   errors:    number;
   duration_ms: number;
+  /** The updated_at value to save as the watermark for the next tick. Null if the scan reached the end. */
+  nextWatermark: Date | null;
 }
 
 function textHash(title: string, description: string | null): string {
@@ -45,60 +35,68 @@ function truncate(text: string): string {
 }
 
 /**
- * Embed a batch of index-side texts (taskType=RETRIEVAL_DOCUMENT).
- * Uses `batchEmbedContents` so we send a single POST for up to BATCH_SIZE
- * products — fewer round-trips than per-text `embedContents` calls.
- *
- * Gemini auth: the API key is passed as the `key` query parameter
- * (Google's documented pattern for the Generative Language API).
+ * BUY-76567: Embed a batch of index-side texts via Flow AI.
+ * Flow AI uses OpenAI-compatible API: POST /v1/embeddings with Bearer auth.
+ * Supports up to 100 strings per call. Response is sorted by index.
  */
 async function fetchDocumentEmbeddings(texts: string[], apiKey: string): Promise<number[][]> {
-  const url = `${GEMINI_API_URL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
+  const res = await fetch(FLOWAI_EMBED_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      requests: texts.map((text) => ({
-        model: 'models/gemini-embedding-001',
-        content: { parts: [{ text: truncate(text) }] },
-        taskType: 'RETRIEVAL_DOCUMENT',
-        outputDimensionality: EMBED_DIM,
-      })),
+      model: 'flow-embed-1',
+      input: texts.map(truncate),
+      dimensions: EMBED_DIM,
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Gemini API ${res.status}: ${body}`);
+    throw new Error(`Flow AI API ${res.status}: ${body}`);
   }
-  const data = await res.json() as { embeddings: Array<{ values: number[] }> };
-  return data.embeddings.map((e) => e.values);
+  const data = await res.json() as {
+    data: Array<{ index: number; embedding: number[] }>;
+    _flowaiapi?: { cost_usd: number; tokens: number; provider: string };
+  };
+  // Sort by index to guarantee order matches input
+  const sorted = data.data.sort((a, b) => a.index - b.index);
+  if (data._flowaiapi) {
+    console.log(`[embed] Flow AI: ${data._flowaiapi.provider} cost=$${data._flowaiapi.cost_usd.toFixed(8)} tokens=${data._flowaiapi.tokens}`);
+  }
+  return sorted.map((e) => e.embedding);
 }
 
 /**
- * Embed a single query text (taskType=RETRIEVAL_QUERY). Returns a vector
- * string suitable for pgvector's `<=>` cosine-distance operator.
- *
- * Single-text path — Gemini `embedContents` is the documented shape for
- * one input. We still set outputDimensionality=512 to match the index.
+ * BUY-76567: Embed a single query text via Flow AI for search-time use.
+ * Returns a vector string suitable for pgvector (<=> operator).
  */
 async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const url = `${GEMINI_API_URL}:embedContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
+  const res = await fetch(FLOWAI_EMBED_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      model: 'models/gemini-embedding-001',
-      content: { parts: [{ text: truncate(text) }] },
-      taskType: 'RETRIEVAL_QUERY',
-      outputDimensionality: EMBED_DIM,
+      model: 'flow-embed-1',
+      input: [truncate(text)],
+      dimensions: EMBED_DIM,
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Gemini API ${res.status}: ${body}`);
+    throw new Error(`Flow AI API ${res.status}: ${body}`);
   }
-  const data = await res.json() as { embedding: { values: number[] } };
-  return data.embedding.values;
+  const data = await res.json() as {
+    data: Array<{ embedding: number[] }>;
+    _flowaiapi?: { cost_usd: number; tokens: number; provider: string };
+  };
+  if (data._flowaiapi) {
+    console.log(`[embed] Flow AI query: ${data._flowaiapi.provider} cost=$${data._flowaiapi.cost_usd.toFixed(8)} tokens=${data._flowaiapi.tokens}`);
+  }
+  return data.data[0].embedding;
 }
 
 /**
@@ -119,12 +117,26 @@ async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number
 async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   try {
+    // BUY-76567: check embedding_v2 first (new 1024-dim pipeline); fall back
+    // to embedding (old 512-dim) for products not yet migrated.
     const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
-      `SELECT product_id, text_hash FROM product_embeddings`
+      // BUY-76567 fix (2026-08-29): only rows that already carry a 1024-dim
+      // vector count as up to date. The old COALESCE fell back to the Gemini
+      // row's hash, so all 6.4M legacy products were skipped forever and
+      // semantic search could never gain coverage.
+      `SELECT product_id, text_hash FROM product_embeddings WHERE embedding_v2 IS NOT NULL`
     );
     for (const r of rows) out.set(r.product_id, r.text_hash);
   } catch (err) {
-    console.warn('[embed] Could not pre-load vector hashes; treating all products as candidates:', err);
+    // embedding_v2 column may not exist yet; fall back to old column
+    try {
+      const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
+        `SELECT product_id, text_hash FROM product_embeddings`
+      );
+      for (const r of rows) out.set(r.product_id, r.text_hash);
+    } catch (err2) {
+      console.warn('[embed] Could not pre-load vector hashes; treating all products as candidates:', err2);
+    }
   }
   return out;
 }
@@ -133,38 +145,46 @@ async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
  * Embeds up to batchLimit products from the source DB that are missing or stale,
  * writing results to the vector DB. Returns a summary.
  *
+ * BUY-76503 partition sweep: each tick scans ONE country partition, moving
+ * forward through that partition in `updated_at ASC` order. The watermark
+ * (last_updated_at to resume from) is managed by the caller (embedRunner).
+ * This ensures every product is eventually embedded regardless of how stale
+ * its `updated_at` is — the old `ORDER BY updated_at DESC` approach only ever
+ * reached the ~10 products/day that had recently-changed updated_at.
+ *
  * Hash-gate (BUY-60368): we no longer JOIN across DBs. Instead we
  *   1. load `(product_id -> text_hash)` from vectorDb,
  *   2. SELECT up to `batchLimit` candidate products from sourceDb ordered
- *      by updated_at DESC (the recency rule — see BUY-60378 note),
+ *      by updated_at ASC from the watermark,
  *   3. drop candidates whose freshly-computed hash matches the stored
  *      one (price-only updates — ~80% of ingest — never re-embed),
- *   4. if still over budget, take the top N by recency.
+ *   4. if still over budget, take the top N by recency (within this tick).
  *
- * Priority: most-recently-updated products are embedded first. The
- * original "highest price first" rule (BUY-60368) required an index on
- * `(is_active, price)` to be index-scan-eligible on the 154M-row
- * `products` table; that index has been INVALID since a cancelled CIC
- * and the DDL watchdog (BUY-58494) blocks recreating it. Until BUY-58494
- * is unblocked, the planner falls back to a full Seq Scan on `price DESC`
- * and the catalog SELECT 57014's at the 30s/60s statement_timeout,
- * starving the embed-runner for 18+ days. Ordering by `updated_at DESC`
- * uses the existing `idx_products_updated_at` (cost ~0.57 vs ~37M) and
- * is arguably a better priority for embeddings anyway: products with
- * recently-changed `updated_at` are exactly the ones whose embeddings
- * are most likely to be stale or missing.
+ * BUY-76567: Uses Flow AI flow-embed-1 with 1024-dim vectors.
+ * Scope is in-stock and price > 0 only — never full catalog.
  *
- * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
- * taskType=RETRIEVAL_DOCUMENT, batch size 64.
+ * @param sourceDb     Read pool for products (partitioned by country_code)
+ * @param vectorDb     Vector DB pool (product_embeddings lives here)
+ * @param apiKey       Flow AI embedding API key
+ * @param batchLimit   Max products to embed this tick
+ * @param countryCode  Country partition to scan this tick (e.g. 'US'). If
+ *                     omitted, falls back to the old updated_at DESC scan
+ *                     (legacy non-sweep mode — only for the first sweep tick
+ *                     before any watermark exists).
+ * @param watermark    updated_at to scan FROM (ASC). NULL = start from the
+ *                     oldest row in the partition (full backfill).
  */
 export async function runEmbedBatch(
   sourceDb: Pool,
   vectorDb: Pool,
-  apiKey:  string,
+  apiKey:    string,
   batchLimit = 64,
-): Promise<EmbedSummary> {
+  countryCode?: string,
+  watermark?:  Date,
+): Promise<EmbedSummary & { nextWatermark: Date | null }> {
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
+  let nextWatermark: Date | null = null;
 
   // Pull the existing hash set from vectorDb. Failure is non-fatal: we
   // fall back to "every candidate is unembedded" rather than aborting
@@ -172,75 +192,98 @@ export async function runEmbedBatch(
   const vectorHashes = await loadVectorHashes(vectorDb);
   console.log(`[embed] Loaded ${vectorHashes.size} existing embeddings from vectordb`);
 
-  // BUY-60368: sourceDb only has `products`, so the SELECT is now flat.
-  // We overscan by a small factor so the in-JS hash gate has enough
-  // candidates to fill `batchLimit` after skipping stale rows.
-  //
-  // BUY-60378/BUY-60446: the flat `ORDER BY price DESC` SELECT hit a full
-  // Seq Scan on the 154M-row products table and 57014'd at the statement
-  // timeout on the replica. The intended `idx_products_is_active_price`
-  // index is INVALID (a CIC was cancelled mid-build and the DDL watchdog
-  // blocks new CIC builds — see BUY-58494). Without that index the
-  // planner has no entry point for `WHERE is_active=true ORDER BY price DESC`
-  // and falls back to a Seq Scan (~37M cost, ~3 min wall clock).
-  //
-  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`,
-  // which uses the EXISTING and VALID `idx_products_updated_at` (3.4 GB
-  // btree). EXPLAIN (VERBOSE, BUFFERS) against the production maglev
-  // replica shows:
-  //   Limit (cost=0.57..91.25 rows=128 width=16)
-  //     -> Index Scan using idx_products_updated_at
-  //        Filter: products.is_active
-  // followed by Index Scan using products_pkey (~2.79 cost per row).
-  // Total ~449, sub-second wall clock.
-  //
-  // Trade-off: the priority rule is now "most-recently-updated first"
-  // (often = "most likely to have stale embeddings") instead of
-  // "highest-value first". After 18 days of zero embeddings this is a
-  // defensible recovery order.
-  const overscan = Math.max(batchLimit * 2, 64);
-  const { rows: candidates } = await sourceDb.query<{
-    id: string;
-    title: string;
-    description: string | null;
-    price: number | null;
-  }>(
-    `SELECT id, title, description, price
-     FROM products
-     WHERE is_active = true
-       AND price IS NOT NULL
-     ORDER BY updated_at DESC
-     LIMIT $1`,
-    [overscan]
-  );
+  let candidates: Array<{ id: string; title: string; description: string | null; price: number | null; updated_at: Date }>;
+
+  if (countryCode) {
+    // BUY-76503: partition-sweep path.
+    // Scan ONE country partition in updated_at ASC order, starting from watermark.
+    // watermark NULL → no lower bound (full backfill from oldest row).
+    //
+    // SCAN_LIMIT vs BATCH_LIMIT: we scan many more rows than we embed to advance
+    // the watermark quickly past already-embedded / uninteresting products.
+    // The hash-gate filters candidates after the scan; only the top
+    // `batchLimit` by recency within the scan window get embedded.
+    const scanLimit = parseInt(process.env.EMBED_SCAN_LIMIT ?? String(Math.max(batchLimit * 10, 1000)), 10);
+    const watermarkCondition = watermark
+      ? 'AND p.updated_at > $2'
+      : '';
+    const params = watermark
+      ? [countryCode, watermark, scanLimit]
+      : [countryCode, scanLimit];
+    const paramIdx = watermark ? 3 : 2;
+
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; price: number | null; updated_at: Date;
+    }>(
+      `SELECT p.id, p.title, p.description, p.price, p.updated_at
+       FROM products_partitioned p
+       WHERE p.country_code = $1
+         AND p.is_active = true
+         AND p.price > 0
+         AND p.in_stock IS DISTINCT FROM false
+         ${watermarkCondition}
+       ORDER BY p.updated_at ASC
+       LIMIT $${paramIdx}`,
+      params
+    );
+    candidates = rows;
+
+    // Track the watermark to resume from: the updated_at of the last candidate.
+    // If we got fewer rows than batchLimit, we've reached the end of this
+    // partition — the next tick will get 0 rows and the runner will advance.
+    if (candidates.length > 0) {
+      nextWatermark = candidates[candidates.length - 1].updated_at;
+    }
+  } else {
+    // Legacy fallback: full-table updated_at DESC scan (pre-BUY-76503 behavior).
+    // Only used when no countryCode is provided.
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; price: number | null;
+    }>(
+      `SELECT id, title, description, price
+       FROM products
+       WHERE is_active = true
+         AND price > 0
+         AND in_stock IS DISTINCT FROM false
+       ORDER BY updated_at DESC
+       LIMIT $1`,
+      [batchLimit]
+    );
+    candidates = rows.map(r => ({ ...r, updated_at: new Date() }));
+  }
 
   if (candidates.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
 
   // Hash-gate filter (mirrors the original LEFT JOIN semantics):
   //   - product not in vectorDb           → embed
   //   - product in vectorDb with same hash → skip (price-only update)
   //   - product in vectorDb with diff hash → embed
-  const products: typeof candidates = [];
+  //
+  // BUY-76503 sweep: scan ALL candidates before deciding which to embed.
+  // The watermark must advance by the full scan window each tick — not stop
+  // early when the first `batchLimit` candidates are hash-matches.
+  // We embed the first `batchLimit` candidates that pass the gate; the rest
+  // get scanned but deferred to next tick (hash gate will skip them then too).
+  const toEmbed: typeof candidates = [];
   for (const p of candidates) {
     const fresh = textHash(p.title, p.description);
     const stored = vectorHashes.get(p.id);
     if (stored === undefined) {
-      products.push(p); // not yet embedded
+      if (toEmbed.length < batchLimit) toEmbed.push(p); // not yet embedded
     } else if (stored !== fresh) {
-      products.push(p); // text changed
+      if (toEmbed.length < batchLimit) toEmbed.push(p); // text changed
     } else {
       skipped += 1;
-      if (products.length >= batchLimit) break;
     }
-    if (products.length >= batchLimit) break;
   }
+  const products = toEmbed;
 
   if (products.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
 
   console.log(
@@ -257,14 +300,14 @@ export async function runEmbedBatch(
     try {
       embeddings = await fetchDocumentEmbeddings(texts, apiKey);
     } catch (err) {
-      console.error(`[embed] Gemini API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+      console.error(`[embed] Flow AI API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
       errors += batch.length;
       continue;
     }
 
     if (embeddings.length !== batch.length) {
       console.error(
-        `[embed] Gemini returned ${embeddings.length} vectors for batch of ${batch.length} — skipping`
+        `[embed] Flow AI returned ${embeddings.length} vectors for batch of ${batch.length} — skipping`
       );
       errors += batch.length;
       continue;
@@ -275,15 +318,19 @@ export async function runEmbedBatch(
       await client.query('BEGIN');
       for (let j = 0; j < batch.length; j++) {
         const vectorStr = `[${embeddings[j].join(',')}]`;
+        // BUY-76567: write to embedding_v2 (1024-dim), never touch embedding (512-dim)
+        // ON CONFLICT updates embedding_v2 + text_hash + model_ver + embedded_at.
+        // The old 512-dim `embedding` column is preserved for rollback safety.
         await client.query(
-          `INSERT INTO product_embeddings (product_id, embedding, text_hash, model_ver)
-           VALUES ($1, $2::vector, $3, $4)
+          `INSERT INTO product_embeddings (product_id, embedding_v2, text_hash, model_ver, embedded_at)
+           VALUES ($1, $2::vector, $3, $4, now())
            ON CONFLICT (product_id) DO UPDATE
-             SET embedding   = EXCLUDED.embedding,
-                 text_hash   = EXCLUDED.text_hash,
-                 model_ver   = EXCLUDED.model_ver,
-                 embedded_at = now()
-           WHERE product_embeddings.text_hash != EXCLUDED.text_hash`,
+             SET embedding_v2 = EXCLUDED.embedding_v2,
+                 text_hash    = EXCLUDED.text_hash,
+                 model_ver    = EXCLUDED.model_ver,
+                 embedded_at  = now()
+           WHERE product_embeddings.text_hash != EXCLUDED.text_hash
+              OR product_embeddings.model_ver != EXCLUDED.model_ver`,
           [batch[j].id, vectorStr, hashes[j], MODEL_VER]
         );
       }
@@ -306,14 +353,12 @@ export async function runEmbedBatch(
   console.log(
     `[embed] Done — processed=${processed} skipped=${skipped} errors=${errors} in ${(duration / 1000).toFixed(1)}s`
   );
-  return { processed, skipped, errors, duration_ms: duration };
+  return { processed, skipped, errors, duration_ms: duration, nextWatermark };
 }
 
 /**
- * Embed a single query text for search-time use (taskType=RETRIEVAL_QUERY).
+ * BUY-76567: Embed a single query text for search-time use via Flow AI.
  * Returns a vector string suitable for pgvector (<=> operator).
- *
- * BUY-52466: switched from Cohere/Jina to Google gemini-embedding-001.
  */
 export async function embedQuery(query: string, apiKey: string): Promise<string> {
   const values = await fetchQueryEmbedding(query, apiKey);

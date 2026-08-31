@@ -51,7 +51,7 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or FLOWAI_EMBED_API_KEY unavailable.', default: 'hybrid' },
       },
     },
   },
@@ -215,8 +215,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
   const mode = (args.mode as string) || 'hybrid';
-  const geminiKey = process.env.GEMINI_API_KEY ?? '';
-  const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
+  const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+  const useVector = vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const normalizedMarket = normalizeCountryAndRegion(args);
   const region = normalizedMarket.region;
@@ -309,17 +309,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       total = parseInt(countResult.rows[0].count, 10);
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
-      // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
+      // Hybrid and semantic paths embed the query via Flow AI, query the vector DB
       // separately, then merge in application code (two separate PG instances).
       if (useVector) {
         // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
         let queryVec: string | null = null;
         try {
-          const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
+          const embedKey = `qembed:flow-embed-1@1024:${Buffer.from(q).toString('base64').slice(0, 48)}`;
           queryVec = await recordQueryCacheLookup(redis, embedKey, () => redis.get(embedKey));
           if (!queryVec) {
-            queryVec = await embedQuery(q, geminiKey);
-            await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
+            queryVec = await embedQuery(q, flowAiKey);
+            await redis.set(embedKey, queryVec, 'EX', 3600).catch(() => {});
           }
         } catch (embedErr) {
           console.warn('[search] embed query failed, falling back to FTS:', (embedErr as Error).message);
@@ -333,8 +333,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
+               WHERE model_ver = 'flow-embed-1@1024'
+               ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
               [queryVec]
             );
             candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
@@ -348,8 +348,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                 WHERE model_ver = 'flow-embed-1@1024'
+                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
                 [queryVec]
               ),
             ]);
@@ -542,7 +542,20 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  // BUY-77178: category filter — BUY-77834 fix
+  // The prior `LOWER(category) = $N` exact-match against the single text column
+  // never matched slug-style input like "home_and_kitchen" / "sports_and_outdoors"
+  // / "video_games" — those names don't exist verbatim in `category`. The index
+  // walk then burned the full 10s statement_timeout returning 0 rows and surfaced
+  // category_recognized:false to agents. Mirroring search_products: keep the SQL
+  // WHERE untouched (so the deals index walk is bounded), and apply the category
+  // filter as a post-fetch ILIKE on the bounded candidate set against both
+  // `category` text AND `category_path[1]`. LIKE wildcards make slug input
+  // ("home_and_kitchen") still match real names like "home & kitchen".
+  const category = (args.category as string || '').trim();
+  const categoryLower = category.toLowerCase();
+
+  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${category}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -584,7 +597,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
@@ -624,9 +636,28 @@ async function handleGetDeals(args: Record<string, unknown>) {
       [...params, limit, offset]
     );
     total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
+    // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
+    // WHERE was kept category-free so the deals index walk stays bounded. Match
+    // caller input against `category` text AND `category_path[1]` so slug-style
+    // names ("home_and_kitchen") still match real names ("Home & Kitchen" via
+    // category_path[1] — list_categories feeds from this column on SG). LIKE
+    // wildcard gives a forgiving match.
+    if (categoryLower) {
+      const rawRows = dataResult.rows as Record<string, unknown>[];
+      const matched = rawRows.filter((r) => {
+        const catText = ((r.category as string) || '').toLowerCase();
+        const catPath = ((r.category_path as unknown[]) || [])
+          .map((v) => String(v).toLowerCase())
+          .join(' ');
+        return catText.includes(categoryLower) || catPath.includes(categoryLower);
+      });
+      products = matched.map((r) => buildProduct(r, currency, false));
+      total = matched.length;
+    } else {
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -638,6 +669,20 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // so callers can distinguish "no live deals" from "server bug".
   if ((region || country) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
+  }
+  // BUY-77834: surface the category_recognized signal when the caller passed
+  // a category filter. The post-fetch filter is now bounded (no more 30s walks),
+  // so we can reliably report whether the category had ANY rows.
+  if (categoryLower && products.length === 0) {
+    (result as { meta?: Record<string, unknown> }).meta = {
+      ...((result as { meta?: Record<string, unknown> }).meta || {}),
+      emptiness_reason: 'category_unsupported',
+      confidence: 'low',
+      diagnostic: {
+        category_recognized: false,
+        timed_out_stage: null,
+      },
+    };
   }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
@@ -1176,8 +1221,8 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let refResult;
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings
-       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
+      `SELECT embedding_v2::text AS embedding FROM product_embeddings
+       WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`,
       [productId]
     );
   } catch {
@@ -1193,10 +1238,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding <=> $1::vector)::float AS distance
+      `SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
        FROM product_embeddings
-       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
-       ORDER BY distance LIMIT $3`,
+       WHERE product_id != $2 AND model_ver = 'flow-embed-1@1024'
+       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`,
       [refEmbedding, productId, limit]
     );
   } catch {

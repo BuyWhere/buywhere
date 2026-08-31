@@ -36,7 +36,7 @@ import { db, redis } from './config';
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
-MCP: https://api.buywhere.ai/mcp/sse
+MCP: https://api.buywhere.ai/mcp
 A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs

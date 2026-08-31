@@ -1,10 +1,12 @@
 import { ProductGridCard } from "@/components/seo/ProductGridCard";
+import { SeoAnswerBlock } from "@/components/seo/SeoAnswerBlock";
 import { SeoLandingStickyAnchor } from "@/components/seo/SeoLandingStickyAnchor";
 import { SeoLivePricesSnippet } from "@/components/seo/SeoLivePricesSnippet";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import {
+  buildAnswerBlock,
   buildSeoLandingSchema,
   getSeoLandingProducts,
   resolveHeroTitle,
@@ -195,6 +197,13 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
   const schema = buildSeoLandingSchema(config, products, checked.iso);
 
+  // BUY-74928 [OPENAI-CHANNEL]: 40-60-word plain-text answer block above the
+  // fold. Built from the same live products the price table renders, and the
+  // "Prices checked <date>" mirrors the JSON-LD dateModified exactly
+  // (directive §5). Returns null when the live catalog has fewer than 2 priced
+  // offers — we never invent a "next retailer" or a delta.
+  const answerBlock = buildAnswerBlock(config, products, checked);
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
       <Nav />
@@ -204,6 +213,52 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
       />
 
       <main id="main-content" className="flex-1">
+        {/* BUY-74928: answer block FIRST in DOM order (4seen OAI-SearchBot
+            checklist item 1) — before nav-heavy markup, the price table, the
+            verdict sentence, and FAQs. Plain text, server-side rendered,
+            visible to crawlers that don't run JS. */}
+        {answerBlock && (
+          <SeoAnswerBlock
+            block={answerBlock}
+            intent={`${config.searchQuery} in ${config.country}`}
+          />
+        )}
+
+        {/* BUY-77662: product grid appears ABOVE the hero CTA so buy links are
+            above the fold. Moved before the hero section. */}
+        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
+                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+              </div>
+              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+                Open full search
+              </Link>
+            </div>
+
+            {/* BUY-77662: when the live catalog returns nothing, render
+                config.fallbackProducts (curated editorial picks) so product cards
+                are always visible above the fold. Only show the empty-state message
+                when both live products AND fallback products are unavailable. */}
+            {products.length === 0 && !config.fallbackProducts?.length ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
+                <p className="text-slate-600">
+                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
+                </p>
+              </div>
+            ) : (
+              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+                {(products.length > 0 ? products : (config.fallbackProducts ?? [])).map((product) => (
+                  // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
+                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
@@ -217,7 +272,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {config.heroBody}
               </p>
               <ul
-                className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100"
+                className="mt-8 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-slate-100"
                 aria-label="Page metadata"
                 data-ssr-prices-checked={checked.iso}
               >
@@ -274,34 +329,6 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         </section>
 
         <SeoLandingStickyAnchor />
-
-        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
-                <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
-              </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
-                Open full search
-              </Link>
-            </div>
-
-            {products.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
-                <p className="text-slate-600">
-                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
-                </p>
-              </div>
-            ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {products.map((product) => (
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">

@@ -48,6 +48,78 @@ const PAPERCLIP_API_URLS = [...new Set([
         ...PAPERCLIP_API_URL_FALLBACKS,
     ])];
 const JWT_CACHE_TTL_SECONDS = 300;
+// BUY-77823: server-to-server shared-secret bypass. When BuyWhere first-party
+// callers (buywhere-site SSR for intent pages, internal jobs) cannot present a
+// stored api_keys row, they present `Authorization: Bearer <BUYWHERE_INTERNAL_API_KEY>`.
+// The env var is a single long-lived secret rotated via Railway. Without this
+// bypass, intent pages render empty (SSR fetches `/api/v1/products/search`
+// server-side with no key) — see BUY-77823 SEV-1. The bypass:
+//   - only matches when the env var is set (default = bypass disabled)
+//   - uses timingSafeEqual on equal-length buffers
+//   - is rate-limited per process (1 token bucket; RPM=600, daily=1M) to
+//     prevent external abuse if the secret leaks
+//   - does NOT expose any DB row — apiKeyRecord is synthetic but counted in usage
+//     tables so dashboards still see the call volume
+const INTERNAL_API_KEY = process.env.BUYWHERE_INTERNAL_API_KEY || '';
+const INTERNAL_RPM = 600;
+const INTERNAL_DAILY = 1000000;
+const internalTokenBucket = new Map();
+const internalDailyBucket = new Map();
+function nextMidnightUTCInternal() {
+    const d = new Date();
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0));
+}
+function checkInternalRateLimit(key) {
+    const now = Date.now();
+    const minuteKey = Math.floor(now / 60000);
+    const dayKey = Math.floor(now.valueOf() / (24 * 60 * 60 * 1000));
+    const m = internalTokenBucket.get(`${key}:${minuteKey}`);
+    if (!m)
+        internalTokenBucket.set(`${key}:${minuteKey}`, { count: 1, resetAt: minuteKey * 60000 + 60000 });
+    else {
+        m.count++;
+        if (m.count > INTERNAL_RPM)
+            return false;
+    }
+    const d = internalDailyBucket.get(`${key}:${dayKey}`);
+    if (!d)
+        internalDailyBucket.set(`${key}:${dayKey}`, { count: 1, resetAt: nextMidnightUTCInternal().getTime() });
+    else {
+        d.count++;
+        if (d.count > INTERNAL_DAILY)
+            return false;
+    }
+    return true;
+}
+function matchesInternalKey(candidate) {
+    if (!INTERNAL_API_KEY)
+        return false;
+    if (candidate.length !== INTERNAL_API_KEY.length)
+        return false;
+    try {
+        const a = new Uint8Array(Buffer.from(candidate, 'utf8'));
+        const b = new Uint8Array(Buffer.from(INTERNAL_API_KEY, 'utf8'));
+        return (0, crypto_1.timingSafeEqual)(a, b);
+    }
+    catch {
+        return false;
+    }
+}
+function attachInternalApiKeyRecord(req, key) {
+    req.apiKeyRecord = {
+        id: '__internal__',
+        key,
+        agentName: 'buywhere-internal',
+        tier: 'enterprise',
+        rpmLimit: INTERNAL_RPM,
+        dailyLimit: INTERNAL_DAILY,
+        signupChannel: 'internal',
+        attributionSource: 'internal',
+        isInternal: true,
+        dailyRequestCount: 0,
+        dailyResetAt: nextMidnightUTCInternal(),
+    };
+}
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
@@ -256,6 +328,19 @@ async function requireApiKey(req, res, next) {
         });
         return;
     }
+    // BUY-77823: server-to-server shared-secret bypass (env-gated). Matched BEFORE
+    // any DB lookup so an expired/disabled key check is irrelevant. The bypass is
+    // intentionally rate-limited (in-process) so a leaked secret does not unmeter
+    // the entire public catalog.
+    if (matchesInternalKey(key)) {
+        if (!checkInternalRateLimit('__internal__')) {
+            (0, errors_2.sendSpecError)(res, 'rate_limited', 'Internal key rate limit exceeded', 429);
+            return;
+        }
+        attachInternalApiKeyRecord(req, key);
+        next();
+        return;
+    }
     // OAuth M2 (2026-08-22): opaque access tokens resolve to their linked api_keys
     // row, so every downstream limit/accounting path applies unchanged.
     if (key.startsWith('bwoat_')) {
@@ -459,12 +544,19 @@ async function checkRateLimit(req, res, next) {
     const rpmKey = `rl:rpm:${key}:${minuteWindow}`;
     let rpmCount;
     try {
-        rpmCount = await config_1.redis.incr(rpmKey);
+        // BUY-77920: wrap Redis incr in a 500ms timeout so a slow/ unreachable Redis
+        // does not block the entire request chain. On timeout the rate-limit check is
+        // skipped (lenient — better to serve the request than 500 a valid caller).
+        const incrResult = await Promise.race([
+            config_1.redis.incr(rpmKey),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('redis-timeout')), 500)),
+        ]);
+        rpmCount = incrResult;
         if (rpmCount === 1)
             config_1.redis.expire(rpmKey, 120).catch(() => { });
     }
     catch (_err) {
-        console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
+        console.warn('[rate-limit] Redis unavailable or timed out, skipping rate limit check:', _err.message);
         next();
         return;
     }

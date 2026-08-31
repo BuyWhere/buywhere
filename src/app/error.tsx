@@ -20,7 +20,7 @@ export default function Error({
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main id="main-content" className="flex-1 flex items-center justify-center px-4 py-16">
+      <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-16">
         <div className="max-w-lg text-center">
           <div className="mb-10">
             <svg
@@ -75,11 +75,9 @@ export default function Error({
             </ul>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
             <Button onClick={reset}>Try again</Button>
-            <Link href="/">
-              <Button variant="secondary">Go home</Button>
-            </Link>
+            <Button href="/" variant="secondary">Go home</Button>
           </div>
         </div>
       </main>

@@ -9,8 +9,7 @@ const AI_AGENT_DESCRIPTOR = {
   description: 'Agent-native product catalog API — 300M+ products, 900,000+ direct merchants worldwide, location-aware deliver_to ranking',
   version: '1.0',
   protocols: {
-    mcp: 'https://api.buywhere.ai/mcp/sse',
-    a2a: 'https://api.buywhere.ai/.well-known/agent.json',
+    mcp: 'https://api.buywhere.ai/mcp',
     rest: 'https://api.buywhere.ai/v1',
   },
   auth: {
@@ -96,11 +95,7 @@ const A2A_AGENT_CARD = {
       serverUrl: 'https://api.buywhere.ai/mcp',
       transport: 'streamable-http',
       notes:
-        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
+        'Canonical MCP endpoint: JSON-RPC over HTTP POST (Streamable HTTP).',
     },
     rest: {
       serverUrl: 'https://api.buywhere.ai/v1',
@@ -284,20 +279,87 @@ export function sendOpenApiSpec(res: Response) {
           operationId: 'searchProducts',
           security: [{ BearerAuth: [] }],
           parameters: [
-            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Keyword search query (full-text)' },
+            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Keyword search query (full-text). Alias: query.' },
+            { name: 'query', in: 'query', schema: { type: 'string' }, description: 'Alias for q (accepted for agent convenience; prefer q).' },
+            { name: 'deliver_to', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'ID', 'PH'] }, description: 'REQUIRED for buyer-facing use: ISO-3166 country of the end user (e.g. "SG", "US"). Ranks deliverable products first and prevents all-market scans. Prefer over country_code.' },
             { name: 'domain', in: 'query', schema: { type: 'string' }, description: 'Filter by merchant platform (e.g. lazada, shopee)' },
             { name: 'region', in: 'query', schema: { type: 'string' }, description: 'Filter by region (sea, us, eu, au)' },
             { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'Filter by ISO country code. When provided without an explicit `currency` param, the default currency is inferred (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR). `min_price`/`max_price` apply in the inferred currency. Default: SG.' },
+            { name: 'include_unshippable', in: 'query', schema: { type: 'boolean', default: true }, description: 'Include products not deliverable to deliver_to country (default true). Set to false to return only same-country products.' },
             { name: 'min_price', in: 'query', schema: { type: 'number' }, description: 'Minimum price in the active currency (inferred from country_code or explicit currency param)' },
             { name: 'max_price', in: 'query', schema: { type: 'number' }, description: 'Maximum price in the active currency (inferred from country_code or explicit currency param)' },
             { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' }, description: 'Explicit currency override. If omitted and country_code is set, currency is inferred from country_code.' },
-            { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents (id, title, price, currency, url, specs)' },
+            { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents. Adds normalized_price_usd field. Reduces response ~40%.' },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
             { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
             { name: 'mode', in: 'query', schema: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'keyword' }, description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `semantic` uses the Jina v3 query embedding against the pgvector pool, and `hybrid` RRF-merges the FTS and semantic candidate ranks. If vector infrastructure is unavailable, `semantic` and `hybrid` fall back to the keyword path.' },
           ],
           responses: {
-            '200': { description: 'Product list with meta (total, response_time_ms, cached, mode)' },
+            '200': {
+              description: 'Product list with meta (total, response_time_ms, cached, mode)',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      data: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', format: 'uuid', description: 'Unique product identifier' },
+                            title: { type: 'string', description: 'Product title' },
+                            price: { type: 'object', properties: { amount: { type: 'number' }, currency: { type: 'string' } }, description: 'Current price object' },
+                            merchant: { type: 'string', description: 'Merchant slug' },
+                            url: { type: 'string', format: 'uri', description: 'Product page URL' },
+                            image_url: { type: 'string', format: 'uri', description: 'Product image URL' },
+                            country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'ISO country code' },
+                            category_path: { type: 'array', items: { type: 'string' }, description: 'Category hierarchy' },
+                            updated_at: { type: 'string', format: 'date-time' },
+                            click_url: { type: 'string', format: 'uri', description: 'BuyWhere tracked click URL' },
+                            affiliate_disclosure: { type: 'string', description: 'Affiliate disclosure text' },
+                            metadata: { type: 'object', description: 'Additional product metadata' },
+                          },
+                        },
+                      },
+                      meta: {
+                        type: 'object',
+                        properties: {
+                          total: { type: 'integer', description: 'Total matching products (approximate for large catalogs)' },
+                          limit: { type: 'integer', description: 'Items returned per page' },
+                          offset: { type: 'integer', description: 'Pagination offset' },
+                          response_time_ms: { type: 'integer', description: 'Server processing time in milliseconds' },
+                          cached: { type: 'boolean', description: 'Whether this response was served from cache' },
+                          mode_used: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode used' },
+                          mode_used_engine: { type: 'string', description: 'Detailed engine description (e.g. "keyword (fts)")' },
+                          has_more: { type: 'boolean', description: 'Whether more results are available' },
+                          hint: { type: 'string', description: 'Usage guidance for agents (e.g. deliver_to recommendation)' },
+                          degraded: { type: 'boolean', description: 'Whether the response is degraded due to upstream issues' },
+                          status: { type: 'string', enum: ['ok', 'degraded'], description: 'Response status' },
+                          emptiness_reason: { type: 'string', description: 'Why results are empty (e.g. timeout, no_match)' },
+                          confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Result confidence' },
+                          diagnostic: {
+                            type: 'object',
+                            properties: {
+                              engine_status: { type: 'string' },
+                              indexed_for_region: { type: 'boolean' },
+                              category_recognized: { type: 'boolean' },
+                              timed_out_stage: { type: 'string', description: 'Stage that timed out (catalog_search, offer_aggregation)' },
+                              deliver_to_present: { type: 'boolean' },
+                              rate_limit_remaining: { type: ['integer', 'null'] },
+                            },
+                          },
+                          degraded_kind: { type: 'string', description: 'Type of degradation (timeout, api_error, auth_failure)' },
+                          degraded_reason: { type: 'string', description: 'Human-readable degradation reason' },
+                          deliver_to: { type: 'string', description: 'Buyer delivery country used for ranking' },
+                          deliver_to_inferred: { type: 'boolean', description: 'Whether deliver_to was inferred from country_code' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             '401': { description: 'Missing or invalid API key' },
             '429': { description: 'Rate limit exceeded' },
           },
@@ -317,6 +379,27 @@ export function sendOpenApiSpec(res: Response) {
           ],
           responses: {
             '200': { description: 'Discounted products with price, original_price, and discount_pct' },
+            '401': { description: 'Missing or invalid API key' },
+          },
+        },
+      },
+      // BUY-77195: documented as /v1/featured for backward compat (also reachable at /v1/products/featured)
+      '/featured': {
+        get: {
+          summary: 'Get featured products (newest active products)',
+          operationId: 'getFeatured',
+          security: [{ BearerAuth: [] }],
+          description: 'Returns the most recently added active products, ordered by product ID descending. Alias: /v1/products/featured.',
+          parameters: [
+            { name: 'country', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter (alias: country_code). Default: SG.' },
+            { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter. Default: SG.' },
+            { name: 'currency', in: 'query', schema: { type: 'string' }, description: 'Currency filter. Inferred from country_code if omitted.' },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 12, maximum: 50 } },
+            { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+            { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents.' },
+          ],
+          responses: {
+            '200': { description: 'Featured product list' },
             '401': { description: 'Missing or invalid API key' },
           },
         },
@@ -361,6 +444,22 @@ export function sendOpenApiSpec(res: Response) {
           ],
           responses: {
             '200': { description: 'Price history with min/max/avg stats' },
+            '404': { description: 'Product not found' },
+          },
+        },
+      },
+      '/products/{id}/similar': {
+        get: {
+          summary: 'Find similar products by embedding similarity',
+          operationId: 'findSimilarProducts',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'UUID of the source product' },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10, minimum: 1, maximum: 20 }, description: 'Number of similar products to return' },
+          ],
+          responses: {
+            '200': { description: 'Array of similar products with similarity scores' },
+            '400': { description: 'Invalid product id' },
             '404': { description: 'Product not found' },
           },
         },
@@ -424,15 +523,15 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
     servers: [
       {
         url: 'https://api.buywhere.ai/mcp',
-        description: 'Production MCP endpoint (Streamable HTTP + SSE)',
-        transport: ['streamable-http', 'sse'],
+        description: 'Production MCP endpoint (Streamable HTTP)',
+        transport: ['streamable-http'],
       },
     ],
     tools: [
       { name: 'search_products', description: 'Full-text product search with price, category, merchant, region, and rating filters across 300M+ products from 20+ e-commerce platforms. Supports multiple currencies and compact JSON mode for AI agents.', inputSchema: { type: 'object', properties: { q: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, currency: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean' } } } },
       { name: 'get_product', description: 'Get a specific product by ID including full details, current price, brand, category, ratings, merchant info, and specifications.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, currency: { type: 'string' } }, required: ['id'] } },
       { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
-      { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
+      { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, category: { type: 'string', description: 'Filter by product category name (e.g. "electronics", "beauty", "fashion")' }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
       { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
       { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'Keyword search query — alias for product_name' }, product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
       { name: 'find_similar', description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.', inputSchema: { type: 'object', required: ['product_id'], properties: { product_id: { type: 'string', description: 'UUID of the source product' }, limit: { type: 'integer', default: 10, description: 'Number of similar products to return (1-10)' } } } },
@@ -440,7 +539,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       { name: 'search_products_v2', description: 'REQUIRED deliver_to. v2 search with shipping-aware ranking. Always pass deliver_to=<ISO country code> for the buyer\'s market. Returns schema.org/Product with structured_specs, comparison_attributes, normalized_price_usd.', inputSchema: { type: 'object', required: ['deliver_to'], properties: { q: { type: 'string' }, domain: { type: 'string' }, region: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code, e.g. "SG", "US")' }, country: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean', default: false }, category: { type: 'string' }, mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'hybrid' } } } },
       { name: 'get_product_v2', description: 'REQUIRED deliver_to. v2 single-product lookup. Returns resolved outbound_url (BuyWhere click-tracked redirect) for the buyer market.', inputSchema: { type: 'object', required: ['id', 'deliver_to'], properties: { id: { type: 'string' }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' } } } },
       { name: 'compare_products_v2', description: 'REQUIRED deliver_to. v2 side-by-side comparison with shipping-aware per-row availability.', inputSchema: { type: 'object', required: ['ids', 'deliver_to'], properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 10 }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' } } } },
-      { name: 'get_deals_v2', description: 'REQUIRED deliver_to. v2 deals lookup. Returns schema.org/Product with per-row availability for the buyer market.', inputSchema: { type: 'object', required: ['deliver_to'], properties: { min_discount: { type: 'number', default: 10 }, currency: { type: 'string', default: 'SGD' }, region: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
+      { name: 'get_deals_v2', description: 'REQUIRED deliver_to. v2 deals lookup. Returns schema.org/Product with per-row availability for the buyer market.', inputSchema: { type: 'object', required: ['deliver_to'], properties: { min_discount: { type: 'number', default: 10 }, category: { type: 'string', description: 'Filter by product category name (e.g. "electronics", "beauty", "fashion")' }, currency: { type: 'string', default: 'SGD' }, region: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
       { name: 'find_best_price_v2', description: 'REQUIRED deliver_to. v2 cheapest-listing lookup. Returns shopping_job_id for multi-merchant price-comparison session resume.', inputSchema: { type: 'object', required: ['deliver_to'], properties: { q: { type: 'string' }, product_name: { type: 'string' }, category: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'] }, deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country (ISO code)' }, country: { type: 'string' }, region: { type: 'string', enum: ['us', 'sea'] } } } },
     ],
     authentication: {

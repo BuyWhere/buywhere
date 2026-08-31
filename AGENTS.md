@@ -1,5 +1,30 @@
 # Fleet Agent Policy — BuyWhere
 
+## GOOGLE CLOUD IS DECOMMISSIONED (2026-08-28 — founder directive, standing rule)
+
+**BuyWhere runs on Railway only.** Google Cloud project `gaia-calendar-488606` (Cloud Run, Cloud SQL
+`buywhere-staging`, Memorystore, Artifact Registry) is being shut down. There is NO GCP production and
+there never will be again.
+
+1. **Never deploy to, create, or repoint anything at Google Cloud.** The workflows
+   `deploy-api-production.yml` (Cloud Run) and `build-on-push.yml` (Artifact Registry) and `deploy/gcp/`
+   have been deleted. Do not recreate them, do not run `gcloud`, do not add `GCP_*` secrets.
+   (Rex triggered the Cloud Run deploy workflow on 26 Aug and again on 28 Aug 07:06 — it fails, and it
+   was never the production deploy.)
+2. **Production deploys are Railway deploys**: `serviceInstanceDeployV2` on the BuyWhere Railway project
+   (see the deploy-railway / deploy-mcp-railway workflows). "production" in a workflow name is not a
+   deploy target — read the file.
+3. **Embeddings resume ONLY under the founder-approved 60-day plan (BUY-76567, 28 Aug 2026).**
+   The old Gemini pipeline is gone for good: the vector table was wiped on 11–12 Aug and re-embedded at
+   7–15x the market rate while nothing consumed it. New rules: ALL embedding calls go through Flow AI —
+   `POST https://api.flowaiapi.com/v1/embeddings`, model `flow-embed-1` (Qwen3-Embedding-4B, 1024-dim),
+   with the dedicated Flow API key Richmond provisions (the budget fence — $10 one-off, $25/month, the key
+   itself refuses over-budget calls); never call DeepInfra/SiliconFlow/Gemini directly for embeddings; scope = in-stock, priced
+   products only; feature first (hybrid search default + product matching), backfill second; nightly
+   pg_dump of product_embeddings to R2; only the embed worker may write to vector-db — never a one-shot
+   service with DSNs attached. No Gemini embedding calls, ever. Read BUY-76567 before touching search.
+
+
 This document is for autonomous agents operating in the BuyWhere repository.
 
 ## API Key Hygiene (BUY-72823 — standing rule)

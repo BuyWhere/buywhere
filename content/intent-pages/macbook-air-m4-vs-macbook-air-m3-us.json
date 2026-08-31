@@ -6,31 +6,94 @@
   "heroTitle": "MacBook Air M4 vs MacBook Air M3 in the US (2026) — which should you buy",
   "heroTitleTemplate": "MacBook Air M4 vs MacBook Air M3 in the US — from {floorPrice} today",
   "heroBody": "Apple launched the MacBook Air M4 in early 2025 with a meaningfully faster CPU, dual external display support and a lower starting price than the M3 Air had at launch, and a year later the M3 Air is still on sale in the US at meaningful discounts next to the M4's stable Apple.com price. For US shoppers the choice usually comes down to four things: whether dual external displays matter for your desk setup, how much you value the multi-core CPU jump for video and code work, whether the M3 Air's clearance or refurb price closes the gap, and whether the Apple Education Store cuts enough off the M4 to make the upgrade automatic. This page pulls the live US listings so you can see both prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the upgrade is worth the money to you in 2026.",
-  "inboundLinks": ["/cheapest-macbook-air-m4-us", "/best-business-laptops-us"],
+  "inboundLinks": [
+    "/cheapest-macbook-air-m4-us",
+    "/best-business-laptops-us"
+  ],
   "canonicalPath": "/macbook-air-m4-vs-macbook-air-m3-us",
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
   "searchQuery": "apple macbook laptop",
-  "backupQueries": ["Apple MacBook Air M4", "MacBook Air M3 13-inch", "MacBook Air M4 15"],
+  "backupQueries": [
+    "Apple MacBook Air M4",
+    "MacBook Air M3 13-inch",
+    "MacBook Air M4 15"
+  ],
   "minPrice": 800,
-  "requiredProductTerms": ["macbook air", "apple", "macbook"],
+  "requiredProductTerms": [
+    "macbook air",
+    "apple",
+    "macbook"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live MacBook Air M4 and M3 prices in the US",
   "comparisonSectionTitle": "MacBook Air M4 vs MacBook Air M3 — at a glance",
-  "comparisonColumns": ["Spec / feature", "MacBook Air M4 (2025)", "MacBook Air M3 (2024)"],
+  "comparisonColumns": [
+    "Spec / feature",
+    "MacBook Air M4 (2025)",
+    "MacBook Air M3 (2024)"
+  ],
   "comparisonRows": [
-    { "label": "CPU and GPU", "values": ["Apple M4, 10-core CPU and 8-core or 10-core GPU options", "Apple M3, 8-core CPU and 8-core or 10-core GPU options"] },
-    { "label": "Memory bandwidth and RAM options", "values": ["8GB / 16GB / 24GB / 32GB unified memory, 120GB/s bandwidth", "8GB / 16GB / 24GB unified memory, 100GB/s bandwidth"] },
-    { "label": "External display support", "values": ["Native dual external displays with the lid open (up to 6K + 5K)", "Single external display with the lid closed (up to 6K); dual requires lid closed"] },
-    { "label": "Battery life (video playback)", "values": ["Up to 18 hours video playback, 15 hours wireless web", "Up to 18 hours video playback, 15 hours wireless web"] },
-    { "label": "Apple Intelligence readiness", "values": ["Full Apple Intelligence support with the M4 Neural Engine", "Apple Intelligence support, slower on the 8GB base RAM configuration"] },
-    { "label": "Starting MSRP at launch", "values": ["US$1,099 (13-inch, M4 10-core, 16GB, 256GB)", "US$1,099 (13-inch, M3 8-core, 8GB, 256GB)"] },
-    { "label": "Typical US floor price in 2026", "values": ["Floor price visible on the live cards above; B&H and Adorama typically hold the lowest everyday price on base configurations", "Clearance and refurb stock at meaningful discounts to M4 list at most US retailers"] },
-    { "label": "Best reason to buy", "values": ["Dual external displays, sustained video and code work, longer support runway, longer useful life if you keep the machine 4+ years", "Value buy for schoolwork, browsing, light photo editing; pick if the M4 price gap does not justify the upgrade for your workload"] }
+    {
+      "label": "CPU and GPU",
+      "values": [
+        "Apple M4, 10-core CPU and 8-core or 10-core GPU options",
+        "Apple M3, 8-core CPU and 8-core or 10-core GPU options"
+      ]
+    },
+    {
+      "label": "Memory bandwidth and RAM options",
+      "values": [
+        "8GB / 16GB / 24GB / 32GB unified memory, 120GB/s bandwidth",
+        "8GB / 16GB / 24GB unified memory, 100GB/s bandwidth"
+      ]
+    },
+    {
+      "label": "External display support",
+      "values": [
+        "Native dual external displays with the lid open (up to 6K + 5K)",
+        "Single external display with the lid closed (up to 6K); dual requires lid closed"
+      ]
+    },
+    {
+      "label": "Battery life (video playback)",
+      "values": [
+        "Up to 18 hours video playback, 15 hours wireless web",
+        "Up to 18 hours video playback, 15 hours wireless web"
+      ]
+    },
+    {
+      "label": "Apple Intelligence readiness",
+      "values": [
+        "Full Apple Intelligence support with the M4 Neural Engine",
+        "Apple Intelligence support, slower on the 8GB base RAM configuration"
+      ]
+    },
+    {
+      "label": "Starting MSRP at launch",
+      "values": [
+        "US$1,099 (13-inch, M4 10-core, 16GB, 256GB)",
+        "US$1,099 (13-inch, M3 8-core, 8GB, 256GB)"
+      ]
+    },
+    {
+      "label": "Typical US floor price in 2026",
+      "values": [
+        "Floor price visible on the live cards above; B&H and Adorama typically hold the lowest everyday price on base configurations",
+        "Clearance and refurb stock at meaningful discounts to M4 list at most US retailers"
+      ]
+    },
+    {
+      "label": "Best reason to buy",
+      "values": [
+        "Dual external displays, sustained video and code work, longer support runway, longer useful life if you keep the machine 4+ years",
+        "Value buy for schoolwork, browsing, light photo editing; pick if the M4 price gap does not justify the upgrade for your workload"
+      ]
+    }
   ],
   "highlightSectionTitle": "What actually changes between the MacBook Air M4 and MacBook Air M3",
   "highlights": [
@@ -92,7 +155,9 @@
     }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-SG": "/macbook-air-m4-vs-macbook-air-m3-singapore" },
+  "hreflangAlternates": {
+    "en-SG": "/macbook-air-m4-vs-macbook-air-m3-singapore"
+  },
   "categoryIntro": {
     "heading": "Why US MacBook Air prices barely move off MSRP",
     "body": "Apple controls MacBook distribution tightly in the US: the official MSRP holds most of the year, and the real M4 vs M3 gap shows up through M3 clearance and refurb pricing at B&H, Adorama, Best Buy and Micro Center, plus Apple Education Store discounts on the M4 for verified students, parents and faculty. Amazon and Best Buy undercut on Prime Day and Black Friday. A static 'M4 vs M3' article goes stale within weeks — the live cards on this page read straight from the catalog."

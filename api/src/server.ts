@@ -6,6 +6,7 @@ import authRouter from './routes/auth';
 import billingRouter from './routes/billing';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
+import brandsRouter from './routes/brands';
 import redirectRouter from './routes/redirect';
 import wellknownRouter, { sendOpenApiSpec } from './routes/wellknown';
 import docsRouter from './routes/docs';
@@ -14,6 +15,7 @@ import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
 import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
+import seoPagesRouter from './routes/seoPages';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
 import revenueRouter from './routes/revenue';
@@ -43,7 +45,7 @@ import { db, redis } from './config';
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
-MCP: https://api.buywhere.ai/mcp/sse
+MCP: https://api.buywhere.ai/mcp
 A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
@@ -243,9 +245,12 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
+  // BUY-77195: backward-compat alias — callers probe /v1/featured instead of /v1/products/featured
+  app.use('/v1/featured', productsRouter);
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
+  app.use('/v1/brand', brandsRouter);
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
   // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.
@@ -259,6 +264,7 @@ export function createApp() {
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/catalog', catalogRouter);
+  app.use('/v1/seo-pages', seoPagesRouter);
   app.use('/v1/keys', keysRouter);
   app.use('/v1/usage', usageRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
@@ -297,13 +303,16 @@ export function createApp() {
   app.use('/v1', clicksRouter);
   // OAuth 2.1 M1 scaffold (docs/oauth-design.md)
   app.use('/v1/oauth', oauthRouter);
-  // RFC 8414 requires root-level discovery; reuse the router's handler path
-  app.use('/', oauthRouter);
-  app.use('/admin', clicksRouter);
 
-  // Affiliate redirect (no /v1 prefix — short URLs)
+  // Affiliate redirect (no /v1 prefix — short URLs). MUST be mounted BEFORE
+  // the root-level catch-all oauth router to avoid intercepting /r/* requests.
   app.use('/r', redirectRouter);
   app.use('/go', redirectRouter);
+
+  // RFC 8414 requires root-level discovery; reuse the router's handler path.
+  // Mounted after /r to avoid catching affiliate redirect requests.
+  app.use('/', oauthRouter);
+  app.use('/admin', clicksRouter);
 
   // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page

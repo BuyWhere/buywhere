@@ -1,5 +1,14 @@
+import path from 'node:path';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  webpack(config) {
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@': path.resolve(process.cwd(), 'src'),
+    };
+    return config;
+  },
   trailingSlash: false,
   skipTrailingSlashRedirect: true,
   // BUY-57565: re-enabled skipTrailingSlashRedirect.  Without it, trailing-slash
@@ -406,6 +415,17 @@ const nextConfig = {
           {
             type: 'host',
             value: 'www.buywhere.ai',
+          },
+        ],
+        missing: [
+          {
+            type: 'header',
+            key: 'rsc',
+            value: '1',
+          },
+          {
+            type: 'query',
+            key: '_rsc',
           },
         ],
         destination: 'https://buywhere.ai/:path*',

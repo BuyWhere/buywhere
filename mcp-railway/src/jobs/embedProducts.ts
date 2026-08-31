@@ -24,6 +24,8 @@ export interface EmbedSummary {
   skipped:   number;
   errors:    number;
   duration_ms: number;
+  /** The updated_at value to save as the watermark for the next tick. Null if the scan reached the end. */
+  nextWatermark: Date | null;
 }
 
 function textHash(title: string, description: string | null): string {
@@ -96,72 +98,102 @@ async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number
  * Embeds up to batchLimit products from the source DB that are missing or stale,
  * writing results to the vector DB. Returns a summary.
  *
+ * BUY-76503 partition sweep: each tick scans ONE country partition, moving
+ * forward through that partition in `updated_at ASC` order. Progress is
+ * tracked via the `nextWatermark` return value, which callers persist to
+ * the `embed_watermark` table so restarts resume where they left off.
+ *
  * Hash-gate: skips products where md5(title+description) matches stored text_hash
  * so price-only updates (~80% of ingest) never re-embed.
  *
- * Priority: highest-value (price DESC) products are embedded first, so the most
- * commercially relevant embeddings are always fresh.
- *
  * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
  * taskType=RETRIEVAL_DOCUMENT, batch size 64.
+ *
+ * @param sourceDb     Read pool for products_partitioned
+ * @param vectorDb     Vector DB pool (product_embeddings lives here)
+ * @param apiKey       Gemini API key
+ * @param batchLimit   Max products to embed this tick
+ * @param countryCode  Country partition to scan this tick (e.g. 'US'). If omitted,
+ *                     falls back to the old `products ORDER BY updated_at DESC` scan.
+ * @param watermark    updated_at to scan FROM (ASC). NULL/undefined = full backfill.
  */
 export async function runEmbedBatch(
   sourceDb: Pool,
   vectorDb: Pool,
-  apiKey:  string,
+  apiKey:    string,
   batchLimit = 64,
-): Promise<EmbedSummary> {
+  countryCode?: string,
+  watermark?:  Date,
+): Promise<EmbedSummary & { nextWatermark: Date | null }> {
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
+  let nextWatermark: Date | null = null;
 
-  // BUY-60368: the LEFT JOIN to product_embeddings was removed because that
-  // table only exists in vectorDb, not sourceDb (catalog replica). The embed
-  // hash-gate comparison now happens after loading candidates.
-  //
-  // BUY-60378: the flat SELECT hit a ~3 min full-scan on the 154M-row
-  // products table, causing 57014 (query_canceled) on the replica.
-  //
-  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`
-  // (no NULLS LAST), which uses the EXISTING and VALID `idx_products_updated_at`
-  // (~3.4 GB btree). Without the missing `idx_products_is_active_price`
-  // covering index, `ORDER BY price DESC` planner falls back to a Seq Scan
-  // (~37M cost, ~3 min wall clock); `updated_at DESC` flips to an Index Scan
-  // (cost ~91) and the CTE/SELECT finishes in well under the 60s
-  // statement_timeout on the replica.
-  const overscan = Math.max(batchLimit * 2, 64);
-  const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
-    `WITH active_ids AS (
-       SELECT id
-       FROM products
-       WHERE is_active = true
-         AND price IS NOT NULL
-       ORDER BY updated_at DESC
-       LIMIT $1
-     )
-     SELECT id FROM active_ids`,
-    [overscan]
-  );
+  let products: Array<{ id: string; title: string; description: string | null; updated_at: Date }>;
 
-  if (candidateIds.length === 0) {
-    console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+  if (countryCode) {
+    // BUY-76503: partition-sweep path — scan ONE partition in updated_at ASC.
+    // Scan many more rows than we embed to advance the watermark quickly past
+    // already-embedded / uninteresting products.
+    const scanLimit = parseInt(process.env.EMBED_SCAN_LIMIT ?? String(Math.max(batchLimit * 10, 1000)), 10);
+    const watermarkCondition = watermark ? 'AND p.updated_at > $2' : '';
+    const params = watermark ? [countryCode, watermark, scanLimit] : [countryCode, scanLimit];
+    const paramIdx = watermark ? 3 : 2;
+
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; updated_at: Date;
+    }>(
+      `SELECT p.id, p.title, p.description, p.updated_at
+       FROM products_partitioned p
+       WHERE p.country_code = $1
+         AND p.is_active = true
+         AND p.price IS NOT NULL
+         ${watermarkCondition}
+       ORDER BY p.updated_at ASC
+       LIMIT $${paramIdx}`,
+      params
+    );
+    products = rows;
+
+    if (products.length > 0) {
+      nextWatermark = products[products.length - 1].updated_at;
+    }
+  } else {
+    // Legacy fallback: full-table updated_at DESC scan.
+    const overscan = Math.max(batchLimit * 2, 64);
+    const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
+      `WITH active_ids AS (
+         SELECT id
+         FROM products
+         WHERE is_active = true
+           AND price IS NOT NULL
+         ORDER BY updated_at DESC
+         LIMIT $1
+       )
+       SELECT id FROM active_ids`,
+      [overscan]
+    );
+
+    if (candidateIds.length === 0) {
+      console.log('[embed] Nothing to embed this run');
+      return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
+    }
+
+    const ids = candidateIds.map(c => c.id);
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null;
+    }>(
+      `SELECT p.id, p.title, p.description
+       FROM products p
+       WHERE p.id = ANY($1::text[])`,
+      [ids]
+    );
+    products = rows.map(r => ({ ...r, updated_at: new Date() }));
   }
-
-  const ids = candidateIds.map(c => c.id);
-  const { rows: products } = await sourceDb.query<{
-    id: string;
-    title: string;
-    description: string | null;
-  }>(
-    `SELECT p.id, p.title, p.description
-     FROM products p
-     WHERE p.id = ANY($1::text[])`,
-    [ids]
-  );
 
   if (products.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
 
   console.log(`[embed] ${products.length} products to embed in batches of ${BATCH_SIZE}`);
@@ -224,7 +256,7 @@ export async function runEmbedBatch(
   console.log(
     `[embed] Done — processed=${processed} skipped=${skipped} errors=${errors} in ${(duration / 1000).toFixed(1)}s`
   );
-  return { processed, skipped, errors, duration_ms: duration };
+  return { processed, skipped, errors, duration_ms: duration, nextWatermark };
 }
 
 /**

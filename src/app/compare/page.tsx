@@ -13,6 +13,7 @@ import {
   parseIdsParam,
   sortComparisonOffers,
 } from "@/lib/compare-page";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 import { CompareProductsGrid, type CompareProduct } from "@/components/compare/CompareProductsGrid";
 import { getFreshnessTier } from "@/lib/freshness";
@@ -304,6 +305,81 @@ function ComparisonSearchForm({
         Compare by search query or direct product IDs. We sort results by the cheapest available offer first.
       </p>
     </form>
+  );
+}
+
+function ComparisonAnswerBlock({
+  offers,
+  intent,
+}: {
+  offers: ComparisonOffer[];
+  intent: string;
+}) {
+  // BUY-74928 [OPENAI-CHANNEL]: same 40-60-word verdict block on the live /compare
+  // surface as the intent pages. Built from the same `offers` array the visible
+  // table renders. Skip when fewer than two distinct priced merchants — the
+  // indexation directive (§1C) forbids inventing a "next retailer" or a delta.
+  const machineDate = new Date();
+  const isoDate = machineDate.toISOString();
+  const checkedDateText = machineDate.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const byMerchant = new Map<string, { merchant: string; price: number; currency: string }>();
+  for (const offer of offers) {
+    if (offer.price === null || offer.price === undefined) continue;
+    const numeric = Number(offer.price);
+    if (!Number.isFinite(numeric) || numeric <= 0) continue;
+    const merchantKey = stripMerchantTenantSuffix(offer.merchant).toLowerCase();
+    if (!merchantKey) continue;
+    const existing = byMerchant.get(merchantKey);
+    if (!existing || numeric < existing.price) {
+      byMerchant.set(merchantKey, {
+        merchant: stripMerchantTenantSuffix(offer.merchant),
+        price: numeric,
+        currency: offer.currency || "USD",
+      });
+    }
+  }
+  const ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
+
+  if (ranked.length < 2) return null;
+
+  const cheapest = ranked[0];
+  const next = ranked[1];
+  const delta = next.price - cheapest.price;
+  const retailerCount = ranked.length;
+  const cheapestText = formatOfferPrice(cheapest.price, cheapest.currency);
+  const nextText = formatOfferPrice(next.price, next.currency);
+  const deltaText = formatOfferPrice(delta, cheapest.currency);
+
+  const verdict = `The cheapest ${intent} today is ${cheapestText} at ${cheapest.merchant}, ${deltaText} less than ${next.merchant} (${nextText}).`;
+  const trailing = `Prices checked ${checkedDateText} across ${retailerCount} retailer${retailerCount === 1 ? "" : "s"}.`;
+
+  return (
+    <section
+      aria-label={`Quick answer for ${intent}`}
+      data-answer-block="compare"
+      data-answer-checked={isoDate}
+      data-answer-retailers={retailerCount}
+      className="border-b border-emerald-100 bg-emerald-50 px-4 py-6 sm:px-6"
+    >
+      <div className="mx-auto max-w-6xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-800">
+          Quick answer
+        </p>
+        <p className="answer-block-verdict mt-3 text-2xl font-semibold leading-9 text-slate-900 sm:text-3xl">
+          {verdict} {trailing}
+        </p>
+        <p className="answer-block-checked mt-3 text-sm text-slate-700">
+          Prices checked{" "}
+          <time dateTime={isoDate}>{checkedDateText}</time>
+          {" "}across {retailerCount} retailer{retailerCount === 1 ? "" : "s"}.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -679,6 +755,15 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
       )}
 
       <main id="main-content" tabIndex={-1} className="flex-1">
+        {/* BUY-74928: answer block FIRST in DOM order, before the hero / nav-
+            heavy markup. Only renders on the live-offers surface (when there
+            are priced offers); renders nothing on the empty / homepage. */}
+        {(query || ids.length > 0) && offers.length >= 2 && (
+          <ComparisonAnswerBlock
+            offers={offers}
+            intent={query || `product ${ids.join(", ")}`}
+          />
+        )}
         <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-3xl">

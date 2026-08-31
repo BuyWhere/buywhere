@@ -49,6 +49,8 @@ export function trackApiQuery(event: ApiQueryEvent): void {
 }
 
 export interface AffiliateClickEvent {
+  // BUY-71129 (re-applied): uuid identity first (joins the funnel), hash fallback.
+  apiKeyId?: string | null;
   apiKey: string | null;
   productId: string;
   merchantId: string;
@@ -60,13 +62,14 @@ export function trackAffiliateClick(event: AffiliateClickEvent): void {
   const ph = getClient();
   if (!ph) return;
   ph.capture({
-    distinctId: event.apiKey || 'anonymous',
+    distinctId: event.apiKeyId || event.apiKey || 'anonymous',
     event: 'affiliate_click',
     properties: {
       product_id: event.productId,
       merchant_id: event.merchantId,
       affiliate_link_id: event.affiliateLinkId,
       source: event.source,
+      ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
     },
   });
 }

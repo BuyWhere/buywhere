@@ -82,13 +82,13 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
-async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
+async function getCachedQueryEmbedding(query: string, flowAiKey: string): Promise<string | null> {
   try {
-    const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+    const embedKey = `qembed:flow-embed-1@1024:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
     if (cached) return cached;
-    // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
-    const vector = await embedQuery(query, geminiKey);
+    // BUY-52466: switched from Jina to Flow AI flow-embed-1 (1024-dim).
+    const vector = await embedQuery(query, flowAiKey);
     await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
     return vector;
   } catch (err) {
@@ -870,8 +870,8 @@ router.get(
         }
         return r;
       };
-      const geminiKey = process.env.GEMINI_API_KEY ?? '';
-      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
+      const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && flowAiKey !== ''
         ? vectorDb
         : null;
 
@@ -890,12 +890,12 @@ router.get(
       }
 
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+        const queryVector = await getCachedQueryEmbedding(q, flowAiKey);
         if (queryVector) {
           const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
           const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
             `SELECT product_id FROM product_embeddings
-             ORDER BY embedding <=> $1::vector
+             ORDER BY embedding_v2 <=> $1::vector
              LIMIT $2`,
             [queryVector, candidateCap]
           );
@@ -1473,10 +1473,12 @@ router.get(
 
     if (vectorDb) {
       try {
-        // Fetch pre-computed embedding for this product.
+        // Fetch pre-computed Flow AI 1024-dim embedding for this product.
+        // Gate on model_ver exactly and use embedding_v2; the old embedding
+        // column is Gemini-512 and must never feed Flow KNN.
         const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`,
+          `SELECT embedding_v2 AS embedding FROM product_embeddings
+           WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`,
           [id]
         );
         if (embResult.rows.length > 0) {
@@ -1487,10 +1489,10 @@ router.get(
             score: string;
           }>(
             `SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
+                    1 - (embedding_v2 <=> $1::vector) AS score
              FROM product_embeddings
              WHERE product_id != $2
-             ORDER BY embedding <=> $1::vector
+             ORDER BY embedding_v2 <=> $1::vector
              LIMIT $3`,
             [embeddingStr, id, limit]
           );

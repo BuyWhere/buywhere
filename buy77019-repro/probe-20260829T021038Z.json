@@ -1,0 +1,107 @@
+{
+  "warmup": {
+    "SG": {
+      "ok": false,
+      "status": 404,
+      "ms": 77,
+      "body": {
+        "error": "not found"
+      }
+    },
+    "US": {
+      "ok": false,
+      "status": 404,
+      "ms": 28,
+      "body": {
+        "error": "not found"
+      }
+    }
+  },
+  "results": {
+    "search_products_SG": {
+      "ms": 9,
+      "ok": false
+    },
+    "search_products_US": {
+      "ms": 8,
+      "ok": false
+    },
+    "search_products_MY": {
+      "ms": 8,
+      "ok": false
+    },
+    "search_products_TH": {
+      "ms": 8,
+      "ok": false
+    },
+    "search_products_VN": {
+      "ms": 9,
+      "ok": false
+    },
+    "find_best_price_SG_CORRECT_PARAM": {
+      "ms": 5,
+      "ok": false
+    },
+    "find_best_price_US_CORRECT_PARAM": {
+      "ms": 6,
+      "ok": false
+    },
+    "find_best_price_MY_CORRECT_PARAM": {
+      "ms": 6,
+      "ok": false
+    },
+    "find_best_price_TH_CORRECT_PARAM": {
+      "ms": 5,
+      "ok": false
+    },
+    "find_best_price_VN_CORRECT_PARAM": {
+      "ms": 6,
+      "ok": false
+    },
+    "find_best_price_SG_WRONG_PARAM_query": {
+      "ms": 7,
+      "ok": false,
+      "msg": "not found"
+    },
+    "find_best_price_US_WRONG_PARAM_query": {
+      "ms": 6,
+      "ok": false,
+      "msg": "not found"
+    },
+    "find_best_price_MY_WRONG_PARAM_query": {
+      "ms": 4,
+      "ok": false,
+      "msg": "not found"
+    },
+    "find_best_price_TH_WRONG_PARAM_query": {
+      "ms": 5,
+      "ok": false,
+      "msg": "not found"
+    },
+    "find_best_price_VN_WRONG_PARAM_query": {
+      "ms": 4,
+      "ok": false,
+      "msg": "not found"
+    },
+    "get_deals_SG": {
+      "ms": 6,
+      "ok": false
+    },
+    "get_deals_US": {
+      "ms": 4,
+      "ok": false
+    },
+    "get_deals_MY": {
+      "ms": 5,
+      "ok": false
+    },
+    "get_deals_TH": {
+      "ms": 5,
+      "ok": false
+    },
+    "get_deals_VN": {
+      "ms": 6,
+      "ok": false
+    }
+  }
+}

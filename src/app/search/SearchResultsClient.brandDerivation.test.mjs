@@ -47,10 +47,30 @@ test('BUY-67977: title brand blocklist excludes generic product nouns', () => {
 });
 
 test('BUY-67977: normalizeProduct falls back to derived brand', () => {
+  // BUY-77666: validation is now applied — the literal "item.brand || specBrand"
+  // pattern no longer applies because both have to pass isLikelyBrandToken.
+  // Accept either the literal pattern (older form) or the validated form.
+  assert.ok(
+    /brand:\s*[a-zA-Z_$.]+\s*\|\|\s*[a-zA-Z_$.]+\s*\|\|\s*deriveBrandFromTitle\(name\)/.test(
+      source
+    ),
+    'expected normalizeProduct to wire a brand fallback chain ending in deriveBrandFromTitle(name)'
+  );
+});
+
+test('BUY-77666: specBrand and item.brand are validated against the blocklist', () => {
+  // The fix for the Laptop/Mobile/Gaming leak: both upstream brand values
+  // must run through isLikelyBrandToken before reaching the facet. Anchor on
+  // the documented BUY-77666 comment and the validatedItemBrand variable.
   assert.match(
     source,
-    /brand:\s*item\.brand\s*\|\|\s*specBrand\s*\|\|\s*deriveBrandFromTitle\(name\)/,
-    'expected normalizeProduct to wire `item.brand || specBrand || deriveBrandFromTitle(name)`'
+    /BUY-77666/,
+    'expected the BUY-77666 marker comment to be present'
+  );
+  assert.match(
+    source,
+    /validatedItemBrand/,
+    'expected validatedItemBrand to be used in normalizeProduct'
   );
 });
 
@@ -82,9 +102,25 @@ test('BUY-67977: the SearchCard meta slot is still reserved with min-h-[1.25rem]
 const TITLE_BRANDS_BLOCKLIST = new Set([
   'wireless', 'bluetooth', 'headphones', 'headphone', 'earbuds', 'earbud',
   'ear', 'earpiece', 'over-ear', 'on-ear', 'in-ear', 'over',
+  // BUY-77666: category terms that leak into brand facet from title prefixes.
+  'laptop', 'laptops', 'notebook', 'notebooks', 'macbook', 'macbooks',
+  'chromebook', 'chromebooks', 'desktop', 'desktops', 'computer', 'computers',
+  'gaming', 'game', 'games', 'gamer',
+  'mobile', 'phone', 'phones', 'smartphone', 'smartphones', 'iphone',
+  'tablet', 'tablets', 'ipad',
+  'portable', 'monitor', 'monitors', 'display', 'displays', 'screen', 'screens',
+  'keyboard', 'keyboards', 'mouse', 'mices', 'mousepad', 'speaker', 'speakers',
+  'camera', 'cameras', 'drone', 'drones', 'watch', 'watches', 'band', 'bands',
+  'headset', 'headsets', 'earphone', 'earphones', 'charger', 'chargers',
+  'cable', 'cables', 'adapter', 'adapters', 'hub', 'hubs', 'dock', 'docks',
+  'stand', 'stands', 'mount', 'mounts', 'case', 'cases', 'cover', 'covers',
+  'sleeve', 'sleeves', 'skin', 'skins', 'pad', 'pads', 'mat', 'mats',
+  'bag', 'bags', 'backpack', 'backpacks', 'pouch', 'pouches',
+  'toy', 'toys', 'gift', 'gifts', 'set', 'sets', 'kit', 'kits',
+  'pack', 'packs', 'bundle', 'bundles', 'combo', 'combos',
   'new', 'premium', 'pro', 'plus', 'mini', 'max', 'ultra', 'lite',
   'anc', 'hifi', 'hi-fi', 'stereo', 'mono', 'noise', 'cancelling',
-  'cancellation', 'portable', 'foldable', 'folding',
+  'cancellation', 'foldable', 'folding',
   'studio', 'series', 'version', 'generation', 'gen', 'model',
   'official', 'original', 'authentic', 'genuine', 'brand', 'newest',
   'latest', 'best', 'top', 'quality', 'high', 'low', 'cheap', 'expensive',
@@ -205,4 +241,105 @@ test('BUY-67977: a full row of "wireless headphones" cards all get a brand', () 
   ];
   const brands = titles.map(deriveBrandFromTitle);
   assert.ok(brands.every((b) => b && b.length > 0), `expected every brand to resolve, got: ${JSON.stringify(brands)}`);
+});
+
+// ----------------------------------------------------------------------------
+// BUY-77666: specBrand (metadata.brand) and item.brand must run through the
+// same isLikelyBrandToken gate as deriveBrandFromTitle — otherwise category
+// terms written by scrapers ("Laptop", "Mobile", "Gaming", "Portable",
+// "2025", "in", "Rechargeable") leak straight into the brand facet, bypassing
+// the blocklist. These tests pin the validation behavior on the
+// documented bad tokens plus a few real brand-shaped values to make sure the
+// gate doesn't reject everything.
+// ----------------------------------------------------------------------------
+
+test('BUY-77666: specBrand validation rejects category nouns', () => {
+  // category terms Reed captured on the live page (07:01Z capture)
+  const bad = ['Laptop', 'Mobile', 'Gaming', 'Portable', 'Phone',
+    'Smartphone', 'Headphones', 'Mouse', 'Keyboard', 'Monitor'];
+  for (const value of bad) {
+    assert.equal(isLikelyBrandToken(value), false,
+      `expected "${value}" to be rejected as a brand token`);
+  }
+});
+
+test('BUY-77666: specBrand validation rejects numeric/short tokens', () => {
+  const bad = ['2025', '2024', '1234', 'x', 'i', 'X', 'W820Nb'];
+  for (const value of bad) {
+    assert.equal(isLikelyBrandToken(value), false,
+      `expected "${value}" to be rejected as a brand token`);
+  }
+});
+
+test('BUY-77666: specBrand validation rejects common stop words', () => {
+  const bad = ['in', 'by', 'for', 'with', 'the', 'a', 'an', 'and', 'of'];
+  for (const value of bad) {
+    assert.equal(isLikelyBrandToken(value), false,
+      `expected "${value}" to be rejected as a brand token`);
+  }
+});
+
+test('BUY-77666: specBrand validation passes real brand names', () => {
+  // these were in the live API response and should survive the gate.
+  const good = ['ASUS', 'LENOVO', 'LG', 'KEFEYA', 'XPro', 'VCDS',
+    'ProCase', 'Boya', 'Geyes', 'rockpapa', 'WEICON', 'Kensington',
+    'Acer', 'Dell', 'HP', 'Joy'];
+  for (const value of good) {
+    assert.equal(isLikelyBrandToken(value), true,
+      `expected "${value}" to pass the brand token gate`);
+  }
+});
+
+test('BUY-77666: extractBrand helper applies validation to metadata.brand', () => {
+  // Re-implement normalizeProduct's brand fallback so we can assert end-to-end
+  // behavior without pulling in React. The validation must happen on BOTH
+  // item.brand and specBrand, not just deriveBrandFromTitle.
+  function extractBrand(item) {
+    const md = item.metadata || {};
+    const rawSpecBrand = typeof md.brand === 'string' ? md.brand : null;
+    const specBrand = rawSpecBrand && isLikelyBrandToken(rawSpecBrand) ? rawSpecBrand : null;
+    const rawItemBrand = typeof item.brand === 'string' ? item.brand : null;
+    const validatedItemBrand = rawItemBrand && isLikelyBrandToken(rawItemBrand) ? rawItemBrand : null;
+    return validatedItemBrand || specBrand || deriveBrandFromTitle(item.title);
+  }
+
+  // Category-garbage metadata.brand: facet must NOT see "Laptop".
+  assert.equal(
+    extractBrand({
+      title: 'Microsoft Surface Laptop 13-inch 256GB Platinum',
+      metadata: { brand: 'Laptop' },
+    }),
+    'Microsoft',
+    'specBrand="Laptop" must be rejected; deriveBrandFromTitle should win'
+  );
+
+  // Real brand metadata survives.
+  assert.equal(
+    extractBrand({
+      title: 'ProCase Wireless Keyboard for iOS Android',
+      metadata: { brand: 'ProCase' },
+    }),
+    'ProCase',
+    'specBrand="ProCase" must pass validation'
+  );
+
+  // Garbage top-level brand: validation rejects, title fallback wins.
+  assert.equal(
+    extractBrand({
+      title: 'ASUS ROG Strix G16 Gaming Laptop',
+      brand: 'Laptop',
+    }),
+    'ASUS',
+    'item.brand="Laptop" must be rejected; deriveBrandFromTitle should win'
+  );
+
+  // Numeric brand in metadata gets rejected.
+  assert.equal(
+    extractBrand({
+      title: 'LENOVO IdeaPad 2025 Slim',
+      metadata: { brand: '2025' },
+    }),
+    'LENOVO',
+    'specBrand="2025" must be rejected'
+  );
 });

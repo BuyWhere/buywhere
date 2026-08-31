@@ -24,7 +24,7 @@
  * confirmed US- or SG-bound.
  */
 
-export type CountryCode = "US" | "SG";
+export type CountryCode = "US" | "SG" | "MY" | "AU" | "UK";
 
 // BUY-73640: every US storefront slug known to ship in the catalog. The slug
 // field is the raw upstream merchant id (`newegg_us`, `walmart_us`, …) that
@@ -160,11 +160,151 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "funan_sg",
   "mustafa_sg",
   "takashimaya_sg",
+  // BUY-77791: Shopify tenants (e.g. shopify_techdaddyaccs_com) carrying SG
+  // catalog. The bare "shopify" entry plus candidateAllowlistSlugs()'s
+  // shopify_* prefix fallback match shopify_<anything> to this entry.
+  "shopify",
+]);
+
+// BUY-74862 Day 2: Malaysia storefront slugs. MY pages surface
+// Shopee MY / Lazada MY / Amazon MY / Harvey Norman MY / Courts MY / etc.
+const MY_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "shopee_my",
+  "shopee",
+  "lazada_my",
+  "lazada",
+  "amazon_my",
+  "amazon",
+  "harvey_norman_my",
+  "harvey_norman",
+  "courts_my",
+  "courts",
+  "best_denki_my",
+  "best_denki",
+  "senheng_my",
+  "senheng",
+  "上手价_my",
+  "上手价",
+  "apple_my",
+  "apple",
+  "samsung_my",
+  "samsung",
+  "sony_my",
+  "sony",
+  "dyson_my",
+  "dyson",
+  "logitech_my",
+  "logitech",
+  "asus_my",
+  "asus",
+  "lenovo_my",
+  "lenovo",
+  "hp_my",
+  "hp",
+  "msi_my",
+  "msi",
+  "xiaomi_my",
+  "xiaomi",
+  "philips_my",
+  "philips",
+  "lg_my",
+  "lg",
+]);
+
+// BUY-74862 Day 2: Australia storefront slugs. AU pages surface
+// Amazon AU / JB Hi-Fi / Harvey Norman AU / JB Hi-Fi / The Good Guys / etc.
+const AU_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "amazon_au",
+  "amazon",
+  "jb_hi_fi_au",
+  "jb_hi_fi",
+  "jbhifi",
+  "harvey_norman_au",
+  "harvey_norman",
+  "the_good_guys_au",
+  "the_good_guys",
+  "good_guys",
+  "jb_hi_fi",
+  "harvey_norman",
+  "apple_au",
+  "apple",
+  "samsung_au",
+  "samsung",
+  "sony_au",
+  "sony",
+  "dyson_au",
+  "dyson",
+  "logitech_au",
+  "logitech",
+  "asus_au",
+  "asus",
+  "lenovo_au",
+  "lenovo",
+  "hp_au",
+  "hp",
+  "msi_au",
+  "msi",
+  "bose_au",
+  "bose",
+  "lg_au",
+  "lg",
+  "kogan_au",
+  "kogan",
+  "指定_au",
+  "指定",
+]);
+
+// BUY-74862 Day 2: United Kingdom storefront slugs. UK pages surface
+// Amazon UK / Currys / Argos / John Lewis / AO.com / Very / etc.
+const UK_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
+  "amazon_uk",
+  "amazon",
+  "currys_uk",
+  "currys",
+  "argos_uk",
+  "argos",
+  "john_lewis_uk",
+  "john_lewis",
+  "ao_uk",
+  "ao",
+  "very_uk",
+  "very",
+  "ao_com",
+  "argospc",
+  "apple_uk",
+  "apple",
+  "samsung_uk",
+  "samsung",
+  "sony_uk",
+  "sony",
+  "dyson_uk",
+  "dyson",
+  "logitech_uk",
+  "logitech",
+  "asus_uk",
+  "asus",
+  "lenovo_uk",
+  "lenovo",
+  "hp_uk",
+  "hp",
+  "msi_uk",
+  "msi",
+  "bose_uk",
+  "bose",
+  "lg_uk",
+  "lg",
+  "mediamarkt_uk",
+  "mediamarkt",
+  "curryspc",
+  "ao_com",
 ]);
 
 const MERCHANT_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
   US: US_MERCHANT_SLUGS,
   SG: SG_MERCHANT_SLUGS,
+  MY: MY_MERCHANT_SLUGS,
+  AU: AU_MERCHANT_SLUGS,
+  UK: UK_MERCHANT_SLUGS,
 };
 
 /**
@@ -190,8 +330,93 @@ export function resolveMerchantSlug(item: { merchant?: string | null; source?: s
 }
 
 /**
- * True when the slug is on the page's allowlist. Products with no merchant
- * metadata at all are excluded from country-specific SEO pages.
+ * BUY-77121: catalog upstream merchant slugs are not consistently shaped.
+ * Three families of variants currently leak past `isMerchantAllowedForCountry`
+ * because the bare slug from the search API doesn't match the allowlist
+ * entries (which were normalized at writer time):
+ *
+ *   1. Domain-style: "challenger.com.sg", "harveynorman.com.sg",
+ *      "courts.com.sg" — bare-allowlist form is "challenger" / "harvey_norman" /
+ *      "courts". We strip the trailing `.com.<cc>` / `.co.<cc>` / `.<cc>`
+ *      TLD chain and recover the bare slug by taking the FIRST label.
+ *   2. XML-feed ingest suffix: "apple_sg_buy_xml" — bare-allowlist form is
+ *      "apple" / "apple_sg". We strip trailing `_buy_xml` / `_xml` ingest
+ *      markers before the country allowlist lookup.
+ *   3. Bare domain with no TLD chain but dot-separated sub-labels (e.g.
+ *      "amazon.com" → "amazon") — same first-label rule applies.
+ *
+ * Returns a list of candidate slugs in priority order so the caller can pick
+ * the FIRST one that matches the country allowlist. The original raw slug
+ * always appears first so legitimate bare-form matches are preserved.
+ */
+export function candidateAllowlistSlugs(rawSlug: string): string[] {
+  const out: string[] = [];
+  const lower = rawSlug.trim().toLowerCase();
+  if (!lower) return out;
+  out.push(lower);
+
+  // BUY-77791: Shopify merchants come as "shopify_<tenant>_com" or similar
+  // shapes, all of which should resolve to the bare "shopify" allowlist entry
+  // when the country list contains it. Emit "shopify" as a candidate so any
+  // shopify_* slug is allowlisted via this fallback.
+  if (lower.startsWith("shopify") && lower !== "shopify" && !out.includes("shopify")) {
+    out.push("shopify");
+  }
+
+  // BUY-77342: also add space-normalized variants so "bestdenki" matches
+  // allowlist entries like "best denki". Split on common word boundaries and
+  // rejoin with spaces to catch camelCase, PascalCase, and concatenated names.
+  // e.g. "bestdenki" -> "best denki", "newegg" -> "new egg" (edge case).
+  if (lower !== "best denki" && lower.includes("denki")) {
+    out.push("best denki");
+  }
+  // General word-boundary split: insert space before lowercase->uppercase transitions
+  // and before digits, then collapse multiple spaces.
+  const spaced = lower.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/(\d)/g, " $1").replace(/\s+/g, " ").trim();
+  if (spaced !== lower && !out.includes(spaced)) {
+    out.push(spaced);
+  }
+
+  // Strip known ingest suffixes only when the slug still has an underscore.
+  // e.g. "apple_sg_buy_xml" → "apple_sg" → "apple" (after country strip)
+  //      "shopify_buy30620_stock" → keep stripped form for LOW_TRUST check
+  const INGEST_SUFFIXES = [/_buy_xml$/, /_xml$/, /_scrape$/];
+  let working = lower;
+  for (const re of INGEST_SUFFIXES) {
+    if (re.test(working)) {
+      out.push(working.replace(re, ""));
+      working = working.replace(re, "");
+    }
+  }
+
+  // Strip trailing country TLDs / TLD chains: ".com.sg", ".co.sg", ".sg",
+  // ".com.us", ".us", ".co.uk", etc. Split on "." and take the first label.
+  if (working.includes(".")) {
+    const firstLabel = working.split(".")[0];
+    if (firstLabel && firstLabel !== lower && !out.includes(firstLabel)) {
+      out.push(firstLabel);
+    }
+    // Also try the form with the country suffix preserved on the bare label
+    // so "challenger.com.sg" → "challenger_sg" still matches the allowlist.
+    const lastLabel = working.split(".").pop() ?? "";
+    if (
+      lastLabel &&
+      firstLabel &&
+      !out.includes(`${firstLabel}_${lastLabel}`)
+    ) {
+      out.push(`${firstLabel}_${lastLabel}`);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * True when the slug (raw or normalized) matches the country's allowlist.
+ * Returns false for empty/missing slugs. BUY-77121: this is the canonical
+ * allowlist lookup — it accepts the catalog's bare-allowlist form
+ * ("challenger") AND domain-style forms ("challenger.com.sg") by trying
+ * each candidate produced by `candidateAllowlistSlugs`.
  */
 export function isMerchantAllowedForCountry(
   item: { merchant?: string | null; source?: string | null },
@@ -199,7 +424,12 @@ export function isMerchantAllowedForCountry(
 ): boolean {
   const slug = resolveMerchantSlug(item);
   if (!slug) return false;
-  return MERCHANT_ALLOWLISTS[country]?.has(slug) ?? false;
+  const allowlist = MERCHANT_ALLOWLISTS[country];
+  if (!allowlist) return false;
+  for (const candidate of candidateAllowlistSlugs(slug)) {
+    if (allowlist.has(candidate)) return true;
+  }
+  return false;
 }
 
 /**
@@ -271,6 +501,8 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "harvey norman",
   "courts",
   "gain city",
+  "best denki",
+  "bestdenki",
   "apple",
   "samsung",
   "sony",
@@ -285,11 +517,92 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "bose",
   "lg",
   "best denki",
+  // BUY-77791: laptop brands so /laptop-singapore fallback products survive
+  // the final country gate (Dell XPS 14, Acer Swift, Microsoft Surface, etc).
+  "dell",
+  "acer",
+  "microsoft",
+  "razer",
+  "alienware",
+  // BUY-77791: Shopify tenants strip down to "Shopify" via
+  // stripMerchantTenantSuffix; allow the bare platform label here so the
+  // filtered label still matches the country allowlist.
+  "shopify",
+]);
+
+const MY_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "shopee",
+  "lazada",
+  "amazon",
+  "harvey norman",
+  "courts",
+  "best denki",
+  "senheng",
+  "上手价",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "xiaomi",
+  "philips",
+  "lg",
+]);
+
+const AU_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "amazon",
+  "jb hi-fi",
+  "jbhifi",
+  "harvey norman",
+  "the good guys",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "bose",
+  "lg",
+  "kogan",
+  "指定",
+]);
+
+const UK_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
+  "amazon",
+  "currys",
+  "currys pc world",
+  "argos",
+  "john lewis",
+  "ao.com",
+  "ao",
+  "very",
+  "apple",
+  "samsung",
+  "sony",
+  "dyson",
+  "logitech",
+  "asus",
+  "lenovo",
+  "hp",
+  "msi",
+  "bose",
+  "lg",
+  "mediamarkt",
 ]);
 
 const MERCHANT_LABEL_ALLOWLISTS: Record<CountryCode, ReadonlySet<string>> = {
   US: US_ALLOWED_MERCHANT_LABELS,
   SG: SG_ALLOWED_MERCHANT_LABELS,
+  MY: MY_ALLOWED_MERCHANT_LABELS,
+  AU: AU_ALLOWED_MERCHANT_LABELS,
+  UK: UK_ALLOWED_MERCHANT_LABELS,
 };
 
 function labelMatchesCountry(label: string, country: CountryCode): boolean {
@@ -346,7 +659,13 @@ export function filterApiItemsForCountry<T extends { merchant?: string | null; s
   return items.filter((item) => {
     const slug = resolveMerchantSlug(item);
     if (!slug) return false; // unknown merchant → exclude
-    return allowlist.has(slug);
+    // BUY-77121: same normalization as isMerchantAllowedForCountry so a
+    // domain-style slug like "challenger.com.sg" matches the bare "challenger"
+    // entry that lives in MERCHANT_ALLOWLISTS[SG].
+    for (const candidate of candidateAllowlistSlugs(slug)) {
+      if (allowlist.has(candidate)) return true;
+    }
+    return false;
   });
 }
 

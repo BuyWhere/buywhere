@@ -106,7 +106,7 @@ function setupDefaultMocks() {
   redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
   redisSetMock.mock.mockImplementation(() => Promise.resolve('OK'));
   config.vectorDb = null;
-  delete process.env.GEMINI_API_KEY;
+  delete process.env.FLOWAI_EMBED_API_KEY;
   process.env.SEARCH_USE_TIER = '0';
 }
 
@@ -599,7 +599,7 @@ describe('NL search queries — response correctness', () => {
   });
 
   it('uses vector search for semantic mode when vector infra is available', async () => {
-    process.env.GEMINI_API_KEY = 'test-jina-key';
+    process.env.FLOWAI_EMBED_API_KEY = 'test-flow-key';
     config.vectorDb = { query: vectorQueryMock };
     vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
       rows: [{ product_id: '2' }, { product_id: '1' }],
@@ -642,7 +642,7 @@ describe('NL search queries — response correctness', () => {
   });
 
   it('uses RRF merge for hybrid mode when vector infra is available', async () => {
-    process.env.GEMINI_API_KEY = 'test-jina-key';
+    process.env.FLOWAI_EMBED_API_KEY = 'test-flow-key';
     config.vectorDb = { query: vectorQueryMock };
     vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
       rows: [{ product_id: '2' }, { product_id: '3' }],
@@ -697,7 +697,7 @@ describe('NL search queries — response correctness', () => {
 
   // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
   it('falls back to FTS when vector query throws', async () => {
-    process.env.GEMINI_API_KEY = 'test-jina-key';
+    process.env.FLOWAI_EMBED_API_KEY = 'test-flow-key';
     config.vectorDb = { query: vectorQueryMock };
     // Simulate vector query throwing (e.g., dimension mismatch error)
     vectorQueryMock.mock.mockImplementation(() => Promise.reject(new Error('different vector dimensions 512 and 1024')));

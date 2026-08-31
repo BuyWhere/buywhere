@@ -153,7 +153,7 @@ router.get('/stats', async (_req, res) => {
                         active_products: stats.active_products,
                     },
                     meta: {
-                        approximate: false,
+                        approximate: stats.approximate,
                         source: stats.source,
                         ts: stats.collected_at,
                     },

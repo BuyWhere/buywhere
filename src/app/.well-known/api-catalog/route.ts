@@ -2,7 +2,7 @@ const apiCatalog = {
   apis: [
     {
       name: "BuyWhere Catalog API",
-      description: "Agent-native product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 381M+ products from 900,000+ merchants worldwide, normalized into one schema. Location-aware search accepts deliver_to=<ISO country> so agents rank products the end user can actually receive, with availability labels on every result.",
+      description: "Agent-native product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 381M+ products from 950,000+ merchants worldwide, normalized into one schema. Location-aware search accepts deliver_to=<ISO country> so agents rank products the end user can actually receive, with availability labels on every result.",
       documentationUrl: "https://buywhere.ai/docs/API_DOCUMENTATION",
       specificationUrl: "https://api.buywhere.ai/openapi.json",
       signupUrl: "https://buywhere.ai/api-keys",
@@ -29,7 +29,6 @@ const apiCatalog = {
       mcp: {
         endpoint: "https://api.buywhere.ai/mcp",
         transport: "streamable-http",
-        legacySseEndpoint: "https://api.buywhere.ai/mcp/sse",
         tools: [
           {
             name: "search_products",
@@ -37,7 +36,7 @@ const apiCatalog = {
           },
           {
             name: "get_deals",
-            description: "Find current deals, discounts, and price drops across 150,000+ retailers in the BuyWhere catalog.",
+            description: "Find current deals, discounts, and price drops across 950,000+ retailers in the BuyWhere catalog.",
           },
           {
             name: "get_price_history",

@@ -6,6 +6,11 @@
   --color-primary: #4f46e5;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: Inter, system-ui, sans-serif;
 }
@@ -13,6 +18,11 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Mobile safe area padding for footer — prevents content cut-off behind browser chrome */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1.5rem);
   }
 }
 

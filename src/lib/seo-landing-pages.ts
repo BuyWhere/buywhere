@@ -11,6 +11,36 @@ import {
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 
 const BASE_URL = "https://buywhere.ai";
+
+// Country tokens to strip from searchQuery when building verdict sentences.
+const COUNTRY_TOKENS_TO_STRIP = ["Singapore", "SG", "United States", "US", "Malaysia", "MY", "Australia", "AU", "UK", "United Kingdom"];
+
+// BUY-74862 Day 2: type-safe country metadata replacing hardcoded US/SG branches.
+// Every place that did `country === "US" ? "US" : "SG"` or similar must use
+// this map so MY/AU/UK are handled correctly without another round of patching.
+const COUNTRY_CONFIG: Record<CountryCode, {
+  readonly geoRegion: string;
+  readonly geoPlacename: string;
+  readonly ogLocaleAlternate: string;
+}> = {
+  US: { geoRegion: "US", geoPlacename: "United States", ogLocaleAlternate: "en_SG" },
+  SG: { geoRegion: "SG", geoPlacename: "Singapore", ogLocaleAlternate: "en_US" },
+  MY: { geoRegion: "MY", geoPlacename: "Malaysia", ogLocaleAlternate: "en_SG" },
+  AU: { geoRegion: "AU", geoPlacename: "Australia", ogLocaleAlternate: "en_GB" },
+  UK: { geoRegion: "GB", geoPlacename: "United Kingdom", ogLocaleAlternate: "en_AU" },
+};
+
+/**
+ * Strips country tokens from a searchQuery string.
+ * E.g. "air purifier Singapore" → "air purifier"
+ */
+export function stripCountryTokens(query: string): string {
+  let stripped = query;
+  for (const token of COUNTRY_TOKENS_TO_STRIP) {
+    stripped = stripped.replace(new RegExp(`\\b${token}\\b`, "gi"), "");
+  }
+  return stripped.replace(/\s+/g, " ").trim();
+}
 // Origin used to call BuyWhere's own Next.js route handlers from a server
 // component during SSR. The /api/products/search route resolves the backend API
 // key and degraded/fallback logic centrally, so routing catalog lookups through
@@ -73,6 +103,7 @@ export type LandingProduct = {
   imageUrl: string | null;
   href: string;
   productUrl?: string | null;
+  affiliateUrl?: string | null;
   brand: string | null;
   category: string | null;
   countryCode?: string | null;
@@ -119,6 +150,7 @@ type SearchApiResponse = {
   hint?: string;
   items?: SearchApiItem[];
   results?: SearchApiItem[];
+  products?: SearchApiItem[];
 };
 
 type ComparisonRow = Record<string, string>;
@@ -436,6 +468,8 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.product_url,
       item.url,
     ),
+    // BUY-76340: add affiliateUrl for ProductGridCard to use as primary link
+    affiliateUrl: normalizeExternalHref(item.affiliate_redirect_url),
     brand: item.brand || null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
@@ -942,29 +976,34 @@ const PRODUCT_ACCESSORY_RE =
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
 const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
 
-// BUY-63381: laptop accessory regex. The previous "laptop" keyword match in
-// `requiredProductTerms` let unrelated accessories pass whenever the
-// accessory name happened to contain "laptop" — e.g. "CARBONADO 30 L Backpack
-// Gaming Backpack For Laptop" or "Robotic Doodle Laptop Ideapad Gaming 3
-// Laptop Skin". The QA re-verification at 2026-07-29T18:17Z still saw those
-// items in the live deals section for /best-gaming-laptops-us. Match the
+// BUY-63381 + BUY-77675: laptop accessory regex. The previous "laptop"
+// keyword match in `requiredProductTerms` let unrelated accessories pass
+// whenever the accessory name happened to contain "laptop" — e.g. "CARBONADO
+// 30 L Backpack Gaming Backpack For Laptop", "Robotic Doodle Laptop Ideapad
+// Gaming 3 Laptop Skin", "BOYA Dual Wireless Lavalier Lapel Microphone for
+// Android Smartphone Laptop", "Laptop Screen Extender Portable Triple
+// Monitor", "WEICON Screen Cleaner for Laptop Tablet Phone". Match the
 // accessory-style keywords explicitly so we never let skins, sleeves,
-// backpacks, stands, decals, stickers, covers, or laptop coolers reach the
-// product cards regardless of how the upstream search API classifies them.
+// backpacks, stands, decals, stickers, covers, coolers, microphones, audio
+// accessories (headphones/earbuds/IEMs), desks, portable monitors, privacy
+// screens, or screen cleaners reach the product cards regardless of how the
+// upstream search API classifies them.
 const LAPTOP_ACCESSORY_RE =
-  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop))/i;
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries|fan|fans|mat|mats|mouse|keyboard|keyboards|speaker|speakers|monitor|monitors|screen|desk|privacy)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop)|\bmicrophone(?:s)?|\bmic(?:s)?\s+(?:for|stand|cable|kit|set|set-up|setup|holder|clip|adapter|adapter|system|windscreen|boom|arm|boom-arm)|\blavalier|\blapel\s+mic|\bwireless\s+mic|\bboya\b|\bheadphone(?:s)?(?:\s+(?:for|stand|holder|case|adapter))?|\bearbud(?:s)?(?:\s+(?:for|holder|case|stand|adapter))?|\bheadset(?:s)?(?:\s+(?:for|stand|holder))?|\bearphone(?:s)?(?:\s+(?:for|holder|case))?|\bairpod(?:s)?\b|\biem(?:s)?\b|\bin[- ]ear\s+monitor(?:s)?|\bstanding\s+desk(?:\s+(?:for|with|adjustable))?|\blap\s+desk|\bbed\s+desk|\bbed\s+table|\bbed\s+tray|\bfolding\s+table|\bportable\s+monitor(?:\s+(?:for|with))?|\bexternal\s+monitor(?:\s+(?:for|with))?|\bscreen\s+extender|\bexternal\s+display(?:\s+(?:for|with))?|\btravel\s+monitor|\bsecond\s+screen(?:\s+(?:for|with))?|\btriple\s+monitor|\bprivacy\s+screen(?:\s+(?:for|with))?|\bprivacy\s+filter(?:\s+(?:for|with))?|\bscreen\s+cleaner|\bcleaning\s+spray|\bscreen\s+wipe(?:s)?|\bcleaning\s+wipe(?:s)?|\bscreen\s+cleaning|\bwireless\s+keyboard(?:\s+(?:for|with))?|\bbluetooth\s+keyboard(?:\s+(?:for|with))?|\bfoldable\s+keyboard(?:\s+(?:for|with))?|\bfolding\s+keyboard(?:\s+(?:for|with))?)/i;
 // Require at least one "true laptop" signal in the product text so we never
 // accept a generic accessory that mentions a laptop model name in passing.
 // Tokens here are intentionally NOT bare "laptop" — that single word is too
-// weak (a backpack or sleeve can include it as a noun, not a product type).
-// Require at least one "true laptop" signal in the product text so we never
-// accept a generic accessory that mentions a laptop model name in passing.
-// "laptop" is included as a fallback — the LAPTOP_ACCESSORY_RE check runs
-// first and excludes anything whose text looks like a skin/sleeve/backpack,
-// so the bare "laptop" token here is safe: products that survive that
-// check are real laptops, not accessories that happen to mention laptops.
-const LAPTOP_REQUIRED_TOKENS = [
-  "laptop",
+// weak (a backpack, sleeve, microphone, headphone, or screen cleaner can
+// include it as a noun, not a product type).
+// BUY-77675: split into strict model tokens and a loose set. A product
+// passes when EITHER:
+//   - it matches at least one strict token (model/series family), OR
+//   - it matches the bare "laptop" token AND at least one loose signal
+//     (a laptop-series word in its text, e.g. "ultrabook", "notebook").
+// The LAPTOP_ACCESSORY_RE check runs first and excludes anything whose text
+// looks like an accessory, so a real laptop that only contains "laptop"
+// without a model word still passes via the loose path.
+const LAPTOP_REQUIRED_STRICT_TOKENS = [
   "notebook",
   "ultrabook",
   "chromebook",
@@ -979,6 +1018,7 @@ const LAPTOP_REQUIRED_TOKENS = [
   "legion",
   "ideapad",
   "thinkpad",
+  "thinkbook",
   "yoga",
   "swift ",
   "aspire",
@@ -992,6 +1032,38 @@ const LAPTOP_REQUIRED_TOKENS = [
   "rtx 30",
   "rtx 40",
   "rtx 50",
+  "inspiron",
+  "latitude",
+  "pavilion",
+  "envy ",
+  "elitebook",
+  "probook",
+  "spectre",
+  "gram ",
+  "magicbook",
+];
+// BUY-77675: kept for backward compatibility. Now treated as the loose
+// laptop-signal list — see isExcludedAccessory.
+// Loose laptop-series signals. A product that ONLY contains the bare
+// "laptop" word AND none of these is still an accessory. (A real laptop
+// that omits all model/brand names will at least say "ultrabook",
+// "notebook", "chromebook", etc. somewhere — accessories rarely do.)
+const LAPTOP_REQUIRED_LOOSE_SIGNALS = [
+  "ultrabook",
+  "notebook",
+  "chromebook",
+  "macbook",
+  "gaming laptop",
+  "business laptop",
+  "student laptop",
+  "student-laptop",
+  // Generic "laptop" descriptors — bare "Laptop Computer" / "Laptop PC"
+  // titles in the QA live capture (e.g. "2025 AMD Laptop Computer with
+  // Ryzen 7") match these. Accessories that contain "laptop" rarely use
+  // these as a structured noun phrase.
+  "laptop computer",
+  "laptop pc",
+  "laptop notebook",
 ];
 // Gaming-laptop specific tokens: require a strong gaming signal so the page
 // never degrades to a generic laptop catalog (which would itself start
@@ -1036,11 +1108,19 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
     return !matchesAnyToken(text, GAMING_LAPTOP_REQUIRED_TOKENS);
   }
   if (config.searchCategory === "laptops") {
-    // Generic laptop landing pages should still exclude obvious accessories
-    // (skins, sleeves, backpacks, decals) so /laptop-singapore and /laptop-us
-    // don't drift into the same accessory noise.
+    // BUY-63381 + BUY-77675: generic laptop landing pages should exclude
+    // obvious accessories (skins, sleeves, backpacks, decals, mics, audio,
+    // desks, portable monitors, privacy screens, screen cleaners) so
+    // /laptop-singapore and /laptop-us don't drift into the same accessory
+    // noise. Also enforce a strict laptop-model token OR (loose "laptop"
+    // AND a laptop-series word in the same text) floor so an accessory that
+    // just mentions "for laptop" still gets excluded.
     if (LAPTOP_ACCESSORY_RE.test(text)) return true;
-    return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
+    if (matchesAnyToken(text, LAPTOP_REQUIRED_STRICT_TOKENS)) return false;
+    const lower = text.toLowerCase();
+    const hasLaptop = lower.includes("laptop");
+    const hasLooseSignal = LAPTOP_REQUIRED_LOOSE_SIGNALS.some((s) => lower.includes(s));
+    return !(hasLaptop && hasLooseSignal);
   }
   return PRODUCT_ACCESSORY_RE.test(text);
 }
@@ -1293,23 +1373,27 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         continue;
       }
 
-      const items = data.data || data.items || data.results || [];
+      const items = data.data || data.items || data.results || data.products || [];
       if (!Array.isArray(items) || items.length === 0) {
         continue;
       }
 
       for (const item of items) {
-        // BUY-73322: reject region=global on country-specific pages BEFORE normalization.
-        // The search API's country=US filter passes region=global merchants (e.g.
-        // google_shopping, woocommerce) that ship worldwide but aren't US retailers.
+        // BUY-73322: reject region=global on country-specific pages BEFORE normalization,
+        // UNLESS the product has a valid affiliate_redirect_url (meaning it has a working
+        // /r/ affiliate link). Many google_shopping and woocommerce products are marked
+        // region=global but still have valid /r/ links that should be shown.
         const region = item.region?.toLowerCase();
-        if (config.country && region === "global") continue;
+        const hasAffiliateRedirect = Boolean(item.affiliate_redirect_url);
+        if (config.country && region === "global" && !hasAffiliateRedirect) continue;
 
         // BUY-73640 / BUY-73322-FIX: the backend returns merchant metadata as a
         // bare string slug, not a nested object with region/countryCode. Hard
         // gate on the raw slug before normalization so CompuMarts / non-US / no
         // merchant rows never enter the live card set or downstream JSON-LD.
-        if (!isMerchantAllowedForCountry(item, allowlistCountry)) continue;
+        // BUY-78306: skip allowlist check if product has valid affiliate_redirect_url
+        // (these are typically google_shopping/woocommerce aggregators with working /r/ links)
+        if (!hasAffiliateRedirect && !isMerchantAllowedForCountry(item, allowlistCountry)) continue;
 
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
@@ -1481,8 +1565,7 @@ export function buildSeoLandingMetadata(
     }
   }
 
-  const ogLocaleAlternate =
-    config.country === "US" ? "en_SG" : "en_US";
+  const countryCfg = COUNTRY_CONFIG[config.country];
 
   // BUY-67622 v4: when generateMetadata threads the live products through, use
   // the resolved hero title (the live catalog floor price) for the <title>,
@@ -1500,10 +1583,10 @@ export function buildSeoLandingMetadata(
       languages,
     },
     other: {
-      "geo.region": config.country === "US" ? "US" : "SG",
-      "geo.placename": config.country === "US" ? "United States" : "Singapore",
+      "geo.region": countryCfg.geoRegion,
+      "geo.placename": countryCfg.geoPlacename,
       "content-language": config.locale.replace("_", "-"),
-      "og:locale:alternate": ogLocaleAlternate,
+      "og:locale:alternate": countryCfg.ogLocaleAlternate,
     },
     openGraph: {
       title: seoTitle,
@@ -1860,7 +1943,13 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
-    searchCategory: "laptops",
+    // BUY-77791: `category=laptops` on /api/products/search times out (10s
+    // degraded) for the SG country filter because the planner can't use the
+    // partition key efficiently with that category_path value. The primary
+    // `q=laptop` call against the partition succeeds in ~3s and returns 11
+    // SGD-priced Amazon.sg laptops, 7 of which pass requiredProductTerms +
+    // minPrice. Leave searchCategory undefined so the live API call drops
+    // the category parameter and relies on the searchQuery + filters.
     excludeAccessories: true,
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
@@ -13287,7 +13376,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
-    searchCategory: "laptops",
+    // BUY-77791: same `category=laptops` planner-timeout root cause as the SG
+    // page — drop the category parameter and rely on the searchQuery + filters
+    // so the live call returns real US laptops instead of degrading into the
+    // fallback set (the cached HTML currently shows the 5 fallback rows).
     excludeAccessories: true,
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
@@ -13587,3 +13679,144 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
   const fromJson = loadIntentPageConfigs();
   return { ...seoLandingPagesTs, ...fromJson };
 })();
+
+// ---------------------------------------------------------------------------
+// BUY-74928 [OPENAI-CHANNEL]: 40-60-word plain-text answer block above the
+// fold on every intent page and on the live-offers /compare surface. The
+// shape ChatGPT retrieval lifts is:
+//   "The cheapest <intent> in <country> today is <price> at <retailer>,
+//    <delta> less than <next retailer> (<price>). Prices checked
+//    <Month D, YYYY> across <N> retailers."
+//
+// Honest lastmod (directive §5): the "Prices checked <date>" uses the same
+// ISO stamp as the visible "Updated <date>" pill and the JSON-LD
+// `dateModified` — all three derive from the same content-hash store so they
+// move together (or not at all). The stamp passed in is computed from the
+// same getOrUpdatePageLastmod call that drives the JSON-LD, so a content
+// change moves every visible date at once.
+//
+// Returns null when the live catalog has fewer than 2 priced offers — a
+// 40-60-word block naming "cheapest" / "next retailer" with only one priced
+// offer would be invented, which the indexation directive (§1C) forbids.
+// ---------------------------------------------------------------------------
+export type AnswerBlock = {
+  /** Plain-text verdict — the 40-60-word block crawlers lift. */
+  text: string;
+  /** Rendered "Prices checked <Month D, YYYY>" text. */
+  checkedText: string;
+  /** Machine-readable ISO duplicate of the checked date. */
+  checkedIso: string;
+  /** Number of priced retailer rows used to compute the verdict. */
+  retailerCount: number;
+  /** Cheapest retailer display name (sanitized). */
+  cheapestMerchant: string;
+  /** Cheapest price in the page's currency. */
+  cheapestPrice: number;
+  /** Second-cheapest price (used to compute the delta). May equal cheapest if only one priced row. */
+  nextPrice: number | null;
+};
+
+function priceText(value: number, currency: string): string {
+  // 4seen OAI-SearchBot checklist item 6 — "currency and country as text every
+  // time (US$749 / S$1,299)". Intl's en-SG/SGD formatter emits `$1,000` without
+  // a country prefix on some ICU versions, so build the prefix explicitly and
+  // let Intl format the digit grouping + symbol position.
+  const prefix = currency === "SGD" ? "S$" : currency === "USD" ? "US$" : "";
+  try {
+    const formatted = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+    return prefix ? `${prefix}${formatted}` : `${formatted} ${currency}`;
+  } catch {
+    return `${prefix || ""}${value}`;
+  }
+}
+
+function shortMerchant(value: string): string {
+  return stripMerchantTenantSuffix(value).replace(/\s+store$/i, "").trim() || "a retailer";
+}
+
+export function buildAnswerBlock(
+  config: Pick<SeoLandingPageConfig, "searchQuery" | "country" | "currency">,
+  products: LandingProduct[],
+  checked: { iso: string; text: string },
+): AnswerBlock | null {
+  const priced = products
+    .map((p) => ({
+      merchant: shortMerchant(p.merchant || "BuyWhere seller"),
+      price: p.price !== null && p.price !== undefined && Number.isFinite(Number(p.price))
+        ? Number(p.price)
+        : null,
+    }))
+    .filter((row): row is { merchant: string; price: number } => row.price !== null && row.price > 0)
+    .sort((a, b) => a.price - b.price);
+
+  // Deduplicate identical merchants (a Walmart and "walmart" pair); keep the
+  // cheapest price per merchant so the verdict doesn't double-count.
+  const byMerchant = new Map<string, { merchant: string; price: number }>();
+  for (const row of priced) {
+    const key = row.merchant.toLowerCase();
+    const existing = byMerchant.get(key);
+    if (!existing || row.price < existing.price) {
+      byMerchant.set(key, row);
+    }
+  }
+  const ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
+
+  if (ranked.length < 2) {
+    // Need at least two distinct priced retailers to honestly name a "next retailer"
+    // and a delta. The 4seen charter forbids padding the verdict with invented
+    // numbers — return null and let the page render only the price table.
+    return null;
+  }
+
+  const cheapest = ranked[0];
+  const next = ranked[1];
+  const delta = next.price - cheapest.price;
+  const retailerCount = ranked.length;
+  const country = config.country;
+  const currency = config.currency;
+
+  // BUY-76505: Map country code to full name for verdict sentence.
+  const countryNames: Record<string, string> = {
+    SG: "Singapore",
+    US: "United States",
+  };
+  const countryName = countryNames[country] || country;
+
+  // BUY-76505: Strip country tokens from searchQuery to avoid redundancy.
+  // E.g., "air purifier Singapore" -> "air purifier"
+  const countryTokens = ["singapore", "sg", "united states", "us"];
+  const cleanedQuery = config.searchQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => !countryTokens.includes(word))
+    .join(" ");
+
+  // Sentence 1 — the verdict ChatGPT retrieval lifts.
+  const sentenceOne = `The cheapest ${cleanedQuery} in ${countryName} today is ${priceText(cheapest.price, currency)} at ${cheapest.merchant}, ${priceText(delta, currency)} less than ${next.merchant} (${priceText(next.price, currency)}).`;
+  // Sentence 2 — the visible "Prices checked" stamp + retailer count.
+  const sentenceTwo = `Prices checked ${checked.text} across ${retailerCount} retailer${retailerCount === 1 ? "" : "s"}.`;
+  // Sentence 3 — spread range + average, so the block actually fills the
+  // 40-60-word target the 4seen charter asks for and gives crawlers a second
+  // quotable figure. Skip the range/average when we only have two ranked rows.
+  let sentenceThree = "";
+  if (ranked.length >= 3) {
+    const highest = ranked[ranked.length - 1];
+    const avg = ranked.reduce((sum, r) => sum + r.price, 0) / ranked.length;
+    const range = highest.price - cheapest.price;
+    sentenceThree = ` Across the full set, the price range runs from ${priceText(cheapest.price, currency)} to ${priceText(highest.price, currency)} — a spread of ${priceText(range, currency)} — with an average of ${priceText(Math.round(avg), currency)}.`;
+  }
+
+  return {
+    text: `${sentenceOne} ${sentenceTwo}${sentenceThree}`,
+    checkedText: checked.text,
+    checkedIso: checked.iso,
+    retailerCount,
+    cheapestMerchant: cheapest.merchant,
+    cheapestPrice: cheapest.price,
+    nextPrice: next.price,
+  };
+}
+

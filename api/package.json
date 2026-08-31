@@ -16,7 +16,7 @@
     "key-reset": "ts-node src/jobs/dailyKeyResetRunner.ts",
     "start:p95": "node dist/jobs/p95Runner.js",
     "p95": "ts-node src/jobs/p95Runner.ts",
-    "test": "node --test --test-force-exit tests/response.test.mjs tests/build-product-merchant.test.mjs tests/products-list-contract.test.mjs tests/search.test.mjs tests/ts-rank-guard.test.mjs tests/cache-stats.test.mjs tests/embed-products.test.mjs tests/embed-products-buy60368.test.mjs tests/deliver-to-contract.test.mjs tests/semantic-cache-contract.test.mjs tests/synthetic-amazon-guard.test.mjs tests/mcp-degraded-contract.test.mjs",
+    "test": "node --test --test-force-exit tests/response.test.mjs tests/build-product-merchant.test.mjs tests/products-list-contract.test.mjs tests/search.test.mjs tests/query-preprocessor.test.mjs tests/ts-rank-guard.test.mjs tests/cache-stats.test.mjs tests/embed-products.test.mjs tests/embed-products-buy60368.test.mjs tests/deliver-to-contract.test.mjs tests/semantic-cache-contract.test.mjs tests/synthetic-amazon-guard.test.mjs tests/mcp-degraded-contract.test.mjs tests/buy-77823-internal-bypass.test.mjs",
     "test:mcp": "node --test --test-force-exit tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
     "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs",

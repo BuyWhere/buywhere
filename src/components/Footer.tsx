@@ -8,8 +8,8 @@ export default function Footer() {
   return (
     <>
       <NewsletterBanner />
-      <footer role="contentinfo" aria-label="Site footer" className="bg-gray-50 border-t border-gray-200 mt-auto">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+      <footer role="contentinfo" aria-label="Site footer" className="bg-gray-50 border-t border-gray-200 mt-auto pb-safe">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 pb-28 md:pb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="font-bold text-lg text-indigo-600 mb-3">

@@ -452,6 +452,27 @@ class ComparisonPage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+
+class SeoPage(Base):
+    __tablename__ = "seo_pages"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    slug = Column(Text, nullable=False, unique=True)
+    status = Column(Text, nullable=False, default="draft")
+    country = Column(String(2), nullable=False)
+    search_query = Column(Text, nullable=False)
+    reviewer = Column(Text, nullable=True)
+    page = Column(JSONB, nullable=False)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    date_modified = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_seo_pages_slug_status", "slug", "status"),
+        Index("idx_seo_pages_country_status", "country", "status"),
+    )
+
 class ApiKeyAuditLog(Base):
     __tablename__ = "api_key_audit_logs"
 

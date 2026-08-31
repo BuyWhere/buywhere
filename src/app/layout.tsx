@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 import dynamic from "next/dynamic";
 import "./globals.css";
+import "@/components/ui/design-tokens.css";
 import DeveloperSessionBootstrap from "@/components/DeveloperSessionBootstrap";
 import SentryErrorBoundary from "@/components/SentryErrorBoundary";
 import UpgradeIntentPromptHost from "@/components/UpgradeIntentPromptHost";
@@ -36,13 +37,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
-  title: "BuyWhere — Compare products and prices across 150,000+ stores",
+  title: "BuyWhere — Compare products and prices across 950,000+ stores",
   description:
     "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
-    title: "BuyWhere — Compare products and prices across 150,000+ stores",
+    title: "BuyWhere — Compare products and prices across 950,000+ stores",
     description:
       "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: [
@@ -50,13 +51,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "BuyWhere — compare products and prices across 150,000+ stores",
+        alt: "BuyWhere — compare products and prices across 950,000+ stores",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BuyWhere — Compare products and prices across 150,000+ stores",
+    title: "BuyWhere — Compare products and prices across 950,000+ stores",
     description:
       "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: ["/og-image.png"],

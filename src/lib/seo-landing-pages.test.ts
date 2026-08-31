@@ -10,6 +10,7 @@ import {
   isCompleteRobotVacuum,
   resolveHeroTitle,
   seoLandingPages,
+  stripCountryTokens,
   verifyReachableImage,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
@@ -173,6 +174,32 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
     assert.equal(products[0].name, "Lefant Robot Vacuum and Mop, M501-A Robotic Vacuums Cleaner");
     products.forEach((product) => assert.equal(isCompleteRobotVacuum(product), true, product.name));
     assert.doesNotMatch(products.map((product) => product.name).join(" "), /replacement|accessories|stick vacuum/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("SEO landing products consume live API products payloads", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (!url.includes("/api/products/search")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
+
+    return new Response(
+      JSON.stringify({
+        products: [makeSearchItem("earbuds", "Sony WF-1000XM5 Wireless Earbuds", 199)],
+        total: 1,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-noise-canceling-headphones-us"]);
+    assert.equal(products[0].id, "earbuds");
+    assert.equal(products[0].name, "Sony WF-1000XM5 Wireless Earbuds");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1302,4 +1329,166 @@ test("BUY-73741: live SSR HTML for /best-gaming-laptops-us contains zero CompuMa
     /\bnamshi\b|\bmumzworld\b/i,
     "live SSR HTML must not contain Namshi / MumzWorld",
   );
+});
+
+// BUY-76505: verdict sentence strips country tokens from searchQuery
+test("BUY-76505: stripCountryTokens removes country tokens from query", () => {
+  assert.equal(stripCountryTokens("air purifier Singapore"), "air purifier");
+  assert.equal(stripCountryTokens("air purifier SG"), "air purifier");
+  assert.equal(stripCountryTokens("laptop US"), "laptop");
+  assert.equal(stripCountryTokens("laptop United States"), "laptop");
+  assert.equal(stripCountryTokens("Sony headphones Singapore SG US United States"), "Sony headphones");
+  assert.equal(stripCountryTokens("sINGAPORE laptop"), "laptop");
+  assert.equal(stripCountryTokens("laptop us best"), "laptop best");
+  assert.equal(stripCountryTokens("Sony headphones"), "Sony headphones");
+});
+
+// BUY-77675: laptop accessory regex catches the QA-captured false positives.
+// Live capture 2026-08-30T06:15Z found 72% non-laptop results for
+// q=laptop&country=sg — mics, IEMs, headphones, desks, portable monitors,
+// privacy screens, screen cleaners, foldable keyboards. Each must be
+// rejected by `LAPTOP_ACCESSORY_RE` while leaving the model's own model
+// names untouched.
+test("BUY-77675: LAPTOP_ACCESSORY_RE rejects QA-captured laptop accessories", () => {
+  // Re-read the regex from source so the test stays in lockstep with the
+  // constant defined in seo-landing-pages.ts (regex literals don't survive
+  // export through the Next.js TS pipeline).
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  const match = source.match(/const LAPTOP_ACCESSORY_RE =\s*\n\s*(\/[^;]+\/i)/);
+  assert.ok(match, "LAPTOP_ACCESSORY_RE must be defined in seo-landing-pages.ts");
+  const accessoryRe = new RegExp(match![1].replace(/^\/|\/i$/g, ""), "i");
+
+  // Every entry here was a confirmed non-laptop in the QA capture.
+  const accessories = [
+    "Boya Wireless Lavalier Microphone BOYALINK A1 Mini Lapel Mic for iPhone Android Laptop",
+    "BOYA Dual Wireless Lavalier Lapel Microphone for Android Smartphone Laptop",
+    "rockpapa On Ear Stereo Headphones Earphones For Adults Kids Childs Teens Adjust",
+    "WEICON Screen Cleaner 200 ml Touch Screen Cleaner Spray for Laptop Tablet Phone",
+    "Laptop Desk for Bed Study Desk Portable Foldable Laptop Table Folding Breakfast Tray",
+    "Laptop Lap Desk for Bed Portable Foldable Laptop Table Folding Breakfast Tray",
+    "Portable Monitor 15.6\" FHD 1080P Travel Portable Monitor for Laptop",
+    "In Ear Monitors Headphones USB-C HiFi Wired Earbuds with Noise Isolating",
+    "Laptop Screen Extender Portable Triple Monitor 15.6 inch FHD 1080P",
+    "Mesh Poofy Laptop Sleeve",
+    "CARBONADO 30 L Backpack Gaming Backpack For Laptop",
+    "ProCase Wireless Keyboard for iOS Android Windows Device Mini Small Slim Light",
+    "Geyes Foldable Bluetooth Keyboard Portable Folding Wireless Keyboard",
+  ];
+  for (const title of accessories) {
+    assert.equal(accessoryRe.test(title), true, `expected accessory match: ${title}`);
+  }
+
+  // Real laptops — every brand / series token in the live catalog must
+  // still survive the accessory filter.
+  const laptops = [
+    "Razer Blade Stealth 13 Ultrabook Laptop OLED",
+    "Lenovo ThinkPad Laptop E14 G5 i5-1340P",
+    "MSI Modern 14 C13M-667SG Laptop",
+    "MacBook Air 13 M3",
+    "ASUS Zenbook 14 OLED",
+    "Gaming Laptop i5 16 inch Laptop Computer Up to 3.60GHz",
+    "2025 AMD Laptop Computer with Ryzen 7 5700U",
+    "Dell Inspiron 15.6\" Laptop",
+    "Lenovo IdeaPad Slim 3i 15.6\"",
+    "Lenovo ThinkBook Laptop 14 G7 U7",
+    "Lenovo Yoga Slim 7",
+    "HP Pavilion 15",
+    "HP 14 Student-Laptop",
+    "Apple MacBook Pro 14",
+    "LG 14Z90T gram 14\" Lightweight",
+    "ROG Strix G16 Gaming Laptop",
+    "MSI Stealth 16Studio Gaming Laptop",
+    "Lenovo Legion Pro 7i Gaming Laptop",
+    "Alienware m16 R3 Gaming Laptop",
+  ];
+  for (const title of laptops) {
+    assert.equal(accessoryRe.test(title), false, `expected laptop passthrough: ${title}`);
+  }
+});
+
+// BUY-77675: token-floor on `searchCategory === "laptops"` requires either
+// a strict model token OR (loose "laptop" AND a laptop-series signal). The
+// floor is what stops a Boya mic titled "…for Laptop" from passing on the
+// bare "laptop" token alone.
+test("BUY-77675: laptop token floor requires strict model OR loose+signal", () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+
+  // Pull strict + loose tokens the same way isExcludedAccessory does at
+  // runtime. Avoid exporting them through the page module just for tests —
+  // the regex + token arrays are private and we want to keep them that way.
+  const extractStringArray = (label: string): string[] => {
+    const start = source.indexOf(`const ${label} = [`);
+    if (start === -1) throw new Error(`missing ${label}`);
+    const bodyStart = start + `const ${label} = [`.length;
+    let i = bodyStart;
+    let depth = 1;
+    while (i < source.length && depth > 0) {
+      const ch = source[i];
+      if (ch === "[") depth++;
+      else if (ch === "]") {
+        depth--;
+        if (depth === 0) break;
+      } else if (ch === "/" && source[i + 1] === "/") {
+        while (i < source.length && source[i] !== "\n") i++;
+      } else if (ch === "/" && source[i + 1] === "*") {
+        i += 2;
+        while (i < source.length - 1 && !(source[i] === "*" && source[i + 1] === "/")) i++;
+        i += 1;
+      }
+      i++;
+    }
+    const body = source
+      .substring(bodyStart, i)
+      .split("\n")
+      .map((line) => line.replace(/\/\/.*$/, ""))
+      .join("\n");
+    return Array.from(body.matchAll(/"([^"]+)"/g)).map((m) => m[1]);
+  };
+  const strictTokens = extractStringArray("LAPTOP_REQUIRED_STRICT_TOKENS");
+  const looseSignals = extractStringArray("LAPTOP_REQUIRED_LOOSE_SIGNALS");
+
+  const floorPasses = (text: string): boolean => {
+    const lower = text.toLowerCase();
+    if (strictTokens.some((t) => lower.includes(t.toLowerCase()))) return true;
+    const hasLaptop = lower.includes("laptop");
+    const hasLoose = looseSignals.some((s) => lower.includes(s.toLowerCase()));
+    return hasLaptop && hasLoose;
+  };
+
+  // Real laptops — strict token OR (laptop + loose) must pass
+  const laptops = [
+    "Razer Blade Stealth 13 Ultrabook Laptop",
+    "Lenovo ThinkPad E14 G5",
+    "Lenovo ThinkBook 14 G7",
+    "MSI Modern 14 C13M-667SG Laptop",
+    "MacBook Air M3 13-inch",
+    "ASUS Zenbook 14 OLED",
+    "Gaming Laptop i5 16 inch Laptop Computer",
+    "2025 AMD Laptop Computer with Ryzen 7",
+    "Dell Inspiron 15.6\" Laptop",
+    "Lenovo IdeaPad Slim 3i 15.6\"",
+    "Lenovo Yoga Slim 7",
+    "HP 14 Student-Laptop",
+    "Apple MacBook Pro 14",
+  ];
+  for (const title of laptops) {
+    assert.equal(floorPasses(title), true, `floor must accept laptop: ${title}`);
+  }
+
+  // Accessories that mention "laptop" but are not laptops — must fail
+  const accessories = [
+    "BOYA Dual Wireless Lavalier Lapel Microphone for Android Smartphone Laptop",
+    "Boya Wireless Lavalier Microphone BOYALINK A1 Mini Lapel Mic for iPhone Android Laptop",
+    "WEICON Screen Cleaner 200 ml Touch Screen Cleaner Spray for Laptop Tablet Phone",
+    "Laptop Desk for Bed Study Desk Portable Foldable Laptop Table",
+    "Portable Monitor 15.6\" FHD 1080P Travel Portable Monitor for Laptop",
+    "Laptop Screen Extender Portable Triple Monitor 15.6 inch FHD 1080P",
+    "CARBONADO 30 L Backpack Gaming Backpack For Laptop",
+    "Mesh Poofy Laptop Sleeve",
+    "ProCase Wireless Keyboard for iOS Android Windows Device",
+    "Geyes Foldable Bluetooth Keyboard Portable Folding Wireless Keyboard",
+  ];
+  for (const title of accessories) {
+    assert.equal(floorPasses(title), false, `floor must reject accessory: ${title}`);
+  }
 });

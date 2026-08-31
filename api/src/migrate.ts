@@ -118,6 +118,23 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash) WHERE is_acti
 UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+
+-- BUY-74863: DB-backed intent/SEO pages API.
+CREATE TABLE IF NOT EXISTS seo_pages (
+  id BIGSERIAL PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published')),
+  country VARCHAR(2) NOT NULL CHECK (country IN ('US', 'SG')),
+  search_query TEXT NOT NULL,
+  reviewer TEXT,
+  page JSONB NOT NULL,
+  published_at TIMESTAMPTZ,
+  date_modified TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_seo_pages_slug_status ON seo_pages (slug, status);
+CREATE INDEX IF NOT EXISTS idx_seo_pages_country_status ON seo_pages (country, status);
 CREATE INDEX IF NOT EXISTS idx_api_keys_email_token ON api_keys(email_verification_token) WHERE email_verification_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_keys_pending_verify ON api_keys(tier, created_at) WHERE tier = 'pending_verify';
@@ -135,6 +152,19 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS agent_framework TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS ip_hash TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
+-- BUY-77109: HTTP response status code emitted by the /r/ handler (302/403/410).
+-- Powers the P6.1 acceptance-gate success-rate KPI in monitoring.v_ceo_kpis.
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS redirect_status_code SMALLINT;
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_status_clicked_at
+  ON affiliate_clicks(redirect_status_code, clicked_at DESC)
+  WHERE redirect_status_code IS NOT NULL;
 
 -- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
 CREATE TABLE IF NOT EXISTS url_probe_log (
@@ -153,6 +183,8 @@ CREATE TABLE IF NOT EXISTS url_probe_log (
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
+  ON affiliate_clicks(clicked_at, agent_framework, is_internal);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
@@ -576,6 +608,21 @@ export async function runMigrations() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_dead_at TIMESTAMPTZ;
       ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS user_agent TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS agent_framework TEXT NOT NULL DEFAULT 'unknown';
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS ip_hash TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS referrer TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS source_page TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS api_key_id TEXT;
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
+      -- BUY-77109: HTTP response status code emitted by the /r/ handler (302/403/410).
+      -- Powers the P6.1 acceptance-gate success-rate KPI in monitoring.v_ceo_kpis.
+      ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS redirect_status_code SMALLINT;
+      CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_status_clicked_at
+        ON affiliate_clicks(redirect_status_code, clicked_at DESC)
+        WHERE redirect_status_code IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
+        ON affiliate_clicks(clicked_at, agent_framework, is_internal);
       CREATE TABLE IF NOT EXISTS url_probe_log (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         product_id TEXT NOT NULL,
@@ -861,6 +908,11 @@ export async function runMigrations() {
     await db.query(`
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean;
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS returned_product_ids text[];
+      -- BUY-74597 shipped the queryLog INSERT with job_id + degraded_kind but never
+      -- added the columns: every api-side query_log INSERT has failed silently since
+      -- 2026-08-25 (mcp-railway's INSERT omits degraded_kind, so its rows still landed).
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS job_id TEXT;
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS degraded_kind TEXT;
     `);
     console.log('[migration] query_log telemetry columns ensured (BUY-62708/BUY-74173).');
   } catch (err: any) {
@@ -1064,6 +1116,59 @@ export async function runMigrations() {
     console.log('[migration] P95 monitoring schema ensured (BUY-32082).');
   } catch (err: any) {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-72556: Server-side v2 adoption telemetry. Atlas's daily 23:56Z
+  // aggregator (BUY-72550) reads this table + the v2_adoption_daily view to
+  // emit data/v2-adoption-server-side/YYYY-MM-DD.csv. The api process
+  // writes one row per JSON-RPC tools/call whose params.name ends with `_v2`
+  // (see api/src/monitoring/v2RequestLog.ts). Idempotent — IF NOT EXISTS
+  // guards make re-runs cheap.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS monitoring.mcp_v2_request_log (
+        id                  BIGSERIAL    PRIMARY KEY,
+        request_id          TEXT         NOT NULL,
+        tool_name           TEXT         NOT NULL,
+        deliver_to_present  BOOLEAN      NOT NULL,
+        country_code        TEXT             NULL,
+        gate_passed         BOOLEAN      NOT NULL,
+        outcome             TEXT         NOT NULL,
+        api_key_hash        TEXT             NULL,
+        received_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_at
+        ON monitoring.mcp_v2_request_log (received_at);
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_tool
+        ON monitoring.mcp_v2_request_log (received_at, tool_name);
+      CREATE INDEX IF NOT EXISTS idx_mcp_v2_request_log_received_outcome
+        ON monitoring.mcp_v2_request_log (received_at, outcome);
+
+      CREATE OR REPLACE VIEW monitoring.v2_adoption_daily AS
+      SELECT
+        date_trunc('day', received_at AT TIME ZONE 'UTC')::date       AS day,
+        tool_name,
+        COUNT(*)                                                      AS total_v2_calls,
+        COUNT(*) FILTER (WHERE deliver_to_present)                    AS calls_with_deliver_to,
+        COUNT(*) FILTER (WHERE gate_passed)                           AS calls_gate_passed,
+        COUNT(*) FILTER (WHERE outcome = 'gate_rejected')             AS calls_gate_rejected,
+        COUNT(*) FILTER (WHERE outcome = 'transport_error')           AS calls_transport_error,
+        ROUND(
+          COUNT(*) FILTER (WHERE deliver_to_present)::numeric
+          / NULLIF(COUNT(*), 0), 4
+        )                                                             AS deliver_to_pass_rate,
+        ROUND(
+          COUNT(*) FILTER (WHERE gate_passed)::numeric
+          / NULLIF(COUNT(*), 0), 4
+        )                                                             AS gate_pass_rate,
+        COUNT(DISTINCT api_key_hash)                                  AS distinct_api_keys
+      FROM monitoring.mcp_v2_request_log
+      GROUP BY 1, 2;
+    `);
+    console.log('[migration] mcp_v2_request_log + v2_adoption_daily ensured (BUY-72556).');
+  } catch (err: any) {
+    console.warn(`[migration] mcp_v2_request_log ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   console.log('Migrations complete.');

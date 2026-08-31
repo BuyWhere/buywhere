@@ -4,7 +4,7 @@
   "description": "The best bread makers you can buy in Singapore right now: live prices from Courts, Harvey Norman, Shopee and Lazada, ranked daily, plus advice on loaf size, gluten-free modes and what to avoid.",
   "heroEyebrow": "Singapore bread maker buying guide",
   "heroTitle": "Best Bread Makers in Singapore \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best Bread Makers in Singapore \u2014 from {floorPrice} today",
+  "heroTitleTemplate": "Best Bread Makers in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "Singapore households buy fresh bread daily, but a reliable bread maker pays for itself within months if anyone in the family avoids preservatives or has a gluten sensitivity. The local market is dominated by Panasonic, which invented the bread maker category and still makes the most consistent machines in the mid-range; Zojirushi sits at the premium end with horizontal-paddle loaves that look bakery-shaped, while Tefal and Cornell cover the entry-level. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so the price on each card reflects what authorised retailers and marketplace sellers are actually charging today.",
   "canonicalPath": "/best-bread-makers-singapore",
   "country": "SG",
@@ -23,9 +23,9 @@
     "machine"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live bread maker prices in Singapore",
   "comparisonSectionTitle": "Which bread maker should you buy in Singapore? At a glance",
   "comparisonColumns": [

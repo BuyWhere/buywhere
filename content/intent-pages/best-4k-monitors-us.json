@@ -4,7 +4,7 @@
   "description": "The best 4K monitors you can buy in the United States right now: live prices from Newegg, Amazon, Best Buy and B&H, ranked daily, plus expert advice on panel type, refresh rate, size and what to avoid.",
   "heroEyebrow": "US 4K monitor buying guide",
   "heroTitle": "Best 4K Monitors in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best 4K Monitors in the US \u2014 from {floorPrice} today",
+  "heroTitleTemplate": "Best 4K Monitors in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "A 4K monitor is the single biggest visible upgrade most people can make in 2026: text looks dramatically sharper, photo and video editing finally matches print, and modern GPUs can drive 4K at high refresh for gaming. The US market has three distinct price bands \u2014 an entry band for everyday office use, a mid-range band for the IPS sweet spot that suits both work and creative work, and a premium band for 27-inch 4K at 144Hz or 32-inch panels with Mini-LED HDR. This page pulls live listings from BuyWhere's catalog every few minutes so the price you see on each card is what US retailers are actually charging right now, not a static snapshot from earlier in the year.",
   "canonicalPath": "/best-4k-monitors-us",
   "country": "US",
@@ -23,9 +23,9 @@
     "uhd"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live 4K monitor prices in the US",
   "comparisonSectionTitle": "Which 4K monitor should you buy? At a glance",
   "comparisonColumns": [

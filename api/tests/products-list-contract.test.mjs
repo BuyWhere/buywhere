@@ -8,6 +8,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const productsSource = readFileSync(join(__dirname, '../src/routes/products.ts'), 'utf8');
 
 describe('BUY-73753: /v1/products list contract', () => {
+  it('treats deliver_to as the hard buyer-market filter for search (BUY-75564)', () => {
+    const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
+    assert.ok(searchRouteStart > -1, 'search route marker not found');
+    const searchRoute = productsSource.slice(searchRouteStart);
+
+    assert.match(searchRoute, /const explicitDeliverTo = \(\(req\.query\.deliver_to as string\) \|\| ''\)\.toUpperCase\(\) \|\| undefined/);
+    assert.match(searchRoute, /const explicitCountry = explicitDeliverTo \|\| \(\(req\.query\.country_code as string \| undefined\) \|\| \(req\.query\.country as string \| undefined\)\)\?\.toUpperCase\(\) \|\| undefined/);
+    assert.match(searchRoute, /const countryCode = explicitCountry/);
+    assert.ok(productsSource.includes('if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }'));
+    assert.match(searchRoute, /if \(countryCode\) \{\s*\/\/ Explicit country_code is a HARD filter[\s\S]*?baseConditions\.push\(`country_code = \$\$\{baseIdx\}`\)/);
+    assert.doesNotMatch(searchRoute, /never hard-filters/);
+  });
+
   it('requires an explicit country instead of silently defaulting to SG', () => {
     const listRouteStart = productsSource.indexOf('// GET /v1/products');
     const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');

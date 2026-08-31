@@ -1,0 +1,10 @@
+{
+  "domain": "soccerzoneusa.com",
+  "validated_at": "2026-08-29T02:26:00Z",
+  "platform": "shopify",
+  "products_json_check": "200 OK",
+  "buywhere_indexed": false,
+  "source": "r429",
+  "parent_issue": 77052,
+  "status": "validated_ready_for_ingestion"
+}

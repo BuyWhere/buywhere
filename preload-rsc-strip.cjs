@@ -1,7 +1,7 @@
 // Preload module: runs at process startup before any other code
 const http = require('node:http');
 
-const RSTRIPPED_PREFIXES = ['/search', '/compare'];
+const RSTRIPPED_PREFIXES = ['/search', '/compare', '/deals'];
 const RSTATE_HEADER = 'next-router-state-tree';
 
 const original = http.createServer;
@@ -25,4 +25,4 @@ http.createServer = function patchedCreateServer(requestListener, options) {
   return original.call(this, requestListener, options);
 };
 
-console.log('[preload] http.createServer patched for /search + /compare');
+console.log('[preload] http.createServer patched for /search + /compare + /deals');

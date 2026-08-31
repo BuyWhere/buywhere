@@ -48,17 +48,25 @@ function trackAffiliateClick(event) {
     if (!ph)
         return;
     ph.capture({
-        distinctId: event.apiKey || 'anonymous',
+        distinctId: event.apiKeyId || event.apiKey || 'anonymous',
         event: 'affiliate_click',
         properties: {
             product_id: event.productId,
             merchant_id: event.merchantId,
             affiliate_link_id: event.affiliateLinkId,
             source: event.source,
+            ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
             ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
             ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
             ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
             ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
+            // BUY-74988: $set ensures PostHog materializes source → mat_source so
+            // HogQL property-filtered queries (mat_source=NULL → 0 results) resolve.
+            $set: {
+                source: event.source,
+                ...(event.pathname ? { pathname: event.pathname } : {}),
+                ...(event.currentUrl ? { current_url: event.currentUrl } : {}),
+            },
         },
     });
 }

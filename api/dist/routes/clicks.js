@@ -14,6 +14,7 @@ const crypto_1 = require("crypto");
 const uuid_1 = require("uuid");
 const express_1 = require("express");
 const config_1 = require("../config");
+const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 // ---------------------------------------------------------------------------
 // Allowed-domains whitelist (mirrors redirect.ts)
@@ -124,6 +125,15 @@ router.get('/click', async (req, res) => {
     const merchantId = req.query.merchant || merchantFromUrl(url);
     const auth = req.headers['authorization'] || '';
     const apiKey = auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
+    // BUY-71129 (re-applied): thread-through attribution. The upstream API call
+    // embeds ?k=<keyHash>&aid=<agentId> on /api/click URLs so a browser click
+    // (no Bearer header) can still be tied back to an agent.
+    const keyHashQuery = req.query.k || null;
+    const agentIdQuery = req.query.aid || null;
+    const resolvedAgentId = agentIdQuery;
+    const resolvedKeyHash = apiKey
+        ? (0, crypto_1.createHash)('sha256').update(apiKey).digest('hex')
+        : keyHashQuery;
     const referrer = req.headers['referer'] || req.headers['referrer'] || null;
     const clientIp = req.ip || req.socket?.remoteAddress || '';
     const ipHash = clientIp
@@ -136,11 +146,23 @@ router.get('/click', async (req, res) => {
         const keyRow = await config_1.db.query('SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true', [keyHash]);
         apiKeyId = keyRow.rows[0]?.id || null;
     }
-    // Align INSERT to actual clicks table schema:
-    // id, product_id, merchant_id, user_id, api_key, referrer, destination_url, ip_hash, source, clicked_at
+    // Align INSERT to actual clicks table schema (verified via
+    // information_schema 2026-08-26, BUY-75628): id, tracking_id, product_id,
+    // platform, destination_url, api_key_id, clicked_at, user_agent, referrer,
+    // … The previous INSERT named columns (api_key, ip_hash, source) that do
+    // NOT exist in prod — every insert failed since 2026-08-22. Resolve the
+    // api_key_id from ?aid= / ?k= (BUY-71129) or the Bearer lookup (BUY-72774).
+    const clicksApiKeyId = resolvedAgentId
+        ?? apiKeyId
+        ?? (resolvedKeyHash
+            ? (await config_1.db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [resolvedKeyHash]).then(r => r.rows[0]?.id ?? null).catch(() => null))
+            : null);
     try {
-        await config_1.db.query(`INSERT INTO clicks (id, product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, merchantId, apiKey, referrer, url, ipHash, 'api']);
+        // id is BIGINT auto-increment; tracking_id carries the UUID.
+        // product_id is BIGINT — cast from the query string.
+        await config_1.db.query(`INSERT INTO clicks (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer)
+       VALUES ($1, $2::bigint, $3, $4, $5, $6, $7)`, [(0, uuid_1.v4)(), productId || '0', merchantId || null, url, clicksApiKeyId,
+            req.headers['user-agent'] || null, referrer || null]);
     }
     catch (err) {
         // Log but don't block the redirect
@@ -167,6 +189,19 @@ router.get('/click', async (req, res) => {
          WHERE id = $1
            AND tier = 'pending_verify'
            AND consecutive_outbound_days >= 3`, [apiKeyId]).catch(() => { });
+    }
+    // BUY-71129 (re-applied): emit affiliate_click for the /api/click path too.
+    // Same distinct_id priority (apiKeyId → apiKey → anonymous) as redirect.ts so
+    // the funnel join works for both code paths.
+    if (productId) {
+        (0, posthog_1.trackAffiliateClick)({
+            apiKeyId: resolvedAgentId,
+            apiKey: resolvedKeyHash,
+            productId,
+            merchantId: merchantId || 'unknown',
+            affiliateLinkId: 'unknown',
+            source: 'product_card',
+        });
     }
     res.redirect(302, url);
 });

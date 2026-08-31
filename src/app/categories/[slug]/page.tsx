@@ -2,12 +2,27 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { HeroSearch } from '@/components/HeroSearch';
+import CategoryProductGrid from '@/components/CategoryProductGrid';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
+import { fetchCategoryProducts } from '@/lib/category-products';
 
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
 }
+
+const CATEGORY_QUERY_OVERRIDES: Record<string, string[]> = {
+  electronics: ['smartphone', 'laptop', 'headphones', 'tv'],
+  fashion: ['shoes', 'shirt', 'jacket'],
+  'home-living': ['home-living', 'shoes', 'smartphone', 'shampoo'],
+  beauty: ['shampoo', 'skincare', 'makeup'],
+  'sports-outdoors': ['shoes', 'fitness'],
+  'health-wellness': ['shampoo', 'skincare'],
+  'toys-games': ['smartphone', 'headphones'],
+  'food-beverages': ['shampoo', 'smartphone'],
+  automotive: ['smartphone', 'headphones'],
+  'pet-supplies': ['shampoo', 'smartphone'],
+};
 
 function buildMetadata(slug: string): Metadata {
   const category = getCategoryBySlug(slug);
@@ -72,6 +87,11 @@ export default async function CategorySlugPage({ params }: PageProps) {
 
   const name = category.name;
   const canonicalCategoryUrl = toSiteUrl(`/categories/${slug}`);
+  const products = await fetchCategoryProducts({
+    queries: CATEGORY_QUERY_OVERRIDES[slug] || [slug.replace(/-/g, ' ')],
+    category: slug,
+    country: 'SG',
+  });
 
   const schemaMarkup = {
     '@context': 'https://schema.org',
@@ -137,14 +157,21 @@ export default async function CategorySlugPage({ params }: PageProps) {
           <HeroSearch />
         </div>
 
-        {/* We're building section */}
+        <CategoryProductGrid
+          products={products}
+          country="SG"
+          title={`Popular ${name} products with live prices`}
+          description={`Compare current ${name.toLowerCase()} prices from Singapore retailers with crawler-visible merchant links.`}
+        />
+
+        {/* Search fallback section */}
         <div className="mb-16 bg-indigo-50 border border-indigo-100 rounded-xl p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            We are building our {name.toLowerCase()} catalog
+            Search more {name.toLowerCase()} products
           </h2>
           <p className="text-lg text-gray-600 mb-6">
             Search for specific products or browse our categories below to find
-            the best deals.
+            more deals.
           </p>
           <Link
             href={`/search?q=${slugToQuery(slug)}&region=sg`} rel="nofollow"

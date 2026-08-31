@@ -7,6 +7,7 @@
  */
 
 export const ACTIVE_BLOG_SLUGS: string[] = [
+  "air-quality-agent-mcp-hdb",
   "airpods-pro-2-cheapest-us-sg-my-jp",
   "amazon-prime-day-2026-preview",
   "best-gaming-laptops-us-2026",
@@ -41,12 +42,15 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "cheapest-iphone-singapore-2026",
   "cheapest-macbook-air-m3-12-countries-compared",
   "cite-buywhere-catalog-stats-faq",
+  "cite-buywhere-live-stats",
+  "claude-managed-agents-buywhere-mcp-example",
   "compare-headphones-singapore-2026",
   "compare-product-prices-singapore-2026",
   "fathers-day-deals-2026",
   "five-mcp-servers-that-earn-context-window",
   "handle-empty-search-results-buywhere",
   "home-appliance-deals-singapore-2026",
+  "how-to-give-your-mcp-server-access-to-live-product-data-2026-07-16",
   "how-to-track-price-drops-with-buywhere-api",
   "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
   "macbook-air-vs-dell-xps-13-college-guide",
@@ -82,4 +86,5 @@ export const ACTIVE_BLOG_SLUGS: string[] = [
   "where-to-buy-sony-wh-1000xm5-singapore",
   "where-to-buy-steam-deck-singapore",
   "where-to-buy-xbox-series-x-singapore",
+  "where-to-find-the-cheapest-qled-tv-prices-in-the-us-and-which-brands-2026-08-18",
 ];

@@ -32,6 +32,7 @@ export interface CanonicalProduct {
   comparison_attributes?: ComparisonAttribute[];
   // Non-compact-only (legacy extras):
   metadata?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
@@ -148,6 +149,15 @@ export interface SearchMeta {
   degraded_kind?: DegradedKind;
   /** BUY-75024: agent-readable stage/reason for degraded fallbacks (e.g. catalog_search). */
   degraded_reason?: string;
+  /**
+   * BUY-76440: the search mode that actually produced this response
+   * ('keyword' | 'semantic' | 'hybrid'). Lets integrators verify mode-identity
+   * — that mode=semantic/hybrid really ran the embedding-ranked path rather than
+   * silently degrading to FTS. Absent on non-search builders (deals, bulk-lookup).
+   */
+  mode_used?: 'keyword' | 'semantic' | 'hybrid';
+  /** BUY-76440: human-readable engine that served the mode, e.g. 'keyword (fts)' | 'semantic (pgvector hnsw)' | 'hybrid (rrf + pgvector hnsw)'. */
+  mode_used_engine?: string;
 }
 
 export interface SearchResponse {

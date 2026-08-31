@@ -1,35 +1,92 @@
 {
   "slug": "airpods-pro-3-vs-airpods-pro-2-singapore",
-  "title": "AirPods Pro 3 vs AirPods Pro 2 in Singapore (2026) — which to buy",
+  "title": "AirPods Pro 3 vs AirPods Pro 2 in Singapore (2026) \u2014 which to buy",
   "description": "AirPods Pro 3 vs AirPods Pro 2 compared for Singapore buyers: live prices on Shopee, Amazon.sg, Challenger and Apple authorised resellers, plus a side-by-side on noise cancellation, battery, heart-rate sensing and whether Pro 2 owners should upgrade.",
   "heroEyebrow": "Singapore AirPods Pro comparison",
-  "heroTitle": "AirPods Pro 3 vs AirPods Pro 2 in Singapore (2026) — live prices and which to buy",
-  "heroTitleTemplate": "AirPods Pro 3 vs AirPods Pro 2 in Singapore — from {floorPrice} today",
+  "heroTitle": "AirPods Pro 3 vs AirPods Pro 2 in Singapore (2026) \u2014 live prices and which to buy",
+  "heroTitleTemplate": "AirPods Pro 3 vs AirPods Pro 2 in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "Apple's AirPods Pro 3 launched in 2025 with the new H3 chip, much stronger active noise cancellation and a heart-rate sensor; the AirPods Pro 2 is still on sale at meaningful discounts now that the Pro 3 has been out a full year. For shoppers in Singapore the choice usually comes down to three things: how much you commute on the MRT, whether you care about heart-rate sensing without wearing an Apple Watch, and how big the price gap is between the current Pro 3 floor and the remaining Pro 2 stock on Shopee, Amazon.sg, Challenger and Apple authorised resellers. This page pulls the live Singapore listings so you can see both prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the upgrade is worth the money to you in 2026.",
-  "inboundLinks": ["/search?q=airpods+pro+3+singapore", "/airpods-singapore"],
+  "inboundLinks": [
+    "/search?q=airpods+pro+3+singapore",
+    "/airpods-singapore"
+  ],
   "canonicalPath": "/airpods-pro-3-vs-airpods-pro-2-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "apple airpods pro",
-  "backupQueries": ["airpods pro 3", "airpods pro 2", "apple airpods"],
+  "backupQueries": [
+    "airpods pro 3",
+    "airpods pro 2",
+    "apple airpods"
+  ],
   "minPrice": 200,
-  "requiredProductTerms": ["airpods", "pro", "apple"],
+  "requiredProductTerms": [
+    "airpods",
+    "pro",
+    "apple"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live AirPods Pro 3 and Pro 2 prices in Singapore",
-  "comparisonSectionTitle": "AirPods Pro 3 vs AirPods Pro 2 — at a glance",
-  "comparisonColumns": ["Spec / feature", "AirPods Pro 3 (2025)", "AirPods Pro 2 (2022)"],
+  "comparisonSectionTitle": "AirPods Pro 3 vs AirPods Pro 2 \u2014 at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "AirPods Pro 3 (2025)",
+    "AirPods Pro 2 (2022)"
+  ],
   "comparisonRows": [
-    { "label": "Active noise cancellation", "values": ["Roughly 2x Pro 2 (H3 chip + foam-infused silicone tips)", "Strong ANC; very good on flights but trails Pro 3 on low-frequency rumble"] },
-    { "label": "Adaptive / transparency audio", "values": ["Adaptive Audio 2.0 with conversation awareness", "Adaptive Audio 1.0 (still excellent, fewer on-device refinements)"] },
-    { "label": "Heart-rate sensing", "values": ["Built-in infrared sensor, feeds Apple Fitness", "None — needs Apple Watch for workout heart rate"] },
-    { "label": "Battery (ANC on)", "values": ["About 8 hours per charge, ~30 hours with case", "About 6 hours per charge, ~30 hours with case"] },
-    { "label": "Charging port", "values": ["USB-C case, U2 precision finding, lanyard loop", "USB-C or Lightning (depends on year); MagSafe / U1 finding"] },
-    { "label": "Typical Singapore price (new)", "values": ["Floor price visible on the live cards above; drops hardest on Shopee 9.9 / 11.11 promos", "Often the cheapest AirPods Pro still in stock; floor price on the live cards above"] },
-    { "label": "Best reason to buy", "values": ["Daily MRT or flight commuter, fitness without an Apple Watch", "Mostly desk use, want the AirPods Pro experience and save"] }
+    {
+      "label": "Active noise cancellation",
+      "values": [
+        "Roughly 2x Pro 2 (H3 chip + foam-infused silicone tips)",
+        "Strong ANC; very good on flights but trails Pro 3 on low-frequency rumble"
+      ]
+    },
+    {
+      "label": "Adaptive / transparency audio",
+      "values": [
+        "Adaptive Audio 2.0 with conversation awareness",
+        "Adaptive Audio 1.0 (still excellent, fewer on-device refinements)"
+      ]
+    },
+    {
+      "label": "Heart-rate sensing",
+      "values": [
+        "Built-in infrared sensor, feeds Apple Fitness",
+        "None \u2014 needs Apple Watch for workout heart rate"
+      ]
+    },
+    {
+      "label": "Battery (ANC on)",
+      "values": [
+        "About 8 hours per charge, ~30 hours with case",
+        "About 6 hours per charge, ~30 hours with case"
+      ]
+    },
+    {
+      "label": "Charging port",
+      "values": [
+        "USB-C case, U2 precision finding, lanyard loop",
+        "USB-C or Lightning (depends on year); MagSafe / U1 finding"
+      ]
+    },
+    {
+      "label": "Typical Singapore price (new)",
+      "values": [
+        "Floor price visible on the live cards above; drops hardest on Shopee 9.9 / 11.11 promos",
+        "Often the cheapest AirPods Pro still in stock; floor price on the live cards above"
+      ]
+    },
+    {
+      "label": "Best reason to buy",
+      "values": [
+        "Daily MRT or flight commuter, fitness without an Apple Watch",
+        "Mostly desk use, want the AirPods Pro experience and save"
+      ]
+    }
   ],
   "highlightSectionTitle": "What actually changed on the AirPods Pro 3",
   "highlights": [
@@ -52,22 +109,22 @@
   ],
   "adviceSectionTitle": "How to pick in Singapore in 2026",
   "advicePoints": [
-    "Pick the AirPods Pro 3 if you commute daily on the MRT, fly often, or want heart-rate tracking without wearing an Apple Watch — the better ANC and battery earn their premium.",
-    "Pick the AirPods Pro 2 if you mostly listen at a desk, want the AirPods Pro experience and would rather pocket the saving — Pro 2 floor prices on Shopee Mall and Amazon.sg have fallen sharply since the Pro 3 launched.",
+    "Pick the AirPods Pro 3 if you commute daily on the MRT, fly often, or want heart-rate tracking without wearing an Apple Watch \u2014 the better ANC and battery earn their premium.",
+    "Pick the AirPods Pro 2 if you mostly listen at a desk, want the AirPods Pro experience and would rather pocket the saving \u2014 Pro 2 floor prices on Shopee Mall and Amazon.sg have fallen sharply since the Pro 3 launched.",
     "Check the listing for 'local set' or 'Apple Singapore warranty' before you buy: parallel-import Pro 3 listings are cheaper, but Apple Singapore will not service them under warranty.",
-    "Time your buy to a Shopee or Lazada campaign day (9.9, 10.10, 11.11, 12.12 and mid-month payday sales) — both generations discount deeper then and the gap between Pro 3 and Pro 2 floor prices widens.",
+    "Time your buy to a Shopee or Lazada campaign day (9.9, 10.10, 11.11, 12.12 and mid-month payday sales) \u2014 both generations discount deeper then and the gap between Pro 3 and Pro 2 floor prices widens.",
     "If you already own the AirPods Pro 2 and are happy with them, the upgrade is hard to justify unless one specific Pro 3 feature (ANC step-up, heart-rate, longer battery) will actually change your week.",
-    "Avoid listings well below the market floor with no reviews — they are usually pre-orders, refurbished units or bait-and-switch; stick to Shopee Mall, LazMall, Amazon.sg (sold by Amazon) and authorised resellers like Challenger and Courts."
+    "Avoid listings well below the market floor with no reviews \u2014 they are usually pre-orders, refurbished units or bait-and-switch; stick to Shopee Mall, LazMall, Amazon.sg (sold by Amazon) and authorised resellers like Challenger and Courts."
   ],
-  "faqSectionTitle": "AirPods Pro 3 vs AirPods Pro 2 in Singapore — common questions",
+  "faqSectionTitle": "AirPods Pro 3 vs AirPods Pro 2 in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "Is the AirPods Pro 3 worth upgrading from the AirPods Pro 2 in Singapore?",
-      "answer": "If you commute daily on the MRT or fly often, or you want heart-rate tracking without an Apple Watch, yes — the noise cancellation and battery improvements are real. If you mostly listen at home or at a desk and the Pro 2 already does the job, the saving is better in your pocket than the upgrade."
+      "answer": "If you commute daily on the MRT or fly often, or you want heart-rate tracking without an Apple Watch, yes \u2014 the noise cancellation and battery improvements are real. If you mostly listen at home or at a desk and the Pro 2 already does the job, the saving is better in your pocket than the upgrade."
     },
     {
       "question": "How big is the price gap between AirPods Pro 3 and Pro 2 in Singapore?",
-      "answer": "On a typical non-sale day there is a meaningful gap between a new Pro 3 at authorised resellers and the remaining Pro 2 stock on Shopee and Amazon.sg. During Shopee 9.9, 11.11, Lazada 12.12 and payday campaigns the gap widens because Pro 2 discounts stack deeper than Pro 3 floor prices do — the live cards above show the current floor for both."
+      "answer": "On a typical non-sale day there is a meaningful gap between a new Pro 3 at authorised resellers and the remaining Pro 2 stock on Shopee and Amazon.sg. During Shopee 9.9, 11.11, Lazada 12.12 and payday campaigns the gap widens because Pro 2 discounts stack deeper than Pro 3 floor prices do \u2014 the live cards above show the current floor for both."
     },
     {
       "question": "Do parallel-import AirPods Pro 3 come with Apple warranty in Singapore?",
@@ -83,10 +140,12 @@
     }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/airpods-pro-3-vs-airpods-pro-2-us" },
+  "hreflangAlternates": {
+    "en-US": "/airpods-pro-3-vs-airpods-pro-2-us"
+  },
   "categoryIntro": {
     "heading": "Why Singapore shoppers see such different AirPods Pro prices",
-    "body": "Singapore has both Apple authorised resellers (Apple Store, Challenger, Courts) and a dense marketplace ecosystem (Shopee Mall, LazMall, Amazon.sg) where official stores and dozens of parallel importers sell the same products at the same time. The AirPods Pro 3 holds its list price at authorised resellers, while marketplace official stores discount around sale days and parallel importers undercut everyone else but ship without Apple Singapore warranty. That is why the live cards on this page read straight from the catalog — a static 'cheapest' article goes stale within a week."
+    "body": "Singapore has both Apple authorised resellers (Apple Store, Challenger, Courts) and a dense marketplace ecosystem (Shopee Mall, LazMall, Amazon.sg) where official stores and dozens of parallel importers sell the same products at the same time. The AirPods Pro 3 holds its list price at authorised resellers, while marketplace official stores discount around sale days and parallel importers undercut everyone else but ship without Apple Singapore warranty. That is why the live cards on this page read straight from the catalog \u2014 a static 'cheapest' article goes stale within a week."
   },
   "owner": "Surf",
   "reviewer": "Fetch",

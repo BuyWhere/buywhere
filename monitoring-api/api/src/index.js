@@ -7,6 +7,7 @@ const { registerRoutes } = require('./monitoring/routes');
 const { startProbeScheduler, stopProbeScheduler, API_BASE_URL } = require('./monitoring/p95');
 const { registerEmbeddingRoutes } = require('./monitoring/embedding');
 const { probeAndRecordDiskSpace, DISK_CHECK_INTERVAL_MS, getLatestDiskUsage, getDiskHistory } = require('./monitoring/disk_space');
+const { startIntentPageProbe, stopIntentPageProbe } = require('./monitoring/intent_page_probe');
 
 // Initialize Express app
 const app = express();
@@ -92,6 +93,11 @@ const diskSpaceTimer = setInterval(() => {
 probeAndRecordDiskSpace(pool).catch(err => {
   console.error('[disk_space] Initial probe error:', err.message);
 });
+
+// BUY-77109: hourly intent-page probe populates monitoring.intent_page_r_link_probes.
+// The probe worker records `href="/r/"` counts per canonical intent-page slug,
+// which the v_ceo_kpis view aggregates into intent_page_r_link_density_avg_24h.
+startIntentPageProbe(pool);
 
 // Register monitoring routes
 registerRoutes(app, pool);

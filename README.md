@@ -109,6 +109,43 @@ Available MCP tools: `search_products`, `get_product`, `compare_prices`, `get_de
 | **Australia** | Amazon AU, Catch, Big W, Bunnings, Coles, Officeworks |
 | **Japan / Korea** | Rakuten, Amazon JP, Yodobashi, Daiso JP, Coupang (KR) |
 
+## Semantic Search & Embeddings (BUY-76567 — 60-day plan)
+
+BuyWhere uses hybrid search (BM25 keyword + vector cosine similarity via RRF) as the default search mode. Embeddings are built with **Qwen3-Embedding-4B** (1024-dim) via Flow AI, replacing the retired Gemini pipeline.
+
+### Model & Budget
+
+| Item | Detail |
+|---|---|
+| **Model** | `flow-embed-1` (Qwen3-Embedding-4B, open weights, 1024-dim) |
+| **Provider** | Flow AI (`POST https://api.flowaiapi.com/v1/embeddings`) |
+| **Failover** | DeepInfra primary → SiliconFlow (Flow routes automatically) |
+| **Cost** | $0.02/M tokens ($0.01 batch); one-off backfill ~$10; ongoing ~$20–26/mo |
+| **Budget** | $10 one-off + $25/month, hard cap enforced by Flow AI key |
+
+### Schedule (28 Aug → 27 Oct 2026)
+
+| Phase | Dates | Deliverable |
+|---|---|---|
+| **Decide & guard** | Days 0–7 | Pin model/dim, eval set, nightly backup to R2, write-access lock |
+| **Feature first** | Days 8–21 | Hybrid as default mode in `/v1/products/search` and MCP `search` |
+| **Backfill** | Days 22–28 | One worker, hash-gated, checkpointed, hard cap = scope size |
+| **Matching** | Days 29–45 | ANN candidates → rule verification → `product_matches` populated |
+| **Measure** | Days 46–60 | Dashboard: coverage, vector-path share, p95, eval win rate, multi-merchant % |
+
+### Kill Criteria (Day 60)
+
+- Hybrid doesn't beat keyword on the 200-query eval set → switch off
+- Matching doesn't lift multi-merchant coverage → keep vectors, pause matching
+
+### Key Rules
+
+- ALL embedding calls go through Flow AI only — never DeepInfra/Gemini/SiliconFlow directly
+- Scope = in-stock AND price > 0 products only (~8M of 115M total)
+- Only the embed worker may write to `product_embeddings` (write-access lock enforced)
+- Nightly `pg_dump` of `product_embeddings` → R2 (30-day retention)
+- `model_ver = 'flow-embed-1@1024'` stamped on every vector
+
 ## Rate Limits
 
 | Tier | Key Prefix | Limit | Use Case |

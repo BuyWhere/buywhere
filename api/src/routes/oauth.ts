@@ -110,6 +110,19 @@ router.post('/token', async (req: Request, res: Response) => {
 
 // RFC 8414 discovery — added in M2 (only live endpoints are advertised; the
 // design doc forbids advertising 501s). M3 adds authorization_endpoint.
+// RFC 9728 protected-resource metadata. MCP clients (spec 2025-06-18) discover the
+// authorization server from the resource; without this document they cannot complete
+// auth discovery and fall back to guessing. Added 2026-08-29.
+router.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
+  res.json({
+    resource: 'https://api.buywhere.ai/mcp',
+    authorization_servers: ['https://api.buywhere.ai'],
+    bearer_methods_supported: ['header'],
+    scopes_supported: ['catalog.read', 'offers.read'],
+    resource_documentation: 'https://buywhere.ai/agent-dx',
+  });
+});
+
 router.get('/.well-known/oauth-authorization-server', (_req: Request, res: Response) => {
   res.json({
     issuer: 'https://api.buywhere.ai',

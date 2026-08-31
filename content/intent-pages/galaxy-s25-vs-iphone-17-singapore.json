@@ -3,37 +3,97 @@
   "title": "Galaxy S25 vs iPhone 17 in Singapore (2026) — which should you buy",
   "description": "Galaxy S25 and iPhone 17 compared for Singapore shoppers: live S$ prices, warranty notes, retailer patterns and practical buying advice for Android switchers, iPhone owners and camera-heavy users.",
   "heroEyebrow": "Singapore phone comparison",
-  "heroTitle": "Galaxy S25 vs iPhone 17 in Singapore — 2026 live price comparison",
+  "heroTitle": "Galaxy S25 vs iPhone 17 in Singapore (2026) — 2026 live price comparison",
   "heroBody": "The Galaxy S25 and iPhone 17 are the two mainstream flagships most Singapore shoppers cross-shop in 2026. The Samsung side leans into a lighter body, flexible Android customisation, strong zoom options on the wider S25 family and aggressive Shopee, Lazada and telco promotions. The iPhone 17 leans into longer software support, iMessage and FaceTime lock-in, a smoother Apple ecosystem and resale value that still matters when you upgrade every two or three years. In Singapore the decision is not just Android versus iOS: it is also whether you want a local set with Samsung or Apple Singapore warranty, whether your telco bundle beats the unlocked price, and whether marketplace vouchers make one side suddenly much cheaper. This page pulls live Singapore listings from BuyWhere's catalog so you can compare current Galaxy S25 and iPhone 17 prices in S$ side by side.",
   "canonicalPath": "/galaxy-s25-vs-iphone-17-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "Samsung Galaxy S25",
-  "backupQueries": ["Galaxy S25", "Samsung S25", "iPhone 17"],
+  "backupQueries": [
+    "Galaxy S25",
+    "Samsung S25",
+    "iPhone 17"
+  ],
   "minPrice": 300,
-  "requiredProductTerms": ["galaxy", "s25", "samsung"],
+  "requiredProductTerms": [
+    "galaxy",
+    "s25",
+    "samsung"
+  ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 25, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-29",
   "productSectionTitle": "Live Galaxy S25 and iPhone 17 prices in Singapore",
   "comparisonSectionTitle": "Galaxy S25 vs iPhone 17 — at a glance",
-  "comparisonColumns": ["Spec / feature", "Galaxy S25", "iPhone 17"],
+  "comparisonColumns": [
+    "Spec / feature",
+    "Galaxy S25",
+    "iPhone 17"
+  ],
   "comparisonRows": [
-    { "label": "Software", "values": ["Android with Samsung One UI, deep home-screen and default-app control", "iOS with tight Apple ecosystem, iMessage, FaceTime and long update runway"] },
-    { "label": "Display", "values": ["Bright AMOLED with smooth adaptive refresh and compact flagship sizing", "Super Retina XDR with ProMotion on the current line and excellent outdoor visibility"] },
-    { "label": "Camera style", "values": ["Punchier colour, flexible zoom and more manual controls", "Consistent colour, strong video, simple point-and-shoot processing"] },
-    { "label": "AI features", "values": ["Galaxy AI tools integrated across notes, calls, translation and photo editing", "Apple Intelligence features integrated into Siri, writing tools and on-device workflows"] },
-    { "label": "Singapore warranty", "values": ["Samsung Singapore warranty for local sets; parallel imports need shop warranty checks", "Apple Singapore warranty for local sets; parallel imports are riskier for service"] },
-    { "label": "Best for", "values": ["Android users, power users, multitaskers and buyers chasing sale vouchers", "Existing iPhone users, video shooters, family sharing users and resale-conscious buyers"] }
+    {
+      "label": "Software",
+      "values": [
+        "Android with Samsung One UI, deep home-screen and default-app control",
+        "iOS with tight Apple ecosystem, iMessage, FaceTime and long update runway"
+      ]
+    },
+    {
+      "label": "Display",
+      "values": [
+        "Bright AMOLED with smooth adaptive refresh and compact flagship sizing",
+        "Super Retina XDR with ProMotion on the current line and excellent outdoor visibility"
+      ]
+    },
+    {
+      "label": "Camera style",
+      "values": [
+        "Punchier colour, flexible zoom and more manual controls",
+        "Consistent colour, strong video, simple point-and-shoot processing"
+      ]
+    },
+    {
+      "label": "AI features",
+      "values": [
+        "Galaxy AI tools integrated across notes, calls, translation and photo editing",
+        "Apple Intelligence features integrated into Siri, writing tools and on-device workflows"
+      ]
+    },
+    {
+      "label": "Singapore warranty",
+      "values": [
+        "Samsung Singapore warranty for local sets; parallel imports need shop warranty checks",
+        "Apple Singapore warranty for local sets; parallel imports are riskier for service"
+      ]
+    },
+    {
+      "label": "Best for",
+      "values": [
+        "Android users, power users, multitaskers and buyers chasing sale vouchers",
+        "Existing iPhone users, video shooters, family sharing users and resale-conscious buyers"
+      ]
+    }
   ],
   "highlightSectionTitle": "What actually separates Galaxy S25 and iPhone 17",
   "highlights": [
-    { "title": "The ecosystem decision is still the biggest one", "body": "If your family uses iMessage, FaceTime, AirDrop, iCloud Photos and Apple Watch, the iPhone 17 is the frictionless choice even when a Galaxy S25 listing is cheaper. If you already use Google Photos, WhatsApp, Windows laptops and Samsung tablets, the S25 feels more open and easier to shape around your workflow. Singapore buyers often underestimate this: the phone price is only one part of the cost of switching ecosystems." },
-    { "title": "Samsung discounts move faster in Singapore", "body": "Galaxy phones usually see sharper platform promotions than current iPhones on Shopee, Lazada and telco renewal campaigns. That can make the S25 the better value during 9.9, 11.11, 12.12 and payday sales, especially when vouchers and bank rebates stack. Apple pricing is steadier, so the iPhone 17 wins when resale value, AppleCare+ and a cleaner trade-in path matter more than the lowest sticker price." },
-    { "title": "Camera preference depends on what you shoot", "body": "The iPhone 17 remains the safer pick for video, skin tones and quick social clips because its processing is consistent across lenses. The Galaxy S25 is more flexible if you like punchier photos, more camera controls and Samsung's AI edit tools. For food, travel and family shots in Singapore, either is excellent; for paid video or creator work, test the colour pipeline before switching." },
-    { "title": "Warranty wording matters on marketplace listings", "body": "Both phones appear as local sets, export sets and parallel imports. A cheap listing is only useful if the warranty matches your risk tolerance. For Samsung, check for Samsung Singapore warranty or an official store badge. For Apple, check that the phone is a local set if you want straightforward Genius Bar service. Shop warranty can be fine, but it is not the same as brand warranty." }
+    {
+      "title": "The ecosystem decision is still the biggest one",
+      "body": "If your family uses iMessage, FaceTime, AirDrop, iCloud Photos and Apple Watch, the iPhone 17 is the frictionless choice even when a Galaxy S25 listing is cheaper. If you already use Google Photos, WhatsApp, Windows laptops and Samsung tablets, the S25 feels more open and easier to shape around your workflow. Singapore buyers often underestimate this: the phone price is only one part of the cost of switching ecosystems."
+    },
+    {
+      "title": "Samsung discounts move faster in Singapore",
+      "body": "Galaxy phones usually see sharper platform promotions than current iPhones on Shopee, Lazada and telco renewal campaigns. That can make the S25 the better value during 9.9, 11.11, 12.12 and payday sales, especially when vouchers and bank rebates stack. Apple pricing is steadier, so the iPhone 17 wins when resale value, AppleCare+ and a cleaner trade-in path matter more than the lowest sticker price."
+    },
+    {
+      "title": "Camera preference depends on what you shoot",
+      "body": "The iPhone 17 remains the safer pick for video, skin tones and quick social clips because its processing is consistent across lenses. The Galaxy S25 is more flexible if you like punchier photos, more camera controls and Samsung's AI edit tools. For food, travel and family shots in Singapore, either is excellent; for paid video or creator work, test the colour pipeline before switching."
+    },
+    {
+      "title": "Warranty wording matters on marketplace listings",
+      "body": "Both phones appear as local sets, export sets and parallel imports. A cheap listing is only useful if the warranty matches your risk tolerance. For Samsung, check for Samsung Singapore warranty or an official store badge. For Apple, check that the phone is a local set if you want straightforward Genius Bar service. Shop warranty can be fine, but it is not the same as brand warranty."
+    }
   ],
   "adviceSectionTitle": "How to choose between them in Singapore",
   "advicePoints": [
@@ -46,15 +106,36 @@
   ],
   "faqSectionTitle": "Galaxy S25 vs iPhone 17 in Singapore — common questions",
   "faqs": [
-    { "question": "Is the Galaxy S25 cheaper than the iPhone 17 in Singapore?", "answer": "Often during marketplace or telco promotions, yes. Samsung phones usually discount faster on Shopee, Lazada and carrier renewal deals. Apple prices move less, but iPhones often recover more value at resale, so compare total ownership cost rather than only today's sticker price." },
-    { "question": "Should iPhone users switch to Galaxy S25?", "answer": "Only if you actively want Android customisation, Samsung features or Google-first workflows. If your daily life depends on Apple Watch, AirDrop, iCloud shared albums, iMessage or FaceTime, the switch costs more in convenience than it saves in phone price." },
-    { "question": "Which phone has better warranty support in Singapore?", "answer": "Both are straightforward when bought as local sets from Apple, Samsung, authorised retailers or official marketplace stores. Parallel imports are the risk: they can be cheaper but may rely on shop warranty instead of Apple Singapore or Samsung Singapore service." },
-    { "question": "Which is better for photos and video, Galaxy S25 or iPhone 17?", "answer": "The iPhone 17 is the safer default for video consistency, skin tones and social clips. The Galaxy S25 gives more manual control, punchier processing and strong AI editing. For casual photos either is excellent; choose based on the editing style you prefer." }
+    {
+      "question": "Is the Galaxy S25 cheaper than the iPhone 17 in Singapore?",
+      "answer": "Often during marketplace or telco promotions, yes. Samsung phones usually discount faster on Shopee, Lazada and carrier renewal deals. Apple prices move less, but iPhones often recover more value at resale, so compare total ownership cost rather than only today's sticker price."
+    },
+    {
+      "question": "Should iPhone users switch to Galaxy S25?",
+      "answer": "Only if you actively want Android customisation, Samsung features or Google-first workflows. If your daily life depends on Apple Watch, AirDrop, iCloud shared albums, iMessage or FaceTime, the switch costs more in convenience than it saves in phone price."
+    },
+    {
+      "question": "Which phone has better warranty support in Singapore?",
+      "answer": "Both are straightforward when bought as local sets from Apple, Samsung, authorised retailers or official marketplace stores. Parallel imports are the risk: they can be cheaper but may rely on shop warranty instead of Apple Singapore or Samsung Singapore service."
+    },
+    {
+      "question": "Which is better for photos and video, Galaxy S25 or iPhone 17?",
+      "answer": "The iPhone 17 is the safer default for video consistency, skin tones and social clips. The Galaxy S25 gives more manual control, punchier processing and strong AI editing. For casual photos either is excellent; choose based on the editing style you prefer."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/galaxy-s25-vs-iphone-17-us" },
-  "inboundLinks": ["/best-iphones-singapore", "/iphone-17-price-singapore", "/search?q=Samsung+Galaxy+S25+Singapore"],
-  "categoryIntro": { "heading": "Why Singapore flagship phone prices are hard to compare", "body": "Singapore flagship-phone pricing changes through three channels at once: official brand stores, marketplace campaigns and telco bundles. Apple Store Singapore and authorised resellers keep iPhone pricing relatively stable, while Samsung official stores and telcos tend to discount more visibly. Marketplace sellers add another layer with vouchers, bank rebates, export sets and parallel imports. That is why a static comparison goes stale quickly and why this page reads live BuyWhere listings instead of naming a fixed winner." },
+  "hreflangAlternates": {
+    "en-US": "/galaxy-s25-vs-iphone-17-us"
+  },
+  "inboundLinks": [
+    "/best-iphones-singapore",
+    "/iphone-17-price-singapore",
+    "/search?q=Samsung+Galaxy+S25+Singapore"
+  ],
+  "categoryIntro": {
+    "heading": "Why Singapore flagship phone prices are hard to compare",
+    "body": "Singapore flagship-phone pricing changes through three channels at once: official brand stores, marketplace campaigns and telco bundles. Apple Store Singapore and authorised resellers keep iPhone pricing relatively stable, while Samsung official stores and telcos tend to discount more visibly. Marketplace sellers add another layer with vouchers, bank rebates, export sets and parallel imports. That is why a static comparison goes stale quickly and why this page reads live BuyWhere listings instead of naming a fixed winner."
+  },
   "owner": "Wave",
   "reviewer": "Fetch",
   "queueRow": 81

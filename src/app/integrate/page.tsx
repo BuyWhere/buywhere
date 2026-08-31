@@ -44,7 +44,7 @@ const mcpTools = [
   {
     name: "get_deals",
     description:
-      "Get discounted products sorted by discount percentage across 150,000+ merchants. Returns original price, current price, and discount percentage.",
+      "Get discounted products sorted by discount percentage across 950,000+ merchants. Returns original price, current price, and discount percentage.",
     exampleSg: "get_deals({country_code: 'SG', min_discount: 20, limit: 20})",
     exampleUs: "get_deals({country_code: 'US', min_discount: 20, limit: 20})",
     status: "live",
@@ -60,7 +60,7 @@ const mcpTools = [
   {
     name: "find_best_price",
     description:
-      "Find the single cheapest current listing for a product across 150,000+ merchants. Use when a user asks about prices or wants to find the best deal.",
+      "Find the single cheapest current listing for a product across 950,000+ merchants. Use when a user asks about prices or wants to find the best deal.",
     exampleSg: "find_best_price({product_name: 'iphone 15 pro 256gb', country_code: 'SG'})",
     exampleUs: "find_best_price({product_name: 'iphone 15 pro 256gb', country_code: 'US'})",
     status: "live",
@@ -147,7 +147,7 @@ export default function IntegratePage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across 150,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), list_categories (browse available categories), and find_best_price (cheapest current listing across 150,000+ merchants)."
+          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across 950,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), list_categories (browse available categories), and find_best_price (cheapest current listing across 950,000+ merchants)."
         }
       },
       {

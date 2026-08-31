@@ -1,36 +1,100 @@
 {
   "slug": "ipad-air-vs-ipad-pro-us",
-  "title": "iPad Air vs iPad Pro in the US (2026) — which should you buy",
+  "title": "iPad Air vs iPad Pro in the US (2026) \u2014 which should you buy",
   "description": "iPad Air vs iPad Pro compared for US buyers: live prices from Apple, Amazon, Best Buy, B&H, Micro Center and major carriers, plus a side-by-side on performance, display, Apple Pencil support and who each tablet is really for.",
   "heroEyebrow": "US iPad comparison",
-  "heroTitle": "iPad Air vs iPad Pro in the US (2026) — live prices and which to buy",
-  "heroTitleTemplate": "iPad Air vs iPad Pro in the US — from {floorPrice} today",
+  "heroTitle": "iPad Air vs iPad Pro in the US (2026) \u2014 live prices and which to buy",
+  "heroTitleTemplate": "iPad Air vs iPad Pro in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "In the United States in 2026, the iPad Air and iPad Pro are closer than they have ever been on chip performance, but the Pro still earns its premium with a brighter ProMotion 120 Hz display, faster SSD storage on the larger capacities, more RAM and the quad-speaker audio that creative workflows actually use. For most US shoppers the choice comes down to whether you will use those differences daily or whether a discounted Air with the same Apple silicon and Pencil Pro support is the smarter money. This page pulls live iPad Air and iPad Pro listings from BuyWhere's catalog every few minutes so you can see the current US floor price, which merchants are shipping in stock, and where the deepest discounts are sitting today in US$.",
-  "inboundLinks": ["/best-4k-monitors-us", "/search?q=iPad+Air+US", "/search?q=iPad+Pro+US"],
+  "inboundLinks": [
+    "/best-4k-monitors-us",
+    "/search?q=iPad+Air+US",
+    "/search?q=iPad+Pro+US"
+  ],
   "canonicalPath": "/ipad-air-vs-ipad-pro-us",
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
   "searchQuery": "Apple iPad Air",
-  "backupQueries": ["Apple iPad Pro", "Apple iPad", "iPad Air M3"],
+  "backupQueries": [
+    "Apple iPad Pro",
+    "Apple iPad",
+    "iPad Air M3"
+  ],
   "minPrice": 400,
-  "requiredProductTerms": ["ipad", "apple", "tablet"],
+  "requiredProductTerms": [
+    "ipad",
+    "apple",
+    "tablet"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-25",
+  "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPad Air and iPad Pro prices in the US",
-  "comparisonSectionTitle": "iPad Air vs iPad Pro — at a glance",
-  "comparisonColumns": ["Spec / feature", "iPad Air", "iPad Pro"],
+  "comparisonSectionTitle": "iPad Air vs iPad Pro \u2014 at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "iPad Air",
+    "iPad Pro"
+  ],
   "comparisonRows": [
-    { "label": "Display", "values": ["Liquid Retina, 60 Hz, P3 colour, fully laminated", "Liquid Retina XDR or ProMotion 120 Hz, brighter, ProMotion for Apple Pencil latency"] },
-    { "label": "Chip", "values": ["Apple M-series (latest Air generation)", "Apple M-series, higher tier, more GPU cores and faster memory bandwidth"] },
-    { "label": "Storage ceiling and SSD speed", "values": ["Up to 1 TB; SATA-class speeds on most capacities", "Up to 2 TB; faster SSD options on higher capacities, matters for video editing"] },
-    { "label": "Apple Pencil support", "values": ["Supports Pencil Pro and Pencil USB-C", "Supports Pencil Pro and Pencil USB-C; lower latency on the 120 Hz panel"] },
-    { "label": "Cameras and AR", "values": ["Single rear wide camera; Centre Stage front camera", "Rear wide + ultra-wide with LiDAR scanner; better ProRes and 3D workflows"] },
-    { "label": "Audio", "values": ["Stereo speakers in landscape", "Quad-speaker audio with deeper bass and wider soundstage"] },
-    { "label": "Cellular options", "values": ["Wi-Fi only or Wi-Fi + 5G on most configurations", "Wi-Fi only or Wi-Fi + 5G; eSIM-first provisioning on US models"] },
-    { "label": "Who it is for", "values": ["Students, note-takers, casual creators and laptop-light users", "Designers, video editors, architects and anyone billing creative work by the hour"] }
+    {
+      "label": "Display",
+      "values": [
+        "Liquid Retina, 60 Hz, P3 colour, fully laminated",
+        "Liquid Retina XDR or ProMotion 120 Hz, brighter, ProMotion for Apple Pencil latency"
+      ]
+    },
+    {
+      "label": "Chip",
+      "values": [
+        "Apple M-series (latest Air generation)",
+        "Apple M-series, higher tier, more GPU cores and faster memory bandwidth"
+      ]
+    },
+    {
+      "label": "Storage ceiling and SSD speed",
+      "values": [
+        "Up to 1 TB; SATA-class speeds on most capacities",
+        "Up to 2 TB; faster SSD options on higher capacities, matters for video editing"
+      ]
+    },
+    {
+      "label": "Apple Pencil support",
+      "values": [
+        "Supports Pencil Pro and Pencil USB-C",
+        "Supports Pencil Pro and Pencil USB-C; lower latency on the 120 Hz panel"
+      ]
+    },
+    {
+      "label": "Cameras and AR",
+      "values": [
+        "Single rear wide camera; Centre Stage front camera",
+        "Rear wide + ultra-wide with LiDAR scanner; better ProRes and 3D workflows"
+      ]
+    },
+    {
+      "label": "Audio",
+      "values": [
+        "Stereo speakers in landscape",
+        "Quad-speaker audio with deeper bass and wider soundstage"
+      ]
+    },
+    {
+      "label": "Cellular options",
+      "values": [
+        "Wi-Fi only or Wi-Fi + 5G on most configurations",
+        "Wi-Fi only or Wi-Fi + 5G; eSIM-first provisioning on US models"
+      ]
+    },
+    {
+      "label": "Who it is for",
+      "values": [
+        "Students, note-takers, casual creators and laptop-light users",
+        "Designers, video editors, architects and anyone billing creative work by the hour"
+      ]
+    }
   ],
   "highlightSectionTitle": "What separates the Air from the Pro in 2026",
   "highlights": [
@@ -60,7 +124,7 @@
     "Buy from Apple, an authorised US reseller or a trusted major retailer if you want normal Apple warranty and returns. Marketplace resellers can be cheaper, but verify the unit is a US-spec, sealed Apple warranty device before paying.",
     "Factor the Pencil and keyboard into the total price. A cheaper tablet with a costly accessory generation is not necessarily the better deal, and Pencil Pro support makes that gap irrelevant between Air and Pro."
   ],
-  "faqSectionTitle": "iPad Air vs iPad Pro in the US — common questions",
+  "faqSectionTitle": "iPad Air vs iPad Pro in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the iPad Pro worth the extra money over the iPad Air in the US?",
@@ -80,11 +144,13 @@
     },
     {
       "question": "Does the iPad Pro have a longer software support window than the iPad Air?",
-      "answer": "Apple supports current iPad Air and iPad Pro models for the same length of time — both receive iPadOS updates for around five to six years from release. Choosing the Pro for software longevity alone is not necessary in 2026."
+      "answer": "Apple supports current iPad Air and iPad Pro models for the same length of time \u2014 both receive iPadOS updates for around five to six years from release. Choosing the Pro for software longevity alone is not necessary in 2026."
     }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-SG": "/ipad-air-vs-ipad-pro-singapore" },
+  "hreflangAlternates": {
+    "en-SG": "/ipad-air-vs-ipad-pro-singapore"
+  },
   "categoryIntro": {
     "heading": "Why US iPad Air and iPad Pro prices vary so much",
     "body": "In the United States the same Apple iPad is sold by Apple directly, by major retailers such as Amazon, Best Buy, B&H Photo and Micro Center, by every national carrier on a device payment plan, and by a long tail of independent resellers and marketplace sellers. Prices move with carrier bill-credit promotions, education discounts and seasonal events like Prime Day and Black Friday rather than with Apple, which is why a static 'best price' article goes stale within days and why this page reads live listings instead."

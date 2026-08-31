@@ -12,17 +12,67 @@ import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
 async function whoClicked(req: Request, apiKey: string | null) {
   const ua = String(req.headers['user-agent'] || '').slice(0, 300);
   const cls = classifyUserAgent(ua);
-  const ipHash = hashIp(clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } }));
+  const ip = clientIp(req as unknown as { headers: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } });
+  const ipHash = hashIp(ip);
   const q = req.query as Record<string, unknown>;
   const pick = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : (v == null ? '' : String(v)));
   const referrer = (pick(q.referrer) || pick(q.$referrer) || String(req.headers['referer'] || '')).slice(0, 500) || null;
   const sourcePage = pick(q.pathname).slice(0, 300) || null;
-  const keyHash = apiKey ? createHash('sha256').update(apiKey).digest('hex') : null;
-  let keyId: string | null = null;
-  if (keyHash) {
+  // BUY-71129 (re-applied, was clobbered by 554950c7): browser clicks carry no
+  // Bearer header, so the upstream API call embeds ?k=<keyHash>&aid=<agentId>
+  // on /r/ URLs. Bearer auth stays canonical when present; the query params
+  // only fill in the identity for browser redirects.
+  const keyHash = apiKey
+    ? createHash('sha256').update(apiKey).digest('hex')
+    : (pick(q.k) || null);
+  const aidQuery = pick(q.aid) || null;
+  let keyId: string | null = aidQuery;
+  if (keyHash && !keyId) {
     try { const r = await db.query('SELECT id FROM api_keys WHERE key_hash = $1 LIMIT 1', [keyHash]); keyId = r.rows[0]?.id ?? null; } catch { /* best effort */ }
   }
-  return { ua, family: cls.family, ipHash, referrer, sourcePage, keyHash, keyId };
+  const internalIpHashes = new Set(
+    ['168.144.134.188', ...(process.env.BUYWHERE_INTERNAL_EGRESS_IPS || '').split(',')]
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map((v) => hashIp(v))
+      .filter((v): v is string => Boolean(v)),
+  );
+  const isProbeHeader = String(req.headers['x-buywhere-probe'] || '') === '1';
+  const isInternal = isProbeHeader || (ipHash ? internalIpHashes.has(ipHash) : false);
+  const family = isInternal ? 'internal' : cls.family;
+  return { ua, family, ipHash, referrer, sourcePage, keyHash, keyId, isInternal };
+}
+
+async function insertAffiliateClickWithTruth(
+  values: unknown[],
+  isDeadClick: boolean,
+  statusCode: number,
+): Promise<void> {
+  const deadColumns = isDeadClick ? ', was_dead_at_click' : '';
+  const deadValues = isDeadClick ? ', true' : '';
+  try {
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id, is_internal, redirect_status_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [...values, statusCode],
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+    // Legacy schema (pre-BUY-77109) without redirect_status_code — drop the
+    // extra column from the INSERT. Existing rows in the table will simply
+    // lack the field; the v_ceo_kpis view treats NULL as "unknown" (excluded
+    // from the success numerator), which is the safe default during the
+    // rolling deploy window.
+    await db.query(
+      `INSERT INTO affiliate_clicks
+         (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url${deadColumns},
+          user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7${deadValues},$8,$9,$10,$11,$12,$13)`,
+      values.slice(0, 13),
+    );
+  }
 }
 
 function hashKey(rawKey: string): string {
@@ -138,6 +188,10 @@ function isAllowedDestination(url: string): boolean {
 }
 
 const REDIRECT_TIMEOUT_MS = 4000;
+// BUY-77881: simple product ID lookups (by PK or indexed product_id) should have more
+// lenient timeout than complex joins. DB saturation from convoy queries can cause
+// 4s timeouts on otherwise fast index lookups; bump to 8s for these critical paths.
+const LOOKUP_TIMEOUT_MS = 8000;
 const FALLBACK_URL = 'https://buywhere.ai';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
@@ -148,6 +202,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promi
     ),
   ]);
 }
+
+function normalizeQuerySlug(slug: string): string {
+  try {
+    return decodeURIComponent(slug).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  } catch {
+    return slug.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+// GET /r/:query — public shortcut used by legacy human-facing links.
+// Do not require API auth and do not run broad catalog scans on the redirect path.
+const queryRedirectHandler = async (req: Request, res: Response) => {
+  const query = normalizeQuerySlug(req.params.query || '');
+  if (!query) {
+    res.redirect(302, FALLBACK_URL);
+    return;
+  }
+
+  res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
+};
 
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
 // Log the affiliate click then redirect to destination
@@ -169,6 +243,10 @@ const redirectHandler = async (req: Request, res: Response) => {
   // product search JOINs); if none exists, fall through to the product lookup.
   // BUY-60824: also select affiliate_url and prefer it over destination_url,
   // which is empty for many rows. affiliate_url is the actual affiliate deeplink.
+  // BUY-77881: use longer timeout for simple index lookups. DB saturation from convoy
+  // queries (SELECT COUNT(*), DISTINCT sku, etc.) can block the connection pool,
+  // causing 4s timeouts on fast PK lookups. The index lookup itself is <10ms;
+  // the timeout is purely for queue time.
   try {
     const linkResult = await withTimeout(
       db.query(
@@ -183,7 +261,7 @@ const redirectHandler = async (req: Request, res: Response) => {
               ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`,
         [productId]
       ),
-      REDIRECT_TIMEOUT_MS,
+      LOOKUP_TIMEOUT_MS,
       'affiliate_links lookup'
     );
 
@@ -202,6 +280,7 @@ const redirectHandler = async (req: Request, res: Response) => {
   // Product fallback runs in its own try/catch so an affiliate_links failure
   // (or a missing link) still resolves the real merchant URL.
   // BUY-67318: select url_status so we can return 410 on confirmed dead links.
+  // BUY-77881: use longer timeout for simple PK lookup.
   if (!destinationUrl) {
     try {
       const productResult = await withTimeout(
@@ -211,7 +290,7 @@ const redirectHandler = async (req: Request, res: Response) => {
             : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`,
           [productId]
         ),
-        REDIRECT_TIMEOUT_MS,
+        LOOKUP_TIMEOUT_MS,
         'products lookup'
       );
       if (productResult.rows.length > 0) {
@@ -237,22 +316,45 @@ const redirectHandler = async (req: Request, res: Response) => {
     if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
     const source = firstQueryValue(req.query.source) || 'api_response';
     const who = await whoClicked(req, apiKey);
+    // BUY-77109: capture the response status code so the P6.1 acceptance-gate
+    // success-rate KPI can distinguish merchant-domain 302s from 4xx/5xx
+    // outcomes. 410 is the dead-link path so it is recorded here.
+    const statusCode = 410;
     (async () => {
       try {
         await withTimeout(
-          db.query(
-            `INSERT INTO affiliate_clicks
-               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
-                user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`,
+          insertAffiliateClickWithTruth(
             [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+             who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
+            true,
+            statusCode,
           ),
           REDIRECT_TIMEOUT_MS,
           'affiliate_clicks insert (dead)'
         );
       } catch (err) {
-        console.warn('[redirect] dead-click logging failed:', (err as Error).message);
+        // Legacy schema without redirect_status_code — retry without the
+        // extra column (BUY-77109 deploy ordering: schema first, then code).
+        if ((err as { code?: string }).code !== '42703') {
+          console.warn('[redirect] dead-click logging failed:', (err as Error).message);
+        } else {
+          try {
+            await withTimeout(
+              db.query(
+                `INSERT INTO affiliate_clicks
+                   (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click,
+                    user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11,$12,$13)`,
+                [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+                 who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+              ),
+              REDIRECT_TIMEOUT_MS,
+              'affiliate_clicks insert (dead, legacy schema)'
+            );
+          } catch (err2) {
+            console.warn('[redirect] dead-click logging failed (legacy):', (err2 as Error).message);
+          }
+        }
       }
     })();
     res.status(410).json({
@@ -309,30 +411,70 @@ const redirectHandler = async (req: Request, res: Response) => {
   const referrer = firstQueryValue(req.query.referrer) || firstQueryValue(req.query.$referrer);
   const sessionId = firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id);
 
-  // Log click to DB best-effort (do not block the redirect on a slow write)
+  // BUY-77109: the click insert carries redirect_status_code. We must decide
+  // the outcome BEFORE the DB write so the row reflects what the user
+  // actually got. Resolve the finalUrl + status first, then write the click.
   const who = await whoClicked(req, apiKey);
+
+  // Rewrite to Awin tracking URL when publisher + advertiser IDs are configured
+  let finalUrl = destinationUrl;
+  let responseStatus = 302; // default: success
+  let blockedHostname: string | null = null;
+  if (awinPublisherId && affiliateLinkId && awinAdvertiserIds.has(affiliateLinkId)) {
+    const clickRef = `${productId.slice(0, 12)}-${Date.now().toString(36)}`;
+    finalUrl = buildAwinUrl(affiliateLinkId, destinationUrl, clickRef);
+  } else {
+    if (!isAllowedDestination(destinationUrl)) {
+      blockedHostname = (() => { try { return new URL(destinationUrl).hostname; } catch { return destinationUrl; } })();
+      responseStatus = 403;
+    }
+  }
+
+  // Log click to DB best-effort (do not block the redirect on a slow write).
+  // The redirect_status_code column captures what the user is about to receive.
   (async () => {
     try {
       await withTimeout(
-        db.query(
-          `INSERT INTO affiliate_clicks
-             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
-              user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        insertAffiliateClickWithTruth(
           [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
-           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
+          false,
+          responseStatus,
         ),
         REDIRECT_TIMEOUT_MS,
         'affiliate_clicks insert'
       );
     } catch (err) {
-      console.warn('[redirect] click logging failed:', (err as Error).message);
+      // Legacy schema without redirect_status_code — retry without the extra
+      // column (BUY-77109 deploy ordering: schema first, then code).
+      if ((err as { code?: string }).code !== '42703') {
+        console.warn('[redirect] click logging failed:', (err as Error).message);
+      } else {
+        try {
+          await withTimeout(
+            db.query(
+              `INSERT INTO affiliate_clicks
+                 (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url,
+                  user_agent, agent_framework, ip_hash, referrer, source_page, api_key_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+              [who.keyHash, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl,
+               who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId]
+            ),
+            REDIRECT_TIMEOUT_MS,
+            'affiliate_clicks insert (legacy schema)'
+          );
+        } catch (err2) {
+          console.warn('[redirect] click logging failed (legacy):', (err2 as Error).message);
+        }
+      }
     }
   })();
 
   // PostHog event (fire-and-forget)
   // Hash API key before sending to third-party analytics
   trackAffiliateClick({
+    // BUY-71129: uuid identity first (joins the funnel), hash fallback.
+    apiKeyId: who.keyId,
     apiKey: apiKey ? hashKey(apiKey) : null,
     productId,
     merchantId,
@@ -344,18 +486,10 @@ const redirectHandler = async (req: Request, res: Response) => {
     sessionId,
   });
 
-  // Rewrite to Awin tracking URL when publisher + advertiser IDs are configured
-  let finalUrl = destinationUrl;
-  if (awinPublisherId && affiliateLinkId && awinAdvertiserIds.has(affiliateLinkId)) {
-    const clickRef = `${productId.slice(0, 12)}-${Date.now().toString(36)}`;
-    finalUrl = buildAwinUrl(affiliateLinkId, destinationUrl, clickRef);
-  } else {
-    if (!isAllowedDestination(destinationUrl)) {
-      const { hostname } = (() => { try { return new URL(destinationUrl); } catch { return { hostname: destinationUrl }; } })();
-      console.warn(`[redirect] blocked: hostname "${hostname}" not in allowlist`);
-      res.status(403).json({ error: 'Destination not permitted' });
-      return;
-    }
+  if (blockedHostname !== null) {
+    console.warn(`[redirect] blocked: hostname "${blockedHostname}" not in allowlist`);
+    res.status(403).json({ error: 'Destination not permitted' });
+    return;
   }
 
   res.redirect(302, finalUrl);
@@ -363,5 +497,6 @@ const redirectHandler = async (req: Request, res: Response) => {
 
 router.get('/direct/:merchantId/:productId', redirectHandler);
 router.get('/:affiliateSlug/:productId', redirectHandler);
+router.get('/:query', queryRedirectHandler);
 
 export default router;

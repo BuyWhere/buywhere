@@ -14,12 +14,21 @@ const merchantLookup_1 = require("../lib/merchantLookup");
 const readReplica_1 = require("../lib/readReplica");
 const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const deviceClassifier_1 = require("../lib/deviceClassifier");
+const identifierDetector_1 = require("../lib/identifierDetector");
 const instrumentation_1 = require("../lib/instrumentation");
 const healthSnapshot_1 = require("../monitoring/healthSnapshot");
 const shoppingJobFunnel_1 = require("../monitoring/shoppingJobFunnel");
 const v2KpiWriter_1 = require("../monitoring/v2KpiWriter");
+const v2RequestLog_1 = require("../monitoring/v2RequestLog");
 // BUY-73521: start funnel writer on module load (idempotent).
 (0, shoppingJobFunnel_1.startShoppingJobFunnel)();
+// BUY-76909: Countries whose standalone child tables answer FTS in <100ms. The
+// parent `products` table has 373M rows / 297GB with severe bloat (11M dead
+// tuples), so the hydrating PK-join against it times out. Route the FBP final
+// join to products_partitioned_{cc} for these countries.
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'GB', 'CA', 'AU', 'IN', 'IT', 'ES', 'MX', 'ZA', 'BR', 'NZ', 'NL', 'PL', 'SE', 'CH', 'DK', 'JP', 'DE', 'FR', 'IE', 'NO', 'BE', 'AT', 'PT']);
+// BUY-72550: start v2 request log writer on module load (idempotent).
+(0, v2RequestLog_1.startV2RequestLog)();
 // BUY-75415: start v2 KPI sink writer on module load (idempotent).
 // Auto-started inside the module — explicit call here would be redundant.
 // BUY-73521: v2 buyer-context tools that participate in the purchase funnel.
@@ -171,7 +180,10 @@ async function filterVectorCandidatesByMarket(client, candidateIds, country, reg
     if (!country && !region)
         return candidateIds;
     const params = [candidateIds];
-    const conditions = ['id = ANY($1::uuid[])', 'is_active = true'];
+    // products.id is bigint. The old ::uuid[] cast raised
+    // 'operator does not exist: bigint = uuid', which aborted the enclosing search
+    // transaction and made every hybrid/semantic MCP query return 0 results.
+    const conditions = ['id = ANY($1::bigint[])', 'is_active = true'];
     if (country) {
         params.push(country.toUpperCase());
         conditions.push(`country_code = $${params.length}`);
@@ -187,6 +199,9 @@ async function filterVectorCandidatesByMarket(client, candidateIds, country, reg
     }
     catch (err) {
         console.warn('[search] vector candidate market filter failed, using global set:', err.message);
+        // Roll back to the vector-stage savepoint so a filter failure cannot poison the
+        // caller's transaction (the reason hybrid used to return a degraded envelope).
+        await client.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
         return candidateIds;
     }
 }
@@ -237,13 +252,14 @@ const TOOLS = [
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
                 deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
                 country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
                 min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
                 max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
                 limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or FLOWAI_EMBED_API_KEY unavailable.', default: 'hybrid' },
             },
         },
     },
@@ -287,6 +303,7 @@ const TOOLS = [
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
                 deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
                 country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
                 limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
             },
@@ -301,6 +318,7 @@ const TOOLS = [
                 region: { type: 'string', enum: ['us', 'sg', 'my', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
                 country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
             },
         },
     },
@@ -316,6 +334,7 @@ const TOOLS = [
                 country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
                 deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
                 country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
                 region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
             },
         },
@@ -394,7 +413,7 @@ const V2_TOOLS = [
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or FLOWAI_EMBED_API_KEY unavailable.', default: 'hybrid' },
             },
         },
     },
@@ -478,7 +497,7 @@ async function probeDiscountPctColumn() {
 }
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => { });
 // Tool handlers
-async function handleSearchProducts(args) {
+async function handleSearchProducts(args, caller) {
     const t0 = Date.now();
     void args.deliver_to;
     // BUY-75287: accept the `query` alias for `q`. Without this, callers (Atlas
@@ -489,16 +508,19 @@ async function handleSearchProducts(args) {
     // refactors; this re-applies and documents the contract on both handlers.
     const q = (args.q || args.query || '').trim();
     const mode = args.mode || 'hybrid';
-    const geminiKey = process.env.GEMINI_API_KEY ?? '';
-    const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
+    const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+    const useVector = config_1.vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
     const region = args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
     // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
     // empty-q browse mode — no index on country_code makes filtered scan slow,
     // and recent rows are predominantly US/null so SG filter finds nothing.
-    const rawCountry = ((args.country_code || args.country) || '').toUpperCase();
-    const hasExplicitCountry = !!(args.country_code || args.country);
+    // BUY-73666: deliver_to takes precedence over country_code/country per tool
+    // schema contract. Without this, MCP clients passing deliver_to="US" get SG
+    // results because the country filter was never applied.
+    const rawCountry = ((args.deliver_to || args.country_code || args.country) || '').toUpperCase();
+    const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
     const country = rawCountry || (q && !region ? 'SG' : '');
     const category = args.category || '';
     const minPrice = args.min_price != null ? Number(args.min_price) : null;
@@ -546,7 +568,10 @@ async function handleSearchProducts(args) {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (parsed.results) {
+            // BUY-76552: empty arrays are truthy in JS — skip cache for zero-result
+            // or degraded responses to prevent cache poisoning that perpetuates
+            // transient 0-result outages (cache → serve 0 → cache 0 → …).
+            if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
                 // BUY-75411: record cache-hit wall-clock latency so the admin probe
                 // can report p95 over the sliding window.
                 await (0, cacheStats_1.recordCacheHitLatency)(config_1.redis, Date.now() - t0);
@@ -555,6 +580,56 @@ async function handleSearchProducts(args) {
         }
     }
     catch (_) { /* redis miss — proceed */ }
+    // BUY-72362: identifier-shaped queries (ASIN/EAN/GTIN/UPC/Apple-part) bypass
+    // FTS entirely. FTS cannot resolve an ASIN — it returns 0 rows — and worse,
+    // it returns *wrong* rows for tokenised-but-not-identifier queries
+    // (SKU-12345 → fishing reels). The detector is conservative, so a natural-
+    // language query never reaches this branch. Identifiers also force keyword-
+    // only — sending an ASIN through the vector arm adds latency + cost +
+    // hallucinated neighbours.
+    const identifier = (0, identifierDetector_1.detectIdentifier)(q);
+    if (identifier) {
+        try {
+            const idIdx = 1;
+            const idParams = [identifier.normalized];
+            const idConds = ['is_active = true'];
+            idConds.push((0, identifierDetector_1.identifierMatchPredicate)(identifier, idIdx).sql);
+            if (country) {
+                idParams.push(country.toUpperCase());
+                idConds.push(`country_code = $${idParams.length}`);
+            }
+            if (domain) {
+                idParams.push(domain);
+                idConds.push(`source = $${idParams.length}`);
+            }
+            const idWhere = `WHERE ${idConds.join(' AND ')}`;
+            idParams.push(limit + 1);
+            const idLimit = idParams.length;
+            idParams.push(0);
+            const idOffset = idParams.length;
+            const idResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, brand, mpn, gtin, category_path,
+                avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+         FROM products ${idWhere}
+         ORDER BY id DESC
+         LIMIT $${idLimit} OFFSET $${idOffset}`, idParams);
+            const idRows = idResult.rows;
+            const idTotal = idRows.length;
+            const idPage = idTotal > limit ? idRows.slice(0, limit) : idRows;
+            const idProducts = idPage.map((r) => (0, response_1.buildProduct)(r, currency, compact));
+            const idResult2 = (0, response_1.buildSearchResponse)(idProducts, idTotal, limit, 0, Date.now() - t0, false);
+            try {
+                await config_1.redis.set(cacheKey, JSON.stringify(idResult2), 'EX', exports.MCP_FTS_CACHE_TTL_SECONDS);
+            }
+            catch (_) { /* cache write failure is non-fatal */ }
+            return { ...idResult2, identifier_kind: identifier.kind };
+        }
+        catch (idErr) {
+            // Fail-open to FTS — never let an identifier-detection bug poison the
+            // whole surface. The non-identifier fallback path is below.
+            console.warn('[search_products] identifier lookup failed, falling back to FTS:', idErr?.message);
+        }
+    }
     const conditions = ['is_active = true'];
     const params = [];
     if (q) {
@@ -582,6 +657,41 @@ async function handleSearchProducts(args) {
         conditions.push(`country_code = $${params.length}`);
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    // BUY-72082: Tier search via search_products partitioned table (97M rows,
+    // GIN-indexed, country-partitioned) instead of the 368M-row products table.
+    // Drops is_active (tier only contains active products) and category ILIKE
+    // (tier category is a slug, not free-text). Uses sp.* prefix to avoid
+    // ambiguity when the tier query joins back to products for full columns.
+    const tierConditions = [];
+    const tierParams = [];
+    if (q) {
+        tierParams.push(q);
+        tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
+    }
+    if (domain) {
+        tierParams.push(domain);
+        tierConditions.push(`sp.source = $${tierParams.length}`);
+    }
+    if (minPrice != null) {
+        tierParams.push(minPrice);
+        tierConditions.push(`sp.price >= $${tierParams.length}`);
+    }
+    if (maxPrice != null) {
+        tierParams.push(maxPrice);
+        tierConditions.push(`sp.price <= $${tierParams.length}`);
+    }
+    if (region) {
+        tierParams.push(region);
+        tierConditions.push(`sp.region = $${tierParams.length}`);
+    }
+    if (country) {
+        tierParams.push(country.toUpperCase());
+        tierConditions.push(`sp.country_code = $${tierParams.length}`);
+    }
+    // NOTE: category ILIKE intentionally omitted — search_products has category
+    // as a slug; REST tier uses exact match. Add tierParams/tierConditions here
+    // if category filtering on the tier becomes needed.
+    const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
     let rows;
     let total;
     // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
@@ -607,22 +717,40 @@ async function handleSearchProducts(args) {
         throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
-        // BUY-56185: statement_timeout = 4s lets the catalog_search stage fail
-        // fast into the BUY-74597 degraded envelope rather than holding a pooled
-        // connection across the full client timeout. The GIN bitmap plan must
-        // complete inside this budget; anything longer signals plan regression
-        // or pool exhaustion.
-        // Reduce timeout to protect against runaway queries and increase work_mem
-        // to encourage bitmap GIN plans. Additionally, disable sequential scans for
-        // this short-lived request to force the planner to use the GIN indexes
-        // (search_vector + region/country). This mitigates the observed ~12s
-        // catalog_search latency on SEA markets.
-        await searchClient.query('SET statement_timeout = 4000');
+        // BUY-56185: statement_timeout bounds catalog_search latency.
+        // BUY-76552: raised from 4s to 30s. Under cold-cache conditions the GIN
+        // bitmap plan on the non-partitioned search_products table (96M rows) with
+        // country_code filter takes ~13s for broad queries like 'laptop' (246K+
+        // global matches rechecked against country filter). The 4s timeout caused
+        // every v2 search to throw upstream_exception → degraded 0 results.
+        // 30s matches REST tier timeout headroom while still failing fast vs
+        // runaway queries. The degraded envelope (BUY-74597) still fires on
+        // genuine timeouts beyond 30s.
+        // 2026-08-29: a pooled connection can arrive already inside an aborted transaction
+        // (poisoned by a statement_timeout on another route sharing this pool). Clearing it
+        // costs nothing and prevents 25P02 from failing every MCP query.
+        await searchClient.query('ROLLBACK').catch(() => { });
+        await searchClient.query('BEGIN');
+        await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+        await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+        await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+        await searchClient.query(`SET LOCAL work_mem = '64MB'`);
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-        await searchClient.query('SET enable_seqscan = off'); // force index usage for this query
+        // BUY-76552+BUY-76553: mirror REST tier settings to fix timeout on MCP.
+        // REST uses these settings and works; MCP was timing out without them.
+        await searchClient.query('SET gin_fuzzy_search_limit = 0'); // fuzzy sampling breaks multi-word AND
+        await searchClient.query('SET max_parallel_workers_per_gather = 0'); // disable parallelism to match REST tier behavior
+        // BUY-76552: REMOVED enable_seqscan=off for search_products tier.
+        // The non-partitioned search_products table with country_code filter produces
+        // a huge bitmap recheck (246K+ global laptop rows rechecked against SG filter)
+        // when seqscan is off, pushing the count query past the 12s statement_timeout
+        // under cold-cache conditions. The planner naturally chooses the GIN index
+        // path when it's optimal; forcing it backfires on the tier table. Keep
+        // enable_seqscan=off for get_deals/find_best_price (different query patterns).
         const COUNT_CAP = 1001;
         if (q) {
-            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
+            // BUY-72082: count via tier table (97M, GIN-indexed) for fast total
+            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM search_products sp ${tierWhere} LIMIT ${COUNT_CAP}) _sub`, tierParams);
             total = parseInt(countResult.rows[0].count, 10);
             // BUY-73908: if the lexical catalog tier has zero matches, do not let
             // hybrid/vector recall resurrect unrelated rows for a must-miss query.
@@ -632,17 +760,23 @@ async function handleSearchProducts(args) {
                 rows = [];
             }
             else if (useVector) {
+                // 2026-08-29: the vector stage runs catalog queries on searchClient INSIDE the
+                // search transaction and its catch blocks "fall back to FTS". A failure there
+                // left the transaction aborted, so the main FTS query then died with 25P02 and
+                // every hybrid/semantic MCP call returned 0 results (keyword mode was fine).
+                // The savepoint makes the advertised fallback actually work.
+                await searchClient.query('SAVEPOINT vector_stage').catch(() => { });
                 // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
-                // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
+                // Hybrid and semantic paths embed the query via Flow AI, query the vector DB
                 // separately, then merge in application code (two separate PG instances).
                 // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
                 let queryVec = null;
                 try {
-                    const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
+                    const embedKey = `qembed:flow-embed-1@1024:${Buffer.from(q).toString('base64').slice(0, 48)}`;
                     queryVec = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, embedKey, () => config_1.redis.get(embedKey));
                     if (!queryVec) {
-                        queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
-                        await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
+                        queryVec = await (0, embedProducts_1.embedQuery)(q, flowAiKey);
+                        await config_1.redis.set(embedKey, queryVec, 'EX', 3600).catch(() => { });
                     }
                 }
                 catch (embedErr) {
@@ -655,17 +789,18 @@ async function handleSearchProducts(args) {
                         // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
                         try {
                             // BUY-68327: api.buywhere.ai/mcp can still point at a mixed-dimension
-                            // vector table. Restrict to the 512-dim Gemini model and fail open to
+                            // vector table. Restrict to the 512-dim Flow AI model and fail open to
                             // keyword FTS if pgvector still rejects the query.
                             const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+                 WHERE model_ver = 'flow-embed-1@1024'
+                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`, [queryVec]);
                             // BUY-74181: re-scope global vector candidates to the requested market
                             // before pagination so semantic search does not return out-of-market rows.
                             vectorCandidateIds = (await filterVectorCandidatesByMarket(searchClient, vecRows.rows.map(r => r.product_id), country, region)).slice(0, limit + offset);
                         }
                         catch (vecErr) {
                             console.warn('[search] vector query failed, falling back to FTS:', vecErr.message);
+                            await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
                             vectorCandidateIds = null;
                         }
                     }
@@ -674,15 +809,16 @@ async function handleSearchProducts(args) {
                         let vecRows = [];
                         let ftsRows = [];
                         try {
-                            // BUY-68327: keep vector failures (including 512/1024 dimension
+                            // BUY-68327: keep vector failures (including vector dimension
                             // mismatch) from rejecting the whole hybrid request.
                             const vecResult = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+                 WHERE model_ver = 'flow-embed-1@1024'
+                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`, [queryVec]);
                             vecRows = vecResult.rows;
                         }
                         catch (vecErr) {
                             console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
+                            await searchClient.query('ROLLBACK TO SAVEPOINT vector_stage').catch(() => { });
                         }
                         // BUY-74181: filter global vector candidates to the requested market
                         // before RRF so hybrid ranking cannot be dominated by out-of-market rows.
@@ -691,13 +827,8 @@ async function handleSearchProducts(args) {
                             vecRows = vecRows.filter(r => allowedIds.has(r.product_id));
                         }
                         try {
-                            const ftsResult = await searchClient.query(`SELECT id FROM (
-                   SELECT id, search_vector, updated_at
-                   FROM products ${where}
-                   LIMIT 200
-                 ) _c
-                 ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, updated_at DESC
-                 LIMIT 200`, params);
+                            // BUY-72082: FTS half of RRF via tier table (GIN-indexed, bounded)
+                            const ftsResult = await searchClient.query(`SELECT sp.id FROM search_products sp ${tierWhere} LIMIT 200`, tierParams);
                             ftsRows = ftsResult.rows;
                         }
                         catch (ftsErr) {
@@ -745,35 +876,57 @@ async function handleSearchProducts(args) {
                     }
                 }
                 else {
-                    // Embed failed — fall through to keyword FTS
-                    const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-                    params.push(CANDIDATE_LIMIT, limit, offset);
-                    const result = await searchClient.query(`SELECT * FROM (
-               SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
-                      url_last_checked_at, url_status
-               FROM products ${where}
-               LIMIT $${params.length - 2}
-             ) _candidates
-             ORDER BY updated_at DESC
-             LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-                    rows = result.rows;
+                    // BUY-72082: Embed failed — fall through to tier keyword FTS.
+                    // Stage 1: bounded FTS + ranking on search_products tier (GIN-indexed, 97M rows).
+                    // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
+                    // BUY-76552: REMOVED tierParams.push(limit+offset) — SQL uses hardcoded LIMIT 1000/200,
+                    // not $3. Extra param caused 08P01 on unnamed prepared statement.
+                    const tierFts = await searchClient.query(`WITH cand AS (
+               SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+               FROM search_products sp ${tierWhere}
+               LIMIT 1000
+             )
+             SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams);
+                    if (tierFts.rows.length === 0) {
+                        rows = [];
+                    }
+                    else {
+                        const tierIds = tierFts.rows.map(r => r.id);
+                        const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
+                        const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                      price, currency, image_url, metadata, updated_at, region, country_code,
+                      category, category_path, url_last_checked_at, url_status
+               FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds);
+                        // Preserve tier ranking order
+                        const byId = new Map(detailResult.rows.map(r => [r.id, r]));
+                        rows = tierIds.map(id => byId.get(id)).filter(Boolean);
+                    }
                 }
             }
             else {
-                // Keyword (FTS) path — BUY-31962 subquery pattern
-                const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-                params.push(CANDIDATE_LIMIT, limit, offset);
-                const result = await searchClient.query(`SELECT * FROM (
-             SELECT id, sku AS source, source AS domain, url, title,
+                // BUY-72082: Keyword (FTS) path via search_products tier.
+                // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
+                // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
+                const tierFts = await searchClient.query(`WITH cand AS (
+             SELECT sp.id, ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
+             FROM search_products sp ${tierWhere}
+             LIMIT 1000
+           )
+           SELECT id, rank FROM cand ORDER BY rank DESC LIMIT 200`, tierParams);
+                if (tierFts.rows.length === 0) {
+                    rows = [];
+                }
+                else {
+                    const tierIds = tierFts.rows.map(r => r.id);
+                    const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
+                    const detailResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code,
-                    url_last_checked_at, url_status
-             FROM products ${where}
-             LIMIT $${params.length - 2}
-           ) _candidates
-           ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-                rows = result.rows;
+                    category, category_path, url_last_checked_at, url_status
+             FROM products WHERE id IN (${ph}) AND is_active = true`, tierIds);
+                    // Preserve tier ranking order
+                    const byId = new Map(detailResult.rows.map(r => [r.id, r]));
+                    rows = tierIds.map(id => byId.get(id)).filter(Boolean);
+                }
             }
         }
         else {
@@ -812,6 +965,7 @@ async function handleSearchProducts(args) {
         // AND the keyword is set — that's the only path where the unfiltered signal
         // changes the reason. LIMIT 1 keeps this off the GIN hot path.
         if (q && !deliverToPresent) {
+            await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (
              SELECT 1 FROM products
@@ -820,8 +974,11 @@ async function handleSearchProducts(args) {
              LIMIT 1
            ) AS any_match`, [q]);
                 unfilteredHasAnyData = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_unfiltered').catch(() => { });
             }
-            catch (_) {
+            catch (probeErr) {
+                console.warn(`[search_products] unfiltered probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_unfiltered').catch(() => { });
                 unfilteredHasAnyData = null;
             }
         }
@@ -829,13 +986,24 @@ async function handleSearchProducts(args) {
         // errors so the empty envelope still lands when the DB is healthy but the
         // query is the issue.
         if (country) {
+            // 2026-08-29: these best-effort probes ran bare inside the search transaction and
+            // swallowed their errors. One failing probe left the transaction ABORTED, so every
+            // later statement returned 25P02 and the whole MCP surface answered 0 results with
+            // an opaque "upstream_exception". SAVEPOINT keeps a probe failure local, and the
+            // reason is logged instead of discarded.
+            await searchClient.query('SAVEPOINT probe_region').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (SELECT 1 FROM products WHERE is_active = true AND country_code = $1 LIMIT 1) AS any_match`, [country.toUpperCase()]);
                 regionHasAnyDataProbe = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_region').catch(() => { });
             }
-            catch (_) { /* regionHasAnyDataProbe stays at default */ }
+            catch (probeErr) {
+                console.warn(`[search_products] region probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_region').catch(() => { });
+            }
         }
         if (category) {
+            await searchClient.query('SAVEPOINT probe_category').catch(() => { });
             try {
                 const probe = await searchClient.query(`SELECT EXISTS (
              SELECT 1 FROM products
@@ -844,15 +1012,23 @@ async function handleSearchProducts(args) {
              LIMIT 1
            ) AS any_match`, [`%${category.toLowerCase()}%`]);
                 categoryHasAnyDataProbe = probe.rows[0]?.any_match === true;
+                await searchClient.query('RELEASE SAVEPOINT probe_category').catch(() => { });
             }
-            catch (_) { /* categoryHasAnyDataProbe stays at default */ }
+            catch (probeErr) {
+                console.warn(`[search_products] category probe failed (non-fatal): ${probeErr?.code ?? ''} ${String(probeErr?.message ?? probeErr).slice(0, 160)}`);
+                await searchClient.query('ROLLBACK TO SAVEPOINT probe_category').catch(() => { });
+            }
         }
+        await searchClient.query('COMMIT').catch(() => { });
         recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
     }
     catch (e) {
+        await searchClient.query('ROLLBACK').catch(() => { });
         const degradedKind = classifyMcpDegradedKind(e);
         recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+        // 2026-08-29: log the actual error. Without it every failure looked like an
+        // opaque "upstream_exception" and the agent surface returned 0 results silently.
+        console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
         return (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - t0, false, true, undefined, country || null, (0, response_1.deriveEmptiness)({
             regionHasAnyData: regionHasAnyDataProbe,
             categoryHasAnyData: categoryHasAnyDataProbe,
@@ -876,12 +1052,18 @@ async function handleSearchProducts(args) {
     }
     // BUY-69738: category was removed from SQL WHERE (caused heap scan at 400M+ rows).
     // Filter in-memory after fetch — ILIKE match is cheap on the bounded result set.
+    // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch.
     if (category && rows.length > 0) {
         const catLower = category.toLowerCase();
-        rows = rows.filter(r => (r.category || '').toLowerCase().includes(catLower));
+        rows = rows.filter(r => {
+            const rowCat = (r.category || '').trim();
+            if (!rowCat)
+                return true; // keep unknown-category rows
+            return rowCat.toLowerCase().includes(catLower);
+        });
     }
     const merchantMapForMcpSearch = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, rows.map((row) => row.merchant_id ?? null));
-    const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact, merchantMapForMcpSearch));
+    const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact, merchantMapForMcpSearch, caller));
     // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
     // the response is genuinely empty (products.length === 0) — non-empty responses
     // MUST NOT carry emptiness_reason per spec §2.1. The unfiltered probe was run
@@ -921,7 +1103,7 @@ async function handleSearchProducts(args) {
     }
     return result;
 }
-async function handleGetProduct(args) {
+async function handleGetProduct(args, caller) {
     const t0 = Date.now();
     const { id } = args;
     if (!id || typeof id !== 'string' || !id.trim()) {
@@ -939,10 +1121,10 @@ async function handleGetProduct(args) {
     }
     if (!result.rows.length)
         throw { code: -32001, message: 'Product not found' };
-    const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false);
+    const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false, undefined, caller);
     return (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - t0, false);
 }
-async function handleCompareProducts(args) {
+async function handleCompareProducts(args, caller) {
     const t0 = Date.now();
     const ids = args.ids;
     if (!ids || !Array.isArray(ids) || ids.length < 2) {
@@ -969,10 +1151,10 @@ async function handleCompareProducts(args) {
     catch {
         throw { code: -32001, message: 'Products not found' };
     }
-    const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
+    const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false, undefined, caller));
     return (0, response_1.buildSearchResponse)(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
-async function handleGetDeals(args) {
+async function handleGetDeals(args, caller) {
     const t0 = Date.now();
     const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
     const minDiscount = Number(args.min_discount) || 10;
@@ -994,7 +1176,7 @@ async function handleGetDeals(args) {
             deliverToPresent,
         });
     }
-    const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${limit}:${offset}`;
+    const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${(args.category || '').trim()}:${limit}:${offset}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -1032,6 +1214,18 @@ async function handleGetDeals(args) {
         params.push(effectiveCountry);
         conditions.push(`country_code = $${params.length}`);
     }
+    // BUY-77178: category filter — BUY-77834 fix
+    // The prior `LOWER(category) = $N` exact-match against the single text column
+    // never matched slug-style input like "home_and_kitchen" / "sports_and_outdoors"
+    // / "video_games" — those names don't exist verbatim in `category`. The index
+    // walk then burned the full 30s statement_timeout returning 0 rows and surfaced
+    // category_recognized:false to agents. Mirroring search_products: keep the SQL
+    // WHERE untouched (so the deals index walk is bounded), and apply the category
+    // filter as a post-fetch ILIKE on the bounded candidate set against both
+    // `category` text AND `category_path[1]`. LIKE wildcards make slug input
+    // ("home_and_kitchen") still match real names like "home & kitchen".
+    const category = (args.category || '').trim();
+    const categoryLower = category.toLowerCase();
     const whereClause = conditions.join(' AND ');
     const discountSelect = useDiscountCol
         ? 'discount_pct'
@@ -1090,7 +1284,27 @@ async function handleGetDeals(args) {
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${limit} OFFSET ${offset}`, candidateParams);
         total = dataResult.rows.length;
-        products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
+        // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
+        // WHERE was kept category-free so the (currency, discount_pct DESC) index
+        // walk stays bounded. Match caller input against `category` text AND
+        // `category_path[1]` so slug-style names ("home_and_kitchen") still match
+        // real names ("Home & Kitchen" via category_path[1] — list_categories feeds
+        // from this column on SG). LIKE wildcard gives a forgiving match.
+        if (categoryLower) {
+            const rawRows = dataResult.rows;
+            const matched = rawRows.filter((r) => {
+                const catText = (r.category || '').toLowerCase();
+                const catPath = (r.category_path || [])
+                    .map((v) => String(v).toLowerCase())
+                    .join(' ');
+                return catText.includes(categoryLower) || catPath.includes(categoryLower);
+            });
+            products = matched.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+            total = matched.length;
+        }
+        else {
+            products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+        }
         recordMcpCircuitSuccess('get_deals', 'offer_aggregation', effectiveCountry || null);
     }
     catch (e) {
@@ -1119,6 +1333,18 @@ async function handleGetDeals(args) {
     // so callers can distinguish "no live deals" from "server bug".
     if ((region || effectiveCountry) && products.length === 0) {
         result.unavailable = true;
+    }
+    // BUY-77834: surface the category_recognized signal when the caller passed
+    // a category filter. The post-fetch filter is now bounded (no more 30s walks),
+    // so we can reliably report whether the category had ANY rows.
+    if (categoryLower && products.length === 0) {
+        const resultMeta = result.meta;
+        resultMeta.emptiness_reason = 'category_unsupported';
+        resultMeta.confidence = 'low';
+        resultMeta.diagnostic = {
+            category_recognized: false,
+            timed_out_stage: null,
+        };
     }
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
     return result;
@@ -1320,6 +1546,30 @@ async function handleListCategories(args) {
         categoryListInflight.delete(country);
     }
 }
+// BUY-76206: normalize find_best_price product queries before they reach
+// plainto_tsquery / buildDeviceFilter. Strips trailing price/shipping/store
+// noise and collapses whitespace so ranking is driven by the product noun,
+// not spurious lexemes (mirrors the queryPreprocessor the search_products
+// path uses). Kept inline here to avoid a cross-tree import; the full
+// queryPreprocessor port is tracked under BUY-76206.
+const FBP_NOISE_TERMS = [
+    'price', 'prices', 'cheap', 'cheapest', 'best', 'buy', 'preorder', 'pre-order',
+    'official', 'original', 'genuine', 'sale', 'deal', 'discount', 'ship', 'shipping',
+    'free ship', 'in stock', 'stock', 'new', 'warranty', 'sg', 'singapore', 'store',
+    'shop', 'online', 'fast', 'delivery', 'near me',
+    '$', 's$', 'us$', 'rm', '฿', '₫', 'php', 'idr',
+];
+function normalizeFbpQuery(raw) {
+    let q = raw.toLowerCase()
+        .replace(/\b(?:s|us|rm)?[$฿₫]\s?\d{1,3}(?:,\d{3})*\.?\d*\b/g, ' ')
+        .replace(/[$฿₫]/g, ' ')
+        .replace(/[^\p{L}\p{N}\s-]/gu, ' ');
+    for (const t of FBP_NOISE_TERMS) {
+        q = q.replace(new RegExp(`\\b${t.replace(/[$฿₫]/g, '\\$&')}\\b`, 'g'), ' ');
+    }
+    q = q.split(' ').filter(tok => !/^\d{4,}$/.test(tok)).join(' ');
+    return q.replace(/\s+/g, ' ').trim();
+}
 async function handleFindBestPrice(args) {
     const t0 = Date.now();
     void args.deliver_to;
@@ -1334,8 +1584,11 @@ async function handleFindBestPrice(args) {
     const region = market.rawRegion;
     const category = args.category || '';
     const limit = 10;
+    // BUY-76206: rank on a noise-stripped query; keep the raw productName for the
+    // response envelope and any downstream text matching.
+    const searchName = normalizeFbpQuery(productName) || productName;
     // BUY-67522: infer exact device-family queries and reject accessory results.
-    const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(productName, country);
+    const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(searchName, country);
     const CANDIDATE_POOL = Math.max(limit * 50, 500);
     // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
     if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
@@ -1369,41 +1622,80 @@ async function handleFindBestPrice(args) {
         });
         await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
         await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
+        // BUY-72082: Tier search via search_products partitioned table (97M rows,
+        // GIN-indexed, country-partitioned) instead of the 368M-row products table.
+        // Stage 1 selects candidate ids + price + updated_at from the tier; stage 2
+        // joins back to products by PK for the full MCP output columns. Mirrors the
+        // search_products fix and avoids the full-table FTS scans that push FBP over
+        // the 30s statement_timeout across SEA markets.
         const requestedCountry = country;
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-        const conditions = ['is_active = true', 'price > 0'];
-        const params = [];
-        params.push(productName);
-        conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-        params.push(requestedCountry);
-        conditions.push(`country_code = $${params.length}`);
-        if (minPrice > 0) {
-            params.push(minPrice);
-            conditions.push(`price >= $${params.length}`);
+        const tierConditions = [];
+        const tierParams = [];
+        // BUY-76206: FTS on the noise-stripped query (searchName) instead of the raw string.
+        tierParams.push(searchName);
+        tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
+        if (region) {
+            tierParams.push(region);
+            tierConditions.push(`sp.region = $${tierParams.length}`);
         }
-        params.push(CANDIDATE_POOL);
-        const candidateWhere = conditions.join(' AND ');
+        if (minPrice > 0) {
+            tierParams.push(minPrice);
+            tierConditions.push(`sp.price >= $${tierParams.length}`);
+        }
+        const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
+        // BUY-76909: route candidates AND hydration to the country child table when one
+        // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
+        // joins even with indexes, and search_products ids do not overlap child-table ids
+        // for recent ingest (verified live: SG ids up to ~1.15e18 there, ≤37M here), so
+        // cross-tier joins return 0 rows. The child table has a GIN index on search_vector
+        // and (post-BUY-77453 DDL) a btree on (id) — full query answers in ~15ms.
+        const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
+        const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
+        if (!useChildTable) {
+            tierParams.push(requestedCountry);
+            tierConditions.push(`sp.country_code = $${tierParams.length}`);
+        }
+        // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
+        // model query every accessory title contains all the query terms, so the ten
+        // highest-ranked rows for "sony wh-1000xm5" were ear pads, headband assemblies and
+        // repair kits — the headphones themselves never entered the window. That produced
+        // both failure modes seen in the external benchmark: a $6.49 repair kit as "best
+        // price" before the accessory filter existed, and zero offers after it, because the
+        // filter stripped a window that contained nothing else. Rank accessories last in SQL
+        // and widen the window so the real product survives to the filter.
+        // Detail fetch joins products, not the tier: search_products has no is_active,
+        // metadata, category_path or url_status columns, so joining the tier there raised
+        // "column does not exist" on every call and find_best_price always returned a
+        // degraded empty envelope (2026-08-29).
+        const FILTER_POOL = Math.max(limit * 20, 200);
+        tierParams.push(CANDIDATE_POOL, FILTER_POOL);
         result = await bestPriceClient.query(`WITH cand AS (
-         SELECT id, price, updated_at
-         FROM products
-         WHERE ${candidateWhere}
-         LIMIT $${params.length}
+         SELECT sp.id, sp.price, sp.updated_at, sp.title,
+                ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
+         FROM ${tierTable} sp ${tierWhere}
+         LIMIT $${tierParams.length - 1}
        ), page_ids AS (
-         SELECT id, price, updated_at
+         SELECT id, price, updated_at, rk
          FROM cand
-         ORDER BY (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST, updated_at DESC
-         LIMIT $${params.length + 1}
+         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|charging cable|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare part|for use with|compatible with)' THEN 1 ELSE 0 END) ASC,
+                  rk DESC NULLS LAST,
+                  (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
+                  updated_at DESC
+         LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
               p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
               p.url_last_checked_at, p.url_status
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
-       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`, [...params, limit]);
+       WHERE p.is_active = true
+       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`, tierParams);
         recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
     }
     catch (e) {
         const degradedKind = classifyMcpDegradedKind(e);
+        console.warn(`[find_best_price] catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
         console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
         return buildMcpDegradedBestPriceResponse({
@@ -1421,13 +1713,28 @@ async function handleFindBestPrice(args) {
             releaseClientSafely(bestPriceClient);
     }
     // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
+    // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch, and
+    // sources like US ingestors (Shopify bulk) often leave category NULL, so stripping them
+    // entirely would return 0 results even when valid products exist.
     if (category && result && result.rows.length > 0) {
         const catLower = category.toLowerCase();
-        result.rows = result.rows.filter(r => (r.category || '').toLowerCase().includes(catLower));
+        result.rows = result.rows.filter(r => {
+            const rowCat = (r.category || '').trim();
+            if (!rowCat)
+                return true; // keep unknown-category rows
+            return rowCat.toLowerCase().includes(catLower);
+        });
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const neg = deviceFilter.negativeTerms;
+    // 2026-08-29: the accessory test used to depend on deviceFilter.negativeTerms, which
+    // only populates for recognised device families — so "Silicone Protective Cover Set for
+    // Sony WH-1000XM5" passed as the product itself and became the "best price". This
+    // pattern mirrors the SQL de-prioritisation exactly, so ranking and filtering agree.
+    const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
     const isAccessory = (r) => {
+        if (ACCESSORY_PATTERN.test(String(r.title ?? '')))
+            return true;
         if (!deviceFilter.type)
             return false;
         const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
@@ -1474,6 +1781,33 @@ async function handleFindBestPrice(args) {
     let medianUsd = null;
     let minAllowedUsd = null;
     let finalRows = result ? result.rows.filter(r => !isAccessory(r)) : [];
+    // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
+    // rather than returning empty. The SQL found products; returning nothing is
+    // worse than returning accessories (the user can refine the query).
+    // 2026-08-29: when EVERY candidate is an accessory, falling back to the unfiltered set
+    // hands the caller a headband cover as the "best price" for the headphones — the exact
+    // failure the external benchmark scored CRITICAL. If the query names a specific model
+    // and nothing but accessories matched, say so instead of substituting a different
+    // product. Callers get an explicit reason rather than a misleading answer.
+    const looksLikeExactModel = /[a-z]+[-\s]?\d{2,}|\d{2,}[a-z]{1,3}\b/i.test(productName);
+    if (finalRows.length === 0 && result && result.rows.length > 0 && looksLikeExactModel) {
+        return {
+            best_price: null,
+            alternatives: [],
+            meta: {
+                total: 0,
+                product_name: productName,
+                country: country || null,
+                response_time_ms: Date.now() - t0,
+                emptiness_reason: 'only_accessories_matched',
+                note: 'Every catalogue match for this model is an accessory (case, cable, ear pads). Returning none rather than presenting an accessory as the product.',
+                deliver_to_present: deliverToPresent,
+            },
+        };
+    }
+    if (finalRows.length === 0 && result && result.rows.length > 0) {
+        finalRows = result.rows;
+    }
     if (finalRows.length >= 3) {
         const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
         const mid = Math.floor(sortedUsd.length / 2);
@@ -1761,6 +2095,45 @@ async function handleIngestProducts(args) {
         response_time_ms: Date.now() - t0,
     };
 }
+// 2026-08-29: find_similar used to throw -32001 whenever a product had no vector yet.
+// With the Flow backfill still running that is the expected state for most of the
+// catalog, and a tool that errors on an expected state is a broken tool. Fall back to
+// keyword similarity on the product's own title and label the result honestly so the
+// caller knows it is not semantic.
+async function keywordSimilarFallback(productId, limit, reason) {
+    const client = await (0, readReplica_1.servingReadDbConnect)();
+    try {
+        const ref = await client.query('SELECT title, country_code, category FROM products WHERE id = $1::bigint LIMIT 1', [productId]);
+        if (ref.rowCount === 0) {
+            return { data: [], meta: { total: 0, similarity: 'none', reason: 'product_not_found' } };
+        }
+        const { title, country_code } = ref.rows[0];
+        const params = [title, productId];
+        // search_products carries only active rows, and has no is_active column.
+        let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint";
+        if (country_code) {
+            params.push(country_code);
+            where += ` AND country_code = $${params.length}`;
+        }
+        params.push(limit);
+        const rows = await client.query(`SELECT id, title, price, currency, url, image_url, country_code, category
+       FROM search_products WHERE ${where}
+       ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT $${params.length}`, params);
+        return {
+            data: rows.rows,
+            meta: {
+                total: rows.rowCount,
+                similarity: 'keyword',
+                semantic_available: false,
+                reason,
+                note: 'Keyword similarity on the product title. Semantic similarity becomes available for this product once its embedding is generated.',
+            },
+        };
+    }
+    finally {
+        releaseClientSafely(client);
+    }
+}
 async function handleFindSimilar(args) {
     const t0 = Date.now();
     const productId = (args.product_id || '').trim();
@@ -1775,32 +2148,32 @@ async function handleFindSimilar(args) {
         throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
     }
     if (!config_1.vectorDb) {
-        throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+        return keywordSimilarFallback(productId, limit, 'vector_db_unavailable');
     }
     // Step 1: get reference embedding from vector DB
     let refResult;
     try {
-        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings WHERE product_id = $1`, [productId]);
+        refResult = await config_1.vectorDb.query(`SELECT embedding_v2::text AS embedding FROM product_embeddings WHERE product_id = $1 AND model_ver = 'flow-embed-1@1024'`, [productId]);
     }
     catch {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
     }
     if (!refResult.rows.length) {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        return keywordSimilarFallback(productId, limit, 'no_embedding_for_product');
     }
     const refEmbedding = refResult.rows[0].embedding;
     // Step 2: find nearest neighbours in vector DB (excluding source product)
     let nearResult;
     try {
-        nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
+        nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY distance LIMIT $3`, [refEmbedding, productId, limit]);
+       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`, [refEmbedding, productId, limit]);
     }
     catch {
-        throw { code: -32001, message: 'No similar products found' };
+        return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
     }
     if (!nearResult.rows.length) {
-        throw { code: -32001, message: 'No similar products found' };
+        return keywordSimilarFallback(productId, limit, 'no_vector_neighbours');
     }
     // Step 3: fetch product details from main DB
     const nearIds = nearResult.rows.map(r => r.product_id);
@@ -1835,12 +2208,60 @@ async function handleFindSimilar(args) {
         response_time_ms: Date.now() - t0,
     };
 }
-async function dispatchTool(name, args) {
+// BUY-73666: `market` is a common agent alias for `country_code`. When agents pass
+// market=MY it was silently ignored because no handler read args.market, causing
+// every non-SG query to fall through to the SG default. Normalize once at
+// dispatch time so all downstream handlers see country_code set correctly.
+// (Ported from mcp-railway where this fix landed 2026-08-24.)
+const MARKET_TO_COUNTRY = {
+    sg: "SG", us: "US", my: "MY", th: "TH", vn: "VN",
+    gb: "GB", uk: "GB", in: "IN", au: "AU", ph: "PH", id: "ID",
+};
+function normalizeMarketArg(args) {
+    const market = (args.market || "").trim();
+    if (!market)
+        return;
+    const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+    if (!args.country_code && !args.country) {
+        args.country_code = mapped;
+    }
+}
+// BUY-71129 (re-applied, was clobbered by 554950c7): caller identity
+// thread-through for click attribution. Mirrors routes/products.ts.
+function callerContextForUrl(req) {
+    const rec = req.apiKeyRecord;
+    if (!rec || !rec.id || !rec.key)
+        return null;
+    return { apiKeyId: rec.id, keyHash: (0, crypto_1.createHash)('sha256').update(rec.key).digest('hex') };
+}
+// 2026-08-29: agents chain tools using whatever key the previous tool returned, and our
+// own tools disagree: search takes `query`/`q`, get_product takes `id`, find_similar takes
+// `product_id`, compare takes `ids` in v2 but `product_ids` in v1, and find_best_price
+// accepted `q`/`product_name` but NOT `query` — so the natural call
+// find_best_price_v2({query}) failed with -32602 while search_products_v2({query}) worked.
+// Normalise the common aliases once, at dispatch, so every tool accepts every spelling.
+function normalizeToolArgAliases(args) {
+    const alias = (from, to) => {
+        if (args[to] === undefined && args[from] !== undefined)
+            args[to] = args[from];
+    };
+    alias('query', 'q');
+    alias('q', 'query');
+    alias('q', 'product_name');
+    alias('product_name', 'q');
+    alias('product_id', 'id');
+    alias('id', 'product_id');
+    alias('product_ids', 'ids');
+    alias('ids', 'product_ids');
+}
+async function dispatchTool(name, args, caller) {
+    normalizeMarketArg(args);
+    normalizeToolArgAliases(args);
     switch (name) {
-        case 'search_products': return handleSearchProducts(args);
-        case 'get_product': return handleGetProduct(args);
-        case 'compare_products': return handleCompareProducts(args);
-        case 'get_deals': return handleGetDeals(args);
+        case 'search_products': return handleSearchProducts(args, caller);
+        case 'get_product': return handleGetProduct(args, caller);
+        case 'compare_products': return handleCompareProducts(args, caller);
+        case 'get_deals': return handleGetDeals(args, caller);
         case 'list_categories': return handleListCategories(args);
         case 'find_best_price': return handleFindBestPrice(args);
         case 'ingest_products': return handleIngestProducts(args);
@@ -2165,14 +2586,17 @@ function parseUuidBytes(uuid) {
 }
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id, result) {
-    return { jsonrpc: '2.0', id, result, request_id: (0, crypto_1.randomUUID)(), timestamp: new Date().toISOString() };
+    // BUY-benchmark 2026-08-29: JSON-RPC 2.0 permits only jsonrpc/id/result|error at the top
+    // level. request_id/timestamp here made the official MCP Inspector exit 1 and any strict
+    // client reject the response. Diagnostics belong in headers, not the envelope.
+    return { jsonrpc: '2.0', id, result };
 }
 function jsonrpcErr(id, code, message, data, envelopeCode) {
     const errorData = data != null ? { detail: data } : {};
     if (envelopeCode) {
         errorData.envelope = (0, errors_1.buildErrorEnvelope)(envelopeCode, message);
     }
-    return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) }, request_id: (0, crypto_1.randomUUID)(), timestamp: new Date().toISOString() };
+    return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
 // BUY-33837: matches the pre-migration mcp-server-production.js surface so
@@ -2236,16 +2660,20 @@ function extractRegion(toolArgs) {
         || toolArgs.country_code
         || toolArgs.country
         || toolArgs.region
-        || 'SG').toString().trim().toUpperCase();
+        || '' // Explicit empty string instead of defaulting to SG
+    ).toString().trim().toUpperCase();
     const REGION_TO_COUNTRY = {
         SG: 'SG', US: 'US', MY: 'MY', TH: 'TH', VN: 'VN',
         PH: 'PH', ID: 'ID', GB: 'GB', IN: 'IN', AU: 'AU',
         SEA: 'SG',
     };
+    // Empty/unknown regions return a sentinel that healthSnapshot will exclude
+    if (!raw)
+        return '*unknown*';
     const normalised = REGION_TO_COUNTRY[raw] || raw;
     return healthSnapshot_1.SUPPORTED_REGIONS.includes(normalised)
         ? normalised
-        : 'SG';
+        : '*unknown*';
 }
 // GET /mcp/health — public health surface with per-tool/per-region breakdown.
 router.get('/health', async (_req, res) => {
@@ -2380,12 +2808,14 @@ router.post('/', async (req, res, next) => {
     }
     return next();
 });
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), async (req, res) => {
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
+// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+async function handleMcpAuthenticated(req, res) {
     const body = req.body;
     // Validate JSON-RPC envelope
     if (!body || body.jsonrpc !== '2.0' || !body.method) {
-        return res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        res.status(400).json(jsonrpcErr(body?.id ?? null, -32600, 'Invalid JSON-RPC request', undefined, errors_1.ErrorCode.INVALID_JSON));
+        return;
     }
     const { id, method, params } = body;
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
@@ -2403,7 +2833,8 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 const toolName = args.name;
                 const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
                 if (!toolName) {
-                    return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
+                    return;
                 }
                 // BUY-66684: normalize `cc` to `country_code` so handlers' existing
                 // `args.country_code`/`args.country` lookup logic fires.
@@ -2427,7 +2858,6 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                     const resolved = (0, shoppingJobFunnel_1.resolveShoppingJobId)(clientJobId, toolArgs);
                     funnelJobId = resolved.jobId;
                     funnelIsReplay = resolved.isReplay;
-                    // BUY-73521: record job_created stage.
                     (0, shoppingJobFunnel_1.recordJobCreated)({
                         shoppingJobId: funnelJobId,
                         isReplay: funnelIsReplay,
@@ -2436,7 +2866,7 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         apiKey: rawApiKey,
                     });
                 }
-                const result = await dispatchTool(toolName, toolArgs);
+                const result = await dispatchTool(toolName, toolArgs, callerContextForUrl(req));
                 try {
                     (0, healthSnapshot_1.recordToolCall)({ tool: toolName, region: extractRegion(toolArgs), latency_ms: Date.now() - _startMs, error: false });
                 }
@@ -2447,15 +2877,12 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                     const productIds = (0, shoppingJobFunnel_1.extractProductIds)(result);
                     const offerUrlPresent = (0, shoppingJobFunnel_1.hasOutboundUrl)(result);
                     try {
-                        // product_resolved: at least one product id in response
                         if (productIds.length > 0) {
                             (0, shoppingJobFunnel_1.recordProductResolved)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
-                        // executable_offer_found: merchant + (price available or offer url)
                         if (productIds.length > 0 && offerUrlPresent) {
                             (0, shoppingJobFunnel_1.recordExecutableOfferFound)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
-                        // outbound_link_returned: outbound_url present
                         if (offerUrlPresent) {
                             (0, shoppingJobFunnel_1.recordOutboundLinkReturned)({ shoppingJobId: funnelJobId, toolName, args: toolArgs, apiKey: rawApiKey, result });
                         }
@@ -2464,8 +2891,6 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         console.warn('[mcp][funnel] record error:', e);
                     }
                 }
-                // BUY-73521: inject shopping_job_id into the response JSON so callers can
-                // continue the session without re-supplying it.
                 if (funnelJobId && result && typeof result === 'object') {
                     result.shopping_job_id = funnelJobId;
                 }
@@ -2473,18 +2898,26 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 // (>=1 product) OR monitoring.mcp_empty_responses (result_count=0 +
                 // non-null emptiness_reason). Filters is_internal. Fire-and-forget.
                 try {
-                    (0, v2KpiWriter_1.recordV2KpiSink)({
-                        toolName,
-                        args: toolArgs,
-                        apiKey: rawApiKey,
-                        result,
-                        statusCode: 200,
-                    });
+                    (0, v2KpiWriter_1.recordV2KpiSink)({ toolName, args: toolArgs, apiKey: rawApiKey, result, statusCode: 200 });
                 }
                 catch { /* swallowed inside recordV2KpiSink */ }
-                return res.json(jsonrpcOk(id, {
-                    content: [{ type: 'text', text: JSON.stringify(result) }],
-                }));
+                // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
+                if (toolName.endsWith('_v2')) {
+                    try {
+                        const v2Row = (0, v2RequestLog_1.buildV2RequestRow)({
+                            requestId: id,
+                            toolName,
+                            args: toolArgs,
+                            apiKey: rawApiKey,
+                            gatePassed: true,
+                            outcome: 'success',
+                        });
+                        (0, v2RequestLog_1.recordV2Request)(v2Row);
+                    }
+                    catch { /* best-effort telemetry */ }
+                }
+                res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
+                return;
             }
             // BUY-72102: backward compatibility for direct tool-name JSON-RPC methods.
             default: {
@@ -2499,8 +2932,7 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                     }
                     catch { }
                     // BUY-75415: same forward-direction write as tools/call (v2 tools may
-                    // also be invoked via direct method name; the gate metric must reflect
-                    // both surfaces).
+                    // also be invoked via direct method name; the gate metric must reflect both surfaces).
                     try {
                         (0, v2KpiWriter_1.recordV2KpiSink)({
                             toolName: method,
@@ -2511,11 +2943,27 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                         });
                     }
                     catch { /* swallowed inside recordV2KpiSink */ }
-                    return res.json(jsonrpcOk(id, {
-                        content: [{ type: 'text', text: JSON.stringify(result) }],
-                    }));
+                    // BUY-72550: record v2 request for adoption telemetry (fire-and-forget).
+                    if (method.endsWith('_v2')) {
+                        try {
+                            const rawApiKey = req.apiKeyRecord?.key;
+                            const v2Row = (0, v2RequestLog_1.buildV2RequestRow)({
+                                requestId: id,
+                                toolName: method,
+                                args,
+                                apiKey: rawApiKey,
+                                gatePassed: true,
+                                outcome: 'success',
+                            });
+                            (0, v2RequestLog_1.recordV2Request)(v2Row);
+                        }
+                        catch { /* best-effort telemetry */ }
+                    }
+                    res.json(jsonrpcOk(id, { content: [{ type: 'text', text: JSON.stringify(result) }] }));
+                    return;
                 }
-                return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                return;
             }
         }
     }
@@ -2525,6 +2973,24 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 (0, healthSnapshot_1.recordToolCall)({ tool: _toolName, region: extractRegion(_toolArgs), latency_ms: Date.now() - _startMs, error: true });
             }
             catch { }
+            // BUY-72550: record v2 request error for adoption telemetry (fire-and-forget).
+            if (_toolName.endsWith('_v2')) {
+                try {
+                    const rawApiKey = req.apiKeyRecord?.key;
+                    const rpcErr = err;
+                    const outcome = (typeof rpcErr.code === 'number' && rpcErr.code === -32602) ? 'gate_rejected' : 'rpc_error';
+                    const v2Row = (0, v2RequestLog_1.buildV2RequestRow)({
+                        requestId: id,
+                        toolName: _toolName,
+                        args: _toolArgs,
+                        apiKey: rawApiKey,
+                        gatePassed: outcome !== 'gate_rejected',
+                        outcome,
+                    });
+                    (0, v2RequestLog_1.recordV2Request)(v2Row);
+                }
+                catch { /* best-effort telemetry */ }
+            }
         }
         const e = err;
         // BUY-57370: handle both numeric tool-error codes and PG string error codes.
@@ -2532,18 +2998,28 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
             const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.NOT_FOUND
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR;
-            return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+            return;
         }
         if (typeof e.code === 'string' && e.message) {
             if (e.code === '57014') {
                 console.warn(`[mcp] statement_timeout (57014)`);
-                return res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, errors_1.ErrorCode.SERVICE_UNAVAILABLE));
+                res.json(jsonrpcErr(id, -32603, 'Query timed out — catalog temporarily slow, retry with a narrower query', undefined, errors_1.ErrorCode.SERVICE_UNAVAILABLE));
+                return;
             }
             console.error(`[mcp] pg error (code=${e.code}):`, e.message);
-            return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+            res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+            return;
         }
         console.error('[mcp] error:', err);
-        return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
+        res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
     }
-});
+}
+// POST /mcp — authenticated methods: tools/call (and any future additions)
+router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
+// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
+// Mount the same handler so both paths accept standard bw_* API keys.
+// Previously this path returned 401 "Invalid admin key" from a stale admin-gated
+// middleware. Keeping it as an alias ensures callers using /mcp/rpc continue working.
+router.post('/rpc', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 exports.default = router;

@@ -114,7 +114,7 @@ data.forEach(p => console.log(p.title, p.price, p.availability));
 
 ## MCP server
 
-The BuyWhere MCP server is available at the canonical HTTP endpoint `https://api.buywhere.ai/mcp` and exposes the same surface as the REST API. The legacy SSE endpoint remains available at `https://api.buywhere.ai/mcp/sse` for clients that explicitly require SSE transport. Install instructions:
+The BuyWhere MCP server is available at the canonical HTTP endpoint `https://api.buywhere.ai/mcp` and exposes the same surface as the REST API. The legacy SSE endpoint remains available at `https://api.buywhere.ai/mcp` for clients that explicitly require SSE transport. Install instructions:
 
 - Claude Desktop / Claude Code: add `buywhere` to `mcp_servers` with `command: "buywhere-mcp"` (CLI) or the transport-specific endpoint above.
 - LangChain: `pip install langchain-buywhere` (community package; pending).
