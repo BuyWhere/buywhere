@@ -1330,14 +1330,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     try {
       const params = new URLSearchParams({
         q: query,
-        country: config.country,
+        // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
+        // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
+        country: config.country.toLowerCase(),
         // BUY-72906: filter country-specific SEO snapshots to merchants/products
         // in the page's target market. Without this, USD-priced foreign retailers
         // (e.g. COMPUMARTS) can leak into the US retailers section.
-        deliver_to: config.country,
+        deliver_to: config.country.toLowerCase(),
         include_unshippable: "false",
         limit: config.excludeAccessories ? "24" : "8",
-        region: config.country,
+        region: config.country.toLowerCase(),
       });
       if (config.searchCategory) {
         params.set("category", config.searchCategory);
