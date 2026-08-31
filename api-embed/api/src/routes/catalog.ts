@@ -280,7 +280,13 @@ router.get('/categories', async (_req: Request, res: Response) => {
   const start = Date.now();
   try {
     const result = await catalogDb.query(
-      `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`
+      `SELECT slug, name, product_count FROM (
+         SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50
+         UNION
+         SELECT slug, name, product_count FROM mcp_category_summary
+          WHERE LOWER(slug) IN ('laptops', 'computers')
+       ) pinned
+       ORDER BY product_count DESC`
     );
     const categories = result.rows.map((row) => ({
       slug: row.slug,
