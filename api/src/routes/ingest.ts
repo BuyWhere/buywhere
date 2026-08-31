@@ -5,6 +5,37 @@ import { validatePrice } from '../lib/pricing';
 
 const router = Router();
 
+// BUY-78311: Expected currency per country code. This validation rejects
+// rows where stored currency does not match the expected currency for the
+// merchant's country. Use INGEST_CURRENCY_OVERRIDES env var (JSON) to
+// override specific merchant_id values for cross-border cases.
+const COUNTRY_TO_CURRENCY: Record<string, string> = {
+  'MY': 'MYR',
+  'SG': 'SGD',
+  'US': 'USD',
+  'TH': 'THB',
+  'PH': 'PHP',
+  'ID': 'IDR',
+  'VN': 'VND',
+};
+
+// Load merchant-level currency overrides from env var JSON:
+// INGEST_CURRENCY_OVERRIDES='{"merchant_id_A": "USD", "merchant_id_B": "EUR"}'
+let merchantCurrencyOverrides: Record<string, string> = {};
+try {
+  const overridesEnv = process.env.INGEST_CURRENCY_OVERRIDES;
+  if (overridesEnv) {
+    merchantCurrencyOverrides = JSON.parse(overridesEnv);
+    if (typeof merchantCurrencyOverrides !== 'object' || merchantCurrencyOverrides === null) {
+      throw new Error('INGEST_CURRENCY_OVERRIDES must be a JSON object');
+    }
+    console.log('[ingest] Loaded currency overrides for', Object.keys(merchantCurrencyOverrides).length, 'merchant(s)');
+  }
+} catch (e) {
+  console.error('[ingest] Failed to parse INGEST_CURRENCY_OVERRIDES, using empty:', (e as Error).message);
+  merchantCurrencyOverrides = {};
+}
+
 const SOURCE_NORMALIZATION: Record<string, string> = {
   'challenger': 'challenger_sg',
   'challenger.sg': 'challenger_sg',
@@ -275,6 +306,53 @@ function normalizeSource(source: string): string {
   return SOURCE_NORMALIZATION[source] || source;
 }
 
+// BUY-78311: Validate that currency matches expected currency for country_code.
+// Returns {valid: true} if ok, {valid: false, reason} if invalid.
+function validateCurrencyForCountry(
+  currency: string,
+  country_code: string | undefined | null,
+  merchant_id: string
+): { valid: boolean; reason?: string } {
+  if (!country_code) {
+    // If no country_code, we can't validate — accept but log
+    console.warn(`[ingest] currency validation skipped: no country_code (merchant=${merchant_id}, currency=${currency})`);
+    return { valid: true };
+  }
+
+  const countryCodeUpper = country_code.toUpperCase();
+  const currencyUpper = currency.toUpperCase();
+
+  // Check merchant-level override first
+  const merchantOverride = merchantCurrencyOverrides[merchant_id];
+  if (merchantOverride) {
+    const overrideUpper = merchantOverride.toUpperCase();
+    if (currencyUpper !== overrideUpper) {
+      return {
+        valid: false,
+        reason: `currency=${currency} does not match merchant override (${merchantOverride}) for merchant=${merchant_id}`,
+      };
+    }
+    return { valid: true };
+  }
+
+  // Check country-level expected currency
+  const expectedCurrency = COUNTRY_TO_CURRENCY[countryCodeUpper];
+  if (!expectedCurrency) {
+    // Unknown country code — accept but log
+    console.warn(`[ingest] unknown country_code=${country_code} (merchant=${merchant_id}, currency=${currency}), skipping validation`);
+    return { valid: true };
+  }
+
+  if (currencyUpper !== expectedCurrency) {
+    return {
+      valid: false,
+      reason: `currency=${currency} does not match expected currency ${expectedCurrency} for country_code=${country_code}`,
+    };
+  }
+
+  return { valid: true };
+}
+
 interface IngestProductItem {
   sku: string;
   merchant_id: string;
@@ -334,12 +412,27 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   }
   if (!p.url || typeof p.url !== 'string') return { valid: null, error: err('Missing url', 'validation_url_invalid') };
 
+  // BUY-78311: Validate currency matches country_code
+  const merchantId = String(p.merchant_id);
+  const currency = typeof p.currency === 'string' ? p.currency : 'SGD';
+  let countryCode: string | undefined = undefined;
+  if (typeof p.country_code === 'string') countryCode = p.country_code;
+  else if (p.metadata && typeof p.metadata === 'object') {
+    const meta = p.metadata as Record<string, unknown>;
+    if (typeof meta.country_code === 'string') countryCode = meta.country_code;
+  }
+
+  const currencyCheck = validateCurrencyForCountry(currency, countryCode, merchantId);
+  if (!currencyCheck.valid) {
+    return { valid: null, error: err(currencyCheck.reason || 'Currency mismatch', 'validation_currency_mismatch') };
+  }
+
   const product: IngestProductItem = {
     sku,
-    merchant_id: String(p.merchant_id),
+    merchant_id: merchantId,
     title: String(p.title).slice(0, 1000),
     price: p.price,
-    currency: typeof p.currency === 'string' ? p.currency : 'SGD',
+    currency,
     url: String(p.url),
   };
 
@@ -355,11 +448,7 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.availability === 'string') product.availability = p.availability;
   if (p.last_checked && typeof p.last_checked === 'string') product.last_checked = p.last_checked;
   if (p.metadata && typeof p.metadata === 'object') product.metadata = p.metadata as Record<string, unknown>;
-  if (typeof p.country_code === 'string') product.country_code = p.country_code;
-  else if (p.metadata && typeof p.metadata === 'object') {
-    const meta = p.metadata as Record<string, unknown>;
-    if (typeof meta.country_code === 'string') product.country_code = meta.country_code;
-  }
+  if (countryCode) product.country_code = countryCode;
   if (typeof p.region === 'string') product.region = p.region;
   else if (p.metadata && typeof p.metadata === 'object') {
     const meta = p.metadata as Record<string, unknown>;
@@ -940,4 +1029,6 @@ router.get('/runs/:id', requireApiKey, asyncHandler(async (req: Request, res: Re
   res.json(result.rows[0]);
 }));
 
+// Export validation functions for testing (BUY-78311)
+export { validateCurrencyForCountry, COUNTRY_TO_CURRENCY };
 export default router;
