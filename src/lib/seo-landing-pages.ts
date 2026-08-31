@@ -49,6 +49,7 @@ export function stripCountryTokens(query: string): string {
 // static editorial products because the direct external-API call 401'd).
 const INTERNAL_ORIGIN =
   process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  (process.env.PORT ? `http://127.0.0.1:${process.env.PORT}` : null) ||
   process.env.NEXT_PUBLIC_SITE_URL ||
   BASE_URL;
 
@@ -1351,10 +1352,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // depends on BUYWHERE_API_KEY being present in the server-component
       // environment (the previous direct external call 401'd silently, which
       // is why every SEO page fell back to static editorial products).
+      // BUY-78769: prefer loopback so SSR does not hairpin through public HTTPS
+      // (that path 8s-aborts and leaves the page on editorial /search?q= fallbacks).
+      // revalidate 60 + cache-bust header so the 15-min empty cache from the
+      // uppercase-country bug cannot keep serving 0 live /r/ cards.
       const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-        next: { revalidate: 60 * 15 },
-        signal: AbortSignal.timeout(8000),
+        headers: { Accept: "application/json", "x-buywhere-seo-cache": "78769" },
+        next: { revalidate: 60 },
+        signal: AbortSignal.timeout(12000),
       });
 
       if (!response.ok) {
