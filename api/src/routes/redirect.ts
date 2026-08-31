@@ -211,6 +211,62 @@ function normalizeQuerySlug(slug: string): string {
   }
 }
 
+// GET /r?u=<url> — legacy public shortcut used by human-facing links and some
+// partner embeds. BUY-77001: the trailing-slash middleware now passes /r/?u=...
+// through, but Express matches the bare /r path to no handler and falls through
+// to later routers (which can return 401/404). This handler must exist so the
+// affiliate chain works for both /r?u=... and /r/?u=... requests.
+const legacyUrlRedirectHandler = async (req: Request, res: Response) => {
+  const destinationUrl = firstQueryValue(req.query.u);
+  const source = firstQueryValue(req.query.source) || 'legacy_url';
+
+  if (!destinationUrl || !isAllowedDestination(destinationUrl)) {
+    res.redirect(302, FALLBACK_URL);
+    return;
+  }
+
+  const authHeader = req.headers['authorization'] || '';
+  let apiKey: string | null = null;
+  if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
+  const who = await whoClicked(req, apiKey);
+
+  // Best-effort click log for the legacy path. product_id/merchant_id are
+  // unknown because the URL carries only the destination.
+  (async () => {
+    try {
+      await withTimeout(
+        insertAffiliateClickWithTruth(
+          [who.keyHash, 'legacy_url', 'unknown', 'unknown', '', source, destinationUrl,
+           who.ua, who.family, who.ipHash, who.referrer, who.sourcePage, who.keyId, who.isInternal],
+          false,
+          302,
+        ),
+        REDIRECT_TIMEOUT_MS,
+        'affiliate_clicks insert (legacy url)'
+      );
+    } catch (err) {
+      if ((err as { code?: string }).code !== '42703') {
+        console.warn('[redirect] legacy-url click logging failed:', (err as Error).message);
+      }
+    }
+  })();
+
+  trackAffiliateClick({
+    apiKeyId: who.keyId,
+    apiKey: apiKey ? hashKey(apiKey) : null,
+    productId: 'unknown',
+    merchantId: 'unknown',
+    affiliateLinkId: '',
+    source,
+    pathname: firstQueryValue(req.query.pathname),
+    currentUrl: firstQueryValue(req.query.current_url) || firstQueryValue(req.query.$current_url),
+    referrer: firstQueryValue(req.query.referrer) || firstQueryValue(req.query.$referrer),
+    sessionId: firstQueryValue(req.query.session_id) || firstQueryValue(req.query.$session_id),
+  });
+
+  res.redirect(302, destinationUrl);
+};
+
 // GET /r/:query — public shortcut used by legacy human-facing links.
 // Do not require API auth and do not run broad catalog scans on the redirect path.
 const queryRedirectHandler = async (req: Request, res: Response) => {
@@ -497,6 +553,7 @@ const redirectHandler = async (req: Request, res: Response) => {
 
 router.get('/direct/:merchantId/:productId', redirectHandler);
 router.get('/:affiliateSlug/:productId', redirectHandler);
+router.get('/', legacyUrlRedirectHandler);
 router.get('/:query', queryRedirectHandler);
 
 export default router;
