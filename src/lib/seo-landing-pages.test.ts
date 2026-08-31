@@ -1492,3 +1492,36 @@ test("BUY-77675: laptop token floor requires strict model OR loose+signal", () =
     assert.equal(floorPasses(title), false, `floor must reject accessory: ${title}`);
   }
 });
+
+// BUY-78306 loader follow-up: when a JSON intent-page override ships an empty
+// `fallbackProducts` array, the loader must inherit the curated editorial picks
+// from the TS file. Without this, live-search variance leaves the page with
+// zero cards and the "currently unavailable" empty state. JSON-provided
+// items still win when present.
+test("BUY-78306 loader: JSON intent-page with empty fallbackProducts inherits TS fallbackProducts", () => {
+  const merged = seoLandingPages["best-wireless-earbuds-us"];
+  assert.ok(merged, "best-wireless-earbuds-us must exist in the merged registry");
+  // The TS file ships 5 fallback products for best-wireless-earbuds-us; the
+  // JSON file ships 0 (writers iterate; some pages haven't filled the field
+  // yet). The merged config MUST have 5 because the loader inherits TS
+  // fallbackProducts when JSON's is empty.
+  assert.equal(
+    merged.fallbackProducts?.length,
+    5,
+    "merged fallbackProducts must inherit from TS when JSON ships an empty array"
+  );
+  assert.equal(
+    merged.fallbackProducts?.[0]?.id,
+    "f1",
+    "inherited fallback must be the curated editorial picks from the TS file"
+  );
+});
+
+test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {
+  const merged = seoLandingPages["best-macbooks-singapore"];
+  assert.ok(merged, "best-macbooks-singapore must exist in the merged registry");
+  assert.ok(
+    merged.fallbackProducts && merged.fallbackProducts.length === 6,
+    "merged fallbackProducts must come from JSON when JSON ships a non-empty array"
+  );
+});
