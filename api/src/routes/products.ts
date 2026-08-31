@@ -590,7 +590,6 @@ const LIST_SORT_TTL_SECONDS = 60;
 router.get(
   '/',
   agentDetectMiddleware,
-  requireApiKey,
   checkRateLimit,
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
@@ -2391,7 +2390,6 @@ router.get(
 router.get(
   '/featured',
   agentDetectMiddleware,
-  requireApiKey,
   checkRateLimit,
   queryLogMiddleware('products.featured'),
   asyncHandler(async (req: Request, res: Response) => {
