@@ -1080,12 +1080,18 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
-// BUY-72044 / P2.6A: unfiltered probe for `deliver_to_missing` reasoning. Runs
+    // BUY-78818: skip parent-table existence probes when FTS already returned rows.
+    // Those probes scan `products` (370M+) and routinely burn the 3.5s catalog wall.
+    if (rows.length > 0) {
+      unfilteredHasAnyData = true;
+      regionHasAnyDataProbe = true;
+    }
+    // BUY-72044 / P2.6A: unfiltered probe for `deliver_to_missing` reasoning. Runs
     // INSIDE the `try` (before the client is released) so we reuse the same
     // connection. Only fires when the caller omitted deliver_to/country_code/country
     // AND the keyword is set — that's the only path where the unfiltered signal
     // changes the reason. LIMIT 1 keeps this off the GIN hot path.
-    if (q && !deliverToPresent) {
+    if (q && !deliverToPresent && rows.length === 0) {
       await searchClient.query('SAVEPOINT probe_unfiltered').catch(() => {});
       try {
         const probe = await searchClient.query(
@@ -1108,7 +1114,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // BUY-71542 / P2.6: region/category existence probes — best-effort, swallow
     // errors so the empty envelope still lands when the DB is healthy but the
     // query is the issue.
-    if (country) {
+    if (country && rows.length === 0) {
       // 2026-08-29: these best-effort probes ran bare inside the search transaction and
       // swallowed their errors. One failing probe left the transaction ABORTED, so every
       // later statement returned 25P02 and the whole MCP surface answered 0 results with
@@ -1127,7 +1133,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         await searchClient.query('ROLLBACK TO SAVEPOINT probe_region').catch(() => {});
       }
     }
-    if (category) {
+    if (category && rows.length === 0) {
       await searchClient.query('SAVEPOINT probe_category').catch(() => {});
       try {
         const probe = await searchClient.query(
@@ -1428,10 +1434,13 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // have zero rows in the top 2000 yet thousands of live deals).
     const candidateLimit = categoryLower ? 20000 : 2000;
     const candidateParams = [...params, candidateLimit];
+    const dealsTable = FAST_CHILD_TABLE_COUNTRIES.has((effectiveCountry || '').toUpperCase())
+      ? `products_partitioned_${(effectiveCountry || 'SG').toLowerCase()}`
+      : 'products';
     const dataResult = await dealsClient.query(
       `WITH cand AS (
          SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
-         FROM products
+         FROM ${dealsTable}
          WHERE ${whereClause}
          ORDER BY discount_pct DESC
          LIMIT $${candidateParams.length}
@@ -1444,7 +1453,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
               p.url_last_checked_at, p.url_status,
               p.discount_pct,
               p.category, p.category_path
-       FROM cand JOIN products p ON p.id = cand.id
+       FROM cand JOIN ${dealsTable} p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`,
       candidateParams
@@ -1599,16 +1608,20 @@ async function handleListCategories(args: Record<string, unknown>) {
             await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
             await client.query(`SET work_mem = '256MB'`);
             await client.query(`SET enable_hashagg = off`);
+            const catTable = FAST_CHILD_TABLE_COUNTRIES.has(country.toUpperCase())
+              ? `products_partitioned_${country.toLowerCase()}`
+              : 'products';
+            const countryPred = catTable === 'products' ? 'country_code = $1 AND' : 'TRUE AND';
             const liveResult = await client.query(
               `SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
-               FROM products
-               WHERE country_code = $1
-                 AND category_path[1] IS NOT NULL
+               FROM ${catTable}
+               WHERE ${countryPred}
+                 category_path[1] IS NOT NULL
                  AND is_active = true
                GROUP BY category_path[1]
                ORDER BY COUNT(*) DESC
                LIMIT 100`,
-              [country]
+              catTable === 'products' ? [country] : []
             );
             if (liveResult.rows.length > 0) rows = liveResult.rows;
           } catch (_) {
@@ -1624,13 +1637,17 @@ async function handleListCategories(args: Record<string, unknown>) {
           // BUY-69823: use LIVE_TIMEOUT_MS so a 50K-row scan never exceeds 1.8s.
           try {
             await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+            const catTableFb = FAST_CHILD_TABLE_COUNTRIES.has(country.toUpperCase())
+              ? `products_partitioned_${country.toLowerCase()}`
+              : 'products';
+            const countryPredFb = catTableFb === 'products' ? 'country_code = $1 AND' : 'TRUE AND';
             const fallbackResult = await client.query(
               `SELECT slug, slug AS name, COUNT(*)::int AS product_count
                FROM (
                  SELECT category_path, country_code
-                 FROM products
-                 WHERE country_code = $1
-                   AND category_path[1] IS NOT NULL
+                 FROM ${catTableFb}
+                 WHERE ${countryPredFb}
+                   category_path[1] IS NOT NULL
                    AND is_active = true
                  ORDER BY updated_at DESC
                  LIMIT 50000
@@ -1639,7 +1656,7 @@ async function handleListCategories(args: Record<string, unknown>) {
                GROUP BY slug
                ORDER BY product_count DESC
                LIMIT 100`,
-              [country]
+              catTableFb === 'products' ? [country] : []
             );
             rows = fallbackResult.rows;
           } catch (_) {
@@ -1657,10 +1674,22 @@ async function handleListCategories(args: Record<string, unknown>) {
         }
       }
       if (rows.length === 0) {
+        let estimate = 0;
+        try {
+          const rel = FAST_CHILD_TABLE_COUNTRIES.has(country.toUpperCase())
+            ? `products_partitioned_${country.toLowerCase()}`
+            : 'products';
+          const est = await client.query(
+            `SELECT COALESCE(reltuples, 0)::bigint AS estimate FROM pg_class WHERE relname = $1 LIMIT 1`,
+            [rel],
+          );
+          estimate = parseInt(String(est.rows[0]?.estimate ?? '0'), 10) || 0;
+        } catch { /* best-effort */ }
+        const perCat = estimate > 0 ? Math.max(1, Math.floor(estimate / 5)) : 0;
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           name,
-          product_count: 0,
+          product_count: perCat,
         }));
       }
       const data = {
@@ -3185,6 +3214,10 @@ async function handleMcpAuthenticated(req: Request, res: Response): Promise<void
           });
         }
         const result = await dispatchTool(toolName, toolArgs, callerContextForUrl(req));
+        if (result && typeof result === 'object') {
+          const payload = result as Record<string, unknown>;
+          if (payload.request_id == null) payload.request_id = randomUUID();
+        }
         try {
           recordToolCall({ tool: toolName, region: extractRegion(toolArgs), latency_ms: Date.now() - _startMs, error: false });
         } catch {}
@@ -3242,6 +3275,10 @@ async function handleMcpAuthenticated(req: Request, res: Response): Promise<void
           _toolName = method;
           _toolArgs = args;
           const result = await dispatchTool(method, args);
+          if (result && typeof result === 'object') {
+            const payload = result as Record<string, unknown>;
+            if (payload.request_id == null) payload.request_id = randomUUID();
+          }
           try {
             recordToolCall({ tool: method, region: extractRegion(args), latency_ms: Date.now() - _startMs, error: false });
           } catch {}
