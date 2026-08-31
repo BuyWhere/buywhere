@@ -32,6 +32,7 @@ export interface CanonicalProduct {
   comparison_attributes?: ComparisonAttribute[];
   // Non-compact-only (legacy extras):
   metadata?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
