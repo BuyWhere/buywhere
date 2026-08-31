@@ -1391,7 +1391,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // bare string slug, not a nested object with region/countryCode. Hard
         // gate on the raw slug before normalization so CompuMarts / non-US / no
         // merchant rows never enter the live card set or downstream JSON-LD.
-        if (!isMerchantAllowedForCountry(item, allowlistCountry)) continue;
+        // BUY-78306: skip allowlist check if product has valid affiliate_redirect_url
+        // (these are typically google_shopping/woocommerce aggregators with working /r/ links)
+        if (!hasAffiliateRedirect && !isMerchantAllowedForCountry(item, allowlistCountry)) continue;
 
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
