@@ -1264,7 +1264,10 @@ async function handleGetDeals(args, caller) {
         // selective), candidates are id-thin, and full rows join only for the
         // returned page. updated_at tiebreak preserved in SQL.
         await dealsClient.query('SET enable_seqscan = off');
-        const candidateLimit = 2000;
+        // BUY-77834 fix: when a category filter is present, widen the candidate walk —
+        // filtering the top-2000 global discounts post-fetch is lossy (a category may
+        // have zero rows in the top 2000 yet thousands of live deals).
+        const candidateLimit = categoryLower ? 20000 : 2000;
         const candidateParams = [...params, candidateLimit];
         const dataResult = await dealsClient.query(`WITH cand AS (
          SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
@@ -1279,10 +1282,11 @@ async function handleGetDeals(args, caller) {
                    THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
               p.url_last_checked_at, p.url_status,
-              p.discount_pct
+              p.discount_pct,
+              p.category, p.category_path
        FROM cand JOIN products p ON p.id = cand.id
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
-       LIMIT ${limit} OFFSET ${offset}`, candidateParams);
+       LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`, candidateParams);
         total = dataResult.rows.length;
         // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
         // WHERE was kept category-free so the (currency, discount_pct DESC) index
@@ -1299,7 +1303,7 @@ async function handleGetDeals(args, caller) {
                     .join(' ');
                 return catText.includes(categoryLower) || catPath.includes(categoryLower);
             });
-            products = matched.map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
+            products = matched.slice(offset, offset + limit).map((r) => (0, response_1.buildProduct)(r, currency, false, undefined, caller));
             total = matched.length;
         }
         else {
@@ -2808,8 +2812,7 @@ router.post('/', async (req, res, next) => {
     }
     return next();
 });
-// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler.
-// Shared between POST /mcp and POST /mcp/rpc so both accept standard bw_* API keys.
+// BUY-77590/BUY-77744: authenticated MCP JSON-RPC handler for POST /mcp.
 async function handleMcpAuthenticated(req, res) {
     const body = req.body;
     // Validate JSON-RPC envelope
@@ -3017,9 +3020,4 @@ async function handleMcpAuthenticated(req, res) {
 }
 // POST /mcp — authenticated methods: tools/call (and any future additions)
 router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
-// BUY-77590/BUY-77744: /mcp/rpc is a backward-compatible alias for /mcp.
-// Mount the same handler so both paths accept standard bw_* API keys.
-// Previously this path returned 401 "Invalid admin key" from a stale admin-gated
-// middleware. Keeping it as an alias ensures callers using /mcp/rpc continue working.
-router.post('/rpc', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), handleMcpAuthenticated);
 exports.default = router;
