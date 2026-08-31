@@ -10,17 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Dyson V12 Detect Slim cordless vacuum",
+  "searchQuery": "Dyson V12 Detect Slim cordless vacuum Singapore",
   "backupQueries": [
     "Dyson Detect Slim vacuum Singapore",
-    "Dyson V15 Detect cordless vacuum",
-    "Dyson cordless stick vacuum Singapore"
+    "Dyson V15 Detect Absolute vacuum Singapore",
+    "Dyson V12 Detect vacuum Courts Harvey Norman Singapore"
   ],
   "minPrice": 400,
   "requiredProductTerms": [
     "dyson",
-    "v12",
-    "detect"
+    "detect",
+    "vacuum"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 31, 2026",
