@@ -474,6 +474,7 @@ async function computeDeltas(client, hourStart, target = TARGET_INSERTS_PER_HOUR
           drain_only_hour = (flagged.non_drain_runs = 0)
       FROM flagged
       WHERE c.hour_start = flagged.hour_start
+        AND c.delta_computed_at IS NULL
       RETURNING c.*
     )
     SELECT flagged.* FROM flagged
