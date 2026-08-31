@@ -16,7 +16,7 @@
     "key-reset": "ts-node src/jobs/dailyKeyResetRunner.ts",
     "start:p95": "node dist/jobs/p95Runner.js",
     "p95": "ts-node src/jobs/p95Runner.ts",
-    "test": "node --test --test-force-exit tests/response.test.mjs tests/search.test.mjs tests/ts-rank-guard.test.mjs tests/v2-wire-contract.test.mjs",
+    "test": "node --test --test-force-exit tests/response.test.mjs tests/search.test.mjs tests/ts-rank-guard.test.mjs tests/v2-wire-contract.test.mjs tests/buy-78702-id-first-fts.test.mjs",
     "test:mcp": "node --test --test-force-exit tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
     "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs",

@@ -811,47 +811,66 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           // Stage 2: full MCP output columns from products via PK lookup (≤limit+offset rows).
           // BUY-77819: Respect the user's limit parameter instead of hardcoded 200.
           const pageLimit = Math.min(limit + offset, 200);
-          const tierFts = await spQuery<Record<string, unknown>>(
-            `WITH cand AS (
-               SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
-                      sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
-                      sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
-                      ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-               FROM ${ftsTable} sp ${tierWhere}
-               LIMIT 1000
-             )
-             SELECT id, sku AS source, source AS domain, url, title, price, currency,
-                    image_url, metadata, updated_at, region, country_code, category,
-                    category_path, url_last_checked_at, url_status, rank
-             FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
+          const cand = await spQuery<{ id: string }>(
+            `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT 1000`,
             tierParams,
-            `fts_k${tierParams.length}`
+            `fts_idfb${tierParams.length}`
           );
-          rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
-          total = tierFts.rows.length + offset;
+          const candIds = cand.rows.map(r => r.id);
+          if (candIds.length === 0) {
+            rows = [];
+            total = 0;
+          } else {
+            const ph = candIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailResult = await spQuery<Record<string, unknown>>(
+              `SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                      image_url, metadata, updated_at, region, country_code, category,
+                      category_path, url_last_checked_at, url_status,
+                      ts_rank(search_vector, plainto_tsquery('english', $${candIds.length + 1})) AS rank
+               FROM ${ftsTable}
+               WHERE id IN (${ph})
+               ORDER BY rank DESC
+               LIMIT ${pageLimit}`,
+              [...candIds, q],
+              `fts_detfb${candIds.length}`
+            );
+            rows = detailResult.rows.slice(offset, offset + limit);
+            total = candIds.length + offset;
+          }
         }
       } else {
         // BUY-78767: Keyword FTS returns columns from search_products itself.
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
         const pageLimit = Math.min(limit + offset, 200);
-        const tierFts = await spQuery<Record<string, unknown>>(
-          `WITH cand AS (
-             SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
-                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
-                    sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
-                    ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-             FROM ${ftsTable} sp ${tierWhere}
-             LIMIT 1000
-           )
-           SELECT id, sku AS source, source AS domain, url, title, price, currency,
-                  image_url, metadata, updated_at, region, country_code, category,
-                  category_path, url_last_checked_at, url_status, rank
-           FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
+        // BUY-78702: id-only cand CTE (REST tryTierSearch). Selecting wide
+        // columns + ts_rank in the GIN scan prevents early-stop and times out
+        // the 3.5s MCP wall even on products_partitioned_sg.
+        const cand = await spQuery<{ id: string }>(
+          `SELECT sp.id FROM ${ftsTable} sp ${tierWhere} LIMIT 1000`,
           tierParams,
-          `fts_k${tierParams.length}`
+          `fts_id${tierParams.length}`
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
-        total = tierFts.rows.length + offset;
+        const candIds = cand.rows.map(r => r.id);
+        if (candIds.length === 0) {
+          rows = [];
+          total = 0;
+        } else {
+          const ph = candIds.map((_, i) => `$${i + 1}`).join(',');
+          const detailResult = await spQuery<Record<string, unknown>>(
+            `SELECT id, sku AS source, source AS domain, url, title, price, currency,
+                    image_url, metadata, updated_at, region, country_code, category,
+                    category_path, url_last_checked_at, url_status,
+                    ts_rank(search_vector, plainto_tsquery('english', $${candIds.length + 1})) AS rank
+             FROM ${ftsTable}
+             WHERE id IN (${ph})
+             ORDER BY rank DESC
+             LIMIT ${pageLimit}`,
+            [...candIds, q],
+            `fts_det${candIds.length}`
+          );
+          rows = detailResult.rows.slice(offset, offset + limit);
+          total = candIds.length + offset;
+        }
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
