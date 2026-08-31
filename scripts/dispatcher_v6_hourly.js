@@ -103,6 +103,18 @@ function collectCycleMarkerInserted(hourStart, dataRoot) {
   return { inserted: totalInserted, cycles: totalCycles };
 }
 
+function median(values) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function isDrainOnlyHour(metrics) {
+  return metrics?.non_drain_runs === 0 || metrics?.drain_only_hour === true;
+}
+
 function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) {
   const deltaInsFromStats = toNumber(metrics?.delta_ins_from_stats);
   const ingInsertedRaw = toNumber(metrics?.ing_inserted);
@@ -110,6 +122,7 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
   const liveCountDelta = toNumber(metrics?.live_count_delta);
   const nLiveTupDelta = toNumber(metrics?.n_live_tup_delta);
   const statResetDetected = Boolean(metrics?.stat_reset_detected);
+  const nonDrainMedian = toNumber(metrics?.trailing_non_drain_median);
   if (deltaInsFromStats !== null && deltaInsFromStats >= target) {
     return {
       verdict: 'PASS',
@@ -168,6 +181,18 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
     };
   }
 
+  // BUY-72265: drain-only hours should not file false-positive FAILs.
+  // If the hour had zero non-drain runs and the 7-day trailing median of
+  // producer-active hours is below target, the producer lane was simply quiet.
+  if (isDrainOnlyHour(metrics) && nonDrainMedian !== null && nonDrainMedian < target) {
+    return {
+      verdict: 'PRODUCER_QUIET',
+      value: deltaInsFromStats,
+      source: 'producer_quiet',
+      reason: `drain-only hour; 7-day non-drain median ${formatNumber(nonDrainMedian)} < ${formatNumber(target)} (delta_ins_from_stats ${formatNumber(deltaInsFromStats)})`,
+    };
+  }
+
   return {
     verdict: 'FAIL',
     value: deltaInsFromStats,
@@ -181,6 +206,9 @@ function assert_v6_forbidden_patterns(metrics, decision, target = TARGET_INSERTS
   const deltaInsFromStats = toNumber(metrics?.delta_ins_from_stats);
   const liveCountDelta = toNumber(metrics?.live_count_delta);
   const ingInsertedRaw = toNumber(metrics?.ing_inserted);
+
+  // PRODUCER_QUIET is a recognized exempted verdict, not a failure.
+  if (decision.verdict === 'PRODUCER_QUIET') return;
 
   if (decision.verdict === 'FAIL' && deltaInsFromStats !== null && decision.source !== 'delta_ins_from_stats') {
     throw new Error('v6 forbidden pattern 5c/6.1: FAILURE cannot be based on ingestion_runs or secondary metrics when delta_ins_from_stats is non-null');
@@ -206,6 +234,7 @@ function assert_v6_forbidden_patterns(metrics, decision, target = TARGET_INSERTS
 function should_file_v6_failure_ticket(metrics, target = TARGET_INSERTS_PER_HOUR) {
   const decision = select_v6_throughput_signal(metrics, target);
   assert_v6_forbidden_patterns(metrics, decision, target);
+  // PRODUCER_QUIET exempts the hour from filing a FAIL child issue (BUY-72265).
   return decision.verdict === 'FAIL';
 }
 
@@ -274,6 +303,9 @@ async function ensureCanonicalTable(client) {
       ['reconciliation_gap', 'bigint'],
       ['reconciliation_reason', 'text'],
       ['reconciliation_checked_at', 'timestamptz'],
+      ['drain_only_hour', 'boolean DEFAULT false'],
+      ['non_drain_runs', 'integer DEFAULT 0'],
+      ['trailing_non_drain_median', 'bigint'],
     ];
 
     for (const [name, definition] of optionalColumns) {
@@ -321,7 +353,8 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
       SELECT
         count(*)::int AS runs,
         COALESCE(sum(rows_inserted), 0)::bigint AS sum_inserted,
-        COALESCE(sum(rows_updated), 0)::bigint AS sum_updated
+        COALESCE(sum(rows_updated), 0)::bigint AS sum_updated,
+        COALESCE(count(*) FILTER (WHERE source NOT LIKE 'ingest:ops-drain-svc:%'), 0)::int AS non_drain_runs
       FROM ingestion_runs
       WHERE started_at >= $1::timestamptz
         AND started_at <  ($1::timestamptz + interval '1 hour')
@@ -329,10 +362,10 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
     ),
     upserted AS (
       INSERT INTO canonical_throughput_hourly
-        (hour_start, n_tup_ins, n_tup_upd, n_live_tup, live_count, ing_runs, ing_inserted, ing_updated, source, recorded_at)
+        (hour_start, n_tup_ins, n_tup_upd, n_live_tup, live_count, ing_runs, ing_inserted, ing_updated, non_drain_runs, source, recorded_at)
       SELECT $1::timestamptz,
              stats.n_tup_ins, stats.n_tup_upd, stats.n_live_tup,
-             live.live_count, ing.runs, ing.sum_inserted, ing.sum_updated, $2::text, now()
+             live.live_count, ing.runs, ing.sum_inserted, ing.sum_updated, ing.non_drain_runs, $2::text, now()
       FROM stats, live, ing
       ON CONFLICT (hour_start) DO UPDATE SET
         n_tup_ins = EXCLUDED.n_tup_ins,
@@ -342,6 +375,7 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
         ing_runs = EXCLUDED.ing_runs,
         ing_inserted = EXCLUDED.ing_inserted,
         ing_updated = EXCLUDED.ing_updated,
+        non_drain_runs = EXCLUDED.non_drain_runs,
         source = EXCLUDED.source,
         recorded_at = now()
       RETURNING *
@@ -371,6 +405,7 @@ async function computeDeltas(client, hourStart, target = TARGET_INSERTS_PER_HOUR
         cur.ing_runs,
         cur.ing_inserted,
         cur.ing_updated,
+        cur.non_drain_runs,
         CASE
           WHEN prv.n_tup_ins IS NULL OR cur.n_tup_ins IS NULL OR cur.n_tup_ins < prv.n_tup_ins THEN NULL
           ELSE cur.n_tup_ins - prv.n_tup_ins
@@ -426,7 +461,8 @@ async function computeDeltas(client, hourStart, target = TARGET_INSERTS_PER_HOUR
           stat_reset_detected = flagged.stat_reset_detected,
           stats_mismatch_detected = flagged.stats_mismatch_detected,
           stats_mismatch_reason = flagged.stats_mismatch_reason,
-          delta_computed_at = now()
+          delta_computed_at = now(),
+          drain_only_hour = (flagged.non_drain_runs = 0)
       FROM flagged
       WHERE c.hour_start = flagged.hour_start
       RETURNING c.*
@@ -436,6 +472,18 @@ async function computeDeltas(client, hourStart, target = TARGET_INSERTS_PER_HOUR
 
   if (!result.rows[0]) throw new Error(`No canonical row found for ${hourStart.toISOString()}.`);
   return result.rows[0];
+}
+
+async function fetchTrailingNonDrainMedian(client, hourStart, lookbackDays = 7) {
+  const result = await client.query(`
+    SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY delta_ins_from_stats), NULL)::bigint AS median_delta
+    FROM canonical_throughput_hourly
+    WHERE hour_start >= $1::timestamptz - ($2 || ' days')::interval
+      AND hour_start < $1::timestamptz
+      AND non_drain_runs > 0
+      AND delta_ins_from_stats IS NOT NULL
+  `, [sqlTimestamp(hourStart), lookbackDays.toString()]);
+  return toNumber(result.rows[0]?.median_delta);
 }
 
 async function recordDecision(client, hourStart, decision) {
@@ -459,6 +507,9 @@ function buildReport(metrics, decision, target = TARGET_INSERTS_PER_HOUR) {
     `- n_live_tup_delta: ${formatNumber(metrics.n_live_tup_delta)}\n` +
     `- live_count_delta: ${formatNumber(metrics.live_count_delta)}\n` +
     `- ingestion_runs.ing_inserted: ${formatNumber(metrics.ing_inserted)} (observability only unless delta_ins_from_stats is NULL)\n` +
+    `- non_drain_runs: ${formatNumber(metrics.non_drain_runs)}\n` +
+    `- drain_only_hour: ${Boolean(metrics.drain_only_hour)}\n` +
+    `- trailing_non_drain_median: ${formatNumber(metrics.trailing_non_drain_median)}\n` +
     `- stats_mismatch_detected: ${Boolean(metrics.stats_mismatch_detected)}${metrics.stats_mismatch_reason ? ` — ${metrics.stats_mismatch_reason}` : ''}\n` +
     `- stat_reset_detected: ${Boolean(metrics.stat_reset_detected)}\n` +
     `- cycle_marker_inserted: ${formatNumber(metrics.cycle_marker_inserted)} (${formatPercent(metrics.cycle_marker_inserted, target)})\n` +
@@ -477,6 +528,7 @@ async function run(options = {}) {
     await ensureCanonicalTable(client);
     await upsertSnapshot(client, hourStart, { skipLiveCount: options.skipLiveCount !== false });
     const metrics = await computeDeltas(client, hourStart, target);
+    metrics.trailing_non_drain_median = await fetchTrailingNonDrainMedian(client, hourStart);
     const cycleMarkers = collectCycleMarkerInserted(hourStart);
     metrics.cycle_marker_inserted = cycleMarkers.inserted;
     metrics.cycle_marker_cycles = cycleMarkers.cycles;
@@ -594,7 +646,14 @@ function selfTest() {
   assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 57401, live_count_delta: 398920 }).source, 'live_count_delta_fallback', 'stat reset uses live count after low ingestion_runs');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 57401, live_count_delta: 398920 }), false, 'high live_count fallback should not file failure');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 10000, live_count_delta: 10000 }), true, 'low ingestion + low live count fails');
-  console.log('dispatcher_v6_hourly self-test: 22 passed');
+  // BUY-72265: drain-only hours are exempted from FAIL when the producer median is low.
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 70000, non_drain_runs: 0, trailing_non_drain_median: 90000 }), false, 'drain-only + low producer median exempt');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 70000, non_drain_runs: 0, trailing_non_drain_median: 90000 }).verdict, 'PRODUCER_QUIET', 'PRODUCER_QUIET verdict');
+  // Drain-only hour with a healthy producer median still files FAIL (median can't verify quiet).
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 70000, non_drain_runs: 0, trailing_non_drain_median: 200000 }), true, 'drain-only + high producer median still fails');
+  // A producer-active low hour still files FAIL.
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 70000, non_drain_runs: 3, trailing_non_drain_median: 90000 }), true, 'producer-active low hour fails');
+  console.log('dispatcher_v6_hourly self-test: 26 passed');
 }
 
 if (require.main === module) {
@@ -630,4 +689,7 @@ module.exports = {
   assert_v6_forbidden_patterns,
   buildReport,
   run,
+  median,
+  isDrainOnlyHour,
+  fetchTrailingNonDrainMedian,
 };
