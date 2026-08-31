@@ -140,6 +140,10 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; weekly?: 
   enterprise: { rpm: 1000, daily: 100000 },
   platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },
   internal: { rpm: 10000, daily: 999999 },
+  // BUY-78624: monitoring-tier keys previously fell through to FREE_TIER (10K/day)
+  // and exhausted before market Cat A smokes (MY at 12:07Z). Internal probes must
+  // not share the customer 10K cap.
+  monitoring: { rpm: 1000, daily: 100000 },
 };
 // Vector DB pool — separate Railway Postgres with pgvector 0.8 (BUY-41135).
 // Null when VECTOR_DB_URL is unset; consumers must check before using.
