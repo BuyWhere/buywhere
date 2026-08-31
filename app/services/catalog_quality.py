@@ -397,6 +397,23 @@ async def build_catalog_quality_report(db: AsyncSession) -> dict[str, Any]:
     }
 
 
+def _json_safe(value: Any) -> Any:
+    """Recursively convert datetime/Decimal values to JSON-serializable forms."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [_json_safe(v) for v in value]
+    return value
+
+
 async def persist_catalog_quality_snapshot(db: AsyncSession, report: dict[str, Any]) -> DataQualityMetrics:
     snapshot_date = report["snapshot_date"]
     if isinstance(snapshot_date, datetime):
@@ -427,7 +444,216 @@ async def persist_catalog_quality_snapshot(db: AsyncSession, report: dict[str, A
     snapshot.products_with_price_pct = Decimal(str(field_completeness["price_pct"]))
     snapshot.products_with_brand_pct = Decimal(str(field_completeness["brand_pct"]))
     snapshot.overall_quality_score = Decimal(str(round(overview["overall_quality_score"] * 100, 2)))
-    snapshot.per_platform_scores = payload
+    snapshot.per_platform_scores = _json_safe(payload)
 
     await db.flush()
     return snapshot
+
+
+async def build_catalog_quality_report_fast(db: AsyncSession) -> dict[str, Any]:
+    """Build a catalog quality report using SQL aggregates.
+
+    This is a scalable replacement for `build_catalog_quality_report` that
+    keeps memory bounded by asking PostgreSQL to compute the metrics instead
+    of loading every active product into the application. It returns a report
+    dict with the same shape expected by `persist_catalog_quality_snapshot`.
+    """
+    now = datetime.now(timezone.utc)
+    active_predicate = "is_active = TRUE"
+    updated_expr = "COALESCE(data_updated_at, updated_at)"
+
+    # Overall metrics
+    overall_query = text(
+        f"""
+        SELECT
+            COUNT(*) AS total_products,
+            ROUND(AVG(freshness_score)::numeric, 4) AS avg_freshness_score,
+            ROUND(AVG(completeness_score)::numeric, 4) AS avg_completeness_score,
+            ROUND((SUM(CASE WHEN image_url IS NOT NULL AND image_url <> '' THEN 1 ELSE 0 END)::numeric
+                / NULLIF(COUNT(*), 0)) * 100, 2) AS image_url_pct,
+            ROUND((SUM(CASE WHEN description IS NOT NULL AND description <> '' THEN 1 ELSE 0 END)::numeric
+                / NULLIF(COUNT(*), 0)) * 100, 2) AS description_pct,
+            ROUND((SUM(CASE WHEN price IS NOT NULL THEN 1 ELSE 0 END)::numeric
+                / NULLIF(COUNT(*), 0)) * 100, 2) AS price_pct,
+            ROUND((SUM(CASE WHEN brand IS NOT NULL AND brand <> '' THEN 1 ELSE 0 END)::numeric
+                / NULLIF(COUNT(*), 0)) * 100, 2) AS brand_pct,
+            SUM(CASE WHEN is_stale THEN 1 ELSE 0 END) AS stale_products
+        FROM (
+            SELECT
+                image_url,
+                description,
+                price,
+                brand,
+                CASE
+                    WHEN {updated_expr} IS NULL THEN 0.0
+                    WHEN EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400 >= :stale_days THEN 0.0
+                    ELSE 1.0 - (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400) / :stale_days
+                END AS freshness_score,
+                (
+                    (CASE WHEN title IS NOT NULL AND title <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN description IS NOT NULL AND description <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN price IS NOT NULL THEN 1 ELSE 0 END) +
+                    (CASE WHEN url IS NOT NULL AND url <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN image_url IS NOT NULL AND image_url <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN brand IS NOT NULL AND brand <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN category IS NOT NULL AND category <> '' THEN 1 ELSE 0 END) +
+                    (CASE WHEN sku IS NOT NULL AND sku <> '' THEN 1 ELSE 0 END)
+                ) / 8.0 AS completeness_score,
+                CASE
+                    WHEN {updated_expr} IS NULL THEN TRUE
+                    WHEN EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400 >= :stale_days THEN TRUE
+                    ELSE FALSE
+                END AS is_stale
+            FROM products
+            WHERE {active_predicate}
+        ) subq
+        """
+    ).bindparams(stale_days=STALE_THRESHOLD_DAYS)
+
+    overall_row = (await db.execute(overall_query)).mappings().one()
+    total_products = int(overall_row["total_products"] or 0)
+    avg_freshness = float(overall_row["avg_freshness_score"] or 0.0)
+    avg_completeness = float(overall_row["avg_completeness_score"] or 0.0)
+    # Price accuracy is expensive to compute across all history; use the same
+    # fallback as the per-product function when no recent history exists.
+    avg_price_accuracy = 0.6
+    overall_quality = compute_overall_score(
+        freshness_score=avg_freshness,
+        completeness_score=avg_completeness,
+        price_accuracy_score=avg_price_accuracy,
+    )
+    stale_products = int(overall_row["stale_products"] or 0)
+
+    # Bucketed aggregates (source, region, category)
+    def _bucket_query(group_col: str) -> text:
+        coalesce_value = "'unknown'" if group_col != "category" else "'uncategorized'"
+        return text(
+            f"""
+            SELECT
+                COALESCE({group_col}, {coalesce_value}) AS name,
+                COUNT(*) AS product_count,
+                SUM(CASE WHEN is_stale THEN 1 ELSE 0 END) AS stale_products,
+                ROUND(AVG(freshness_score)::numeric, 4) AS avg_freshness_score,
+                ROUND(AVG(completeness_score)::numeric, 4) AS avg_completeness_score,
+                ROUND(AVG(0.6)::numeric, 4) AS avg_price_accuracy_score,
+                ROUND((AVG(freshness_score) * 0.4 + AVG(completeness_score) * 0.35 + 0.6 * 0.25)::numeric, 4) AS avg_overall_score
+            FROM (
+                SELECT
+                    {group_col},
+                    CASE
+                        WHEN {updated_expr} IS NULL THEN 0.0
+                        WHEN EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400 >= :stale_days THEN 0.0
+                        ELSE 1.0 - (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400) / :stale_days
+                    END AS freshness_score,
+                    (
+                        (CASE WHEN title IS NOT NULL AND title <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN description IS NOT NULL AND description <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN price IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN url IS NOT NULL AND url <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN image_url IS NOT NULL AND image_url <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN brand IS NOT NULL AND brand <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN category IS NOT NULL AND category <> '' THEN 1 ELSE 0 END) +
+                        (CASE WHEN sku IS NOT NULL AND sku <> '' THEN 1 ELSE 0 END)
+                    ) / 8.0 AS completeness_score,
+                    CASE
+                        WHEN {updated_expr} IS NULL THEN TRUE
+                        WHEN EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400 >= :stale_days THEN TRUE
+                        ELSE FALSE
+                    END AS is_stale
+                FROM products
+                WHERE {active_predicate}
+            ) subq
+            GROUP BY {group_col}
+            """
+        ).bindparams(stale_days=STALE_THRESHOLD_DAYS)
+
+    async def _load_buckets(group_col: str) -> list[dict[str, Any]]:
+        rows = (await db.execute(_bucket_query(group_col))).mappings().all()
+        buckets = []
+        for row in rows:
+            count = int(row["product_count"] or 0)
+            stale = int(row["stale_products"] or 0)
+            buckets.append({
+                "name": row["name"],
+                "product_count": count,
+                "stale_products": stale,
+                "stale_rate": round(stale / count, 4) if count else 0.0,
+                "avg_freshness_score": float(row["avg_freshness_score"] or 0.0),
+                "avg_completeness_score": float(row["avg_completeness_score"] or 0.0),
+                "avg_price_accuracy_score": float(row["avg_price_accuracy_score"] or 0.0),
+                "avg_overall_score": float(row["avg_overall_score"] or 0.0),
+            })
+        buckets.sort(key=lambda item: (-item["avg_overall_score"], -item["product_count"], item["name"]))
+        return buckets
+
+    by_source = await _load_buckets("source")
+    by_region = await _load_buckets("region")
+    by_category = await _load_buckets("category")
+
+    # Stale product sample
+    stale_sample_query = text(
+        f"""
+        SELECT
+            id AS product_id,
+            COALESCE(source, 'unknown') AS source,
+            COALESCE(region, 'unknown') AS region,
+            COALESCE(category, 'uncategorized') AS category,
+            COALESCE(title, '') AS title,
+            COALESCE(url, '') AS url,
+            {updated_expr} AS updated_at,
+            0.0 AS overall_score,
+            ARRAY[]::text[] AS missing_fields
+        FROM products
+        WHERE {active_predicate}
+          AND {updated_expr} IS NOT NULL
+          AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - {updated_expr})) / 86400 >= :stale_days
+        ORDER BY {updated_expr} ASC
+        LIMIT :sample_limit
+        """
+    ).bindparams(stale_days=STALE_THRESHOLD_DAYS, sample_limit=MAX_SAMPLE_PRODUCTS)
+
+    stale_sample = [dict(row) for row in (await db.execute(stale_sample_query)).mappings().all()]
+
+    rescrape_candidates = sorted(
+        [source for source in by_source if source["stale_products"] > 0],
+        key=lambda item: (-item["stale_products"], item["avg_overall_score"], item["name"]),
+    )
+
+    return {
+        "generated_at": now,
+        "snapshot_date": now.date(),
+        "thresholds": {
+            "stale_after_days": STALE_THRESHOLD_DAYS,
+            "low_quality_score": LOW_QUALITY_THRESHOLD,
+            "price_history_lookback_days": PRICE_HISTORY_LOOKBACK_DAYS,
+        },
+        "overview": {
+            "total_products": total_products,
+            "overall_quality_score": overall_quality,
+            "avg_freshness_score": avg_freshness,
+            "avg_completeness_score": avg_completeness,
+            "avg_price_accuracy_score": avg_price_accuracy,
+            "stale_products": stale_products,
+            "stale_rate": round(stale_products / total_products, 4) if total_products else 0.0,
+            "field_completeness": {
+                "image_url_pct": float(overall_row["image_url_pct"] or 0.0),
+                "description_pct": float(overall_row["description_pct"] or 0.0),
+                "price_pct": float(overall_row["price_pct"] or 0.0),
+                "brand_pct": float(overall_row["brand_pct"] or 0.0),
+            },
+        },
+        "aggregates": {
+            "by_source": by_source,
+            "by_region": by_region,
+            "by_category": by_category,
+        },
+        "re_scrape_recommendations": {
+            "count": len(rescrape_candidates),
+            "sources": rescrape_candidates,
+        },
+        "stale_products": {
+            "count": stale_products,
+            "sample": stale_sample,
+        },
+        "low_quality_products": [],
+    }

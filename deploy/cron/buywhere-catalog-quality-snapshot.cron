@@ -1,0 +1,3 @@
+# Sigil: Daily catalog quality snapshot — persists a row to data_quality_metrics.
+# Runs at 02:17 UTC to avoid colliding with the hourly throughput dispatcher.
+17 2 * * * /home/paperclip/buywhere/scripts/run-catalog-quality-snapshot.sh
