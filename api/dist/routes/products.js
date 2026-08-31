@@ -202,8 +202,9 @@ async function tryIdentifierLookup(req, res, p) {
         const hasMore = rows.length > p.limit;
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
         const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
-        const total = p.offset + rows.length;
-        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
+        // BUY-77514: do not count the over-fetch sentinel row in meta.total.
+        const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore);
         responseBody.source = source;
         responseBody.identifier_kind = p.id.kind;
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -288,6 +289,17 @@ async function tryTierSearch(req, res, p) {
     if (p.domain) {
         conds.push(`sp.source = $${i}`);
         params.push(p.domain);
+        i++;
+    }
+    // BUY-76037: explicit source/scraped_via filters (re-applied after refactor).
+    if (p.source) {
+        conds.push(`sp.source = $${i}`);
+        params.push(p.source);
+        i++;
+    }
+    if (p.scrapedVia) {
+        conds.push(`sp.scraped_via = $${i}`);
+        params.push(p.scrapedVia);
         i++;
     }
     // DEF-02: category filter that actually works — normalize the stored category to a
@@ -526,8 +538,9 @@ async function tryTierSearch(req, res, p) {
         const hasMore = rows.length > p.limit;
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
         const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
-        const total = p.offset + rows.length;
-        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
+        // BUY-77514: do not count the over-fetch sentinel row in meta.total.
+        const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore);
         responseBody.source = 'search_products_tier';
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
@@ -693,9 +706,15 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     catch (_) {
         // Redis miss or error — fall through to DB
     }
-    const conditions = ['currency = $1', 'is_active = true', 'price > 0'];
-    const params = [currency];
-    let idx = 2;
+    // BUY-77920: do NOT filter currency/price in the same scan as ORDER BY id DESC.
+    // products_partitioned_sg_id_idx + is_active/country_code is ~0.1ms; adding
+    // currency = SGD AND price > 0 forces a backward id scan that skips until
+    // those predicates match and hits statement_timeout (30s LB 500).
+    // Over-fetch on the indexed predicates, then apply currency/price in the
+    // outer query (or in-process if the inner already returns LIMIT).
+    const conditions = ['is_active = true'];
+    const params = [];
+    let idx = 1;
     if (countryCode) {
         conditions.push(`country_code = $${idx}`);
         params.push(countryCode);
@@ -755,10 +774,16 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         listClient = await listDb.connect();
     }
     try {
-        await listClient.query(`SET statement_timeout = '30s'`);
+        await listClient.query(`SET statement_timeout = '4s'`);
+        // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
+        // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
+        // the id index looking for SGD and hits the 30s LB timeout. List by
+        // indexed is_active/country_code + id DESC, then drop rows with no price.
         dataResult = await listClient.query(`SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE} products
          ${whereClause}
+           AND products.price IS NOT NULL
+           AND products.price > 0
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]);
     }
@@ -828,6 +853,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     const requestStart = Date.now();
     const rawQuery = (req.query.q || req.query.query) || '';
     const domain = req.query.domain;
+    // BUY-76037 (re-applied): explicit `source` filter, with `domain` as backward-compat alias.
+    const source = req.query.source || domain;
+    // BUY-76037 (re-applied): filter by ingestion pipeline origin.
+    const scrapedVia = req.query.scraped_via;
     const region = req.query.region;
     const category = req.query.category;
     const categoryId = req.query.category_id;
@@ -842,9 +871,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     // Whitelist mirrors VALID_SORT below (defined later in this scope).
     const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
+    // `cc` is an additional shortcut (BUY-76037).
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
-    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
+    const cc = req.query.cc?.toUpperCase() || undefined;
+    const countryCode = explicitCountry || cc; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -886,7 +917,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     const qNorm = q.toLowerCase().trim().split(/\s+/)
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
         || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${source || ''}:${scrapedVia || ''}:${region || ''}:${countryCode || ''}:${cc || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
@@ -978,8 +1009,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
-            category, brand, domain, compact, requestStart, cacheKey,
+            category, brand, domain: source, compact, requestStart, cacheKey,
             deliverTo, includeUnshippable,
+            source, scrapedVia,
         });
         if (handled)
             return;
@@ -1013,9 +1045,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
         baseParams.push(...canonicalSources);
         baseIdx += canonicalSources.length;
     }
-    if (domain) {
+    if (source) {
         baseConditions.push(`source = $${baseIdx}`);
-        baseParams.push(domain);
+        baseParams.push(source);
+        baseIdx++;
+    }
+    if (scrapedVia) {
+        baseConditions.push(`scraped_via = $${baseIdx}`);
+        baseParams.push(scrapedVia);
         baseIdx++;
     }
     if (region) {
@@ -2267,35 +2304,29 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
         : 'products';
-    let featuredDb = (0, readReplica_1.readDb)();
-    let result;
-    try {
-        result = await featuredDb.query(`SELECT id, sku AS source_id, source AS domain, url,
+    // BUY-77920: do not AND currency into ORDER BY id DESC — newest SG rows are
+    // USD and the planner walks the id index for 30s. Featured is "recent
+    // in-market listings", not "recent listings in the viewer's currency".
+    const featuredSql = `
+         SELECT id, sku AS source_id, source AS domain, url,
                 NULL::text AS affiliate_url,
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code
          FROM ${FEATURED_TABLE}
          WHERE is_active = true
            AND country_code = $1
-           AND currency = $2
            AND price IS NOT NULL
          ORDER BY id DESC
-         LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
+         LIMIT $2 OFFSET $3`;
+    let featuredDb = (0, readReplica_1.readDb)();
+    let result;
+    try {
+        result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
     }
     catch (err) {
         console.warn(`[products:featured] readDb() query failed, falling back to primary: ${err.message}`);
         featuredDb = config_1.db;
-        result = await featuredDb.query(`SELECT id, sku AS source_id, source AS domain, url,
-                NULL::text AS affiliate_url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code
-         FROM ${FEATURED_TABLE}
-         WHERE is_active = true
-           AND country_code = $1
-           AND currency = $2
-           AND price IS NOT NULL
-         ORDER BY id DESC
-         LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
+        result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
     }
     const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
