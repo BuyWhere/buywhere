@@ -68,6 +68,24 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-78735: MCP clients (and the 5s 0-byte hang probes) abort well before PG's
+// 30s statement_timeout. Bound catalog_search / get_deals / FBP to a wall-clock
+// so tools/call always flushes a JSON degraded envelope. PG timeout is kept
+// slightly under the wall so cancelled queries don't occupy the pool after we
+// have already responded.
+const MCP_CATALOG_WALL_MS = parseInt(process.env.MCP_CATALOG_WALL_MS || '3500', 10);
+const MCP_CATALOG_STATEMENT_TIMEOUT_MS = Math.max(
+  1000,
+  parseInt(process.env.MCP_CATALOG_STATEMENT_TIMEOUT_MS || String(Math.max(1000, MCP_CATALOG_WALL_MS - 500)), 10),
+);
+const MCP_CATALOG_WALL_TOOLS = new Set([
+  'search_products',
+  'search_products_v2',
+  'get_deals',
+  'get_deals_v2',
+  'find_best_price',
+  'find_best_price_v2',
+]);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -124,7 +142,7 @@ function recordMcpCircuitFailure(tool: McpDegradedTool, stage: McpDegradedStage,
 function classifyMcpDegradedKind(err: unknown): McpDegradedKind {
   const e = err as { code?: string; message?: string } | null;
   const message = String(e?.message || '');
-  if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || /timeout/i.test(message)) return 'timeout';
+  if (e?.code === '57014' || e?.code === '55P03' || message.includes('mcp_db_pool_acquire_timeout') || message.includes('mcp_catalog_wall_timeout') || /timeout/i.test(message)) return 'timeout';
   if (e?.code === '28P01' || e?.code === '28000' || e?.code === '42501' || /auth|password|permission/i.test(message)) return 'auth_failure';
   return 'upstream_exception';
 }
@@ -811,7 +829,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // costs nothing and prevents 25P02 from failing every MCP query.
     await searchClient.query('ROLLBACK').catch(() => {});
     await searchClient.query('BEGIN');
-    await searchClient.query(`SET LOCAL statement_timeout = '30000'`);
+    await searchClient.query(`SET LOCAL statement_timeout = '${MCP_CATALOG_STATEMENT_TIMEOUT_MS}'`);
     await searchClient.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
     await searchClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     await searchClient.query(`SET LOCAL work_mem = '64MB'`);
@@ -1403,7 +1421,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 15s → 30s; mirror of mcp-railway/src/routes/mcp.ts to avoid drift. FBP/get_deals CTE mean=10s/p99.9=370s, 15s window tripped -32603 on every lock-wave.
+    await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78735: wall-clock fail-fast; was 30s which hung MCP tools/call 0-byte.
     // BUY-68615: force index path on production catalog DB.
     // At 400M+ rows, the planner may choose seqscan even with the discount index,
     // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
@@ -1799,7 +1817,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       }
       throw err;
     });
-    await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-73961 (2026-08-24): raise from 4s → 30s; mirror of mcp-railway/src/routes/mcp.ts (FBP was 10s there, 4s here — both raised to 30s). CTE mean=10s/p99.9=370s.
+    await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78735: wall-clock fail-fast; was 30s which hung MCP tools/call 0-byte.
     await bestPriceClient.query('SET enable_seqscan = off'); // force GIN index plan; mitigates catalog_search timeouts on SEA markets
 
     // BUY-72082: Tier search via search_products partitioned table (97M rows,
@@ -2494,26 +2512,85 @@ function normalizeToolArgAliases(args: Record<string, unknown>) {
   alias('ids', 'product_ids');
 }
 
+function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, startedAt: number) {
+  const country = String((args.deliver_to || args.country_code || args.country || 'SG') as string).toUpperCase();
+  const limit = Math.min(Number(args.limit) || 20, 100);
+  const offset = Number(args.offset) || 0;
+  const deliverToPresent = Boolean(
+    (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
+    (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
+    (typeof args.country === 'string' && args.country.trim() !== ''),
+  );
+  const responseTimeMs = Date.now() - startedAt;
+  if (name.startsWith('find_best_price')) {
+    recordMcpCircuitFailure('find_best_price', 'catalog_search', country);
+    return buildMcpDegradedBestPriceResponse({
+      productName: String((args.product_name || args.q || args.query || '') as string),
+      country,
+      responseTimeMs,
+      kind: 'timeout',
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
+  }
+  const tool: McpDegradedTool = name.startsWith('get_deals') ? 'get_deals' : 'search_products';
+  const stage: McpDegradedStage = name.startsWith('get_deals') ? 'offer_aggregation' : 'catalog_search';
+  recordMcpCircuitFailure(tool, stage, country);
+  return buildMcpDegradedSearchResponse({
+    tool,
+    stage,
+    kind: 'timeout',
+    limit,
+    offset,
+    responseTimeMs,
+    country,
+    deliverToPresent,
+  });
+}
+
+async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
+  if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
+  const startedAt = Date.now();
+  let timer: NodeJS.Timeout | undefined;
+  const wall = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+  });
+  try {
+    return await Promise.race([work(), wall]);
+  } catch (err) {
+    const message = String((err as { message?: string })?.message || '');
+    if (message.includes('mcp_catalog_wall_timeout')) {
+      console.warn(`[mcp] BUY-78735: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+      return mcpCatalogWallEnvelope(name, args, startedAt) as T;
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>, caller?: ReturnType<typeof callerContextForUrl>) {
   normalizeMarketArg(args);
   normalizeToolArgAliases(args);
-  switch (name) {
-    case 'search_products':  return handleSearchProducts(args, caller);
-    case 'get_product':      return handleGetProduct(args, caller);
-    case 'compare_products': return handleCompareProducts(args, caller);
-    case 'get_deals':        return handleGetDeals(args, caller);
-    case 'list_categories':  return handleListCategories(args);
-    case 'find_best_price':  return handleFindBestPrice(args);
-    case 'ingest_products':  return handleIngestProducts(args);
-    case 'find_similar':     return handleFindSimilar(args);
-    case 'search_products_v2':  return handleSearchProductsV2(args);
-    case 'get_product_v2':      return handleGetProductV2(args);
-    case 'compare_products_v2': return handleCompareProductsV2(args);
-    case 'get_deals_v2':        return handleGetDealsV2(args);
-    case 'find_best_price_v2':  return handleFindBestPriceV2(args);
-    default:
-      throw { code: -32601, message: `Unknown tool: ${name}` };
-  }
+  return withMcpCatalogWall(name, args, async () => {
+    switch (name) {
+      case 'search_products':  return handleSearchProducts(args, caller);
+      case 'get_product':      return handleGetProduct(args, caller);
+      case 'compare_products': return handleCompareProducts(args, caller);
+      case 'get_deals':        return handleGetDeals(args, caller);
+      case 'list_categories':  return handleListCategories(args);
+      case 'find_best_price':  return handleFindBestPrice(args);
+      case 'ingest_products':  return handleIngestProducts(args);
+      case 'find_similar':     return handleFindSimilar(args);
+      case 'search_products_v2':  return handleSearchProductsV2(args);
+      case 'get_product_v2':      return handleGetProductV2(args);
+      case 'compare_products_v2': return handleCompareProductsV2(args);
+      case 'get_deals_v2':        return handleGetDealsV2(args);
+      case 'find_best_price_v2':  return handleFindBestPriceV2(args);
+      default:
+        throw { code: -32601, message: `Unknown tool: ${name}` };
+    }
+  });
 }
 
 // BUY-72533: v2 surface — REQUIRED deliver_to, plus v2-specific response fields.
