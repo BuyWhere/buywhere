@@ -1596,6 +1596,7 @@ async function handleListCategories(args: Record<string, unknown>) {
             `SELECT slug, name, product_count
              FROM mcp_category_summary_by_country
              WHERE country_code = $1
+               AND slug IS NOT NULL AND btrim(slug) <> ''
              ORDER BY product_count DESC
              LIMIT 100`,
             [country]
