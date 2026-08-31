@@ -13677,7 +13677,27 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
 // ---------------------------------------------------------------------------
 export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
   const fromJson = loadIntentPageConfigs();
-  return { ...seoLandingPagesTs, ...fromJson };
+  const merged: Record<string, SeoLandingPageConfig> = { ...seoLandingPagesTs, ...fromJson };
+  // BUY-78306 (loader follow-up): when a JSON intent page overrides a TS
+  // config but ships an empty `fallbackProducts` array, the merge previously
+  // dropped the curated editorial picks from the TS file. Live search
+  // variance then leaves the page with zero cards and the "currently
+  // unavailable" empty state. Inherit the TS fallbackProducts whenever the
+  // JSON entry is empty/undefined so JSON overrides can evolve without
+  // silently regressing catalog-degraded pages. JSON-provided items still
+  // win when present.
+  for (const slug of Object.keys(merged)) {
+    const tsConfig = seoLandingPagesTs[slug];
+    const jsonConfig = fromJson[slug];
+    if (!tsConfig || !jsonConfig) continue;
+    const tsFallback = tsConfig.fallbackProducts;
+    const jsonFallback = jsonConfig.fallbackProducts;
+    const jsonHasItems = Array.isArray(jsonFallback) && jsonFallback.length > 0;
+    if (!jsonHasItems && Array.isArray(tsFallback) && tsFallback.length > 0) {
+      merged[slug] = { ...merged[slug], fallbackProducts: tsFallback };
+    }
+  }
+  return merged;
 })();
 
 // ---------------------------------------------------------------------------
