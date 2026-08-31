@@ -643,14 +643,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
   }
 
-  // Diagnostic: check what we're connected to
+  // BUY-78702: do NOT COUNT(*) search_products here. That diagnostic ran
+  // before statement_timeout and hung tools/call (0-byte client timeout).
   try {
-    const dbCheck = await searchClient.query<{db: string, has_sp: boolean, sp_count: string}>(`
+    await searchClient.query(`SET statement_timeout = '8000'`);
+    const dbCheck = await searchClient.query<{db: string, has_sp: boolean}>(`
       SELECT current_database() as db,
-             EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_sp,
-             (SELECT COUNT(*) FROM search_products WHERE country_code='SG' AND search_vector @@ plainto_tsquery('english', 'laptop') LIMIT 1)::text as sp_count
+             EXISTS(SELECT 1 FROM pg_class WHERE relname='search_products') as has_sp
     `);
-    console.log(`[search_products] DEBUG: connected to db=${dbCheck.rows[0].db} has_sp=${dbCheck.rows[0].has_sp} sp_count=${dbCheck.rows[0].sp_count}`);
+    console.log(`[search_products] DEBUG: connected to db=${dbCheck.rows[0].db} has_sp=${dbCheck.rows[0].has_sp}`);
   } catch (dbErr) {
     console.error(`[search_products] DEBUG: dbCheck FAILED:`, dbErr);
   }
