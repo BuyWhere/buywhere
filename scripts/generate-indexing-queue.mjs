@@ -163,7 +163,19 @@ async function main() {
   console.log(`Generating GSC indexing queue for ${dateArg}`);
   console.log(`Max URLs: ${maxUrls}, Lookback: ${lookbackHours}h`);
 
-  const dbUrl = await getDatabaseUrl();
+  let dbUrl = await getDatabaseUrl();
+  // pg v8 treats sslmode=require in the connection string as verify-full.
+  // CATALOG_DATABASE_URL typically has sslmode=require, which OVERRIDES the
+  // Client ssl option and still fails on Railway's self-signed chain
+  // ("self-signed certificate in certificate chain"). Strip sslmode from
+  // the URL so the explicit ssl config below wins. (BUY-64075 / BUY-78668)
+  try {
+    const u = new URL(dbUrl);
+    u.searchParams.delete("sslmode");
+    dbUrl = u.toString();
+  } catch {
+    dbUrl = dbUrl.replace(/[?&]sslmode=[^&]*/g, "");
+  }
   const { Client } = pg;
   const client = new Client({
     connectionString: dbUrl,
