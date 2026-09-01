@@ -67,6 +67,19 @@ test("BUY-77121: non-allowlisted merchants still rejected", () => {
   );
 });
 
+test("BUY-79032: US allowlist accepts shopify tenants (live US catalog is Shopify-heavy)", () => {
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "shopify" }, "US"),
+    true,
+    "bare shopify must match US allowlist",
+  );
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "shopify_acemagic_de" }, "US"),
+    true,
+    "shopify_* tenants must match via candidateAllowlistSlugs",
+  );
+});
+
 test("BUY-77121: empty / missing merchant still rejected", () => {
   assert.equal(isMerchantAllowedForCountry({}, "SG"), false);
   assert.equal(isMerchantAllowedForCountry({ merchant: null }, "US"), false);

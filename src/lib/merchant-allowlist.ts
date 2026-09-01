@@ -105,6 +105,11 @@ const US_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "vizio",
   "hisense_us",
   "hisense",
+  // BUY-79032: US catalog search is currently Shopify-heavy (country_code=US,
+  // working /r/direct). Without this slug the live card loop never keeps those
+  // rows when affiliate_redirect_url is missing, and the final label gate
+  // still needs the matching US_ALLOWED_MERCHANT_LABELS entry below.
+  "shopify",
 ]);
 
 // BUY-73640: confirmed SG storefront slugs. SG landing pages must surface
@@ -490,6 +495,11 @@ const US_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "tcl",
   "vizio",
   "hisense",
+  // BUY-79032: live US intent pages (best-laptops-us / earbuds / macbooks)
+  // hydrate from Shopify tenants labeled "Shopify" after
+  // stripMerchantTenantSuffix. Without this label the final country gate
+  // drops every live card and SeoLandingPage renders editorial f1-f5.
+  "shopify",
 ]);
 
 const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
