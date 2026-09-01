@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomUUID } from 'crypto';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, PORT } from '../config';
 // BUY-76535: search_products uses the primary `db` pool (see handler); the
 // readReplica servingReadDbConnect() is intentionally no longer referenced here.
 import { embedQuery } from '../jobs/embedProducts';
@@ -96,7 +96,6 @@ async function acquireMcpClient() {
 // hits from REST instead of returning an empty circuit_open envelope so Cart
 // probes and agent callers keep working while sakura conn ceiling recovers.
 const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
-const REST_SEARCH_BASE = (process.env.BUYWHERE_REST_BASE || 'https://api.buywhere.ai').replace(/\/$/, '');
 
 async function searchProductsViaRestFallback(opts: {
   q: string;
@@ -105,6 +104,7 @@ async function searchProductsViaRestFallback(opts: {
   offset: number;
   compact: boolean;
   currency: string;
+  apiKey?: string;
 }): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
   if (!opts.q) return null;
   const params = new URLSearchParams();
@@ -115,9 +115,15 @@ async function searchProductsViaRestFallback(opts: {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
   try {
-    const res = await fetch(`${REST_SEARCH_BASE}/v1/products/search?${params.toString()}`, {
+    // Loopback: MCP and REST share this process (index.ts). Hitting
+    // api.buywhere.ai from inside Railway often 403s/times out (CF) and
+    // never exercises the healthy REST handler. PORT is the listen port.
+    const headers: Record<string, string> = { accept: 'application/json' };
+    const incomingKey = typeof opts.apiKey === 'string' ? opts.apiKey : '';
+    if (incomingKey) headers['x-api-key'] = incomingKey;
+    const res = await fetch(`http://127.0.0.1:${PORT}/v1/products/search?${params.toString()}`, {
       method: 'GET',
-      headers: { accept: 'application/json' },
+      headers,
       signal: ac.signal,
     });
     if (!res.ok) return null;
@@ -151,47 +157,6 @@ async function searchProductsViaRestFallback(opts: {
     clearTimeout(timer);
   }
 }
-
-async function findBestPriceViaRestFallback(opts: {
-  productName: string;
-  country: string;
-  t0: number;
-}): Promise<{ best_price: Record<string, unknown> | null; alternatives: Record<string, unknown>[]; meta: Record<string, unknown> } | null> {
-  const restHits = await searchProductsViaRestFallback({
-    q: opts.productName,
-    country: opts.country,
-    limit: 10,
-    offset: 0,
-    compact: true,
-    currency: COUNTRY_CURRENCY[opts.country] || 'SGD',
-  });
-  if (!restHits || restHits.products.length === 0) return null;
-  const data = restHits.products.map((p: any) => {
-    const offers = p.offers;
-    const amount = offers && typeof offers === 'object' ? (offers.lowPrice ?? offers.price ?? null) : null;
-    const curr = (offers && typeof offers === 'object' && offers.priceCurrency) || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
-    return {
-      id: p.sku || p['@id'] || p.id,
-      title: p.name || p.title,
-      price: { amount: amount != null ? Number(amount) : null, currency: curr },
-      merchant: p.brand?.name || p.seller || p.merchant || null,
-      url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
-      image_url: Array.isArray(p.image) ? p.image[0] : p.image,
-      country_code: opts.country,
-    };
-  });
-  return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
-    meta: {
-      total: data.length,
-      country: opts.country,
-      response_time_ms: Date.now() - opts.t0,
-      fallback: 'rest_search',
-    },
-  };
-}
-
 
 // BUY-74597: fail soft before MCP clients hit their visible timeout. Mirror of
 // api/src/routes/mcp.ts — keeps degraded_kind semantics identical.
@@ -648,6 +613,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
     const restHits = await searchProductsViaRestFallback({
       q, country, limit, offset, compact, currency,
+      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
     });
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
@@ -792,6 +758,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
     const restHits = await searchProductsViaRestFallback({
       q, country, limit, offset, compact, currency,
+      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
     });
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
@@ -1045,6 +1012,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
     const restHits = await searchProductsViaRestFallback({
       q, country, limit, offset, compact, currency,
+      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
     });
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
@@ -2920,6 +2888,8 @@ async function handleMcpAuthenticated(req: Request, res: Response): Promise<void
             apiKey: rawApiKey,
           });
         }
+        const inboundKey = (req.headers['x-api-key'] as string) || (req.headers['authorization'] as string) || '';
+        if (inboundKey && !toolArgs._mcpInboundApiKey) toolArgs._mcpInboundApiKey = inboundKey.replace(/^Bearer\s+/i, '');
         const result = await dispatchTool(toolName, toolArgs);
         try {
           recordToolCall({
