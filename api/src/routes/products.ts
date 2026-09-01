@@ -693,7 +693,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v2:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -745,10 +745,18 @@ router.get(
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    // BUY-77664 FIX: Use partitioned tables for list endpoint (much faster than 413GB parent).
-    const LIST_TABLE = /^[A-Z]{2}$/.test(countryCode)
-      ? `products_partitioned_${countryCode.toLowerCase()}`
-      : 'products';
+    // BUY-77664: child tables for hydrated markets (SG/US) are the fast list path.
+    // BUY-79280: products_partitioned_{de,au,jp,gb} (and most other LIST children)
+    // are frozen May-22 snapshots (~3k–78k rows, max id ~37M). Fresh Shopper
+    // catchup (BUY-79240) landed on the parent `products` table (ids 7e9 / 9e18,
+    // updated_at 2026-09-01). Routing those markets at the child table made
+    // GET /v1/products p1 look 110 days stale while catalog MAX(updated_at)
+    // was current. Only use a child table when it is a known live copy.
+    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    const LIST_TABLE =
+      /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
+        ? `products_partitioned_${countryCode.toLowerCase()}`
+        : 'products';
 
     // Keep SELECT/ORDER references stable while swapping the physical table.
     const TABLE_ALIAS = 'products';
@@ -758,10 +766,14 @@ router.get(
                 ${TABLE_ALIAS}.region, ${TABLE_ALIAS}.country_code, ${TABLE_ALIAS}.created_at, ${TABLE_ALIAS}.description, ${TABLE_ALIAS}.brand, ${TABLE_ALIAS}.mpn, ${TABLE_ALIAS}.gtin,
                 ${TABLE_ALIAS}.category_path, ${TABLE_ALIAS}.category, ${TABLE_ALIAS}.merchant_id, ${TABLE_ALIAS}.avg_rating, ${TABLE_ALIAS}.review_count`;
 
-    // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
-    // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
-    // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
-    const orderBy = `ORDER BY ${TABLE_ALIAS}.id DESC`;
+    // BUY-79280: parent `products` for DE/AU/JP/GB has mixed id spaces (legacy
+    // ~37M, Shopper 7e9, snowflake 9e18). ORDER BY id DESC therefore misses the
+    // 7e9 catchup rows that are the actual newest updated_at. idx_products_country_code
+    // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US
+    // still use id DESC on the PK (ids there are monotonic snowflakes).
+    const orderBy = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
+      ? `ORDER BY ${TABLE_ALIAS}.id DESC`
+      : `ORDER BY ${TABLE_ALIAS}.updated_at DESC`;
 
     // BUY-77835: route the heavy catalog list query to the read replica (when
     // healthy) so it does not compete with interactive /v1/products/search on
@@ -800,7 +812,11 @@ router.get(
       listClient = await listDb.connect();
     }
     try {
-      await listClient.query(`SET statement_timeout = '4s'`);
+      // BUY-79280: parent-table updated_at DESC for frozen children is ~50-90ms
+      // on primary; keep 8s so a cold replica catch-up does not 500 the list.
+      await listClient.query(
+        `SET statement_timeout = '${LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
+      );
       // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
@@ -2509,9 +2525,11 @@ router.get(
     // BUY-77920: wrap readDb() in try/catch so the endpoint falls back to primary
     // if the replica is unreachable rather than 500-ing at the LB timeout.
     // BUY-78910: SELECT category_path so buildProduct can populate cat_path.
-    const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
-      ? `products_partitioned_${countryCode.toLowerCase()}`
-      : 'products';
+    const LIVE_FEATURED_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    const FEATURED_TABLE =
+      /^[A-Z]{2}$/.test(countryCode) && LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode)
+        ? `products_partitioned_${countryCode.toLowerCase()}`
+        : 'products';
     // BUY-77920: do not AND currency into ORDER BY id DESC — newest SG rows are
     // USD and the planner walks the id index for 30s. Featured is "recent
     // in-market listings", not "recent listings in the viewer's currency".
@@ -2524,7 +2542,7 @@ router.get(
          WHERE is_active = true
            AND country_code = $1
            AND price IS NOT NULL
-         ORDER BY id DESC
+         ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
          LIMIT $2 OFFSET $3`;
     let featuredDb = readDb();
     let result;

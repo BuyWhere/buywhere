@@ -85,4 +85,18 @@ describe('BUY-73753: /v1/products list contract', () => {
     assert.doesNotMatch(catalogSource, /tryExactCount\(60000\)/);
     assert.match(catalogSource, /tryExactCount\(25000\)/);
   });
+
+  // BUY-79280: DE/AU/JP/GB child tables are frozen May-22 snapshots. List must
+  // not unconditionally FROM products_partitioned_${cc} for every ISO country.
+  it('does not list DE/AU/JP/GB from frozen child partitions (BUY-79280)', () => {
+    const listRouteStart = productsSource.indexOf('// GET /v1/products');
+    const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
+    const listRoute = productsSource.slice(listRouteStart, searchRouteStart);
+    assert.match(listRoute, /LIVE_LIST_CHILD_COUNTRIES/);
+    assert.match(listRoute, /ORDER BY \$\{TABLE_ALIAS\}\.updated_at DESC/);
+    assert.doesNotMatch(
+      listRoute,
+      /const LIST_TABLE = \/\^\[A-Z\]\{2\}\$\/\.test\(countryCode\)\s*\n\s*\? `products_partitioned_\$\{countryCode\.toLowerCase\(\)\}`/,
+    );
+  });
 });
