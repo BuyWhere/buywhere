@@ -5,7 +5,9 @@
 [![npm downloads](https://img.shields.io/npm/dm/@buywhere/mcp-server.svg)](https://www.npmjs.com/package/@buywhere/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Cross-border product catalog for AI agents.** Search and compare products from Singapore, SEA, and US markets via [Model Context Protocol](https://modelcontextprotocol.io).
+**Cross-border product catalog for AI agents.** Search and compare more than 360M products from roughly 950K merchants in 80+ countries via [Model Context Protocol](https://modelcontextprotocol.io). Deepest coverage in the United States and Singapore; growing coverage across UK, EU, SEA, and AU.
+
+Location-aware search: every `search_products` call accepts `deliver_to=<ISO country>` and returns `availability` labels (`local` | `ships_to_you` | `unavailable` | `unknown`). Pass `compact=true` for agent-optimized responses with `structured_specs`, `comparison_attributes`, and `normalized_price_usd`.
 
 Works with Claude Desktop, Cursor, VS Code Copilot, Cline, OpenCode, and any MCP-compatible client.
 
