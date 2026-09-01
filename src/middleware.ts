@@ -624,7 +624,15 @@ export async function middleware(request: NextRequest) {
   // handled by the Express server (api/src/routes/redirect.ts) and should not
   // be canonicalized by the Next.js middleware. Without this, /r/?u=... gets
   // redirected to /r?u=... which returns 404.
-  if (pathname.startsWith("/r/") || pathname.startsWith("/go/")) {
+  // BUY-79276: same skip for /ingest/ph — posthog-js POSTs /i/v0/e/ and /batch/
+  // with a trailing slash. A 301 to the non-slash URL drops the POST body
+  // (browsers follow 301 as GET; curl gets "request missing data payload").
+  if (
+    pathname.startsWith("/r/") ||
+    pathname.startsWith("/go/") ||
+    pathname === "/ingest/ph" ||
+    pathname.startsWith("/ingest/ph/")
+  ) {
     return NextResponse.next();
   }
 
