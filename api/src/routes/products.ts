@@ -15,6 +15,7 @@ import { shipScopeForUrl } from '../lib/shipsTo';
 import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
+import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
 import { detectIdentifier, identifierMatchPredicate, identifierForcesKeywordMode, IdentifierDetection } from '../lib/identifierDetector';
 import { lookupMerchantMap } from '../lib/merchantLookup';
 
@@ -145,6 +146,10 @@ async function tryIdentifierLookup(
     if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
     conds.push(`sp.is_active = true`);
     conds.push(`sp.price > 0`);
+    // BUY-67318: same dead-link gate on identifier-lookup path.
+    if (outboundProbeEnabled()) {
+      conds.push(liveUrlCondition('sp'));
+    }
     const whereSql = `WHERE ${conds.join(' AND ')}`;
     const limitIdx = i; params.push(p.limit + 1); i++;
     const offsetIdx = i; params.push(p.offset); i++;
@@ -286,6 +291,11 @@ async function tryTierSearch(
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (useChildTable) { conds.push('sp.is_active = true'); }
+  // BUY-67318: same dead-link gate on the tier path. Child tables inherit
+  // the `url_status` columns from the parent partition.
+  if (outboundProbeEnabled()) {
+    conds.push(liveUrlCondition('sp'));
+  }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
@@ -686,7 +696,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -716,6 +726,10 @@ router.get(
     // Over-fetch on the indexed predicates, then apply currency/price in the
     // outer query (or in-process if the inner already returns LIMIT).
     const conditions: string[] = ['is_active = true'];
+    // BUY-67318: see baseConditions in /search above — same dead-link gate.
+    if (outboundProbeEnabled()) {
+      conditions.push(liveUrlCondition());
+    }
     const params: unknown[] = [];
     let idx = 1;
 
@@ -947,7 +961,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${source || ''}:${scrapedVia || ''}:${region || ''}:${countryCode || ''}:${cc || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${source || ''}:${scrapedVia || ''}:${region || ''}:${countryCode || ''}:${cc || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -1045,6 +1059,13 @@ router.get(
     }
 
     const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    // BUY-67318: when the outbound probe flag is on, exclude confirmed-dead
+    // (HTTP 404/410) URLs from search results so we never surface a buy button
+    // pointing at a dead retailer page. No-op when PROBE_OUTBOUND_LINKS is
+    // unset, so the gate is feature-flagged and reversible.
+    if (outboundProbeEnabled()) {
+      baseConditions.push(liveUrlCondition('products'));
+    }
     // BUY-72744: exclude synthetic Amazon rows with malformed ASINs (not exactly 10 chars starting with B)
     // and US-priced-as-SGD currency mismatches. The scraper fix is on main but stale catalog rows remain.
     baseConditions.push(
@@ -2465,7 +2486,7 @@ router.get(
     const offset = Math.max(parseInt((req.query.offset as string) || '0'), 0);
     const compact = req.query.compact === 'true';
 
-    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -2544,7 +2565,7 @@ router.get(
     let result;
     try {
       result = await db.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
+        `SELECT id, sku AS source_id, source AS domain, url, url_status,
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
@@ -2559,6 +2580,13 @@ router.get(
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    // BUY-67318: hide confirmed-dead products from /v1/products/:id when the
+    // probe flag is on, so we never serve a buy link pointing at a dead page.
+    if (outboundProbeEnabled() && result.rows[0].url_status === 'dead') {
+      res.status(410).json({ error: 'Product offer is no longer available', dead_at: true });
       return;
     }
 
@@ -2864,7 +2892,7 @@ export async function warmSearchCache(): Promise<void> {
       const qNorm = q.toLowerCase().trim().split(/\s+/)
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
         || q.toLowerCase().trim();
-      const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:::${country}:::::::${currency}:::${limit}:${offset}:::f:${DEFAULT_SEARCH_MODE}::1`;
+      const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:::${country}:::::::${currency}:::${limit}:${offset}:::f:${DEFAULT_SEARCH_MODE}::1:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
 
       const existing = await redis.get(cacheKey).catch(() => null);
       if (existing) {
