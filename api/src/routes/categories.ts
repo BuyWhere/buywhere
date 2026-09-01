@@ -75,30 +75,19 @@ router.get(
       }
     } catch (_) {}
 
-    // Slow path fallback: full GROUP BY on products table (only reached if summary table is empty)
-    const result = await db.query(
-      `SELECT INITCAP(LOWER(raw_name)) AS name, SUM(cnt) AS product_count
-       FROM (
-         SELECT category_path[1] AS raw_name, COUNT(*) AS cnt
-         FROM products
-         WHERE currency = $1 AND category_path[1] IS NOT NULL
-         GROUP BY category_path[1]
-       ) sub
-       GROUP BY INITCAP(LOWER(raw_name))
-       ORDER BY SUM(cnt) DESC
-       LIMIT 50`,
-      [currency]
-    );
-
-    const categories = result.rows.map((row) => ({
-      slug: slugifyCategory(row.name),
-      name: row.name,
-      product_count: parseInt(row.product_count, 10),
-    }));
-
-    const body = { data: categories, meta: { total: categories.length, response_time_ms: Date.now() - start } };
-    redis.set(cacheKey, JSON.stringify(body), 'EX', CACHE_TTL).catch(() => {});
-    res.json(body);
+    // BUY-78933: NEVER scan products with INITCAP(LOWER(category_path[1])).
+    // That query starved catalog search (17 concurrent backends, 17m–2h IO).
+    // mcp_category_summary is the only source; title-case in JS if needed.
+    const body = {
+      data: [] as Array<{ slug: string; name: string; product_count: number }>,
+      meta: {
+        total: 0,
+        response_time_ms: Date.now() - start,
+        unavailable: true,
+        reason: 'category_summary_empty',
+      },
+    };
+    res.status(503).json(body);
   }
 );
 
