@@ -351,6 +351,7 @@ def transform_product(p: dict, merchant_id: str, domain: str, country: str, curr
         "url": f"https://{domain}/products/{handle}",
         "image_url": images[0].get("src") if images else None,
         "category": p.get("product_type") or None,
+        "category_path": [p.get("product_type")] if p.get("product_type") else [],
         "brand": p.get("vendor") or None,
         "is_active": True,
         "is_available": in_stock,

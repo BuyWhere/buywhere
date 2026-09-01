@@ -440,6 +440,16 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   if (typeof p.image_url === 'string') product.image_url = p.image_url;
   if (typeof p.category === 'string') product.category = p.category;
   if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
+  // BUY-78934: featured is ORDER BY id DESC; newest SKUs must carry a path.
+  // Shopify adapters send product_type as `category` but historically omitted category_path.
+  if ((!product.category_path || product.category_path.length === 0) && product.category && product.category.trim()) {
+    product.category_path = [product.category.trim()];
+  }
+  const meta = (p.metadata && typeof p.metadata === 'object') ? p.metadata as Record<string, unknown> : null;
+  if ((!product.category_path || product.category_path.length === 0) && meta) {
+    const fromMeta = [meta.product_type, meta.category, meta.department].find(v => typeof v === 'string' && String(v).trim());
+    if (fromMeta) product.category_path = [String(fromMeta).trim()];
+  }
   if (typeof p.brand === 'string') product.brand = String(p.brand).slice(0, 200);
   if (typeof p.is_active === 'boolean') product.is_active = p.is_active;
   if (typeof p.is_available === 'boolean') product.is_available = p.is_available;
