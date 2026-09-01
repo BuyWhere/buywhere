@@ -1025,8 +1025,12 @@ export function findFloorPriceProductId(products: LandingProduct[]): string | nu
  * class of a parts page — not "best headphones" / "best laptops". Refurbished
  * primary SKUs are allowed (they do not match this regex).
  */
+// BUY-79380: anchor to ^ so "ROTEL DX-3 HEADPHONE AMPLIFIER" passes
+// (amplifier mid-string = product descriptor) but "Amplifier Stand" fails
+// (standalone accessory IS the product). Also catches headphone-specific
+// accessories at the start of product names.
 const GENERIC_ACCESSORY_RE =
-  /\b(?:ear\s*pads?|earpads?|replacement|spare|parts?|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
+  /^(?:ear\s*pads?|earpads?|headphone\s+case|earbud(?:\s+(?:case|cover|tips))?|amplifier|replacement|spare|parts?|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
@@ -1040,12 +1044,24 @@ export function compareLandingCardOrder(
   b: LandingProduct,
   heroFeaturedBrands: string[] | undefined,
   floorProductId: string | null,
+  config?: Pick<SeoLandingPageConfig, "excludeAccessories" | "searchCategory">,
 ): number {
   // BUY-79277: accessories never outrank primary SKUs. Floor-price of an
   // earpad/case must not occupy slot 1 on a headphones/laptops intent page.
+  // BUY-79380: also demote LAPTOP_ACCESSORY products so headphone amplifiers
+  // are ranked below real headphones even when excludeAccessories=false.
   const aAcc = isGenericAccessoryProduct(a);
   const bAcc = isGenericAccessoryProduct(b);
+  const aLaptopAcc =
+    config?.excludeAccessories
+      ? isExcludedAccessory(a, config as SeoLandingPageConfig)
+      : false;
+  const bLaptopAcc =
+    config?.excludeAccessories
+      ? isExcludedAccessory(b, config as SeoLandingPageConfig)
+      : false;
   if (aAcc !== bAcc) return aAcc ? 1 : -1;
+  if (aLaptopAcc !== bLaptopAcc) return aLaptopAcc ? 1 : -1;
   if (floorProductId) {
     const aFloor = a.id === floorProductId;
     const bFloor = b.id === floorProductId;
@@ -1631,7 +1647,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const primaryForFloor = verifiedProducts.filter((p) => !isGenericAccessoryProduct(p));
     const floorId = findFloorPriceProductId(primaryForFloor.length > 0 ? primaryForFloor : verifiedProducts);
     const featured = [...verifiedProducts].sort((a, b) =>
-      compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId),
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId, config),
     );
     const finalProducts = applyFinalCountryGate(featured).slice(0, 8);
     if (finalProducts.length < 4) {
@@ -1668,7 +1684,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const primaryTopUp = topUp.filter((p) => !isGenericAccessoryProduct(p));
     const topUpFloorId = findFloorPriceProductId(primaryTopUp.length > 0 ? primaryTopUp : topUp);
     const featuredTopUp = [...topUp].sort((a, b) =>
-      compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId),
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId, config),
     );
     return applyFinalCountryGate(featuredTopUp).slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
@@ -1685,7 +1701,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const primaryFallback = fallback.filter((p) => !isGenericAccessoryProduct(p));
     const fallbackFloorId = findFloorPriceProductId(primaryFallback.length > 0 ? primaryFallback : fallback);
     const featuredFallback = [...fallback].sort((a, b) =>
-      compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId),
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId, config),
     );
     return applyFinalCountryGate(featuredFallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
   }
