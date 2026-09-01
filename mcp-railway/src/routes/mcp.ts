@@ -672,7 +672,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // isolating replica routing as the SEV-1 source. The primary search_products tier
   // + GIN FTS path was verified fast (8-650ms). Revisit replicas only after one is
   // provisioned with a populated search_products tier (BUY-76552/BUY-76643).
-  const searchClient = await db.connect();
+  // BUY-79260: use acquireMcpClient race so pool acquire fails at 1s
+  // (MCP_DB_ACQUIRE_TIMEOUT_MS) instead of waiting the full 3.5s wall.
+  // Under load, db.connect() can stall for seconds on a saturated pool and the
+  // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
+  const searchClient = await acquireMcpClient();
 
   // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
   // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
@@ -692,6 +696,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
     if (useChildTable) {
       await searchClient.query(`SET enable_seqscan = off`);
+      // BUY-79260: force Bitmap Index Scan on the GIN (matches BUY-79200 FBP fix).
+      // Without this, the planner occasionally picks idx_sp_cc_price and seq-filters
+      // search_vector, blowing past the 3.5s wall on SEA partitions.
+      await searchClient.query(`SET enable_indexscan = off`);
     }
     if (q) {
       // BUY-76553: SKIP separate count query — run the main FTS search directly.
