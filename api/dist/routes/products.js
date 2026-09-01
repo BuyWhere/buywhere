@@ -41,11 +41,8 @@ const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v12-b77812';
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
-const FAST_CHILD_TABLE_COUNTRIES = new Set([
-    'SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'GB', 'CA', 'AU', 'IN', 'IT', 'ES', 'MX',
-    'ZA', 'BR', 'NZ', 'NL', 'PL', 'SE', 'CH', 'DK', 'JP', 'DE', 'FR', 'IE', 'NO',
-    'BE', 'AT', 'PT',
-]);
+// BUY-70498: child tables for TH/VN/MY/ID are empty; keep FTS on search_products.
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'AU', 'GB', 'CA']);
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -1236,7 +1233,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     // with "could not determine data type of parameter $N" and the handler 500s (confirmed
     // in buywhere-api logs). Same trap, same remedy as the OR->AND swap above: keep the
     // param referenced with an always-true typed no-op.
-    const ftsRankParamKeepAlive = (q && ftsParamIdx) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
+    // Fix: only emit when $N is a valid (>= 1) placeholder index. Guard added 2026-09-01.
+    const ftsRankParamKeepAlive = (ftsParamIdx >= 1) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
     // declared at the top of the file so res.setTimeout() (above) can reference
@@ -1269,8 +1267,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
     const recentSliceWhereClause = recentSliceConditions.length ? `WHERE ${recentSliceConditions.join(' AND ')}` : '';
     const broadRecentSliceWhereClause = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
     function buildSortOrder() {
-        if (!effectiveSort || effectiveSort === 'relevance')
-            return 'products.updated_at DESC';
+        if (!effectiveSort || effectiveSort === 'relevance') {
+            // Fix (2026-09-01): empty-q (no FTS) ORDER BY updated_at DESC over 391M-row
+            // products table forces a sequential scan + sort that hits statement_timeout (4s)
+            // and throws an unhandled error → 500. ORDER BY id DESC uses the primary key
+            // index and terminates in ~20ms. id DESC is semantically equivalent for
+            // "most-recently-added" pagination (both are insertion-order proxies).
+            return q ? 'products.updated_at DESC' : 'products.id DESC';
+        }
         switch (effectiveSort) {
             case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22: agree with response sanitizer
             case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22

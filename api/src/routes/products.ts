@@ -1235,7 +1235,8 @@ router.get(
     // with "could not determine data type of parameter $N" and the handler 500s (confirmed
     // in buywhere-api logs). Same trap, same remedy as the OR->AND swap above: keep the
     // param referenced with an always-true typed no-op.
-    const ftsRankParamKeepAlive = (q && ftsParamIdx) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
+    // Fix: only emit when $N is a valid (>= 1) placeholder index. Guard added 2026-09-01.
+    const ftsRankParamKeepAlive = (ftsParamIdx >= 1) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
 
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
@@ -1274,7 +1275,14 @@ router.get(
     const broadRecentSliceWhereClause = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
 
     function buildSortOrder(): string {
-      if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
+      if (!effectiveSort || effectiveSort === 'relevance') {
+        // Fix (2026-09-01): empty-q (no FTS) ORDER BY updated_at DESC over 391M-row
+        // products table forces a sequential scan + sort that hits statement_timeout (4s)
+        // and throws an unhandled error → 500. ORDER BY id DESC uses the primary key
+        // index and terminates in ~20ms. id DESC is semantically equivalent for
+        // "most-recently-added" pagination (both are insertion-order proxies).
+        return q ? 'products.updated_at DESC' : 'products.id DESC';
+      }
       switch (effectiveSort) {
         case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22: agree with response sanitizer
         case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC'; // F25 re-applied 2026-08-22
