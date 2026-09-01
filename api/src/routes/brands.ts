@@ -111,12 +111,18 @@ router.get(
       // Continue without cache
     }
 
+    const client = await readDb().connect();
     try {
       const brandMeta = BRAND_METADATA[normalizedSlug];
 
-      // Query products for this brand
+      // BUY-78930: known brands (sony/apple/samsung/lenovo) hung past 15s with 0 bytes
+      // because the FTS+lower(brand) scan never returned and the site fetch had no AbortSignal.
+      // Bound this request well under the SSR timeout so the page can 500 → Temporarily Unavailable.
+      await client.query("SET LOCAL statement_timeout = '8000'");
+      await client.query("SET LOCAL lock_timeout = '2000'");
+
       // Bounded-candidate pattern (same as get_deals): the FTS GIN index narrows to this brand's rows,
-      // we take the first 2,000 without sorting, then rank those. Sorting the full match set for a
+      // we take a small unsorted window, then rank those. Sorting the full match set for a
       // big brand (Apple/Nike = millions of rows) blew the 30 s statement timeout.
       const query = `
         WITH cand AS (
@@ -126,7 +132,7 @@ router.get(
             AND lower(brand) = lower($1)
             AND is_active = true
             AND is_available = true
-          LIMIT 2000
+          LIMIT 200
         )
         SELECT id, title, price, avg_rating as rating, in_stock, image_url, url, country_code
         FROM cand
@@ -134,7 +140,7 @@ router.get(
         LIMIT 24
       `;
 
-      const result = await readDb().query(query, [brandMeta.name]);
+      const result = await client.query(query, [brandMeta.name]);
 
       // Transform products to match frontend interface
       const products = result.rows.map((row) => ({
@@ -147,22 +153,9 @@ router.get(
         compare_url: row.url,
       }));
 
-      // Get total product count
-      // Bounded count: an exact COUNT(*) over a big brand is a multi-second scan; 5,000 means "5,000+".
-      const countQuery = `
-        SELECT COUNT(*) as total FROM (
-          SELECT 1
-          FROM products
-          WHERE search_vector @@ plainto_tsquery('english', $1)
-            AND lower(brand) = lower($1)
-            AND is_active = true
-            AND is_available = true
-          LIMIT 5000
-        ) s
-      `;
-
-      const countResult = await readDb().query(countQuery, [brandMeta.name]);
-      const product_count = parseInt(countResult.rows[0].total, 10);
+      // BUY-78930: skip the second COUNT scan (same predicate, LIMIT 5000) — it doubled hang
+      // time on cache miss. Display count is the page-sized result.
+      const product_count = products.length;
 
       const response = {
         slug: normalizedSlug,
@@ -185,6 +178,8 @@ router.get(
     } catch (err) {
       console.error(`[brands] error fetching brand ${slug}:`, err);
       return res.status(500).json({ error: 'Internal server error' });
+    } finally {
+      client.release();
     }
   }
 );
