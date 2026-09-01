@@ -626,6 +626,8 @@ function assertEqual(actual, expected, message) {
 }
 
 function selfTest() {
+  assertEqual(completedHour(new Date('2026-09-01T15:37:42.000Z')).toISOString(), '2026-09-01T14:00:00.000Z', 'completedHour returns previous UTC hour');
+  assertEqual(buildReport({ hour_start: '2026-09-01T14:00:00.000Z', delta_ins_from_stats: 149999 }, { verdict: 'FAIL', source: 'delta_ins_from_stats', reason: 'test' }).includes('delta_ins_from_stats: 149,999'), true, 'report includes authoritative delta_ins_from_stats');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 150000, n_live_tup_delta: 0 }), false, 'target pass');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 149999, n_live_tup_delta: 150000 }), false, 'n_live_tup guard pass');
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 150000, ing_inserted: 149999 }), false, 'delta_ins_from_stats hard guard pass');
@@ -663,7 +665,7 @@ function selfTest() {
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 70000, non_drain_runs: 0, trailing_non_drain_median: 200000 }), true, 'drain-only + high producer median still fails');
   // A producer-active low hour still files FAIL.
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 70000, non_drain_runs: 3, trailing_non_drain_median: 90000 }), true, 'producer-active low hour fails');
-  console.log('dispatcher_v6_hourly self-test: 26 passed');
+  console.log('dispatcher_v6_hourly self-test: 28 passed');
 }
 
 if (require.main === module) {
