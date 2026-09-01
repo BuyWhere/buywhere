@@ -16,6 +16,11 @@ STALE_THRESHOLD_DAYS = 7
 PRICE_HISTORY_LOOKBACK_DAYS = 30
 LOW_QUALITY_THRESHOLD = 0.6
 MAX_SAMPLE_PRODUCTS = 25
+# Persist path must never SELECT the full 370M+ catalog. TABLESAMPLE BERNOULLI
+# is approximate; percentages are sample-based. Integer column cannot hold 373M.
+QUALITY_SNAPSHOT_SAMPLE_PCT = 0.05
+QUALITY_SNAPSHOT_MAX_ROWS = 25_000
+DQM_TOTAL_PRODUCTS_INT_MAX = 2_147_483_647
 
 
 @dataclass
@@ -204,7 +209,12 @@ async def _get_product_column_names(db: AsyncSession) -> set[str]:
     return {row[0] for row in result.all()}
 
 
-async def _load_product_rows(db: AsyncSession) -> list[SimpleNamespace]:
+async def _load_product_rows(
+    db: AsyncSession,
+    *,
+    sample_pct: float | None = None,
+    max_rows: int | None = None,
+) -> list[SimpleNamespace]:
     columns = await _get_product_column_names(db)
 
     region_expr = "'sg'"
@@ -221,6 +231,14 @@ async def _load_product_rows(db: AsyncSession) -> list[SimpleNamespace]:
     if "is_active" in columns:
         active_predicate = "COALESCE(is_active, TRUE) = TRUE"
 
+    sample_clause = ""
+    if sample_pct is not None and sample_pct > 0:
+        sample_clause = f" TABLESAMPLE BERNOULLI ({float(sample_pct)})"
+
+    limit_clause = ""
+    if max_rows is not None and max_rows > 0:
+        limit_clause = f" LIMIT {int(max_rows)}"
+
     query = text(
         f"""
         SELECT
@@ -236,17 +254,23 @@ async def _load_product_rows(db: AsyncSession) -> list[SimpleNamespace]:
             brand,
             sku,
             {updated_expr} AS effective_updated_at
-        FROM products
+        FROM products{sample_clause}
         WHERE {active_predicate}
+        {limit_clause}
         """
     )
     result = await db.execute(query)
     return [SimpleNamespace(**row) for row in result.mappings().all()]
 
 
-async def build_catalog_quality_report(db: AsyncSession) -> dict[str, Any]:
+async def build_catalog_quality_report(
+    db: AsyncSession,
+    *,
+    sample_pct: float | None = None,
+    max_rows: int | None = None,
+) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
-    products = await _load_product_rows(db)
+    products = await _load_product_rows(db, sample_pct=sample_pct, max_rows=max_rows)
     price_history = await _load_recent_price_history(db, [product.id for product in products], now=now)
 
     by_source: dict[str, dict[str, Any]] = {}
@@ -329,6 +353,11 @@ async def build_catalog_quality_report(db: AsyncSession) -> dict[str, Any]:
     return {
         "generated_at": now,
         "snapshot_date": now.date(),
+        "sampling": {
+            "sample_pct": sample_pct,
+            "max_rows": max_rows,
+            "rows_scored": total_products,
+        },
         "thresholds": {
             "stale_after_days": STALE_THRESHOLD_DAYS,
             "low_quality_score": LOW_QUALITY_THRESHOLD,
@@ -405,12 +434,16 @@ async def persist_catalog_quality_snapshot(db: AsyncSession, report: dict[str, A
 
     overview = report["overview"]
     field_completeness = overview["field_completeness"]
+    raw_total = int(overview["total_products"] or 0)
     payload = {
         "by_source": report["aggregates"]["by_source"],
         "by_region": report["aggregates"]["by_region"],
         "by_category": report["aggregates"]["by_category"],
         "re_scrape_recommendations": report["re_scrape_recommendations"],
         "stale_products": report["stale_products"],
+        "sampling": report.get("sampling"),
+        "catalog_active_count": report.get("catalog_active_count"),
+        "total_products_sample": raw_total,
     }
 
     result = await db.execute(
@@ -421,7 +454,9 @@ async def persist_catalog_quality_snapshot(db: AsyncSession, report: dict[str, A
         snapshot = DataQualityMetrics(snapshot_date=snapshot_date)
         db.add(snapshot)
 
-    snapshot.total_products = overview["total_products"]
+    # INTEGER column; live catalog is ~370M. Store sample size here and the
+    # live COUNT (if provided) inside per_platform_scores.
+    snapshot.total_products = min(raw_total, DQM_TOTAL_PRODUCTS_INT_MAX)
     snapshot.products_with_image_pct = Decimal(str(field_completeness["image_url_pct"]))
     snapshot.products_with_description_pct = Decimal(str(field_completeness["description_pct"]))
     snapshot.products_with_price_pct = Decimal(str(field_completeness["price_pct"]))
