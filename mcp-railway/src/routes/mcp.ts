@@ -1107,6 +1107,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // real discounted products. Query the indexed discount predicate directly.
   let dealsClient: any = null;
   let products: ReturnType<typeof buildProduct>[] = [];
+  // BUY-79260: use child table for SG/US (same pattern as search_products).
+  // The parent search_products table has 382M rows without a good discount index,
+  // causing 3.5s timeouts. Child tables products_partitioned_{cc} are much smaller.
+  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
+  const dealsTable = useChildTable
+    ? `products_partitioned_${(country || 'SG').toLowerCase()}`
+    : 'search_products';
+
   let total = 0;
   try {
     dealsClient = await acquireMcpClient();
@@ -1125,7 +1133,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
               p.category, NULL::text[] AS category_path
-       FROM search_products p
+       FROM ${dealsTable} p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`,
