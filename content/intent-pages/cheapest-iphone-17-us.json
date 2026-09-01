@@ -10,12 +10,13 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "iPhone 17 unlocked",
+  "searchQuery": "iPhone 17",
   "backupQueries": [
     "iPhone 17 Pro",
     "Apple iPhone 17",
     "iPhone 17 256GB"
   ],
+  "minPrice": 600,
   "requiredProductTerms": [
     "iphone 17",
     "iphone",

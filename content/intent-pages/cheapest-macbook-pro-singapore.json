@@ -15,6 +15,7 @@
     "MacBook Pro 14",
     "MacBook Pro 16"
   ],
+  "minPrice": 1500,
   "requiredProductTerms": [
     "macbook pro",
     "apple",

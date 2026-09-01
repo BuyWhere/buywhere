@@ -16,6 +16,7 @@
     "Samsung S25 phone",
     "Samsung Galaxy S25"
   ],
+  "minPrice": 600,
   "requiredProductTerms": [
     "galaxy s25",
     "samsung",
