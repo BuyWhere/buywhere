@@ -372,6 +372,41 @@ describe('NL search queries — response correctness', () => {
     assert.equal(ftsCalls.length, 0, 'No FTS query for empty q');
   });
 
+  it('adds P2.6 emptiness metadata to empty search 200 responses only', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const emptyRes = await fetch(`http://localhost:${port}/v1/products/search?q=zzzznonexistentproductxyz123&country=SG`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const emptyBody = await emptyRes.json();
+
+    assert.equal(emptyRes.status, 200);
+    assert.equal(responseResults(emptyBody).length, 0);
+    assert.equal(emptyBody.meta.emptiness_reason, 'no_match');
+    assert.equal(emptyBody.meta.confidence, 'high');
+    assert.equal(emptyBody.meta.diagnostic.engine_status, 'ok');
+    assert.equal(emptyBody.meta.diagnostic.indexed_for_region, true);
+    assert.equal(emptyBody.meta.diagnostic.category_recognized, true);
+
+    setupDefaultMocks();
+    const hitRes = await fetch(`http://localhost:${port}/v1/products/search?q=coffee&country=SG`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const hitBody = await hitRes.json();
+
+    assert.equal(hitRes.status, 200);
+    assert.ok(responseResults(hitBody).length > 0);
+    assert.equal(hitBody.meta.emptiness_reason, undefined);
+  });
+
   it('supports pagination via limit and offset', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {

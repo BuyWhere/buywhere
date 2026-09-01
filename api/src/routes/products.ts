@@ -8,7 +8,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -110,6 +110,37 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
+function buildRestNoMatchEmptiness(countryCode?: string | null) {
+  const requestedCountry = countryCode?.toUpperCase() || null;
+  const regionSupported = !requestedCountry || SUPPORTED_REGIONS.has(requestedCountry);
+  return {
+    emptiness_reason: regionSupported ? 'no_match' as const : 'region_unsupported' as const,
+    confidence: regionSupported ? 'high' as const : 'low' as const,
+    diagnostic: {
+      engine_status: 'ok' as const,
+      indexed_for_region: regionSupported,
+      category_recognized: true,
+      rate_limit_remaining: null,
+      deliver_to_present: Boolean(requestedCountry),
+    },
+  };
+}
+
+function buildRestApiErrorEmptiness(countryCode?: string | null) {
+  const requestedCountry = countryCode?.toUpperCase() || null;
+  return {
+    emptiness_reason: 'api_error' as const,
+    confidence: 'low' as const,
+    diagnostic: {
+      engine_status: 'degraded' as const,
+      indexed_for_region: !requestedCountry || SUPPORTED_REGIONS.has(requestedCountry),
+      category_recognized: true,
+      rate_limit_remaining: null,
+      deliver_to_present: Boolean(requestedCountry),
+    },
+  };
+}
+
 // ── Identifier lookup (BUY-72362). Runs BEFORE tier/keyword/archive/vector.
 // Detects ASIN/EAN/GTIN/UPC/Apple-part/model-number queries and resolves them
 // to an exact match against `gtin` / `mpn` / `sku`. FTS cannot resolve these
@@ -202,7 +233,7 @@ async function tryIdentifierLookup(
     client.release();
 
     if (rows.length === 0) {
-      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -539,7 +570,7 @@ async function tryTierSearch(
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
       if (useChildTable) {
         if (res.headersSent) return true;
-        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false) as unknown as Record<string, unknown>;
+        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
@@ -890,17 +921,7 @@ router.get(
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
-        const degradedBody = {
-          data: [],
-          meta: {
-            total: 0,
-            limit: 20,
-            offset: 0,
-            response_time_ms: Date.now() - requestStart,
-            cached: false,
-            degraded: true,
-          },
-        };
+        const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode));
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -990,6 +1011,9 @@ router.get(
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
         const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+        if (Array.isArray(cachedProducts) && cachedProducts.length === 0 && parsed?.meta && !parsed.meta.emptiness_reason) {
+          Object.assign(parsed.meta, buildRestNoMatchEmptiness(countryCode));
+        }
         recordProductViewsBulk({
           productIds: cachedProducts
             .map((product: { id?: string | number }) => product.id)
@@ -1021,6 +1045,10 @@ router.get(
           semParsed.cached = true;
           semParsed.semantic_cache = true;
           semParsed.response_time_ms = Date.now() - requestStart;
+          const semProducts = semParsed.products || semParsed.results || semParsed.data || [];
+          if (Array.isArray(semProducts) && semProducts.length === 0 && semParsed?.meta && !semParsed.meta.emptiness_reason) {
+            Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode));
+          }
           res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
           res.set('X-Cache', 'HIT-SEMANTIC');
           return res.json(semParsed);
@@ -1793,17 +1821,7 @@ router.get(
         }
         client.release();
         if (!res.headersSent) {
-          res.status(200).json({
-            data: [],
-            meta: {
-              total: 0,
-              limit: 20,
-              offset: 0,
-              response_time_ms: 0,
-              cached: false,
-              degraded: true,
-            },
-          });
+          res.status(200).json(buildSearchResponse([], 0, limit, offset, 0, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode)));
         }
         return;
       }
@@ -1890,7 +1908,16 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false
+      filteredProducts,
+      total,
+      limit,
+      offset,
+      responseTimeMs,
+      false,
+      undefined,
+      hasMore ?? false,
+      countryCode || null,
+      filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode) : null,
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
