@@ -11,6 +11,7 @@ import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
+import { captureProductCardClick } from '@/lib/posthog-client';
 
 interface ProductCardProps {
   deal: {
@@ -145,7 +146,14 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
   return (
     <a
       href={redirectHref}
-      onClick={attachProductCardClickAttribution}
+      onClick={(e) => {
+        attachProductCardClickAttribution(e);
+        captureProductCardClick({
+          href: e.currentTarget.href,
+          productId: deal.id,
+          merchantId: deal.merchant,
+        });
+      }}
       target="_blank"
       rel="noopener noreferrer nofollow sponsored"
       title={deal.name}

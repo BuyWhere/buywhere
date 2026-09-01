@@ -452,6 +452,17 @@ const nextConfig = {
         source: '/go/:path*',
         destination: 'https://api.buywhere.ai/go/:path*',
       },
+      // BUY-79258: first-party PostHog reverse proxy. Client SDK posts to
+      // /ingest/ph so EasyList / uBlock filters on us.i.posthog.com cannot
+      // zero $pageview + product_card_click.
+      {
+        source: '/ingest/ph/:path*',
+        destination: 'https://us.i.posthog.com/:path*',
+      },
+      {
+        source: '/ingest/ph',
+        destination: 'https://us.i.posthog.com',
+      },
       // /api/* → api.buywhere.ai/v1/*  (legacy v0-style root-domain API calls)
       {
         source: '/api/:path*',

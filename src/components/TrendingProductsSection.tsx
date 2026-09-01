@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { attachProductCardClickAttribution } from '@/lib/click-attribution';
+import { captureProductCardClick } from '@/lib/posthog-client';
 
 interface TrendingProduct {
   id: number;
@@ -52,7 +53,14 @@ function TrendingProductCard({ product }: { product: TrendingProduct }) {
   return (
     <a
       href={product.url}
-      onClick={attachProductCardClickAttribution}
+      onClick={(e) => {
+        attachProductCardClickAttribution(e);
+        captureProductCardClick({
+          href: e.currentTarget.href,
+          productId: product.id,
+          merchantId: product.merchant_id || product.source,
+        });
+      }}
       target="_blank"
       rel="noopener noreferrer"
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"

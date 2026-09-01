@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
-import { POSTHOG_KEY, POSTHOG_HOST } from '@/lib/posthog';
+import { POSTHOG_KEY, POSTHOG_HOST, POSTHOG_UI_HOST } from '@/lib/posthog';
+import { flushPosthogQueue } from '@/lib/posthog-client';
 import { classifyAgent } from '@/lib/agent-ua';
 
 const ANON_ID_STORAGE_KEY = 'buywhere_posthog_anonymous_id';
@@ -60,6 +61,7 @@ export function PosthogProvider({ children }: { children: React.ReactNode }) {
     scheduleInit(() => {
       posthog.init(POSTHOG_KEY, {
         api_host: POSTHOG_HOST,
+        ui_host: POSTHOG_UI_HOST,
         // Provide identity up-front so remote-config / early side effects never
         // observe an unset distinct id (the source of the console warning).
         identity_distinct_id: distinctId,
@@ -83,12 +85,14 @@ export function PosthogProvider({ children }: { children: React.ReactNode }) {
             $raw_user_agent: ua,
             ...classifyAgent(ua),
           });
+          flushPosthogQueue();
         },
       });
 
       // Belt-and-suspenders: ensure identify has run with a non-empty id even if
       // the loaded() callback fired before this effect (or was skipped).
       posthog.identify(distinctId, { is_bot, agent_family });
+      flushPosthogQueue();
     });
   }, []);
 

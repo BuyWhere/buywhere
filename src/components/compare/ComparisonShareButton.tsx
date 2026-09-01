@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import posthog from "posthog-js";
 import { POSTHOG_KEY } from "@/lib/posthog";
+import { captureWhenReady } from "@/lib/posthog-client";
 
 type ComparisonShareButtonProps = {
   title: string;
@@ -70,8 +70,8 @@ export default function ComparisonShareButton({
     // that ends here. If the bot classifier flags the click anyway, the event
     // will still be visible in the raw stream and excluded by the is_internal
     // filter on the kpi_daily side.
-    if (POSTHOG_KEY && posthog.__loaded) {
-      posthog.capture("compare_share_click", {
+    if (POSTHOG_KEY) {
+      captureWhenReady("compare_share_click", {
         $current_url: url,
         surface: fromSurface || "unknown",
         product_id_count: productIds.length,
