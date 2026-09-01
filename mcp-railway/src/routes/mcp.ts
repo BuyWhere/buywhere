@@ -109,8 +109,12 @@ async function searchProductsViaRestFallback(opts: {
   if (!opts.q) return null;
   const params = new URLSearchParams();
   params.set('q', opts.q);
-  if (opts.country) params.set('country', opts.country);
-  params.set('limit', String(Math.min(Math.max(opts.limit, 1), 20)));
+  if (opts.country) {
+    params.set('country_code', opts.country);
+    params.set('country', opts.country);
+  }
+  if (opts.currency) params.set('currency', opts.currency);
+  params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
   if (opts.offset) params.set('offset', String(opts.offset));
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
@@ -183,7 +187,12 @@ async function searchProductsViaRestFallback(opts: {
         const cc = String(p.country_code || '').toUpperCase();
         if (cc && cc !== expectedCc) return false;
       }
-      if (expectedCur && item.rowCurrency && item.rowCurrency !== expectedCur) return false;
+      if (expectedCur) {
+        const fromProduct = String((item.product.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+        const cur = item.rowCurrency || fromProduct;
+        if (cur && cur !== expectedCur) return false;
+        if (!cur) return false;
+      }
       return true;
     }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;

@@ -127,8 +127,12 @@ async function searchProductsViaRestFallback(opts: {
   if (!opts.q) return null;
   const params = new URLSearchParams();
   params.set('q', opts.q);
-  if (opts.country) params.set('country', opts.country);
-  params.set('limit', String(Math.min(Math.max(opts.limit, 1), 20)));
+  if (opts.country) {
+    params.set('country_code', opts.country);
+    params.set('country', opts.country);
+  }
+  if (opts.currency) params.set('currency', opts.currency);
+  params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
   if (opts.offset) params.set('offset', String(opts.offset));
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
@@ -153,18 +157,36 @@ async function searchProductsViaRestFallback(opts: {
     };
     const rows = body.products || body.results || body.data || [];
     if (!Array.isArray(rows) || rows.length === 0) return null;
+    const expectedCc = (opts.country || '').toUpperCase();
+    const expectedCur = (opts.currency || '').toUpperCase();
     const products = rows.map((r) => {
       const price = r.price;
       const flattened: Record<string, unknown> = { ...r };
+      let rowCurrency = '';
       if (price && typeof price === 'object' && !Array.isArray(price)) {
         const p = price as { amount?: unknown; currency?: unknown };
         flattened.price = p.amount;
-        if (p.currency) flattened.currency = p.currency;
+        if (p.currency) {
+          rowCurrency = String(p.currency).toUpperCase();
+          flattened.currency = rowCurrency;
+        }
       }
       if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
       if (!flattened.source && r.merchant) flattened.source = r.merchant;
-      return buildProduct(flattened, opts.currency, opts.compact);
-    });
+      return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
+    }).filter((item) => {
+      const p = item.product;
+      if (expectedCc) {
+        const cc = String(p.country_code || '').toUpperCase();
+        if (cc && cc !== expectedCc) return false;
+      }
+      if (expectedCur) {
+        const fromProduct = String((item.product.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+        const cur = item.rowCurrency || fromProduct;
+        if (!cur || cur !== expectedCur) return false;
+      }
+      return true;
+    }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
     return { products, total };
   } catch (err) {

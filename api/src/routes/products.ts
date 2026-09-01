@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v12-b77812'; // BUY-77812: skip LIKE/regex fallbacks on child FTS
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v13-b79497'; // BUY-79497: bust pre-currency-isolation Redis pages (SG USD Shopify)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -361,7 +361,8 @@ async function tryTierSearch(
   const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
-  const limitIdx = i; params.push(p.limit + 1); i++;
+  // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
+  const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
@@ -601,10 +602,17 @@ async function tryTierSearch(
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const wantCur = (p.currency || '').toUpperCase();
+    const products = pageRows
+      .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
+      .filter((prod) => {
+        if (!wantCur) return true;
+        const cur = String(prod.price?.currency || '').toUpperCase();
+        return !cur || cur === wantCur;
+      });
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
+    const total = p.offset + products.length + (hasMore && products.length >= p.limit ? 1 : 0);
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && products.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
@@ -1032,17 +1040,31 @@ router.get(
         if (Array.isArray(cachedProducts) && cachedProducts.length === 0 && parsed?.meta && !parsed.meta.emptiness_reason) {
           Object.assign(parsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
         }
-        recordProductViewsBulk({
-          productIds: cachedProducts
-            .map((product: { id?: string | number }) => product.id)
-            .filter(Boolean),
-          source: 'products.search.cache',
-          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
-          req,
+        // BUY-79497: skip cached pages that still leak the wrong currency
+        // (pre-v13 Redis served SG country_code + USD Shopify).
+        const wantCur = (currency || '').toUpperCase();
+        const cachedLeak = wantCur && Array.isArray(cachedProducts) && cachedProducts.some((p: Record<string, unknown>) => {
+          const price = p.price as unknown;
+          const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
+            ? String((price as { currency?: string }).currency || '').toUpperCase()
+            : String((p as { currency?: string }).currency || '').toUpperCase();
+          return cur && cur !== wantCur;
         });
-        res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
-        res.set('X-Cache', 'HIT');
-        return res.json(parsed);
+        if (cachedLeak) {
+          res.locals.cacheHit = false;
+        } else {
+          recordProductViewsBulk({
+            productIds: cachedProducts
+              .map((product: { id?: string | number }) => product.id)
+              .filter(Boolean),
+            source: 'products.search.cache',
+            queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+            req,
+          });
+          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('X-Cache', 'HIT');
+          return res.json(parsed);
+        }
       }
       // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
       // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
