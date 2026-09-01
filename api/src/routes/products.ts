@@ -2490,6 +2490,7 @@ router.get(
     // list routing and fixes the empty-response regression under primary I/O saturation.
     // BUY-77920: wrap readDb() in try/catch so the endpoint falls back to primary
     // if the replica is unreachable rather than 500-ing at the LB timeout.
+    // BUY-78910: SELECT category_path so buildProduct can populate cat_path.
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode)
       ? `products_partitioned_${countryCode.toLowerCase()}`
       : 'products';
@@ -2500,7 +2501,7 @@ router.get(
          SELECT id, sku AS source_id, source AS domain, url,
                 NULL::text AS affiliate_url,
                 title, price, currency, image_url, metadata, updated_at,
-                region, country_code
+                region, country_code, category_path
          FROM ${FEATURED_TABLE}
          WHERE is_active = true
            AND country_code = $1
