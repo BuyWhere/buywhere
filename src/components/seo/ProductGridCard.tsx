@@ -3,18 +3,8 @@
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from "@/lib/click-attribution";
-import posthog from "posthog-js";
+import { captureProductCardClick } from "@/lib/posthog-client";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
-
-// Local copy of the same session-id read used across product-card components
-// (PostHog adds get_session_id() at runtime; guard in case it isn't wired).
-function safePostHogSessionId(): string | null {
-  try {
-    return (posthog as typeof posthog & { get_session_id?: () => string | null }).get_session_id?.() || null;
-  } catch {
-    return null;
-  }
-}
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -54,27 +44,11 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
   // without JS never hit the /r/ endpoint, so the DB-level affiliate_clicks
   // row is the authoritative source for bot traffic.
   function fireProductCardPosthog(href: string) {
-    if (typeof window === "undefined") return;
-    try {
-      posthog.capture("affiliate_click", {
-        source: "product_card",
-        product_id: String(product.id),
-        merchant_id: product.merchant,
-        affiliate_link_id: "",
-        href,
-        pathname: window.location.pathname,
-        $pathname: window.location.pathname,
-        current_url: window.location.href,
-        $current_url: window.location.href,
-        ...(document.referrer ? { referrer: document.referrer, $referrer: document.referrer } : {}),
-        ...(safePostHogSessionId() ? { session_id: safePostHogSessionId(), $session_id: safePostHogSessionId() } : {}),
-        $set: {
-          source: "product_card",
-          pathname: window.location.pathname,
-          current_url: window.location.href,
-        },
-      });
-    } catch { /* never block navigation */ }
+    captureProductCardClick({
+      href,
+      productId: product.id,
+      merchantId: product.merchant,
+    });
   }
 
   // BUY-76340: combine attribution param appending (attachProductCardClickAttribution)

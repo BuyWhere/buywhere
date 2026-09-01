@@ -983,11 +983,18 @@ async function handleGetDeals(args) {
     // real discounted products. Query the indexed discount predicate directly.
     let dealsClient = null;
     let products = [];
+    // BUY-79200: always use parent search_products table (NOT child tables).
+    // Child tables products_partitioned_{cc} don't have discount data populated.
+    // The fix is to use enable_indexscan=off to force Bitmap Index Scan on the GIN.
+    const dealsTable = 'search_products';
     let total = 0;
     try {
         dealsClient = await acquireMcpClient();
         await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
         await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
+        // BUY-79260: force Bitmap Index Scan on GIN — without this the planner occasionally
+        // picks idx_sp_cc_price and seq-filters, blowing past the 3.5s wall.
+        await dealsClient.query('SET enable_indexscan = off');
         const candidateLimit = 200;
         const candidateParams = [...params, candidateLimit];
         const dataResult = await dealsClient.query(`SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
@@ -997,7 +1004,7 @@ async function handleGetDeals(args) {
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
               p.category, NULL::text[] AS category_path
-       FROM search_products p
+       FROM ${dealsTable} p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`, candidateParams);

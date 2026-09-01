@@ -1019,12 +1019,33 @@ export function findFloorPriceProductId(products: LandingProduct[]): string | nu
 //
 // Because the two rules no longer overlap, this ordering is deterministic and
 // cannot oscillate between the two tickets.
+/**
+ * BUY-79277: title/category accessory demotion. Replacement earpads, spare
+ * parts, cases, skins, cables, chargers, stands, and mounts are the product
+ * class of a parts page — not "best headphones" / "best laptops". Refurbished
+ * primary SKUs are allowed (they do not match this regex).
+ */
+const GENERIC_ACCESSORY_RE =
+  /\b(?:ear\s*pads?|earpads?|replacement|spare|parts?|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
+
+export function isGenericAccessoryProduct(
+  product: Pick<LandingProduct, "name" | "brand" | "category">,
+): boolean {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return GENERIC_ACCESSORY_RE.test(text);
+}
+
 export function compareLandingCardOrder(
   a: LandingProduct,
   b: LandingProduct,
   heroFeaturedBrands: string[] | undefined,
   floorProductId: string | null,
 ): number {
+  // BUY-79277: accessories never outrank primary SKUs. Floor-price of an
+  // earpad/case must not occupy slot 1 on a headphones/laptops intent page.
+  const aAcc = isGenericAccessoryProduct(a);
+  const bAcc = isGenericAccessoryProduct(b);
+  if (aAcc !== bAcc) return aAcc ? 1 : -1;
   if (floorProductId) {
     const aFloor = a.id === floorProductId;
     const bFloor = b.id === floorProductId;
@@ -1395,7 +1416,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const collected: LandingProduct[] = [];
 
   for (const query of queries) {
-    if (collected.length >= 8) break;
+    if (collected.length >= 24) break;
 
     try {
       const params = new URLSearchParams({
@@ -1408,7 +1429,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // (e.g. COMPUMARTS) can leak into the US retailers section.
         deliver_to: config.country.toLowerCase(),
         include_unshippable: "false",
-        limit: config.excludeAccessories ? "24" : "8",
+        // BUY-79277: always over-fetch so accessory demotion can still fill
+        // 8 primary SKUs after earpads/cases are ranked below the fold.
+        limit: "24",
         region: config.country.toLowerCase(),
       });
       // BUY-77791 / BUY-79032: do NOT send searchCategory as the API `category=`
@@ -1490,7 +1513,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           seenIds.add(product.id);
           collected.push(product);
         }
-        if (collected.length >= 8) break;
+        if (collected.length >= 24) break;
       }
     } catch (err) {
       console.warn(`[seo] fetch failure for ${config.slug} (q="${query}"):`, err);
@@ -1605,7 +1628,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     // leads ahead of them, so the advertised price is visible at position 1.
     // Computing the floor over the pre-slice set also guarantees that card
     // survives slice(0, 8) — so the rendered floor always equals the hero floor.
-    const floorId = findFloorPriceProductId(verifiedProducts);
+    const primaryForFloor = verifiedProducts.filter((p) => !isGenericAccessoryProduct(p));
+    const floorId = findFloorPriceProductId(primaryForFloor.length > 0 ? primaryForFloor : verifiedProducts);
     const featured = [...verifiedProducts].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId),
     );
@@ -1641,7 +1665,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
     // BUY-67622 (v3): keep hero-promised brands at the front of the partial top-up too.
     // BUY-66320 (v4): floor-price card still leads (see compareLandingCardOrder).
-    const topUpFloorId = findFloorPriceProductId(topUp);
+    const primaryTopUp = topUp.filter((p) => !isGenericAccessoryProduct(p));
+    const topUpFloorId = findFloorPriceProductId(primaryTopUp.length > 0 ? primaryTopUp : topUp);
     const featuredTopUp = [...topUp].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId),
     );
@@ -1657,7 +1682,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // gated on heroFeaturedBrands — the "from {floorPrice}" promise must hold on
   // curated-fallback renders too, where resolveHeroTitle reads the same list.
   if (fallback.length > 1) {
-    const fallbackFloorId = findFloorPriceProductId(fallback);
+    const primaryFallback = fallback.filter((p) => !isGenericAccessoryProduct(p));
+    const fallbackFloorId = findFloorPriceProductId(primaryFallback.length > 0 ? primaryFallback : fallback);
     const featuredFallback = [...fallback].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId),
     );
@@ -3198,6 +3224,9 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     // Singular matches 9 live rows; keep ANC query as first backup.
     searchQuery: "headphone",
     backupQueries: ["noise cancelling headphones", "sony headphones", "bose headphones", "wireless headphones"],
+    // BUY-79277: demote earpads/cases; keep primary headphones in first 8.
+    excludeAccessories: true,
+    requiredProductTerms: ["headphone", "headset", "over-ear", "on-ear", "earbuds", "airpods", "wh-1000", "qc45", "qc ultra"],
     productSectionTitle: "Live Headphones offers across the US",
     comparisonSectionTitle: "Popular Headphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],

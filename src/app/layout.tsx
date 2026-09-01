@@ -173,10 +173,10 @@ export default function RootLayout({
                 </CompareProvider>
               </DeveloperAuthProvider>
             </ThemeProvider>
+            <Suspense fallback={null}><AnalyticsTracker /></Suspense>
           </PosthogProvider>
         </SentryErrorBoundary>
         <WebVitals />
-        <Suspense fallback={null}><AnalyticsTracker /></Suspense>
       </body>
     </html>
   );

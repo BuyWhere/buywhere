@@ -3,8 +3,8 @@
 import { useEffect } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { initGA4, trackPageView, isGA4Enabled } from '@/lib/ga4';
-import posthog from 'posthog-js';
 import { POSTHOG_KEY } from '@/lib/posthog';
+import { captureWhenReady } from '@/lib/posthog-client';
 
 // BUY-72699: Normalize trailing-slash pathname at client capture (mirror of src/middleware.ts)
 function normalizePathname(pathname: string): string {
@@ -29,10 +29,11 @@ export function AnalyticsTracker() {
       trackPageView(url, document.title);
     }
 
-    if (typeof window !== 'undefined' && POSTHOG_KEY && posthog.__loaded) {
+    if (typeof window !== 'undefined' && POSTHOG_KEY) {
       const url = `${cleanPathname}${searchParams ? `?${searchParams.toString()}` : ''}`;
       // BUY-72699 Defect A: emit is_internal=false on client $pageview (non-server)
-      posthog.capture('$pageview', { $current_url: url, is_internal: false });
+      // BUY-79258: queue until posthog.init finishes (idle-deferred).
+      captureWhenReady('$pageview', { $current_url: url, is_internal: false });
     }
   }, [pathname, searchParams]);
 

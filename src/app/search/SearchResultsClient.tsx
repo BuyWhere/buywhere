@@ -12,6 +12,7 @@ import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { ProductGridImage } from '@/components/seo/ProductGridImage';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
+import { captureProductCardClick } from '@/lib/posthog-client';
 import { SortDropdown, normalizeSortMode, type SortMode } from './SortDropdown';
 import { FilterSidebar, type FacetOption } from './FilterSidebar';
 import { FilterChipRow } from './FilterChipRow';
@@ -1179,7 +1180,14 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     <a
       data-testid="search-product-card"
       href={product.href}
-      onClick={attachProductCardClickAttribution}
+      onClick={(e) => {
+        attachProductCardClickAttribution(e);
+        captureProductCardClick({
+          href: e.currentTarget.href,
+          productId: product.id,
+          merchantId: product.merchant,
+        });
+      }}
       target="_blank"
       rel="noopener noreferrer nofollow sponsored"
       aria-label={`View deal: ${product.name} from ${product.merchant}`}

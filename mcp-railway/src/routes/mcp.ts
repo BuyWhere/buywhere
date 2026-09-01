@@ -1107,11 +1107,20 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // real discounted products. Query the indexed discount predicate directly.
   let dealsClient: any = null;
   let products: ReturnType<typeof buildProduct>[] = [];
+  // BUY-79200: always use parent search_products table (NOT child tables).
+  // Child tables products_partitioned_{cc} don't have discount data populated.
+  // The fix is to use enable_indexscan=off to force Bitmap Index Scan on the GIN.
+  const dealsTable = 'search_products';
+
   let total = 0;
   try {
     dealsClient = await acquireMcpClient();
     await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
+    // BUY-74579: do NOT set enable_indexscan=off here. That GIN-search setting
+    // forces BitmapAnd(idx_sp_disc, idx_sp_cc_price)+Sort (~700k cost, JIT)
+    // instead of Index Scan Backward on idx_sp_disc (~10k, already ordered).
+    // Live EXPLAIN 2026-09-01: BitmapAnd exceeds the 3.5s MCP wall.
     const candidateLimit = 200;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
@@ -1122,7 +1131,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
               p.category, NULL::text[] AS category_path
-       FROM search_products p
+       FROM ${dealsTable} p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`,
