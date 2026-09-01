@@ -140,7 +140,8 @@ async function tryIdentifierLookup(
     conds.push(identifierMatchPredicate(p.id, idIdx).sql);
     if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
     if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
-    if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+    // BUY-79353: domain filter should match merchant_id (actual retailer), not source (feed origin).
+    if (p.domain) { conds.push(`sp.merchant_id = $${i}`); params.push(p.domain); i++; }
     conds.push(`sp.is_active = true`);
     conds.push(`sp.price > 0`);
     // BUY-67318: same dead-link gate on identifier-lookup path.
@@ -296,7 +297,8 @@ async function tryTierSearch(
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
-  if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  // BUY-79353: domain filter should match merchant_id (actual retailer), not source (feed origin).
+  if (p.domain) { conds.push(`sp.merchant_id = $${i}`); params.push(p.domain); i++; }
   // BUY-76037: explicit source/scraped_via filters (re-applied after refactor).
   if (p.source) { conds.push(`sp.source = $${i}`); params.push(p.source); i++; }
   if (p.scrapedVia) { conds.push(`sp.scraped_via = $${i}`); params.push(p.scrapedVia); i++; }
@@ -314,7 +316,10 @@ async function tryTierSearch(
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
-  const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+  // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
+  // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
+  // holds the actual retailer domain (e.g. samsung.com, bestbuy.com).
+  const cols = `sp.id, sp.merchant_id AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
