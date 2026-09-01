@@ -109,11 +109,14 @@ async function searchProductsViaRestFallback(opts: {
   if (!opts.q) return null;
   const params = new URLSearchParams();
   params.set('q', opts.q);
+  // BUY-79598: REST /v1/products/search treats `country_code`/`currency` as a
+  // strict post-filter that zeros high-recall queries (macbook/nike SG) even
+  // when `market=`/`deliver_to=` returns hits. Prefer the market aliases the
+  // origin REST path actually serves.
   if (opts.country) {
-    params.set('country_code', opts.country);
-    params.set('country', opts.country);
+    params.set('market', opts.country);
+    params.set('deliver_to', opts.country);
   }
-  if (opts.currency) params.set('currency', opts.currency);
   params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
   if (opts.offset) params.set('offset', String(opts.offset));
   const ac = new AbortController();
@@ -181,7 +184,10 @@ async function searchProductsViaRestFallback(opts: {
       // capture rowCurrency while the original row is still accessible.
       return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
     }).filter((item) => {
-      // BUY-79497: REST fallback can mix markets; drop currency/country leaks.
+      // BUY-79497 / BUY-79598: drop *contradictory* country/currency, but keep
+      // rows with missing country_code (REST market= often omits it) and keep
+      // native-currency hits. An all-drop here is what turned healthy REST
+      // macbook/nike into MCP api_error.
       const p = item.product;
       if (expectedCc) {
         const cc = String(p.country_code || '').toUpperCase();
@@ -191,7 +197,6 @@ async function searchProductsViaRestFallback(opts: {
         const fromProduct = String((item.product.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
         const cur = item.rowCurrency || fromProduct;
         if (cur && cur !== expectedCur) return false;
-        if (!cur) return false;
       }
       return true;
     }).map((item) => item.product);
@@ -1109,12 +1114,29 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         );
         // BUY-79497: apply currency post-filter so cross-currency rows (USD Shopify in SG,
         // SGD rows in US) are dropped from the result set before pagination.
-        const candidates = wantCur
+        let candidates = wantCur
           ? (tierFts.rows as Record<string, unknown>[]).filter(r => {
               const cur = String(r.currency || '').toUpperCase();
               return cur === wantCur;
             })
           : (tierFts.rows as Record<string, unknown>[]);
+        // BUY-79598: GIN overfetch on products_partitioned_sg is dominated by
+        // USD Shopify rows; LIMIT 40 can be 100% USD so the post-filter empties
+        // even when SGD FTS hits exist (macbook 13ms with currency=SGD). Retry
+        // with currency in the WHERE — child GIN + equality is still <100ms.
+        if (wantCur && candidates.length === 0 && q) {
+          const curParams = [...tierParams, wantCur];
+          const curWhere = `${tierWhere} AND sp.currency = $${curParams.length}`;
+          const retry = await searchClient.query<Record<string, unknown>>(
+            `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
+                    sp.category_path, sp.url_last_checked_at, sp.url_status
+             FROM ${ftsTable} sp ${curWhere}
+             LIMIT ${pageLimit}`,
+            curParams,
+          );
+          candidates = retry.rows as Record<string, unknown>[];
+        }
         rows = candidates.slice(offset, offset + Math.max(limit * (wantCur ? 8 : 1), limit));
         total = candidates.length + offset;
       }
@@ -1166,7 +1188,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-74597: classify and return the canonical degraded envelope. Never throw
     // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
     const degradedKind = classifyMcpDegradedKind(err);
-    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
     const errMsg = (err as any)?.message || String(err);
     const errCode = (err as any)?.code || 'none';
     console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0,200)}`);
@@ -1174,9 +1195,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
+      // BUY-79598: REST served hits — do not open the SG catalog_search circuit.
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
+      recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
+    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
@@ -1195,20 +1219,31 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   if (country) {
     const want = country.toUpperCase();
     const wantCur = (COUNTRY_CURRENCY[want] || '').toUpperCase();
-    rows = (rows as Record<string, unknown>[]).filter(r => {
+    const filtered = (rows as Record<string, unknown>[]).filter(r => {
       const cc = String(r.country_code || '').toUpperCase();
       if (cc && cc !== want) return false;
       if (wantCur) {
         const cur = String(r.currency || '').toUpperCase();
-        if (cur !== wantCur) return false;
+        if (cur && cur !== wantCur) return false;
       }
       return true;
-    }).slice(0, limit);
+    });
+    // BUY-79598: keep native-currency overfetch if the strict filter emptied the
+    // page (USD-labelled SG Shopify). Country already constrained by child table.
+    rows = (filtered.length > 0 ? filtered : (rows as Record<string, unknown>[]))
+      .slice(0, limit);
   }
 
-  const products = (rows as Record<string, unknown>[]).map(r =>
+  let products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact)
   );
+  if (q && products.length === 0) {
+    const restHits = await restFallbackPromise;
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79598: empty after currency filter — REST fallback n=${restHits.products.length} q=${q} country=${country}`);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+    }
+  }
 
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false

@@ -127,11 +127,11 @@ async function searchProductsViaRestFallback(opts: {
   if (!opts.q) return null;
   const params = new URLSearchParams();
   params.set('q', opts.q);
+  // BUY-79598: country_code+currency zeros high-recall REST searches (macbook/nike).
   if (opts.country) {
-    params.set('country_code', opts.country);
-    params.set('country', opts.country);
+    params.set('market', opts.country);
+    params.set('deliver_to', opts.country);
   }
-  if (opts.currency) params.set('currency', opts.currency);
   params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
   if (opts.offset) params.set('offset', String(opts.offset));
   const ac = new AbortController();
@@ -183,7 +183,7 @@ async function searchProductsViaRestFallback(opts: {
       if (expectedCur) {
         const fromProduct = String((item.product.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
         const cur = item.rowCurrency || fromProduct;
-        if (!cur || cur !== expectedCur) return false;
+        if (cur && cur !== expectedCur) return false;
       }
       return true;
     }).map((item) => item.product);
