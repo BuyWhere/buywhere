@@ -136,6 +136,11 @@ const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        query: {
+          type: 'string',
+          description:
+            'Alias for q (accepted for agent convenience; use q in prompts).',
+        },
         domain: {
           type: 'string',
           description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)',
@@ -150,6 +155,16 @@ const TOOLS: Tool[] = [
         country: {
           type: 'string',
           description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        deliver_to: {
+          type: 'string',
+          description:
+            'Treat as REQUIRED for buyer-facing use: ISO-3166 country code for delivery destination (e.g. "SG", "US"). Used for location-aware pricing and availability.',
+        },
+        market: {
+          type: 'string',
+          description:
+            'Alias for country_code (deprecated, use country_code instead).',
         },
         min_price: {
           type: 'number',
@@ -182,7 +197,7 @@ const TOOLS: Tool[] = [
           type: 'string',
           enum: ['keyword', 'semantic', 'hybrid'],
           description:
-            'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable. Pass mode="keyword" to bypass the vector path if semantic/hybrid returns an internal error.',
+            'Search mode: keyword=FTS only (default, matches REST /v1/products/search), semantic=vector only, hybrid=RRF blend of FTS+vector. Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.',
           default: 'hybrid',
         },
       },
@@ -238,11 +253,21 @@ const TOOLS: Tool[] = [
         country_code: {
           type: 'string',
           enum: ['SG', 'US', 'VN', 'TH', 'MY'],
-          description: 'Filter by ISO country code.',
+          description: 'Filter by ISO country code. Alias: country.',
         },
         country: {
           type: 'string',
           description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        deliver_to: {
+          type: 'string',
+          description:
+            'Treat as REQUIRED for buyer-facing use: ISO-3166 country code for delivery destination (e.g. "SG", "US"). Used for location-aware pricing and availability.',
+        },
+        market: {
+          type: 'string',
+          description:
+            'Alias for country_code (deprecated, use country_code instead).',
         },
         limit: {
           type: 'integer',
@@ -273,6 +298,11 @@ const TOOLS: Tool[] = [
           enum: ['us', 'sg', 'my', 'gb', 'in', 'au'],
           description: 'Region alias mapped to ISO country code.',
         },
+        market: {
+          type: 'string',
+          description:
+            'Alias for country_code (deprecated, use country_code instead).',
+        },
       },
     },
   },
@@ -285,23 +315,35 @@ const TOOLS: Tool[] = [
       properties: {
         q: {
           type: 'string',
-          description:
-            'Keyword search query (alias for product_name; prefer product_name).',
+          description: 'Keyword search query — alias for product_name.',
         },
         product_name: {
           type: 'string',
           description:
             'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
         },
-        category: { type: 'string', description: 'Category to filter by' },
+        category: {
+          type: 'string',
+          description: 'Category to filter by (e.g., "electronics", "fashion")',
+        },
         country_code: {
           type: 'string',
           enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
-          description: 'Country to search in (defaults to SG).',
+          description: 'Country to search in (defaults to SG). Alias: country.',
         },
         country: {
           type: 'string',
           description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        deliver_to: {
+          type: 'string',
+          description:
+            'Treat as REQUIRED for buyer-facing use: ISO-3166 country code for delivery destination (e.g. "SG", "US"). Used for location-aware pricing.',
+        },
+        market: {
+          type: 'string',
+          description:
+            'Alias for country_code (deprecated, use country_code instead).',
         },
         region: {
           type: 'string',
@@ -324,6 +366,202 @@ const TOOLS: Tool[] = [
           type: 'integer',
           description: 'Number of similar products to return (1-10, default 10)',
           default: 10,
+        },
+      },
+    },
+  },
+  {
+    name: 'search_products_v2',
+    description:
+      'v2 of search_products — same capability with a cleaner, location-first parameter design. Search the BuyWhere product catalog by keyword with location-aware delivery pricing. Required: deliver_to ISO country code.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        deliver_to: {
+          type: 'string',
+          description:
+            'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US"). Used for location-aware pricing and availability.',
+        },
+        q: {
+          type: 'string',
+          description: 'Keyword search query.',
+        },
+        query: {
+          type: 'string',
+          description:
+            'Alias for q (accepted for agent convenience; use q in prompts).',
+        },
+        domain: {
+          type: 'string',
+          description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)',
+        },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+          description: 'Filter by ISO country code.',
+        },
+        country: {
+          type: 'string',
+          description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        min_price: {
+          type: 'number',
+          description:
+            'Minimum price (in currency inferred from country_code, or SGD by default)',
+        },
+        max_price: {
+          type: 'number',
+          description:
+            'Maximum price (in currency inferred from country_code, or SGD by default)',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Number of results (max 100, default 20)',
+          default: 20,
+        },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+        compact: {
+          type: 'boolean',
+          description:
+            'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%.',
+          default: false,
+        },
+        category: {
+          type: 'string',
+          description: 'Filter by product category name (e.g. "Laptops", "Smartphones").',
+        },
+        mode: {
+          type: 'string',
+          enum: ['keyword', 'semantic', 'hybrid'],
+          description:
+            'Search mode: keyword=FTS only (default), semantic=vector only, hybrid=RRF blend. Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.',
+          default: 'hybrid',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_product_v2',
+    description:
+      'v2 of get_product — get a specific product by its ID with location-aware pricing. Required: deliver_to ISO country code.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to', 'id'],
+      properties: {
+        deliver_to: {
+          type: 'string',
+          description:
+            'REQUIRED. ISO country code for delivery destination (e.g. "SG", "US").',
+        },
+        id: { type: 'string', description: 'Product UUID' },
+      },
+    },
+  },
+  {
+    name: 'compare_products_v2',
+    description:
+      'v2 of compare_products — compare multiple products side-by-side with location-aware pricing. Required: deliver_to ISO country code.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to', 'ids'],
+      properties: {
+        deliver_to: {
+          type: 'string',
+          description:
+            'REQUIRED. ISO country code for delivery destination (e.g. "SG", "US").',
+        },
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of product IDs to compare (2–10)',
+          minItems: 2,
+          maxItems: 10,
+        },
+      },
+    },
+  },
+  {
+    name: 'get_deals_v2',
+    description:
+      'v2 of get_deals — get discounted products with location-aware pricing. Required: deliver_to ISO country code.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        deliver_to: {
+          type: 'string',
+          description:
+            'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").',
+        },
+        min_discount: {
+          type: 'number',
+          description: 'Minimum discount percentage (default 10)',
+          default: 10,
+        },
+        currency: {
+          type: 'string',
+          description: 'Filter by currency code (SGD, USD, MYR, VND, THB).',
+        },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+          description: 'Filter by ISO country code. Alias: country.',
+        },
+        country: {
+          type: 'string',
+          description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Number of results (max 100, default 20)',
+          default: 20,
+        },
+        offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+      },
+    },
+  },
+  {
+    name: 'find_best_price_v2',
+    description:
+      'v2 of find_best_price — find the best current price across all merchants with location-aware pricing. Required: deliver_to ISO country code.',
+    inputSchema: {
+      type: 'object',
+      required: ['deliver_to'],
+      properties: {
+        deliver_to: {
+          type: 'string',
+          description:
+            'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US"). Used for location-aware pricing.',
+        },
+        q: {
+          type: 'string',
+          description: 'Keyword search query — alias for product_name.',
+        },
+        product_name: {
+          type: 'string',
+          description:
+            'Product name to find best price for (e.g., "iphone 15 pro 256gb")',
+        },
+        category: {
+          type: 'string',
+          description: 'Category to filter by (e.g., "electronics", "fashion")',
+        },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
+          description: 'Country to search in (defaults to SG). Alias: country.',
+        },
+        country: {
+          type: 'string',
+          description: 'Alias for country_code (deprecated, use country_code)',
+        },
+        region: {
+          type: 'string',
+          enum: ['us', 'sea'],
+          description: 'Region filter — use "us" for United States or "sea" for Southeast Asia',
         },
       },
     },
