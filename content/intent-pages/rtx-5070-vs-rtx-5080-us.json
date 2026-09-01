@@ -4,7 +4,7 @@
   "description": "RTX 5070 vs RTX 5080 desktop graphics cards compared in the United States for 2026: how Blackwell architecture, 12GB vs 16GB VRAM, TBP and DLSS 4 Multi Frame Generation change the upgrade math for Newegg, Best Buy, B&H, Amazon and Micro Center shoppers, with live USD prices from MSI, ASUS, ZOTAC, Gigabyte and PNY.",
   "heroEyebrow": "US RTX 5070 vs RTX 5080 desktop GPU comparison",
   "heroTitle": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 which should you buy",
-  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US \u2014 5070 from {floorPrice} today",
+  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 5070 from {floorPrice} today",
   "heroBody": "NVIDIA's RTX 5070 and RTX 5080 desktop graphics cards sit one tier apart in the Blackwell 50-series lineup, and in the US in 2026 that gap decides whether you are spending close to the entry sticker for a strong 1440p card with 12GB of VRAM or stepping up to a meaningful premium for the same games at native 4K with frame generation on. The 5070 ships with 12GB of GDDR7 and is the sensible pick for 1080p and 1440p gaming with ray tracing; the 5080 doubles the VRAM to 16GB, opens up native 4K at high refresh, and pushes the ray-tracing budget meaningfully further. Both ship on MSI Gaming, MSI Ventus, MSI Shadow, ZOTAC Twin Edge, ASUS TUF and PNY boards at Newegg, Best Buy, B&H and Micro Center, but the price gap between a 5070 SKU and the equivalent 5080 SKU at the same retailer can be the difference between a value buy and a flagship buy. This page pulls the live US listings so you can see both floor prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the 5080 premium is worth the money to you.",
   "inboundLinks": [
     "/best-gaming-laptops-us",
@@ -29,9 +29,9 @@
     "gpu"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 1, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-01",
   "productSectionTitle": "Live RTX 5070 prices in the US",
   "comparisonSectionTitle": "RTX 5070 vs RTX 5080 desktop \u2014 at a glance",
   "comparisonColumns": [
@@ -126,7 +126,7 @@
     "Pick the RTX 5080 if you have a 1440p high-refresh or 4K panel, want full path tracing with DLSS 4 Multi Frame Generation, or plan to keep the GPU for four or more years. The 16GB VRAM and CUDA core count both buy real headroom past the 5070.",
     "Always check the TBP in the spec sheet, not just the model name. A '5070' at 220W is meaningfully slower than the same name at 300W; Newegg, B&H and Micro Center list TBP clearly, marketplace listings often do not.",
     "Match the GPU to your monitor: a 1080p 240Hz screen pairs well with a 5070; a 1440p 240Hz or 4K 120Hz screen benefits from a 5080. Buying a 5080 to drive a 1080p 165Hz panel leaves performance on the table; buying a 5070 to drive a 4K 120Hz screen starves the display.",
-    "Time your buy around Amazon Prime Day (July), Black Friday (late November), and Micro Center's in-store-only GPU drops. Outside those windows, Newegg and B&H typically hold the lowest everyday price on base board configurations.",
+    "Time your buy around Amazon Prime Day (July), Labor Day hangover sales into early September 2026, Black Friday (late November), and Micro Center's in-store-only GPU drops. Outside those windows, Newegg and B&H typically hold the lowest everyday price on base board configurations.",
     "Watch the Newegg Shuffle and Micro Center in-store only deals for high-end 5080 SKUs at meaningful discounts \u2014 they sell out within hours, so set a stock alert before the next drop. Online-only retailers rarely match these.",
     "Avoid listings well below the market floor on eBay or unknown Amazon sellers \u2014 they are usually used, refurbished or mining cards dressed up as new. Buy from Newegg, B&H, Best Buy, Micro Center or Amazon-sold-by-NVIDIA to keep the manufacturer's US warranty intact."
   ],
