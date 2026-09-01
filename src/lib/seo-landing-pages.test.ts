@@ -1762,7 +1762,8 @@ test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", 
   const stuffedFold = stuffed.slice(0, 8);
   assert.equal(stuffedFold.filter((p) => isGenericAccessoryProduct(p)).length, 1);
   assert.equal(stuffedFold.filter((p) => !isGenericAccessoryProduct(p)).length, 6);
-  assert.ok(stuffed.length >= 8, "leftover cards stay after the fold for /r/direct count");
+  assert.ok(stuffed.length >= 7, "primaries plus at most one accessory remain after packing");
+  assert.equal(stuffed.filter((p) => isGenericAccessoryProduct(p)).length, 1, "extra bags/parts are dropped from the rendered set");
 });
 
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {

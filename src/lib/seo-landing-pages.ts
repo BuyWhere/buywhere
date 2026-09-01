@@ -1040,7 +1040,8 @@ const GENERIC_ACCESSORY_SUBSTRING_RE =
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
 ): boolean {
-  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  // Title-only: category "Laptops" would false-positive on ^parts (prefix of Laptops).
+  const text = String(product.name ?? "");
   return GENERIC_ACCESSORY_RE.test(text) || GENERIC_ACCESSORY_SUBSTRING_RE.test(text);
 }
 
@@ -1077,8 +1078,10 @@ export function packPrimaryFirstFold(
       foldIds.add(fb.id);
     }
   }
-  const rest = products.filter((p) => !foldIds.has(p.id));
-  return [...fold, ...rest];
+  const restPrimaries = primaries.filter((p) => !foldIds.has(p.id));
+  // Drop leftover accessories from the rendered list. Returning them after a
+  // short primary set still puts them in Atlas's first-7 unique /r/ window.
+  return [...fold, ...restPrimaries];
 }
 
 export function compareLandingCardOrder(
