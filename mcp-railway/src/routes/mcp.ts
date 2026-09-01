@@ -131,7 +131,7 @@ async function searchProductsViaRestFallback(opts: {
       `http://127.0.0.1:${PORT}`,
       'https://api.buywhere.ai',
     ].filter(Boolean);
-    let res: Response | null = null;
+    let httpRes: globalThis.Response | null = null;
     let lastErr: unknown = null;
     for (const base of bases) {
       try {
@@ -140,14 +140,14 @@ async function searchProductsViaRestFallback(opts: {
           headers,
           signal: ac.signal,
         });
-        if (attempt.ok) { res = attempt; break; }
+        if (attempt.ok) { httpRes = attempt; break; }
         lastErr = new Error(`HTTP ${attempt.status} from ${base}`);
       } catch (e) {
         lastErr = e;
       }
     }
-    if (!res) throw lastErr || new Error('rest_fallback_exhausted');
-    const body = await res.json() as {
+    if (!httpRes) throw lastErr || new Error('rest_fallback_exhausted');
+    const body = await httpRes.json() as {
       products?: Record<string, unknown>[];
       data?: Record<string, unknown>[];
       results?: Record<string, unknown>[];
