@@ -1,0 +1,132 @@
+{
+  "slug": "macbook-air-m4-price-us",
+  "title": "MacBook Air M4 Price in the US (2026) — Live Listings Compared",
+  "description": "What the MacBook Air M4 actually costs in the United States right now: live prices from Apple, Amazon, Best Buy and B&H, with advice on 13 vs 15-inch, 16 GB RAM, AppleCare, and when leftover M4 stock still beats a new M5.",
+  "heroEyebrow": "US MacBook Air M4 price guide",
+  "heroTitle": "MacBook Air M4 price in the US (2026) — live comparison",
+  "heroTitleTemplate": "MacBook Air M4 in the US (2026) — from {floorPrice} today",
+  "heroBody": "In the United States the MacBook Air M4 is no longer the newest Air — M5 13-inch and 15-inch configs now sit next to it at Apple, Amazon and Best Buy — but M4 13-inch 16 GB machines still show up as leftover and refurbished stock, often at a meaningful gap below current M5 list. These are US-dollar prices sold into the United States. This page pulls live listings from BuyWhere's catalog so you can see the current floor, whether a listing is AppleCare, a dock, or an actual Air, and whether the cheaper unit is M4 or already an M5.",
+  "canonicalPath": "/macbook-air-m4-price-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "13-inch MacBook Air",
+  "backupQueries": [
+    "MacBook Air M5",
+    "Apple MacBook Air M4",
+    "MacBook Air 15"
+  ],
+  "minPrice": 700,
+  "requiredProductTerms": [
+    "macbook",
+    "air",
+    "apple"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live US MacBook Air prices (M4 leftover and current Airs)",
+  "comparisonSectionTitle": "How US shoppers should read Air prices this year",
+  "comparisonColumns": [
+    "What you are looking at",
+    "Typical US source",
+    "What to check",
+    "Who it is for"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Leftover M4 13-inch",
+      "values": [
+        "Amazon Warehouse, Best Buy open-box, leftover Apple education",
+        "Chip in About This Mac / spec sheet — must say M4",
+        "Buyers who want Air battery at a discount to M5"
+      ]
+    },
+    {
+      "label": "Current M5 13 / 15-inch",
+      "values": [
+        "Apple, Amazon sold-by-Amazon, Best Buy, B&H",
+        "RAM 16 GB vs 24 GB, SSD 256 vs 512",
+        "Anyone keeping the machine four years"
+      ]
+    },
+    {
+      "label": "AppleCare+ only",
+      "values": [
+        "Apple and authorised resellers",
+        "Not a laptop — skip",
+        "Add only after you own the machine"
+      ]
+    },
+    {
+      "label": "Docks and hubs",
+      "values": [
+        "Thunderbolt 4/5 docks titled for M4 Air",
+        "Sub-$300 is almost never the laptop",
+        "Buy a dock after you pick RAM/SSD"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What US M4 Air shoppers get wrong",
+  "highlights": [
+    {
+      "title": "The catalog now mixes M4 leftover with M5 current",
+      "body": "A search for MacBook Air M4 in the US often returns 13-inch M5 machines and AppleCare SKUs. That is expected after the M5 launch. Use the live cards and the spec line: if it says M5, you are not looking at the leftover M4 discount you came for — you may still want it."
+    },
+    {
+      "title": "256 GB SSD is the regret spec, not the chip",
+      "body": "On leftover M4 Airs the painful config is still 256 GB. macOS plus Photos plus a modest Xcode install fills it. Prefer 512 GB even if that means a current M5 13-inch instead of a cheap M4 256."
+    },
+    {
+      "title": "16 GB RAM is the real M4 story",
+      "body": "Apple's later M4 Airs in the US standardised on 16 GB. Avoid any remaining 8 GB rumour-stock or mislabelled older Airs. If a listing is far below the floor, it is often an M2/M3 or a dock."
+    },
+    {
+      "title": "Education and warehouse beat list more than coupon sites",
+      "body": "US education pricing, Amazon Warehouse, and Best Buy open-box 'excellent' are the honest discount paths. Random coupon blogs listing 'M4 Air' often resolve to hubs or other-country stores that will not honour US AppleCare."
+    }
+  ],
+  "adviceSectionTitle": "How to pay less for a US MacBook Air without getting a dock",
+  "advicePoints": [
+    "Confirm the chip in the title and the spec table. M4 leftover is the hunt; M5 current is often the better four-year buy.",
+    "Ignore AppleCare+, USB-C hubs, and Thunderbolt docks in the price table — they are not the laptop.",
+    "Buy from Apple, Amazon sold-by-Amazon, Best Buy, or B&H. Third-party 'import' Airs may be other-region keyboards.",
+    "If 256 GB is the only M4 left, spend the difference on a 512 GB M5 instead of living on an external SSD.",
+    "Compare /best-macbooks-us if you might want a 14-inch Pro instead — Pro thermals matter if you compile all day."
+  ],
+  "faqSectionTitle": "MacBook Air M4 price in the US — questions shoppers actually ask",
+  "faqs": [
+    {
+      "question": "Is the MacBook Air M4 still sold in the US in 2026?",
+      "answer": "As leftover, warehouse and open-box more than as Apple's current Air. Current list is M5. The live cards show whatever the catalog still prices."
+    },
+    {
+      "question": "Should I buy leftover M4 or a new M5 Air in the United States?",
+      "answer": "Buy leftover M4 if the gap is large and you only browse, write and video-call. Buy M5 if you want the longer software window and a 512 GB config."
+    },
+    {
+      "question": "Does AppleCare+ transfer on open-box US Airs?",
+      "answer": "AppleCare+ is tied to the serial. Open-box from Best Buy is often still eligible if unused days remain; Amazon Warehouse varies. Check the serial on checkcoverage.apple.com before you add a plan."
+    },
+    {
+      "question": "Why do some 'M4 Air' listings cost under a few hundred dollars?",
+      "answer": "They are almost always docks, cases or AppleCare — not the computer. This page's floor price is meant to hide those."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-SG": "/macbook-air-m4-price-singapore"
+  },
+  "inboundLinks": [
+    "/best-macbooks-us",
+    "/best-business-laptops-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US MacBook Air M4 search mixed chips this year",
+    "body": "Apple moved the US Air line to M5 while Amazon and Best Buy still hold M4 serials and a pile of Thunderbolt accessories branded for M4 Air. A static price article goes stale the week a warehouse dump lands. This page is a live catalog pull so the floor is honest."
+  },
+  "owner": "Wave",
+  "reviewer": "Fetch",
+  "queueRow": 224
+}
