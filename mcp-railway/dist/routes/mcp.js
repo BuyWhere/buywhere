@@ -30,11 +30,11 @@ const V2_BUYER_TOOLS = new Set([
 // parent `products` table has 373M rows / 297GB with severe bloat (11M dead
 // tuples), so PK-joins and fallback scans against it time out. Route the FBP
 // final join + ILIKE fallback to products_partitioned_{cc} for these countries.
-const FAST_CHILD_TABLE_COUNTRIES = new Set([
-    'SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'GB', 'CA', 'AU', 'IN', 'IT', 'ES', 'MX',
-    'ZA', 'BR', 'NZ', 'NL', 'PL', 'SE', 'CH', 'DK', 'JP', 'DE', 'FR', 'IE', 'NO',
-    'BE', 'AT', 'PT',
-]);
+// BUY-70498: only route to child tables that actually hold catalog rows.
+// products_partitioned_{th,vn,my,id} are empty/near-empty while search_products
+// still has the SEA catalog. Using the empty child tables made search_products
+// and find_best_price return 0 rows in ~40ms (false no-match).
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'AU', 'GB', 'CA']);
 const router = (0, express_1.Router)();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 // BUY-78767: MCP clients abort well before a 8–30s PG timeout. Bound catalog
@@ -208,7 +208,7 @@ const TOOLS = [
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only (default, matches REST /v1/products/search), semantic=vector only, hybrid=RRF blend of FTS+vector. Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'keyword' },
             },
         },
     },
@@ -362,7 +362,7 @@ const V2_TOOLS = [
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only (default, matches REST /v1/products/search), semantic=vector only, hybrid=RRF blend of FTS+vector. Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'keyword' },
             },
         },
     },
@@ -608,7 +608,11 @@ async function handleSearchProducts(args) {
     // isolating replica routing as the SEV-1 source. The primary search_products tier
     // + GIN FTS path was verified fast (8-650ms). Revisit replicas only after one is
     // provisioned with a populated search_products tier (BUY-76552/BUY-76643).
-    const searchClient = await config_1.db.connect();
+    // BUY-79260: use acquireMcpClient race so pool acquire fails at 1s
+    // (MCP_DB_ACQUIRE_TIMEOUT_MS) instead of waiting the full 3.5s wall.
+    // Under load, db.connect() can stall for seconds on a saturated pool and the
+    // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
+    const searchClient = await acquireMcpClient();
     // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
     // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
     // and consecutive queries with different param counts cause
@@ -626,6 +630,10 @@ async function handleSearchProducts(args) {
         await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
         if (useChildTable) {
             await searchClient.query(`SET enable_seqscan = off`);
+            // BUY-79260: force Bitmap Index Scan on the GIN (matches BUY-79200 FBP fix).
+            // Without this, the planner occasionally picks idx_sp_cc_price and seq-filters
+            // search_vector, blowing past the 3.5s wall on SEA partitions.
+            await searchClient.query(`SET enable_indexscan = off`);
         }
         if (q) {
             // BUY-76553: SKIP separate count query — run the main FTS search directly.
@@ -819,6 +827,10 @@ async function handleSearchProducts(args) {
         // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
         releaseClientSafely(searchClient);
     }
+    if (country) {
+        const want = country.toUpperCase();
+        rows = rows.filter(r => String(r.country_code || '').toUpperCase() === want);
+    }
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
     if (q && products.length === 0) {
@@ -932,22 +944,16 @@ async function handleGetDeals(args) {
     // BUY-68615: hardcode true — production catalog DB has discount_pct GENERATED ALWAYS column.
     // The probe can mis-detect on cold pool connections; bypass it to use the fast indexed path.
     const useDiscountCol = true;
+    // BUY-79200: search_products + idx_sp_disc, not the 382M products parent.
     const conditions = [
-        `currency = $1`,
         `price > 0`,
-        `is_active = true`,
+        `discount_pct >= $1`,
     ];
-    if (useDiscountCol) {
-        conditions.push(`discount_pct >= $2`);
+    const params = [minDiscount];
+    if (currency) {
+        params.push(currency);
+        conditions.push(`currency = $${params.length}`);
     }
-    else {
-        // Guard: only consider rows where original_price is a valid numeric string.
-        // Matches the partial index predicate on idx_products_deals_country/region.
-        conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
-        conditions.push(`(metadata->>'original_price')::numeric > price`);
-        conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
-    }
-    const params = [currency, minDiscount];
     if (region) {
         params.push(region);
         conditions.push(`region = $${params.length}`);
@@ -981,37 +987,20 @@ async function handleGetDeals(args) {
     try {
         dealsClient = await acquireMcpClient();
         await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
-        await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-        // BUY-69340 + BUY-69646 merged (2026-08-15): walk the deals index IN ORDER
-        // (currency, discount_pct DESC) so the response is the TRUE top discounts —
-        // the unordered 10K candidate walk could miss the best deals entirely and
-        // shipped 10K full rows (metadata jsonb) to Node per call (27-30s observed
-        // under replica load). The ordered walk early-stops at candidateLimit
-        // PASSING rows (same worst case as the unordered walk when filters are
-        // selective), candidates are id-thin, and full rows join only for the
-        // returned page. updated_at tiebreak preserved in SQL.
-        // BUY-77834 fix: widen the candidate walk when a category filter is present —
-        // the post-fetch filter only sees the candidate set.
-        const candidateLimit = categoryLower ? 20000 : 2000;
+        await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
+        const candidateLimit = 200;
         const candidateParams = [...params, candidateLimit];
-        const dataResult = await dealsClient.query(`WITH cand AS (
-         SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
-         FROM products
-         WHERE ${whereClause}
-         ORDER BY discount_pct DESC
-         LIMIT $${candidateParams.length}
-       )
-       SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+        const dataResult = await dealsClient.query(`SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
               p.price,
-              CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-              p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
-              p.url_last_checked_at, p.url_status,
+              NULL::numeric AS original_price,
+              p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
+              NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, p.category_path
-       FROM cand JOIN products p ON p.id = cand.id
-       ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
-       LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`, candidateParams);
+              p.category, NULL::text[] AS category_path
+       FROM search_products p
+       WHERE ${whereClause}
+       ORDER BY p.discount_pct DESC, p.updated_at DESC
+       LIMIT $${candidateParams.length}`, candidateParams);
         total = dataResult.rows.length;
         // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
         // WHERE was kept category-free so the (currency, discount_pct DESC) index
@@ -1298,7 +1287,7 @@ async function handleFindBestPrice(args) {
             deliverToPresent,
         });
     }
-    const CANDIDATE_POOL = Math.max(limit * 50, 500);
+    const CANDIDATE_POOL = Math.max(limit * 5, 50); // BUY-79200: 500-row heap walk on 78GB search_products blows the 3.5s wall
     // BUY-72082: Tier search via search_products partitioned table (97M rows,
     // GIN-indexed, country-partitioned) instead of the 368M-row products table.
     // Stage 1 selects candidate ids + price + updated_at from the tier; stage 2
@@ -1330,10 +1319,11 @@ async function handleFindBestPrice(args) {
     // table has a GIN index on search_vector and (post-BUY-77453 DDL) a btree on (id)
     // — the full query answers in ~15ms.
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
-    const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
-    const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
-    if (!useChildTable && country) {
+    // BUY-79200: always search_products + idx_sp_fts_<cc> bitmap (see enable_indexscan=off).
+    const useChildTable = false;
+    const tierTable = 'search_products';
+    const tbl = 'search_products';
+    if (country) {
         tierParams.push(country);
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
@@ -1352,29 +1342,39 @@ async function handleFindBestPrice(args) {
     let result;
     try {
         await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
-        await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan; without this, planner picks seq scan on SG partition (largest) and times out at 25s
-        tierParams.push(CANDIDATE_POOL, limit);
-        result = await bestPriceClient.query(`WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at, sp.title,
-                ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM ${tierTable} sp ${tierWhere}
-         LIMIT $${tierParams.length - 1}
-       ), page_ids AS (
-         SELECT id, price, updated_at, rk
-         FROM cand
-         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)' THEN 1 ELSE 0 END) ASC,
-                  rk DESC NULLS LAST,
-                  (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
-                  updated_at DESC
-         LIMIT $${tierParams.length}
-       )
-       SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
-              p.url_last_checked_at, p.url_status
-       FROM page_ids pi
-       JOIN ${tbl} p ON p.id = pi.id
-       WHERE p.is_active = true
-       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`, tierParams);
+        await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan
+        await bestPriceClient.query('SET enable_indexscan = off'); // BUY-79200: Bitmap Index Scan on idx_sp_fts_<cc>
+        const candParams = [...tierParams, CANDIDATE_POOL];
+        const candResult = await bestPriceClient.query(`SELECT sp.id, sp.price, sp.updated_at, sp.title, sp.currency, sp.source, sp.url, sp.image_url, sp.country_code, sp.category,
+              ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
+       FROM ${tierTable} sp ${tierWhere}
+       LIMIT $${candParams.length}`, candParams);
+        await bestPriceClient.query('SET enable_indexscan = on');
+        await bestPriceClient.query('SET enable_seqscan = on');
+        const accRe = /(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)/i;
+        const ranked = candResult.rows.sort((a, b) => {
+            const aAcc = accRe.test(String(a.title || '')) ? 1 : 0;
+            const bAcc = accRe.test(String(b.title || '')) ? 1 : 0;
+            if (aAcc !== bAcc)
+                return aAcc - bAcc;
+            const rk = Number(b.rk || 0) - Number(a.rk || 0);
+            if (rk !== 0)
+                return rk;
+            const ap = Number(a.price);
+            const bp = Number(b.price);
+            const aIn = ap >= 5 && ap <= 10000 ? ap : Number.POSITIVE_INFINITY;
+            const bIn = bp >= 5 && bp <= 10000 ? bp : Number.POSITIVE_INFINITY;
+            if (aIn !== bIn)
+                return aIn - bIn;
+            return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+        }).slice(0, limit);
+        result = {
+            rows: ranked.map((r) => ({
+                id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
+                url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
+                category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
+            })),
+        };
         // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
         if (result.rows.length === 0) {
             await bestPriceClient.query('SET statement_timeout = 4500');
@@ -1383,9 +1383,9 @@ async function handleFindBestPrice(args) {
             const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
             result = await bestPriceClient.query(`SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM ${tbl}
-           WHERE is_active = true AND price > 0
+                  country_code, updated_at, category, NULL::text[] AS category_path, NULL::jsonb AS metadata
+           FROM search_products
+           WHERE price > 0
              AND country_code = $1
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
            ORDER BY updated_at DESC
