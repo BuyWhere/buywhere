@@ -10,17 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Samsung Galaxy S25 256GB",
+  "searchQuery": "Samsung Galaxy S25",
   "backupQueries": [
     "Samsung Galaxy S25 Singapore",
-    "Samsung S25 phone",
-    "Samsung Galaxy S25"
+    "Samsung Galaxy S25+",
+    "Samsung Galaxy S25 256GB"
   ],
-  "minPrice": 600,
+  "minPrice": 900,
   "requiredProductTerms": [
     "galaxy s25",
     "samsung",
-    "s25"
+    "256gb"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Prices checked August 26, 2026",
@@ -127,6 +127,5 @@
   "owner": "Venture",
   "reviewer": "Fetch",
   "queueRow": 69,
-  "searchCategory": "smartphones",
-  "minPrice": 1198
+  "searchCategory": "smartphones"
 }
