@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SEARCH_ENDPOINT, CATEGORIES_ENDPOINT, DEALS_ENDPOINT, PRODUCT_BY_ID_ENDPOINT } from "@/lib/api-endpoints";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_BUYWHERE_API_URL ??
@@ -144,13 +145,13 @@ export async function POST(request: NextRequest) {
   if (apiKey) {
     try {
       const params = new URLSearchParams({ limit: String(limit) });
-      let upstreamPath = "/v1/search";
+      let upstreamPath = SEARCH_ENDPOINT;
 
       if (endpoint === "deals") {
-        upstreamPath = "/v1/deals";
+        upstreamPath = DEALS_ENDPOINT;
         params.set("source", source);
       } else if (endpoint === "categories") {
-        upstreamPath = "/v1/categories";
+        upstreamPath = CATEGORIES_ENDPOINT;
         params.delete("limit");
       } else if (endpoint === "products") {
         upstreamPath = `/v1/products/${productId || ""}`;
@@ -210,7 +211,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({
         meta: {
-          endpoint: endpoint === "deals" ? "/v1/deals" : endpoint === "categories" ? "/v1/categories" : endpoint === "products" ? `/v1/products/${productId || ""}` : "/v1/search",
+          endpoint: endpoint === "deals" ? DEALS_ENDPOINT : endpoint === "categories" ? CATEGORIES_ENDPOINT : endpoint === "products" ? `${PRODUCT_BY_ID_ENDPOINT}/${productId || ""}` : SEARCH_ENDPOINT,
           latency_ms: Date.now() - startedAt,
           mode: "demo-fallback",
           reason: "BuyWhere API was unreachable; showing deterministic demo data instead.",
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     meta: {
-      endpoint: endpoint === "deals" ? "/v1/deals" : endpoint === "categories" ? "/v1/categories" : endpoint === "products" ? `/v1/products/${productId || ""}` : "/v1/search",
+      endpoint: endpoint === "deals" ? DEALS_ENDPOINT : endpoint === "categories" ? CATEGORIES_ENDPOINT : endpoint === "products" ? `${PRODUCT_BY_ID_ENDPOINT}/${productId || ""}` : SEARCH_ENDPOINT,
       latency_ms: Date.now() - startedAt,
       mode: "demo",
       reason: "Add an API key to send the request to the live API.",

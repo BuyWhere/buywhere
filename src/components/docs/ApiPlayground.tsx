@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy, Loader2, Play, Sparkles } from 'lucide-react';
+import { SEARCH_ENDPOINT, CATEGORIES_ENDPOINT, DEALS_ENDPOINT } from '@/lib/api-endpoints';
 
 const DEFAULT_QUERY = 'wireless headphones';
 const DEFAULT_LIMIT = 3;
@@ -9,9 +10,9 @@ const DEFAULT_SOURCE = 'amazon_us';
 const DEFAULT_ENDPOINT = 'search';
 
 const endpointOptions = [
-  { label: 'Search', value: 'search', method: 'GET', path: '/v1/products/search' },
-  { label: 'Deals', value: 'deals', method: 'GET', path: '/v1/deals' },
-  { label: 'Categories', value: 'categories', method: 'GET', path: '/v1/categories' },
+  { label: 'Search', value: 'search', method: 'GET', path: SEARCH_ENDPOINT },
+  { label: 'Deals', value: 'deals', method: 'GET', path: DEALS_ENDPOINT },
+  { label: 'Categories', value: 'categories', method: 'GET', path: CATEGORIES_ENDPOINT },
 ];
 
 const sourceOptions = [
@@ -45,13 +46,13 @@ function buildCurlCommand(endpoint: string, query: string, limit: number, source
     : '"Authorization: Bearer YOUR_API_KEY"';
 
   const params = new URLSearchParams({ limit: String(limit) });
-  let path = '/v1/products/search';
+  let path = SEARCH_ENDPOINT;
 
   if (endpoint === 'deals') {
-    path = '/v1/deals';
+    path = DEALS_ENDPOINT;
     params.set('source', source);
   } else if (endpoint === 'categories') {
-    path = '/v1/categories';
+    path = CATEGORIES_ENDPOINT;
   } else {
     params.set('q', query);
     params.set('source', source);
@@ -63,7 +64,7 @@ function buildCurlCommand(endpoint: string, query: string, limit: number, source
 
 const initialResponse: PlaygroundPayload = {
   meta: {
-    endpoint: '/v1/products/search',
+    endpoint: SEARCH_ENDPOINT,
     latency_ms: 24,
     mode: 'demo',
     reason: 'Ready to run. Add an API key for live data or try the demo response.',
