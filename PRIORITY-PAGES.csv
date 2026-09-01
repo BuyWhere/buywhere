@@ -210,3 +210,6 @@ row,priority,slug,intent_type,category,country,why,assigned_to,reviewer,status,u
 210,2,cheapest-sony-wh-1000xm6-malaysia,cheapest,sony wh-1000xm6,MY,'cheapest X in country' = top ChatGPT pattern,Surf,Hue,blocked:country-support,,['']
 211,2,cheapest-sony-wh-1000xm6-uk,cheapest,sony wh-1000xm6,UK,'cheapest X in country' = top ChatGPT pattern,Wave,Fetch,blocked:country-support,,['']
 212,1,best-ultrabooks-us,best,ultrabooks,US,proven intent family (ChatGPT/Perplexity fetches),Reach,Hue,live,2026-09-01T14:12Z,['']
+213,1,best-laptops-singapore,best,laptops,SG,proven intent family (ChatGPT/Perplexity fetches),Reach,Hue,live,2026-09-01T14:12Z,['']
+214,1,best-headphones-singapore,best,headphones,SG,proven intent family (ChatGPT/Perplexity fetches),Reach,Hue,live,2026-09-01T14:12Z,['']
+215,1,best-coffee-makers-singapore,best,coffee makers,SG,proven intent family (ChatGPT/Perplexity fetches),Reach,Hue,live,2026-09-01T14:12Z,['']
