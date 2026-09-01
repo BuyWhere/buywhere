@@ -245,7 +245,7 @@ export class BuyWhereClient {
       query.set('platform', searchParams.platform);
     }
 
-    return this.request<SearchResponse>(`/v1/search?${query.toString()}`);
+    return this.request<SearchResponse>(`/v1/products/search?${query.toString()}`);
   }
 
   async compare(params: ProductId[]): Promise<CompareResponse>;

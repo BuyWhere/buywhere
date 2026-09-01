@@ -72,7 +72,7 @@ export class AgentsClient {
     ftsQuery.set('mode', 'fts');
 
     const semanticUrl = `/v2/agents/search?${query.toString()}`;
-    const ftsUrl = `/v1/search?${ftsQuery.toString()}`;
+    const ftsUrl = `/v1/products/search?${ftsQuery.toString()}`;
 
     try {
       return await circuitBreaker.execute(() =>
