@@ -238,11 +238,10 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </Link>
             </div>
 
-            {/* BUY-77662: when the live catalog returns nothing, render
-                config.fallbackProducts (curated editorial picks) so product cards
-                are always visible above the fold. Only show the empty-state message
-                when both live products AND fallback products are unavailable. */}
-            {products.length === 0 && !config.fallbackProducts?.length ? (
+            {/* BUY-79133: production never renders fallbackProducts (Product A–E).
+                Empty live fetch → honest empty state. Non-production may still show
+                curated fallbacks for local preview. */}
+            {products.length === 0 && (process.env.NODE_ENV === "production" || !config.fallbackProducts?.length) ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
                 <p className="text-slate-600">
                   Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
@@ -250,7 +249,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </div>
             ) : (
               <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {(products.length > 0 ? products : (config.fallbackProducts ?? [])).map((product) => (
+                {(products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).map((product) => (
                   // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
                   <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
                 ))}

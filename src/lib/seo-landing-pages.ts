@@ -1171,6 +1171,11 @@ function isTrustedFallbackProduct(product: LandingProduct) {
   );
 }
 
+/** BUY-79133: never splice editorial/synthetic cards onto a 200 OK production intent page. */
+export function allowSeoFallbackProducts(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 
 function withLiveProductDetailUrl(product: LandingProduct, country: string): LandingProduct {
   return { ...product, productUrl: buildProductDetailUrl(product, country) };
@@ -1318,7 +1323,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // BUY-73640: run the same hard geo merchant allowlist over curated fallback
   // products so a future editorial row cannot reintroduce a non-US merchant on
   // /best-*-us (or a non-SG merchant on /best-*-singapore).
-  const trustedFallback = filterProductsForCountry(config.fallbackProducts, allowlistCountry).filter(isTrustedFallbackProduct);
+  const trustedFallback = allowSeoFallbackProducts()
+    ? filterProductsForCountry(config.fallbackProducts, allowlistCountry).filter(isTrustedFallbackProduct)
+    : [];
   const fallback = await Promise.all(
     trustedFallback.map(async (fb) => {
       if (!fb.imageUrl) {
@@ -1658,7 +1665,9 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
   // rows whose merchant label contains disallowed merchant text (CompuMarts,
   // Arabic script, namshi, mumzworld, noon, sharafdg, carrefour).
   const allowlistCountry = config.country as CountryCode;
-  const schemaSource = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  const schemaSource = (products && products.length > 0
+    ? products
+    : (allowSeoFallbackProducts() ? config.fallbackProducts : [])) || [];
   const schemaProducts = schemaSource.filter((p) => {
     if (!p || !p.name) return false;
     if (!filterProductsForCountry([p], allowlistCountry).length) return false;
@@ -3098,7 +3107,8 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "US",
     currency: "USD",
     locale: "en_US",
-    searchQuery: "Headphones",
+    searchQuery: "headphones",
+    backupQueries: ["sony headphones", "bose headphones", "wireless headphones"],
     productSectionTitle: "Live Headphones offers across the US",
     comparisonSectionTitle: "Popular Headphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8580,7 +8590,8 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "US" as const,
     currency: "USD" as const,
     locale: "en_US" as const,
-    searchQuery: "Robot Vacuums",
+    searchQuery: "robot vacuum",
+    backupQueries: ["wyze robot vacuum", "roborock", "roomba"],
     productSectionTitle: "Live Robot Vacuums offers across the US",
     comparisonSectionTitle: "Popular Robot Vacuums picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10774,7 +10785,8 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "US" as const,
     currency: "USD" as const,
     locale: "en_US" as const,
-    searchQuery: "OLED TVs",
+    searchQuery: "oled tv",
+    backupQueries: ["lg oled", "sony oled", "oled television"],
     productSectionTitle: "Live OLED TVs offers across the US",
     comparisonSectionTitle: "Popular OLED TVs picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -13724,8 +13736,13 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
     const tsFallback = tsConfig.fallbackProducts;
     const jsonFallback = jsonConfig.fallbackProducts;
     const jsonHasItems = Array.isArray(jsonFallback) && jsonFallback.length > 0;
-    if (!jsonHasItems && Array.isArray(tsFallback) && tsFallback.length > 0) {
+    const tsHasTrusted = Array.isArray(tsFallback) && tsFallback.some((p) => p && !/\b(product|brand)\s+[a-e]\b/i.test(p.name || ""));
+    // BUY-79133: never inherit synthetic "Product A–E" editorial rows onto JSON
+    // intent pages. Those leak onto production 200s when live search is empty.
+    if (!jsonHasItems && tsHasTrusted) {
       merged[slug] = { ...merged[slug], fallbackProducts: tsFallback };
+    } else if (!jsonHasItems) {
+      merged[slug] = { ...merged[slug], fallbackProducts: [] };
     }
   }
   return merged;

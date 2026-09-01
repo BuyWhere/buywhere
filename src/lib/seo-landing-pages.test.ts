@@ -1507,23 +1507,40 @@ test("BUY-79032: getSeoLandingProducts must not send searchCategory as API categ
 // from the TS file. Without this, live-search variance leaves the page with
 // zero cards and the "currently unavailable" empty state. JSON-provided
 // items still win when present.
-test("BUY-78306 loader: JSON intent-page with empty fallbackProducts inherits TS fallbackProducts", () => {
+test("BUY-78306/BUY-79133 loader: JSON empty fallback does not inherit synthetic Product A–E rows", () => {
   const merged = seoLandingPages["best-wireless-earbuds-us"];
   assert.ok(merged, "best-wireless-earbuds-us must exist in the merged registry");
-  // The TS file ships 5 fallback products for best-wireless-earbuds-us; the
-  // JSON file ships 0 (writers iterate; some pages haven't filled the field
-  // yet). The merged config MUST have 5 because the loader inherits TS
-  // fallbackProducts when JSON's is empty.
+  const names = (merged.fallbackProducts ?? []).map((p) => p.name);
   assert.equal(
-    merged.fallbackProducts?.length,
-    5,
-    "merged fallbackProducts must inherit from TS when JSON ships an empty array"
+    names.some((n) => /\bProduct [A-E]\b/.test(n)),
+    false,
+    "must not inherit synthetic Product A–E fallbacks onto production intent pages",
   );
-  assert.equal(
-    merged.fallbackProducts?.[0]?.id,
-    "f1",
-    "inherited fallback must be the curated editorial picks from the TS file"
+});
+
+test("BUY-79133: production must not splice fallbackProducts in getSeoLandingProducts", () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.ok(
+    source.includes("allowSeoFallbackProducts"),
+    "getSeoLandingProducts must gate fallbackProducts behind allowSeoFallbackProducts()",
   );
+  assert.ok(
+    source.includes('process.env.NODE_ENV !== "production"'),
+    "production must never splice fallbackProducts onto a 200 OK intent page",
+  );
+});
+
+test("BUY-79133: robot-vacuums/headphones/oled-tvs US queries are catalog-aligned", () => {
+  const robot = seoLandingPages["best-robot-vacuums-us"];
+  const headphones = seoLandingPages["best-headphones-us"];
+  const oled = seoLandingPages["best-oled-tvs-us"];
+  assert.match(robot.searchQuery.toLowerCase(), /robot\s+vacuum/);
+  assert.match(headphones.searchQuery.toLowerCase(), /headphone/);
+  assert.match(oled.searchQuery.toLowerCase(), /oled/);
+  const synthetic = /\bProduct [A-E]\b/;
+  for (const p of robot.fallbackProducts ?? []) {
+    assert.equal(synthetic.test(p.name), false, `robot fallback still synthetic: ${p.name}`);
+  }
 });
 
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {
