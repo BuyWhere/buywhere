@@ -1,0 +1,132 @@
+{
+  "slug": "best-ultrabooks-us",
+  "title": "Best Ultrabooks in the US (2026) — Live Prices, OLED Panels and What to Buy",
+  "description": "The best ultrabooks to buy in the United States right now: live prices from Amazon, Best Buy and B&H on ASUS Zenbook, Dell XPS-class, HP Spectre and LG Gram machines, with advice on OLED vs IPS, RAM soldered vs upgradable, and who should skip them for a MacBook Air.",
+  "heroEyebrow": "US ultrabook buying guide",
+  "heroTitle": "Best ultrabooks in the US (2026) — live price comparison",
+  "heroTitleTemplate": "Best ultrabooks in the US (2026) — from {floorPrice}",
+  "heroBody": "In the United States an ultrabook still means a thin Windows laptop you can carry every day: ASUS Zenbook OLED 14, leftover Dell XPS 13, HP Spectre convertibles, and LG Gram when stock exists. These are US-dollar prices sold into the United States. The category lost mindshare to MacBook Air, but it is the right pick if you need Windows, a touch OLED, or a numeric-adjacent 16-inch chassis under three pounds. This page pulls live listings from BuyWhere's catalog so you can see what Amazon, Best Buy and independent shops are charging today — including the used Spectre units that still surface in search.",
+  "canonicalPath": "/best-ultrabooks-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "Dell Latitude",
+  "backupQueries": [
+    "HP EliteBook",
+    "ASUS Zenbook",
+    "HP Spectre"
+  ],
+  "minPrice": 400,
+  "requiredProductTerms": [
+    "laptop",
+    "intel",
+    "core"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live US ultrabook prices",
+  "comparisonSectionTitle": "Ultrabook types US shoppers actually choose",
+  "comparisonColumns": [
+    "Type",
+    "Typical US models",
+    "What you gain",
+    "What you give up"
+  ],
+  "comparisonRows": [
+    {
+      "label": "OLED 14-inch daily driver",
+      "values": [
+        "ASUS Zenbook 14 OLED",
+        "Colour, thin chassis, decent speakers",
+        "Soldered RAM, PWM-sensitive eyes"
+      ]
+    },
+    {
+      "label": "Convertible",
+      "values": [
+        "HP Spectre x360 class",
+        "Tablet mode, stylus, 360 hinge",
+        "Heavier, worse thermals than a clamshell"
+      ]
+    },
+    {
+      "label": "Lightest Windows",
+      "values": [
+        "LG Gram when in stock",
+        "Sub-2.5 lb, huge battery claims",
+        "Flexy lids, slower GPUs, sparse US retail"
+      ]
+    },
+    {
+      "label": "Skip / adjacent",
+      "values": [
+        "Gaming 'thin' 14-inch RTX shells",
+        "Look thin, run hot, drain fast",
+        "Buy a real gaming 16-inch or a true ultrabook"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What changed for US ultrabook shoppers in 2026",
+  "highlights": [
+    {
+      "title": "Zenbook OLED is the in-stock default",
+      "body": "Dell's XPS 13 cadence has been uneven in US retail this year; ASUS Zenbook 14 OLED configs are what Amazon and Best Buy actually have. If you wanted XPS build quality, try the listing anyway, but do not wait on a restock calendar — Zenbook is the machine you can buy this week."
+    },
+    {
+      "title": "Soldered RAM is not optional to check",
+      "body": "Most 2026 ultrabooks solder 16 or 32 GB. Sixteen is enough for browser-plus-Office; it is tight if you keep Docker and a local IDE open. If the SKU is 16 GB soldered, you cannot fix it later. Pay for 32 GB now or pick a different chassis."
+    },
+    {
+      "title": "Used Spectre listings are mixed with current SKUs",
+      "body": "US search still returns refurbished HP Spectre x360 units next to new Zenbooks. A used 13th-gen Spectre can be a bargain if the battery cycle count is low. It is not an ultrabook you should treat as new warranty unless the seller says so."
+    },
+    {
+      "title": "MacBook Air is the honest alternative",
+      "body": "If you do not need Windows, /best-macbooks-us is often the quieter, longer-battery answer. Stay on this page when you need Win32, a touch OLED, or a work image that is not Apple."
+    }
+  ],
+  "adviceSectionTitle": "How to buy an ultrabook in the US without regret",
+  "advicePoints": [
+    "Decide Windows-or-not first. If the answer is 'I just browse and write', look at MacBook Air before you pay for a Zenbook.",
+    "Prefer Amazon sold-by-Amazon, Best Buy, and B&H. Grey imports may be other-region keyboards and missing US warranty.",
+    "Inspect RAM and SSD in the spec sheet, not the marketing title. '1 TB' in a title is sometimes a microSD bundle.",
+    "OLED is lovely; if you are PWM-sensitive or work in bright sun all day, an IPS Gram or a matte business ultrabook is kinder.",
+    "Skip any listing that is a docking station, sleeve, or Thunderbolt hub riding the Zenbook query."
+  ],
+  "faqSectionTitle": "Ultrabooks in the US — questions shoppers actually ask",
+  "faqs": [
+    {
+      "question": "What is the best ultrabook to buy in the US in 2026?",
+      "answer": "The in-stock answer is usually an ASUS Zenbook 14 OLED. HP Spectre convertibles suit stylus users. LG Gram is the weight play when a US shop has it. Check the live cards — availability moves weekly."
+    },
+    {
+      "question": "Is an ultrabook better than a MacBook Air in the United States?",
+      "answer": "Only if you need Windows, a touch screen, or specific Win32 software. For battery and fan noise, Air usually wins. Compare /best-macbooks-us before you checkout."
+    },
+    {
+      "question": "Can I upgrade RAM on a 2026 ultrabook?",
+      "answer": "Almost never. Treat RAM as permanent. Buy 32 GB if you compile, run VMs, or keep dozens of tabs plus Slack."
+    },
+    {
+      "question": "Should I buy a used HP Spectre instead of a new Zenbook?",
+      "answer": "Yes if the price gap is large, the battery is healthy, and you want a 360 hinge. No if you want a remaining manufacturer warranty measured in years rather than months."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-SG": "/best-ultrabooks-singapore"
+  },
+  "inboundLinks": [
+    "/best-business-laptops-us",
+    "/best-macbooks-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US ultrabook search is thinner than the MacBook aisle",
+    "body": "Windows ultrabooks in the United States are spread across ASUS, HP, Dell and LG with short SKU lives and frequent OLED-vs-IPS splits. Catalog search therefore returns docks and used Spectres next to current Zenbooks. This page is a live pull with a floor price so the cards are laptops, not Thunderbolt accessories."
+  },
+  "owner": "Wave",
+  "reviewer": "Fetch",
+  "queueRow": 220
+}
