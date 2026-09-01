@@ -8,6 +8,7 @@ import {
   getSeoLandingProducts,
   getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
+  isGenericAccessoryProduct,
   resolveHeroTitle,
   seoLandingPages,
   stripCountryTokens,
@@ -222,7 +223,7 @@ test("robot-vacuum landing page uses compact, unclipped product cards with compl
   assert.match(readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8"), /url\.hostname !== "elescat\.store"/);
 });
 
-test("non-robot landing pages retain the existing eight-result request size", async () => {
+test("BUY-79277: intent pages over-fetch 24 candidates so accessory demotion can fill 8 primaries", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   globalThis.fetch = async (input) => {
@@ -235,7 +236,7 @@ test("non-robot landing pages retain the existing eight-result request size", as
 
   try {
     await getSeoLandingProducts(seoLandingPages["best-noise-canceling-headphones-us"]);
-    assert.match(requestedUrl, /limit=8/);
+    assert.match(requestedUrl, /limit=24/);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1544,6 +1545,68 @@ test("BUY-79133: robot-vacuums/headphones/oled-tvs US queries are catalog-aligne
   for (const p of robot.fallbackProducts ?? []) {
     assert.equal(synthetic.test(p.name), false, `robot fallback still synthetic: ${p.name}`);
   }
+});
+
+test("BUY-79277: accessory demotion ranks earpads below primary headphones", () => {
+  const earpad = {
+    id: "1",
+    name: "Replacement Earpads for Bose QC25",
+    price: 12,
+    currency: "USD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/1.jpg",
+    href: "/r/direct/1",
+    brand: "Bose",
+    category: "Headphones",
+  } as LandingProduct;
+  const primary = {
+    id: "2",
+    name: "Sony WH-1000XM5 Wireless Headphones",
+    price: 348,
+    currency: "USD",
+    merchant: "Best Buy",
+    imageUrl: "https://images.example/2.jpg",
+    href: "/r/direct/2",
+    brand: "Sony",
+    category: "Headphones",
+  } as LandingProduct;
+  const spare = {
+    id: "3",
+    name: "MacBook Pro Repair Replacement Spare - Parts",
+    price: 89,
+    currency: "USD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/3.jpg",
+    href: "/r/direct/3",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+  const refurbished = {
+    id: "4",
+    name: "Refurbished MacBook Pro 14-inch M3",
+    price: 1299,
+    currency: "USD",
+    merchant: "Best Buy",
+    imageUrl: "https://images.example/4.jpg",
+    href: "/r/direct/4",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+
+  assert.equal(isGenericAccessoryProduct(earpad), true);
+  assert.equal(isGenericAccessoryProduct(primary), false);
+  assert.equal(isGenericAccessoryProduct(spare), true);
+  assert.equal(isGenericAccessoryProduct(refurbished), false);
+
+  const ordered = [earpad, primary, spare, refurbished].sort((a, b) =>
+    compareLandingCardOrder(a, b, undefined, findFloorPriceProductId([earpad, primary, spare, refurbished])),
+  );
+  assert.equal(ordered[0].id, "2", "cheapest accessory must not occupy slot 1 when a primary SKU exists");
+  assert.ok(!isGenericAccessoryProduct(ordered[0]));
+  const firstPrimaryIdx = ordered.findIndex((p) => !isGenericAccessoryProduct(p));
+  const firstAccessoryIdx = ordered.findIndex((p) => isGenericAccessoryProduct(p));
+  assert.ok(firstPrimaryIdx < firstAccessoryIdx, "all primaries must rank above accessories");
+  assert.equal(seoLandingPages["best-headphones-us"].excludeAccessories, true);
 });
 
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {

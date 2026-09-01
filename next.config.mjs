@@ -455,6 +455,13 @@ const nextConfig = {
       // BUY-79258: first-party PostHog reverse proxy. Client SDK posts to
       // /ingest/ph so EasyList / uBlock filters on us.i.posthog.com cannot
       // zero $pageview + product_card_click.
+      // BUY-79276: explicit trailing-slash sources — posthog-js uses /batch/ and
+      // /i/v0/e/. skipTrailingSlashRedirect is already true; middleware must
+      // also skip /ingest/ph (see src/middleware.ts) or Hikari 301s the POST.
+      {
+        source: '/ingest/ph/:path*/',
+        destination: 'https://us.i.posthog.com/:path*/',
+      },
       {
         source: '/ingest/ph/:path*',
         destination: 'https://us.i.posthog.com/:path*',
