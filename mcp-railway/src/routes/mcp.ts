@@ -161,29 +161,31 @@ async function searchProductsViaRestFallback(opts: {
     const products = rows.map((r) => {
       const price = r.price;
       const flattened: Record<string, unknown> = { ...r };
+      let rowCurrency = '';
       if (price && typeof price === 'object' && !Array.isArray(price)) {
         const p = price as { amount?: unknown; currency?: unknown };
         flattened.price = p.amount;
-        if (p.currency) flattened.currency = p.currency;
+        if (p.currency) {
+          rowCurrency = String(p.currency).toUpperCase();
+          flattened.currency = rowCurrency;
+        }
       }
       if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
       if (!flattened.source && r.merchant) flattened.source = r.merchant;
-      return buildProduct(flattened, opts.currency, opts.compact);
-    }).filter((p) => {
+      // BUY-79497: extract currency BEFORE buildProduct; buildProduct converts
+      // price.amount to a number (losing the nested price.currency), so we must
+      // capture rowCurrency while the original row is still accessible.
+      return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
+    }).filter((item) => {
       // BUY-79497: REST fallback can mix markets; drop currency/country leaks.
+      const p = item.product;
       if (expectedCc) {
         const cc = String(p.country_code || '').toUpperCase();
         if (cc && cc !== expectedCc) return false;
       }
-      if (expectedCur) {
-        const price = p.price as unknown;
-        const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
-          ? String((price as { currency?: string }).currency || '').toUpperCase()
-          : String((p as { currency?: string }).currency || '').toUpperCase();
-        if (cur !== expectedCur) return false;
-      }
+      if (expectedCur && item.rowCurrency && item.rowCurrency !== expectedCur) return false;
       return true;
-    });
+    }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
     return { products, total };
   } catch (err) {
