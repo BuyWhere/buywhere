@@ -152,6 +152,47 @@ async function searchProductsViaRestFallback(opts: {
   }
 }
 
+async function findBestPriceViaRestFallback(opts: {
+  productName: string;
+  country: string;
+  t0: number;
+}): Promise<{ best_price: Record<string, unknown> | null; alternatives: Record<string, unknown>[]; meta: Record<string, unknown> } | null> {
+  const restHits = await searchProductsViaRestFallback({
+    q: opts.productName,
+    country: opts.country,
+    limit: 10,
+    offset: 0,
+    compact: true,
+    currency: COUNTRY_CURRENCY[opts.country] || 'SGD',
+  });
+  if (!restHits || restHits.products.length === 0) return null;
+  const data = restHits.products.map((p: any) => {
+    const offers = p.offers;
+    const amount = offers && typeof offers === 'object' ? (offers.lowPrice ?? offers.price ?? null) : null;
+    const curr = (offers && typeof offers === 'object' && offers.priceCurrency) || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
+    return {
+      id: p.sku || p['@id'] || p.id,
+      title: p.name || p.title,
+      price: { amount: amount != null ? Number(amount) : null, currency: curr },
+      merchant: p.brand?.name || p.seller || p.merchant || null,
+      url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
+      image_url: Array.isArray(p.image) ? p.image[0] : p.image,
+      country_code: opts.country,
+    };
+  });
+  return {
+    best_price: data[0] ?? null,
+    alternatives: data.slice(1),
+    meta: {
+      total: data.length,
+      country: opts.country,
+      response_time_ms: Date.now() - opts.t0,
+      fallback: 'rest_search',
+    },
+  };
+}
+
+
 // BUY-74597: fail soft before MCP clients hit their visible timeout. Mirror of
 // api/src/routes/mcp.ts — keeps degraded_kind semantics identical.
 type McpDegradedTool = 'search_products' | 'get_deals' | 'find_best_price';
@@ -1529,6 +1570,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const deviceFilter = buildDeviceFilter(searchName, country);
 
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
+    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
+      return restFbp;
+    }
     return buildMcpDegradedBestPriceResponse({
       productName,
       country,
@@ -1593,7 +1639,26 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // and the sort stays bounded (CANDIDATE_POOL).
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
-  const bestPriceClient = await acquireMcpClient();
+  let bestPriceClient: import('pg').PoolClient;
+  try {
+    bestPriceClient = await acquireMcpClient();
+  } catch (acquireErr) {
+    recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
+    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-74579: pool acquire failed — REST fallback n=${restFbp.meta.total}`);
+      return restFbp;
+    }
+    const degradedKind = classifyMcpDegradedKind(acquireErr);
+    return buildMcpDegradedBestPriceResponse({
+      productName,
+      country,
+      responseTimeMs: Date.now() - t0,
+      kind: degradedKind,
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
+  }
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
@@ -1659,7 +1724,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   } catch (err: any) {
     const degradedKind = classifyMcpDegradedKind(err);
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
-    console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
+    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
+      return restFbp;
+    }
     return buildMcpDegradedBestPriceResponse({
       productName,
       country,

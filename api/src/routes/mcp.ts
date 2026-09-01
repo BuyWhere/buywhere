@@ -109,6 +109,108 @@ async function acquireMcpClient() {
   }
 }
 
+// BUY-79260: when the catalog_search circuit is open (or pool acquire fails),
+// REST /v1/products/search on the same origin is independently healthy. Serve
+// hits from REST instead of returning an empty circuit_open envelope so Cart
+// probes and agent callers keep working while sakura conn ceiling recovers.
+const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
+const REST_SEARCH_BASE = (process.env.BUYWHERE_REST_BASE || 'https://api.buywhere.ai').replace(/\/$/, '');
+
+async function searchProductsViaRestFallback(opts: {
+  q: string;
+  country: string;
+  limit: number;
+  offset: number;
+  compact: boolean;
+  currency: string;
+}): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
+  if (!opts.q) return null;
+  const params = new URLSearchParams();
+  params.set('q', opts.q);
+  if (opts.country) params.set('country', opts.country);
+  params.set('limit', String(Math.min(Math.max(opts.limit, 1), 20)));
+  if (opts.offset) params.set('offset', String(opts.offset));
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+  try {
+    const res = await fetch(`${REST_SEARCH_BASE}/v1/products/search?${params.toString()}`, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: ac.signal,
+    });
+    if (!res.ok) return null;
+    const body = await res.json() as {
+      products?: Record<string, unknown>[];
+      data?: Record<string, unknown>[];
+      results?: Record<string, unknown>[];
+      meta?: { total?: number };
+      total?: number;
+    };
+    const rows = body.products || body.results || body.data || [];
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const products = rows.map((r) => {
+      const price = r.price;
+      const flattened: Record<string, unknown> = { ...r };
+      if (price && typeof price === 'object' && !Array.isArray(price)) {
+        const p = price as { amount?: unknown; currency?: unknown };
+        flattened.price = p.amount;
+        if (p.currency) flattened.currency = p.currency;
+      }
+      if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
+      if (!flattened.source && r.merchant) flattened.source = r.merchant;
+      return buildProduct(flattened, opts.currency, opts.compact);
+    });
+    const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
+    return { products, total };
+  } catch (err) {
+    console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function findBestPriceViaRestFallback(opts: {
+  productName: string;
+  country: string;
+  t0: number;
+}): Promise<{ best_price: Record<string, unknown> | null; alternatives: Record<string, unknown>[]; meta: Record<string, unknown> } | null> {
+  const restHits = await searchProductsViaRestFallback({
+    q: opts.productName,
+    country: opts.country,
+    limit: 10,
+    offset: 0,
+    compact: true,
+    currency: COUNTRY_CURRENCY[opts.country] || 'SGD',
+  });
+  if (!restHits || restHits.products.length === 0) return null;
+  const data = restHits.products.map((p: any) => {
+    const offers = p.offers;
+    const amount = offers && typeof offers === 'object' ? (offers.lowPrice ?? offers.price ?? null) : null;
+    const curr = (offers && typeof offers === 'object' && offers.priceCurrency) || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
+    return {
+      id: p.sku || p['@id'] || p.id,
+      title: p.name || p.title,
+      price: { amount: amount != null ? Number(amount) : null, currency: curr },
+      merchant: p.brand?.name || p.seller || p.merchant || null,
+      url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
+      image_url: Array.isArray(p.image) ? p.image[0] : p.image,
+      country_code: opts.country,
+    };
+  });
+  return {
+    best_price: data[0] ?? null,
+    alternatives: data.slice(1),
+    meta: {
+      total: data.length,
+      country: opts.country,
+      response_time_ms: Date.now() - opts.t0,
+      fallback: 'rest_search',
+    },
+  };
+}
+
+
 // BUY-74597: fail soft before MCP clients hit their visible timeout. Keep the
 // contract centralized so FBP/get_deals/search_products do not regress to opaque
 // -32603s or empty success envelopes when catalog lookup degrades.
@@ -1816,6 +1918,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
+    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
+      return restFbp;
+    }
     return buildMcpDegradedBestPriceResponse({
       productName,
       country,
@@ -1952,7 +2059,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     const degradedKind = classifyMcpDegradedKind(e);
     console.warn(`[find_best_price] catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
-    console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+    console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
+    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
+      return restFbp;
+    }
     return buildMcpDegradedBestPriceResponse({
       productName,
       country,
