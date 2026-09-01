@@ -451,9 +451,27 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
   const imageUrl = item.image_url || item.image || null;
   const rawMerchantSlug = item.merchant || item.source || null;
+  const productId = String(item.id);
+  // BUY-79241: priced catalog rows always have a constructible /r/direct/{id}.
+  // Prefer the API affiliate URL when present; otherwise mint the crawlable
+  // redirect so SSR does not drop live OLED/headphones hits with href="#".
+  const catalogRedirect = /^\d+$/.test(productId) ? `/r/direct/${productId}` : null;
+  const href = normalizeExternalHref(
+    item.affiliate_redirect_url,
+    item.click_url,
+    item.affiliate_url,
+    item.buy_url,
+    item.product_url,
+    item.url,
+    catalogRedirect,
+  );
+  const affiliateUrl =
+    normalizeExternalHref(item.affiliate_redirect_url) !== "#"
+      ? normalizeExternalHref(item.affiliate_redirect_url)
+      : catalogRedirect;
 
   return {
-    id: String(item.id),
+    id: productId,
     name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
@@ -478,16 +496,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
           item.name || null,
           item.category || null,
         ),
-    href: normalizeExternalHref(
-      item.affiliate_redirect_url,
-      item.click_url,
-      item.affiliate_url,
-      item.buy_url,
-      item.product_url,
-      item.url,
-    ),
-    // BUY-76340: add affiliateUrl for ProductGridCard to use as primary link
-    affiliateUrl: normalizeExternalHref(item.affiliate_redirect_url),
+    href,
+    // BUY-76340 / BUY-79241: ProductGridCard prefers affiliateUrl for /r/direct.
+    affiliateUrl,
     brand: item.brand || null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
@@ -1475,6 +1486,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const probeResults = await Promise.all(
     collected.map(async (product) => {
       if (!product.imageUrl) return false;
+      if (product.imageUrl.startsWith("data:image/svg+xml")) return true;
       // BUY-63507: chain the reachable probe with a content-shape probe. A 200
       // OK on a 1:1 product photo with heavy white margins renders as a
       // "blank/white" card under our aspect-[4/3] + object-cover layout. The
@@ -1491,6 +1503,27 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     } else {
       console.warn(
         `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      );
+    }
+  }
+
+  // BUY-79241: priced live hits with a constructible /r/direct/{id} MUST render.
+  // Image-probe failure used to drop the entire card (OLED US: 7 live TVs → 0
+  // /r/). Prefer a branded SVG over emptying the snapshot when we'd fall below
+  // 3 crawlable cards.
+  const MIN_LIVE_CARDS = 3;
+  if (verified.length < MIN_LIVE_CARDS) {
+    for (let i = 0; i < collected.length && verified.length < MIN_LIVE_CARDS; i++) {
+      if (probeResults[i]) continue;
+      const product = collected[i];
+      const constructibleRedirect = Boolean(product.id) && product.price !== null;
+      if (!constructibleRedirect) continue;
+      verified.push({
+        ...product,
+        imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
+      });
+      console.warn(
+        `[seo] BUY-79241 keeping priced product ${product.id} on ${config.slug} with SVG after image-probe fail`,
       );
     }
   }
@@ -3107,8 +3140,10 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "US",
     currency: "USD",
     locale: "en_US",
-    searchQuery: "headphones",
-    backupQueries: ["sony headphones", "bose headphones", "wireless headphones"],
+    // BUY-79241: plural `headphones` is a 0-hit on US FTS until stemming ships.
+    // Singular matches 9 live rows; keep ANC query as first backup.
+    searchQuery: "headphone",
+    backupQueries: ["noise cancelling headphones", "sony headphones", "bose headphones", "wireless headphones"],
     productSectionTitle: "Live Headphones offers across the US",
     comparisonSectionTitle: "Popular Headphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3160,7 +3195,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     shopperCta: {
       title: "Compare Headphones prices across the US",
       body: "Find the lowest Headphones prices across Amazon, Best Buy, Walmart, and Target with live BuyWhere search.",
-      href: "/search?q=headphones&country=us",
+      href: "/search?q=headphone&country=us",
       label: "Shop Headphones",
     },
     developerCta: {

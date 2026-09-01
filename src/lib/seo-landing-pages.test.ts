@@ -1535,8 +1535,11 @@ test("BUY-79133: robot-vacuums/headphones/oled-tvs US queries are catalog-aligne
   const headphones = seoLandingPages["best-headphones-us"];
   const oled = seoLandingPages["best-oled-tvs-us"];
   assert.match(robot.searchQuery.toLowerCase(), /robot\s+vacuum/);
-  assert.match(headphones.searchQuery.toLowerCase(), /headphone/);
+  assert.equal(headphones.searchQuery.toLowerCase(), "headphone");
+  assert.equal(headphones.backupQueries?.[0]?.toLowerCase(), "noise cancelling headphones");
   assert.match(oled.searchQuery.toLowerCase(), /oled/);
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.ok(source.includes("BUY-79241 keeping priced product"), "image-probe fail must keep priced /r/direct cards with SVG");
   const synthetic = /\bProduct [A-E]\b/;
   for (const p of robot.fallbackProducts ?? []) {
     assert.equal(synthetic.test(p.name), false, `robot fallback still synthetic: ${p.name}`);
