@@ -287,7 +287,6 @@ function inferMerchantLabelFromUrls(urls: Array<string | null | undefined>): str
 
 function formatMerchantName(value?: string | null) {
   if (!value) return "BuyWhere seller";
-}
   // BUY-66324: strip internal tenant/database suffixes before title-casing so
   // upstream values like "shopify_buy30620_stock" or "BUY30590 RETAILER
   // BESTBUY" don't leak raw ingest IDs into the product cards, comparison
