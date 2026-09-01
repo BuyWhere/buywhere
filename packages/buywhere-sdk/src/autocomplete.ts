@@ -55,12 +55,23 @@ export class AutocompleteClient {
       params.set('currency', options.currency);
     }
 
-    const response = await this.client.request<{ items: AutocompleteSuggestion[] }>(
-      `/api/v1/search?${params.toString()}`
-    );
+    // No dedicated /v1/autocomplete or /api/v1/search endpoint exists on prod (all 404).
+    // Reuse the main search endpoint and map the results to autocomplete shape.
+    const response = await this.client.request<{ results: Array<{
+      id: string; title: string; price: { amount: number | null; currency: string };
+      merchant: string; image_url: string | null; metadata?: Record<string, unknown> | null;
+    }> }>(`/v1/products/search?${params.toString()}`);
 
     return {
-      items: response.items || [],
+      items: (response.results ?? []).map((p) => ({
+        id: typeof p.id === 'string' ? parseInt(p.id, 10) : p.id,
+        name: p.title,
+        price: p.price?.amount ?? null,
+        currency: p.price?.currency ?? 'SGD',
+        source: p.merchant,
+        brand: (p.metadata as Record<string, unknown> | null | undefined)?.brand as string | null ?? null,
+        image_url: p.image_url,
+      })),
       query,
     };
   }
