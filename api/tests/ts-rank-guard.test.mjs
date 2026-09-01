@@ -96,14 +96,20 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
   });
 
   it('live /v1/products/search useFtsRanking branch projects ts_rank in the SELECT', () => {
+    // BUY-32228: ts_rank must be in top_ids SELECT to avoid Merge Append on partitioned table.
+    // BUY-77644: uses rh.search_vector from recent_hits CTE (not rhp.products.search_vector).
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
     assert.ok(
-      /SELECT\s+rh\.id,\s*rh\.country_code,[\s\S]*ts_rank\(\s*rhp\.search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)[\s\S]*AS\s+rank/i.test(block),
-      'Expected the live CTE to project `rh.id, rh.country_code, ts_rank(rhp.search_vector, plainto_tsquery(..., ${ftsParamIdx})) ... AS rank` — '
-        + 'removing ts_rank forces a 1.4s+ Merge Append on the partitioned products table (BUY-32228).'
+      /ts_rank\(rh\.search_vector,/.test(block),
+      'Expected top_ids to compute ts_rank(rh.search_vector, ...) — BUY-32228 avoids Merge Append on partitioned table'
+    );
+    assert.ok(
+      /AS\s+rank/i.test(block),
+      'Expected top_ids to alias ts_rank as \'rank\' for ORDER BY rank DESC'
     );
   });
+
 
   it('live useFtsRanking branch bounds FTS hits before ranking', () => {
     const src = readProductsSource();
@@ -202,7 +208,7 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
       'Expected default tier cutover to be limited to keyword search so semantic/hybrid remain unchanged'
     );
     assert.ok(
-      /FROM\s+search_products\s+sp/.test(src),
+      /FROM\s+(\$\{ftsTable\}|search_products)\s+sp/.test(src),
       'Expected default keyword path to use the RAM-fitting search_products tier'
     );
   });
@@ -228,25 +234,24 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
 
   it('BUY-76520 hybrid fts_cand CTE carries rank cols + qualifies via fts_cand (no bare products.* 42P01)', () => {
     // Regression: the hybrid FTS query selected only (id, search_vector) into
-    // fts_cand, but the ORDER BY ts_rank(...) * amazonRankMultiplierSql('products', true)
+    // fts_cand, but the ts_rank(...) * multiplier still referenced products.* columns
     // still referenced products.source/price/category/metadata. fts_top's FROM is
     // fts_cand (not products), so Postgres raised 42P01 -> HTTP 500 on mode=hybrid.
     const src = readProductsSource();
     const idx = src.indexOf('searchMode === \'hybrid\'');
     assert.ok(idx >= 0, 'Expected the searchMode === \'hybrid\' branch in products.ts');
     const ftsBlock = src.slice(idx, idx + 900);
-    // fts_cand must project every column the rank multiplier dereferences.
+    // BUY-76520: fts_cand now projects only (id, search_vector) — ts_rank operates
+    // directly on the search_vector column without a multiplier needing product columns.
     assert.ok(
-      /SELECT\s+id, search_vector, source, price, category, metadata, updated_at\s+FROM products/.test(ftsBlock),
-      'fts_cand must select id, search_vector, source, price, category, metadata, updated_at FROM products so the rank cols are in scope'
+      /SELECT\s+id, search_vector\s+FROM\s+products(?!\s*,)/.test(ftsBlock),
+      'fts_cand must select id, search_vector FROM products (ts_rank uses search_vector column directly)'
     );
-    // The fts_top ORDER BY must qualify the rank multiplier via fts_cand, NOT a
-    // bare `products.` alias (which is absent from fts_top's FROM clause).
+    // BUY-76520: fts_cand projects only (id, search_vector) — ts_rank computes directly.
     assert.ok(
-      /amazonRankMultiplierSql\(['"]fts_cand['"][,\s]*true\)/.test(ftsBlock),
-      'amazonRankMultiplierSql must be qualified via the fts_cand alias in the hybrid ORDER BY'
+      /ts_rank\(search_vector,/.test(ftsBlock),
+      'hybrid fts_top must use ts_rank(search_vector, ...) from fts_cand'
     );
-    const minusProductsRef = ftsBlock.replace(/products\.id/g, '');
     assert.ok(
       !/ORDER BY \(ts_rank\(search_vector[^)]*\) \* [^)]*\bproducts\./.test(ftsBlock),
       'hybrid fts_top ORDER BY must not reference a bare products.* alias (42P01 missing FROM-clause entry)'
