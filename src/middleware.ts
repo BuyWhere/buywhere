@@ -820,16 +820,28 @@ export async function middleware(request: NextRequest) {
         url.searchParams.set("slug", slug);
         return tagAgent(NextResponse.redirect(url, 302));
       }
+      // BUY-78751: catalog error on a known slug must never be CDN-cached
+      // (live defect was s-maxage=900 on "Brand Not Found" HTML).
+      if (!apiRes.ok) {
+        const response = NextResponse.next();
+        response.headers.set("Cache-Control", "private, no-store");
+        response.headers.set("x-robots-tag", "noindex, noarchive");
+        response.headers.set("Retry-After", "120");
+        return withBaselineSecurityHeaders(request, response);
+      }
       // For 429 (rate limit), 500 (transient backend error), 401 (missing key),
       // or any other non-404 non-OK status: fall through to let the page handler
       // render the brand page (which has its own error handling).
       // Previously this caught ALL non-OK responses including 429, which broke
       // brand pages when the API was rate-limiting (BUY-78382).
     } catch {
-      // BUY-75133: probe failure OR timeout — the brand API may be slow or
-      // unreachable. Fall through to let the page handler render the brand
-      // page with its own error handling (503 UI for transient failures).
-      // The 3s AbortSignal fires before the 30s hang on placeholder slugs.
+      // BUY-75133 / BUY-78751: probe failure OR timeout — do not CDN-cache
+      // the error HTML the page will render.
+      const response = NextResponse.next();
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("x-robots-tag", "noindex, noarchive");
+      response.headers.set("Retry-After", "120");
+      return withBaselineSecurityHeaders(request, response);
     }
   }
 

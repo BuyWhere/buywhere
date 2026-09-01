@@ -1,7 +1,10 @@
 import { notFound } from 'next/navigation';
+import { unstable_noStore as noStore } from 'next/cache';
 import { apiBase, apiHeaders } from "@/lib/server-api";
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BrandCatalogError } from '@/components/brands/BrandCatalogError';
+import { brandCatalogErrorMetadata } from '@/lib/brand-catalog-error';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -44,40 +47,8 @@ async function getBrandData(slug: string): Promise<BrandData> {
   return res.json();
 }
 
-/**
- * Build a JSX error response for transient backend failures.
- *
- * NOTE: Server Components in Next.js App Router CANNOT return raw Response
- * objects (class instances are not serializable across the RSC boundary).
- * This function returns JSX that renders a user-facing 503 page.
- *
- * BUY-75495 introduced `new Response(message, {status:503})` here which
- * caused HTTP 500 on every /brands/{slug} URL ("Only plain objects, and a
- * few built-ins, can be passed to Client Components from Server Components.
- * Classes or null prototypes are not supported."). Returning JSX fixes
- * the serialization error. The HTTP status defaults to 200; ISR
- * revalidation (every 900 s) will render the real page once the backend
- * recovers, which is the correct behavior for a transient failure.
- */
-function TransientErrorUI({ slug }: { slug: string }) {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">
-          Temporarily Unavailable
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Brand &ldquo;{slug}&rdquo; data is temporarily unavailable because
-          the catalog backend returned an error. Please try again in a few
-          minutes.
-        </p>
-        <Link href="/brands" className="text-blue-600 hover:underline">
-          Browse other brands
-        </Link>
-      </div>
-    </main>
-  );
-}
+// BUY-75495: do not return `new Response(..., {status:503})` from this Server
+// Component — RSC serialization 500. BUY-78751: 200 + noindex + no-store instead.
 
 function buildJsonLd(data: BrandData) {
   return {
@@ -118,8 +89,9 @@ export default async function BrandsBrandPage({ params }: PageProps) {
   } catch {
     // Transient backend failure (5xx, timeout, network) → error page.
     // NEVER 404 on transient errors: a 404 tells Google to drop the URL.
-    // Returns JSX (not a raw Response) to avoid RSC serialization 500.
-    return <TransientErrorUI slug={slug} />;
+    // BUY-78751: skip ISR cache so CDN cannot pin error HTML for 900s.
+    noStore();
+    return <BrandCatalogError slug={slug} />;
   }
 
   if (!brand) {
@@ -237,12 +209,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     brand = await getBrandData(slug);
   } catch {
-    // Transient error during metadata generation → use generic title
-    // (page component will serve 503; metadata is best-effort)
+    // Transient catalog error: never title "Brand Not Found" (BUY-78751).
+    return brandCatalogErrorMetadata(slug);
   }
 
   if (!brand) {
-    return { title: 'Brand Not Found' };
+    return { title: 'Brand Not Found', robots: { index: false, follow: false } };
   }
 
   return {

@@ -1,7 +1,10 @@
 import { notFound } from 'next/navigation';
+import { unstable_noStore as noStore } from 'next/cache';
 import { apiBase, apiHeaders } from "@/lib/server-api";
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BrandCatalogError } from '@/components/brands/BrandCatalogError';
+import { brandCatalogErrorMetadata } from '@/lib/brand-catalog-error';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -39,29 +42,7 @@ async function getBrandData(slug: string): Promise<BrandData> {
   };
 }
 
-/**
- * BUY-75495 regression fix: Server Components cannot return raw Response
- * objects (class instances break RSC serialization). Return JSX instead.
- */
-function TransientErrorUI({ slug }: { slug: string }) {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">
-          Temporarily Unavailable
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Brand &ldquo;{slug}&rdquo; deals are temporarily unavailable because
-          the catalog backend returned an error. Please try again in a few
-          minutes.
-        </p>
-        <Link href={`/brands/${slug}`} className="text-blue-600 hover:underline">
-          Back to {slug} brand page
-        </Link>
-      </div>
-    </main>
-  );
-}
+// BUY-78751: shared catalog-error UI (never "Brand Not Found").
 
 export default async function BrandsBrandDealsPage({ params }: PageProps) {
   const { slug } = await params;
@@ -71,7 +52,8 @@ export default async function BrandsBrandDealsPage({ params }: PageProps) {
   } catch {
     // Transient backend failure (5xx, timeout, network) → error page.
     // NEVER 404 on transient errors: a 404 tells Google to drop the URL.
-    return <TransientErrorUI slug={slug} />;
+    noStore();
+    return <BrandCatalogError slug={slug} />;
   }
 
   if (!brand) {
@@ -145,11 +127,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     brand = await getBrandData(slug);
   } catch {
-    // Transient error during metadata generation → use generic title
+    return brandCatalogErrorMetadata(slug);
   }
 
   if (!brand) {
-    return { title: 'Brand Deals Not Found' };
+    return { title: 'Brand Deals Not Found', robots: { index: false, follow: false } };
   }
 
   return {
