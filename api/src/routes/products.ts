@@ -2555,7 +2555,8 @@ router.get(
   queryLogMiddleware('products.featured'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
-    const rawCountry = (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
+    // BUY-79536: accept market= as alias for country_code= (same priority as country=, before country_code=)
+    const rawCountry = (req.query.market as string | undefined) || (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
     const countryCode = rawCountry?.toUpperCase() || 'SG';
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
     const limit = Math.min(parseInt((req.query.limit as string) || '12'), 50);
