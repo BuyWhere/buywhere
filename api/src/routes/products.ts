@@ -315,7 +315,10 @@ async function tryTierSearch(
   let i = 1;
   const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
   const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
-  if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; } // hotfix: currency restricts recall only when price-filtering
+  // BUY-79497: always filter by currency when one is available, even without price bounds.
+  // The tier path previously only filtered currency when price bounds were present,
+  // allowing USD rows to leak into SG results for broad queries.
+  if (p.currency) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   // Child partition already scoped to country; extra country_code predicate
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
