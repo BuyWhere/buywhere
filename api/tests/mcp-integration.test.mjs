@@ -65,6 +65,12 @@ function defaultQueryHandler(sql, params) {
       rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 }), makeProduct('2', { title: 'Office Laptop', price: 899 })],
     });
   }
+  // FTS query (keyword/semantic/hybrid): uses "cand AS" CTE + ts_rank, SELECTs category_path
+  if (typeof sql === 'string' && sql.includes('cand AS') && sql.includes('ts_rank')) {
+    return Promise.resolve({
+      rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 }), makeProduct('2', { title: 'Office Laptop', price: 899 })],
+    });
+  }
   if (typeof sql === 'string' && sql.includes('category_path')) {
     return Promise.resolve({ rows: [{ slug: 'electronics', name: 'Electronics', product_count: '150' }] });
   }
