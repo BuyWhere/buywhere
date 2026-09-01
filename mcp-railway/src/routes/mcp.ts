@@ -1057,22 +1057,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const useDiscountCol = true;
   
 
+  // BUY-79200: search_products + idx_sp_disc, not the 382M products parent.
   const conditions: string[] = [
-    `currency = $1`,
     `price > 0`,
-    `is_active = true`,
+    `discount_pct >= $1`,
   ];
-  if (useDiscountCol) {
-    conditions.push(`discount_pct >= $2`);
-  } else {
-    // Guard: only consider rows where original_price is a valid numeric string.
-    // Matches the partial index predicate on idx_products_deals_country/region.
-    conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
-    conditions.push(`(metadata->>'original_price')::numeric > price`);
-    conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
+  const params: unknown[] = [minDiscount];
+  if (currency) {
+    params.push(currency);
+    conditions.push(`currency = $${params.length}`);
   }
-  const params: unknown[] = [currency, minDiscount];
-
   if (region) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
@@ -1109,38 +1103,21 @@ async function handleGetDeals(args: Record<string, unknown>) {
   try {
     dealsClient = await acquireMcpClient();
     await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
-    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    // BUY-69340 + BUY-69646 merged (2026-08-15): walk the deals index IN ORDER
-    // (currency, discount_pct DESC) so the response is the TRUE top discounts —
-    // the unordered 10K candidate walk could miss the best deals entirely and
-    // shipped 10K full rows (metadata jsonb) to Node per call (27-30s observed
-    // under replica load). The ordered walk early-stops at candidateLimit
-    // PASSING rows (same worst case as the unordered walk when filters are
-    // selective), candidates are id-thin, and full rows join only for the
-    // returned page. updated_at tiebreak preserved in SQL.
-    // BUY-77834 fix: widen the candidate walk when a category filter is present —
-    // the post-fetch filter only sees the candidate set.
-    const candidateLimit = categoryLower ? 20000 : 2000;
+    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
+    const candidateLimit = 200;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
-      `WITH cand AS (
-         SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
-         FROM products
-         WHERE ${whereClause}
-         ORDER BY discount_pct DESC
-         LIMIT $${candidateParams.length}
-       )
-       SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+      `SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
               p.price,
-              CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-              p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
-              p.url_last_checked_at, p.url_status,
+              NULL::numeric AS original_price,
+              p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
+              NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, p.category_path
-       FROM cand JOIN products p ON p.id = cand.id
-       ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
-       LIMIT ${categoryLower ? 1000 : limit} OFFSET ${categoryLower ? 0 : offset}`,
+              p.category, NULL::text[] AS category_path
+       FROM search_products p
+       WHERE ${whereClause}
+       ORDER BY p.discount_pct DESC, p.updated_at DESC
+       LIMIT $${candidateParams.length}`,
       candidateParams
     );
     total = dataResult.rows.length;
@@ -1447,7 +1424,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     });
   }
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  const CANDIDATE_POOL = Math.max(limit * 5, 50); // BUY-79200: 500-row heap walk on 78GB search_products blows the 3.5s wall
 
   // BUY-72082: Tier search via search_products partitioned table (97M rows,
   // GIN-indexed, country-partitioned) instead of the 368M-row products table.
@@ -1481,10 +1458,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // table has a GIN index on search_vector and (post-BUY-77453 DDL) a btree on (id)
   // — the full query answers in ~15ms.
   const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-  const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(requestedCountry);
-  const tierTable = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'search_products';
-  const tbl = useChildTable ? `products_partitioned_${requestedCountry.toLowerCase()}` : 'products';
-  if (!useChildTable && country) {
+  // BUY-79200: always search_products + idx_sp_fts_<cc> bitmap (see enable_indexscan=off).
+  const useChildTable = false;
+  const tierTable = 'search_products';
+  const tbl = 'search_products';
+  if (country) {
     tierParams.push(country);
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
@@ -1504,31 +1482,38 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
-    await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan; without this, planner picks seq scan on SG partition (largest) and times out at 25s
-    tierParams.push(CANDIDATE_POOL, limit);
-    result = await bestPriceClient.query(
-      `WITH cand AS (
-         SELECT sp.id, sp.price, sp.updated_at, sp.title,
-                ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
-         FROM ${tierTable} sp ${tierWhere}
-         LIMIT $${tierParams.length - 1}
-       ), page_ids AS (
-         SELECT id, price, updated_at, rk
-         FROM cand
-         ORDER BY (CASE WHEN title ~* '(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)' THEN 1 ELSE 0 END) ASC,
-                  rk DESC NULLS LAST,
-                  (CASE WHEN price BETWEEN 5 AND 10000 THEN price END) ASC NULLS LAST,
-                  updated_at DESC
-         LIMIT $${tierParams.length}
-       )
-       SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, NULL::text[] AS category_path, NULL::jsonb AS metadata,
-              NULL::timestamptz AS url_last_checked_at, 'ok'::text AS url_status
-       FROM page_ids pi
-       JOIN ${tbl} p ON p.id = pi.id
-       ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
-      tierParams
+    await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan
+    await bestPriceClient.query('SET enable_indexscan = off'); // BUY-79200: Bitmap Index Scan on idx_sp_fts_<cc>
+    const candParams = [...tierParams, CANDIDATE_POOL];
+    const candResult = await bestPriceClient.query(
+      `SELECT sp.id, sp.price, sp.updated_at, sp.title, sp.currency, sp.source, sp.url, sp.image_url, sp.country_code, sp.category,
+              ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rk
+       FROM ${tierTable} sp ${tierWhere}
+       LIMIT $${candParams.length}`,
+      candParams,
     );
+    await bestPriceClient.query('SET enable_indexscan = on');
+    await bestPriceClient.query('SET enable_seqscan = on');
+    const accRe = /(replacement|repair|ear ?pad|earpad|cushion|protector|charger|cable|adapter|strap|skin|decal|sticker|holder|mount|assembly)/i;
+    const ranked = (candResult.rows as Record<string, unknown>[]).sort((a, b) => {
+      const aAcc = accRe.test(String(a.title || '')) ? 1 : 0;
+      const bAcc = accRe.test(String(b.title || '')) ? 1 : 0;
+      if (aAcc !== bAcc) return aAcc - bAcc;
+      const rk = Number(b.rk || 0) - Number(a.rk || 0);
+      if (rk !== 0) return rk;
+      const ap = Number(a.price); const bp = Number(b.price);
+      const aIn = ap >= 5 && ap <= 10000 ? ap : Number.POSITIVE_INFINITY;
+      const bIn = bp >= 5 && bp <= 10000 ? bp : Number.POSITIVE_INFINITY;
+      if (aIn !== bIn) return aIn - bIn;
+      return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+    }).slice(0, limit);
+    result = {
+      rows: ranked.map((r) => ({
+        id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
+        url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
+        category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
+      })),
+    };
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
@@ -1538,9 +1523,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       result = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM ${tbl}
-           WHERE is_active = true AND price > 0
+                  country_code, updated_at, category, NULL::text[] AS category_path, NULL::jsonb AS metadata
+           FROM search_products
+           WHERE price > 0
              AND country_code = $1
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
            ORDER BY updated_at DESC
