@@ -126,8 +126,14 @@ async function searchProductsViaRestFallback(opts: {
     // api.buywhere.ai from inside Railway often 403s/times out (CF) and
     // never exercises the healthy REST handler. PORT is the listen port.
     const headers: Record<string, string> = { accept: 'application/json' };
-    const incomingKey = typeof opts.apiKey === 'string' ? opts.apiKey : '';
-    if (incomingKey) headers['x-api-key'] = incomingKey;
+    const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
+      || process.env.BUYWHERE_INTERNAL_API_KEY
+      || process.env.BUYWHERE_API_KEY
+      || '';
+    if (incomingKey) {
+      headers['x-api-key'] = incomingKey.replace(/^Bearer\s+/i, '');
+      headers['authorization'] = incomingKey.startsWith('Bearer ') ? incomingKey : `Bearer ${incomingKey}`;
+    }
     // Prefer the dedicated buywhere-api service (separate PG pool). Loopback
     // on this process shares the saturated mcp-server pool and fails the same
     // way. Public api.buywhere.ai from Railway often 403s via Cloudflare.
