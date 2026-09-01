@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { REFERER_GATED_HOSTS } from "@/lib/hotlink-hosts";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 interface ProductGridImageProps {
@@ -151,6 +152,17 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   );
 }
 
+function isRefererGatedImage(src: string): boolean {
+  try {
+    const url = src.startsWith("/api/image-proxy")
+      ? new URL(new URL(src, "https://buywhere.example").searchParams.get("url") || "")
+      : new URL(src);
+    return REFERER_GATED_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function ProductGridImage({ src, alt, brand, merchant, category, className }: ProductGridImageProps) {
   const [hasError, setHasError] = useState(false);
 
@@ -163,6 +175,8 @@ export function ProductGridImage({ src, alt, brand, merchant, category, classNam
   // loading flash where the background gradient (or empty box) is rendered
   // before the image resolves — QA saw this as "static noise/wireframe" on
   // /best-gaming-laptops-us and /air-purifier-singapore.
+  const referrerPolicy = isRefererGatedImage(src) ? "no-referrer" : "no-referrer-when-downgrade";
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -170,7 +184,7 @@ export function ProductGridImage({ src, alt, brand, merchant, category, classNam
       alt={alt}
       loading="lazy"
       decoding="async"
-      referrerPolicy="no-referrer-when-downgrade"
+      referrerPolicy={referrerPolicy}
       className={className ?? "h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"}
       onError={() => setHasError(true)}
     />

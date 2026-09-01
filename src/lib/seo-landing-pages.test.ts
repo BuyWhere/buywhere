@@ -210,7 +210,8 @@ test("robot-vacuum landing page uses compact, unclipped product cards with compl
   const cardSource = readFileSync(new URL("../components/seo/ProductGridCard.tsx", import.meta.url), "utf8");
   const imageSource = readFileSync(new URL("../components/seo/ProductGridImage.tsx", import.meta.url), "utf8");
 
-  assert.match(pageSource, /config\.compactCatalogCards \? "grid gap-4 lg:grid-cols-2"/);
+  assert.match(pageSource, /config\.compactCatalogCards \? "grid gap-4 sm:grid-cols-2"/);
+  assert.match(pageSource, /grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4/);
   assert.match(pageSource, /config\.compactCatalogCards \? "py-6"/);
   assert.match(pageSource, /<ProductGridCard[^>]+compact=\{config\.compactCatalogCards\}/);
   assert.doesNotMatch(cardSource, /className="group[^"\n]*overflow-hidden/);
@@ -219,7 +220,7 @@ test("robot-vacuum landing page uses compact, unclipped product cards with compl
   assert.match(cardSource, /Buy at \{product\.merchant\}/);
   assert.match(imageSource, /onError=\{\(\) => setHasError\(true\)\}/);
   assert.match(imageSource, /if \(hasError \|\| !src\)/);
-  assert.match(readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8"), /url\.hostname !== "elescat\.store"/);
+  assert.match(readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8"), /\.hostname.*\.elescat\.store/);
 });
 
 test("non-robot landing pages retain the existing eight-result request size", async () => {
@@ -1261,6 +1262,72 @@ test("verifyReachableImage rejects 200-OK HTML error pages (BUY-69736)", async (
   try {
     const reachable = await verifyReachableImage("https://cdn.example.com/files/real.jpg");
     assert.equal(reachable, true, "HTTP 200 image/jpeg must be treated as reachable");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// BUY-70558 / BUY-70340: c1.neweggimages.com is Akamai Referer-gated.
+// The SSR HEAD probe can see HTTP 400 even when a browser image load with
+// no referrer succeeds. Keep that host out of the branded-SVG false-positive
+// path and route it through the image proxy instead.
+test("verifyReachableImage trusts Newegg referer-gated image URLs despite probe 400 (BUY-70558)", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    return new Response("AkamaiGHost", {
+      status: 400,
+      headers: { "content-type": "text/html" },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const reachable = await verifyReachableImage("https://c1.neweggimages.com/ProductImageCompressAll1280/example.jpg");
+    assert.equal(reachable, true, "referer-gated Newegg host must bypass the SSR probe false negative");
+    assert.equal(fetchCalls, 0, "referer-gated host should not be probed at SSR");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Newegg referer-gated fallback products keep proxy image URLs instead of SVG placeholders (BUY-70558)", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("AkamaiGHost", {
+      status: 400,
+      headers: { "content-type": "text/html" },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const products = await getSeoLandingProducts({
+      ...seoLandingPages["best-gaming-laptops-us"],
+      fallbackProducts: [
+        {
+          id: "newegg-referer-gated",
+          name: "Newegg Gaming Laptop",
+          price: 1299,
+          currency: "USD",
+          merchant: "Newegg",
+          imageUrl: "https://c1.neweggimages.com/ProductImageCompressAll1280/example.jpg",
+          href: "/search?q=newegg+gaming+laptop&country=us",
+          brand: "Newegg",
+          category: "Gaming Laptops",
+        },
+      ],
+    });
+
+    assert.equal(products.length, 1);
+    assert.match(products[0].imageUrl || "", /^\/api\/image-proxy\?url=/);
+    assert.doesNotMatch(products[0].imageUrl || "", /^data:image\/svg\+xml/);
   } finally {
     globalThis.fetch = originalFetch;
   }
