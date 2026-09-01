@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, ProductPrice, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -14,6 +14,41 @@ export const CURRENCY_RATES: Record<string, number> = {
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
+
+// BUY-69998: Map ISO country codes to the coarse region labels agents expect
+// (sea/us/global). Without this, mcp-railway search responses surfaced
+// `country_code=US` rows tagged with `region=sg`, contradicting the FE/agent
+// contract that branch on `region` to pick fulfillment logic. The downstream
+// SQL filter remains on country_code; this is purely a response-shape fix.
+export const PRICE_SENTINEL_MIN = 10;
+export const PRICE_UNAVAILABLE_TEXT =
+  'see merchant (price unavailable in catalog) — click through to confirm';
+
+export function isSentinelPrice(amount: unknown): boolean {
+  return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
+}
+
+export function formatPriceField(amount: number | null, currency: string) {
+  if (isSentinelPrice(amount)) {
+    return PRICE_UNAVAILABLE_TEXT;
+  }
+  return { amount: amount as number, currency };
+}
+
+export function formatSimilarPriceField(
+  amount: number | null,
+  currency: string,
+) {
+  return formatPriceField(amount, currency);
+}
+
+export function regionForCountry(countryCode: string | null | undefined): string | null {
+  const cc = (countryCode || '').toUpperCase();
+  if (!cc) return null;
+  // BUY-69998: region is the lowercase ISO market, matching country_code.
+  // Coarse labels like leftover `sg` shards must not contradict US/VN rows.
+  return cc.toLowerCase();
+}
 
 export function buildProduct(
   row: Record<string, unknown>,
@@ -51,12 +86,24 @@ export function buildProduct(
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: { amount, currency },
+    price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
     normalized_price_usd,
     merchant,
     url: destinationUrl,
     image_url: (row.image_url as string) || null,
-    region: (row.region as string) || null,
+    // BUY-69998: derive region from country_code when the row is missing or
+    // contradictory (mcp-railway used to surface `region=sg` on US rows,
+    // confusing FE fulfilment logic). Keep the row's own region when present
+    // AND consistent with the country_code; otherwise replace it.
+    region: (() => {
+      const rawRegion = (row.region as string) || null;
+      const cc = ((row.country_code as string) || '').toUpperCase();
+      const expected = regionForCountry(cc);
+      if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
+        return expected ?? rawRegion;
+      }
+      return rawRegion;
+    })(),
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
     // BUY-75368: A2 weekly-report needs url_last_checked_at + url_status on
