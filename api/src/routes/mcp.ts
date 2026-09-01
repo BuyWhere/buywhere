@@ -176,23 +176,15 @@ async function searchProductsViaRestFallback(opts: {
 }
 
 function aliasSearchEnvelope(resp: ReturnType<typeof buildSearchResponse>) {
-  const r = resp as ReturnType<typeof buildSearchResponse> & {
-    products?: unknown;
-    data?: unknown;
-    items?: unknown;
-    meta?: Record<string, unknown>;
-  };
-  const list = r.results || [];
+  const r = resp as any;
+  const list = r.results || r.products || [];
   r.products = list;
   r.data = list;
   r.items = list;
+  r.results = list;
   r.meta = {
     ...(r.meta || {}),
-    total: r.total,
-    limit: r.page?.limit,
-    offset: r.page?.offset,
-    response_time_ms: r.response_time_ms,
-    cached: r.cached,
+    total: r.meta?.total ?? list.length,
     fallback: 'rest_search',
   };
   return r;
