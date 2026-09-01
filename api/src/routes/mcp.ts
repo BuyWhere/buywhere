@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID, createHash } from 'crypto';
 import type { PoolClient } from 'pg';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, PORT } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -114,7 +114,6 @@ async function acquireMcpClient() {
 // hits from REST instead of returning an empty circuit_open envelope so Cart
 // probes and agent callers keep working while sakura conn ceiling recovers.
 const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
-const REST_SEARCH_BASE = (process.env.BUYWHERE_REST_BASE || 'https://api.buywhere.ai').replace(/\/$/, '');
 
 async function searchProductsViaRestFallback(opts: {
   q: string;
@@ -123,6 +122,7 @@ async function searchProductsViaRestFallback(opts: {
   offset: number;
   compact: boolean;
   currency: string;
+  apiKey?: string;
 }): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
   if (!opts.q) return null;
   const params = new URLSearchParams();
@@ -133,11 +133,16 @@ async function searchProductsViaRestFallback(opts: {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
   try {
-    const res = await fetch(`${REST_SEARCH_BASE}/v1/products/search?${params.toString()}`, {
+    const headers: Record<string, string> = { accept: 'application/json' };
+    if (opts.apiKey) headers['x-api-key'] = opts.apiKey;
+    // Loopback on this process: public api.buywhere.ai from Railway often 403s
+    // via Cloudflare, and mcp-server's pool is the one that's saturated.
+    const httpRes = await fetch(`http://127.0.0.1:${PORT}/v1/products/search?${params.toString()}`, {
       method: 'GET',
-      headers: { accept: 'application/json' },
+      headers,
       signal: ac.signal,
     });
+    const res = httpRes;
     if (!res.ok) return null;
     const body = await res.json() as {
       products?: Record<string, unknown>[];
@@ -168,6 +173,29 @@ async function searchProductsViaRestFallback(opts: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function aliasSearchEnvelope(resp: ReturnType<typeof buildSearchResponse>) {
+  const r = resp as ReturnType<typeof buildSearchResponse> & {
+    products?: unknown;
+    data?: unknown;
+    items?: unknown;
+    meta?: Record<string, unknown>;
+  };
+  const list = r.results || [];
+  r.products = list;
+  r.data = list;
+  r.items = list;
+  r.meta = {
+    ...(r.meta || {}),
+    total: r.total,
+    limit: r.page?.limit,
+    offset: r.page?.offset,
+    response_time_ms: r.response_time_ms,
+    cached: r.cached,
+    fallback: 'rest_search',
+  };
+  return r;
 }
 
 async function findBestPriceViaRestFallback(opts: {
@@ -740,7 +768,20 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   let regionHasAnyDataProbe = true;
   let categoryHasAnyDataProbe = true;
 
+  const restFallbackOpts = {
+    q, country, limit, offset, compact, currency,
+    apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
+  };
+  const restFallbackPromise = q
+    ? searchProductsViaRestFallback(restFallbackOpts)
+    : Promise.resolve(null);
+
   if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
+    const restHits = await restFallbackPromise;
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+    }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
@@ -1276,6 +1317,11 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // 2026-08-29: log the actual error. Without it every failure looked like an
     // opaque "upstream_exception" and the agent surface returned 0 results silently.
     console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
+    const restHits = await restFallbackPromise;
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+    }
     return buildSearchResponse(
       [], 0, limit, offset, Date.now() - t0, false,
       true, undefined, country || null,
@@ -3340,6 +3386,10 @@ async function handleMcpAuthenticated(req: Request, res: Response): Promise<void
         res.locals.mcpToolName = toolName;
         _toolName = toolName;
         _toolArgs = toolArgs;
+        const inboundKey = (req.headers['x-api-key'] as string) || (req.headers['authorization'] as string) || '';
+        if (inboundKey && !toolArgs._mcpInboundApiKey) {
+          toolArgs._mcpInboundApiKey = inboundKey.replace(/^Bearer\s+/i, '');
+        }
         // BUY-73521: extract raw API key for funnel tracking (hashed, never stored raw)
         const rawApiKey = (req as unknown as { apiKeyRecord?: { key?: string } }).apiKeyRecord?.key;
         // BUY-73521: resolve shopping_job_id — client-supplied or server-minted.
