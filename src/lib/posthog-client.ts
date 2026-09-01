@@ -57,6 +57,7 @@ export function productCardClickProperties(input: {
 
   return {
     source: "product_card",
+    source_page: pathname,
     product_id: input.productId != null ? String(input.productId) : "",
     merchant_id: input.merchantId || "",
     affiliate_link_id: input.affiliateLinkId || "",
