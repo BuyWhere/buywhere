@@ -10,11 +10,12 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "Galaxy S25 vs iPhone 17",
+  "searchQuery": "iPhone 17",
   "backupQueries": [
-    "Samsung Galaxy S25 Apple iPhone 17 comparison",
-    "Galaxy S25 iPhone 17 price",
-    "Samsung S25 vs iPhone 17 specs"
+    "Samsung Galaxy S25",
+    "Galaxy S25",
+    "iPhone 17 Pro",
+    "Apple iPhone 17"
   ],
   "minPrice": 600,
   "requiredProductTerms": [

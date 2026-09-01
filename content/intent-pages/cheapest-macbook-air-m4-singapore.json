@@ -121,5 +121,6 @@
   ],
   "owner": "Buzz",
   "reviewer": "Fetch",
-  "queueRow": 57
+  "queueRow": 57,
+  "minPrice": 150
 }

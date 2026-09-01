@@ -1,11 +1,11 @@
 {
   "slug": "cheapest-airpods-pro-3-us",
-  "title": "Cheapest AirPods Pro 3 in the US (2026) \u2014 Live Prices Compared",
+  "title": "Cheapest AirPods Pro 3 in the US (2026) — Live Prices Compared",
   "description": "Where the AirPods Pro 3 is cheapest in the US right now: live prices from Amazon, Best Buy, Walmart, Target and B&H, with advice on MagSafe vs USB-C, local-set vs import, and how to stack Apple Card financing.",
   "heroEyebrow": "US AirPods Pro 3 price guide",
-  "heroTitle": "Cheapest AirPods Pro 3 in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest AirPods Pro 3 in the US (2026) \u2014 from {floorPrice} today",
-  "heroBody": "The AirPods Pro 3 launched with the H3 chip, stronger active noise cancellation and heart-rate sensing. In the US, the cheapest AirPods Pro 3 listing usually comes from Amazon or a marketplace seller, but the safest deal is a Best Buy, Walmart, Target or B&H listing that ships with the full Apple one-year warranty. Listings also differ on the case variant \u2014 the MagSafe case and the USB-C case are priced separately at most US retailers \u2014 and the discount between them is small enough that the wrong case can quietly undo the saving. This page pulls live AirPods Pro 3 prices from BuyWhere's catalog every few minutes so you can see the current US floor and decide which listing is the right one to buy.",
+  "heroTitle": "Cheapest AirPods Pro 3 in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Cheapest AirPods Pro 3 in the US (2026) — from {floorPrice} today",
+  "heroBody": "The AirPods Pro 3 launched with the H3 chip, stronger active noise cancellation and heart-rate sensing. In the US, the cheapest AirPods Pro 3 listing usually comes from Amazon or a marketplace seller, but the safest deal is a Best Buy, Walmart, Target or B&H listing that ships with the full Apple one-year warranty. Listings also differ on the case variant — the MagSafe case and the USB-C case are priced separately at most US retailers — and the discount between them is small enough that the wrong case can quietly undo the saving. This page pulls live AirPods Pro 3 prices from BuyWhere's catalog every few minutes so you can see the current US floor and decide which listing is the right one to buy.",
   "canonicalPath": "/cheapest-airpods-pro-3-us",
   "country": "US",
   "currency": "USD",
@@ -28,7 +28,7 @@
   "datePublished": "2026-08-26",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live AirPods Pro 3 prices in the US",
-  "comparisonSectionTitle": "Where the AirPods Pro 3 is cheapest \u2014 at a glance",
+  "comparisonSectionTitle": "Where the AirPods Pro 3 is cheapest — at a glance",
   "comparisonColumns": [
     "Seller type",
     "Typical price vs list",
@@ -63,7 +63,7 @@
     {
       "label": "B&H / Adorama",
       "values": [
-        "Often 1\u20133% under Apple",
+        "Often 1–3% under Apple",
         "1-year Apple US",
         "No sales tax outside NY/NJ on most items"
       ]
@@ -96,16 +96,16 @@
   "advicePoints": [
     "Decide on case variant first: MagSafe or plain USB-C. The cheapest AirPods Pro 3 listing is often the USB-C version, so do not pay MagSafe money for a plain listing.",
     "Prefer 'sold and shipped by Amazon' or in-store pickup at Best Buy, Walmart or Target over an unbranded marketplace seller. You keep the full one-year Apple warranty and AppleCare+ eligibility.",
-    "Compare with B&H and Adorama if you live outside New York or New Jersey \u2014 they usually do not collect sales tax, which often beats a small Amazon discount.",
+    "Compare with B&H and Adorama if you live outside New York or New Jersey — they usually do not collect sales tax, which often beats a small Amazon discount.",
     "Time the purchase to a back-to-school or Black Friday window if you can wait. Apple typically discounts AirPods Pro 3 by a modest amount during the September event and again for the holidays.",
     "If you already own the AirPods Pro 2 and you mostly use them at a desk, the upgrade is hard to justify. The Pro 2 is on clearance at Walmart and Amazon for noticeably less, and it is still an excellent earbud.",
-    "Avoid listings priced well below the market floor without reviews \u2014 they are usually refurbished, opened-box, or bait-and-switch to a different listing on landing."
+    "Avoid listings priced well below the market floor without reviews — they are usually refurbished, opened-box, or bait-and-switch to a different listing on landing."
   ],
-  "faqSectionTitle": "AirPods Pro 3 in the US \u2014 common questions",
+  "faqSectionTitle": "AirPods Pro 3 in the US — common questions",
   "faqs": [
     {
       "question": "Which AirPods Pro 3 case should I buy in the US?",
-      "answer": "Buy the MagSafe case if you use Apple's MagSafe charger or want precision Find My on the case. Buy the plain USB-C case if you already own a MagSafe charger or do not care about wireless charging \u2014 it is usually a few dollars cheaper."
+      "answer": "Buy the MagSafe case if you use Apple's MagSafe charger or want precision Find My on the case. Buy the plain USB-C case if you already own a MagSafe charger or do not care about wireless charging — it is usually a few dollars cheaper."
     },
     {
       "question": "Do US marketplace AirPods Pro 3 come with Apple warranty?",
@@ -135,5 +135,6 @@
   },
   "owner": "Wave",
   "reviewer": "Hue",
-  "queueRow": 46
+  "queueRow": 46,
+  "minPrice": 39.9
 }

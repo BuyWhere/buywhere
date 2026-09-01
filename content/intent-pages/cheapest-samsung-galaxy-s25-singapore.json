@@ -126,5 +126,6 @@
   "owner": "Venture",
   "reviewer": "Fetch",
   "queueRow": 69,
-  "searchCategory": "smartphones"
+  "searchCategory": "smartphones",
+  "minPrice": 1198
 }

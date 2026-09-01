@@ -185,5 +185,6 @@
   },
   "owner": "Venture",
   "reviewer": "Fetch",
-  "queueRow": 59
+  "queueRow": 59,
+  "minPrice": 300
 }
