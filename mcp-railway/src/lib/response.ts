@@ -46,8 +46,8 @@ export function formatSimilarPriceField(
 export function regionForCountry(countryCode: string | null | undefined): string | null {
   const cc = (countryCode || '').toUpperCase();
   if (!cc) return null;
-  // BUY-69998: region is the lowercase ISO market, matching country_code.
-  // Coarse labels like leftover `sg` shards must not contradict US/VN rows.
+  if (cc === 'US' || cc === 'CA' || cc === 'MX') return 'us';
+  if (['SG','MY','TH','VN','PH','ID','GB','IN','AU'].includes(cc)) return 'sea';
   return cc.toLowerCase();
 }
 
@@ -100,11 +100,13 @@ export function buildProduct(
     // confusing FE fulfilment logic). Keep the row's own region when present
     // AND consistent with the country_code; otherwise replace it.
     region: (() => {
-      // BUY-79497: country_code is source of truth. Catalog often stores
-      // region='sea' on SG/MY rows; agents treat that as a leak vs ISO market.
+      const rawRegion = (row.region as string) || null;
       const cc = ((row.country_code as string) || '').toUpperCase();
       const expected = regionForCountry(cc);
-      return expected ?? ((row.region as string) || null);
+      if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
+        return expected ?? rawRegion;
+      }
+      return rawRegion;
     })(),
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
