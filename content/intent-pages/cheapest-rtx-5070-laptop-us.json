@@ -17,7 +17,6 @@
     "MSI RTX 5070 laptop",
     "Lenovo Legion RTX 5070"
   ],
-  "minPrice": 900,
   "requiredProductTerms": [
     "rtx 5070",
     "rtx",
