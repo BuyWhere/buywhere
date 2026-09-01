@@ -1180,7 +1180,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         // BUY-72082: Keyword (FTS) path via search_products tier.
         // Stage 1: bounded FTS + ranking on search_products (GIN-indexed, 97M rows).
         // Stage 2: full MCP output columns from products via PK lookup (≤200 rows).
-        const pageLimit = Math.min(limit + offset, 200);
+        const wantCurForFetch = (country && COUNTRY_CURRENCY[country] && useChildTable)
+          ? COUNTRY_CURRENCY[country]
+          : '';
+        const pageLimit = Math.min((limit + offset) * (wantCurForFetch ? 8 : 1), 200);
         const tierFts = await searchClient.query<Record<string, unknown>>(
           `WITH cand AS (
              SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
@@ -1358,6 +1361,23 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       if (!rowCat) return true; // keep unknown-category rows
       return rowCat.toLowerCase().includes(catLower);
     });
+  }
+
+  // BUY-79497: isolate requested market. Child-table FTS is country-partitioned
+  // but Shopify rows often carry the wrong currency (SG USD / US SGD). Drop
+  // mismatches including NULL currency so we do not fill the page with leaks.
+  if (country) {
+    const want = country.toUpperCase();
+    const wantCur = (COUNTRY_CURRENCY[want] || '').toUpperCase();
+    rows = (rows as Record<string, unknown>[]).filter(r => {
+      const cc = String(r.country_code || '').toUpperCase();
+      if (cc && cc !== want) return false;
+      if (wantCur) {
+        const cur = String(r.currency || '').toUpperCase();
+        if (cur !== wantCur) return false;
+      }
+      return true;
+    }).slice(0, limit);
   }
 
   const merchantMapForMcpSearch = await lookupMerchantMap(

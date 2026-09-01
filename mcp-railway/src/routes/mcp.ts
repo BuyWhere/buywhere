@@ -179,8 +179,8 @@ async function searchProductsViaRestFallback(opts: {
         const price = p.price as unknown;
         const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
           ? String((price as { currency?: string }).currency || '').toUpperCase()
-          : '';
-        if (cur && cur !== expectedCur) return false;
+          : String((p as { currency?: string }).currency || '').toUpperCase();
+        if (cur !== expectedCur) return false;
       }
       return true;
     });
@@ -1074,7 +1074,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       } else {
         // BUY-78767: Keyword FTS returns columns from search_products itself.
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
-        const pageLimit = Math.min(Math.max(limit + offset, 1), 20);
+        // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
+        // Shopify SG/US rows are often USD/SGD-mislabelled; LIMIT=page size would leak.
+        const wantCurForFetch = (country && COUNTRY_CURRENCY[country] && useChildTable)
+          ? COUNTRY_CURRENCY[country]
+          : '';
+        const pageLimit = Math.min(Math.max((limit + offset) * (wantCurForFetch ? 8 : 1), 1), 80);
         const tierFts = await searchClient.query<Record<string, unknown>>(
           `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
                   sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
@@ -1083,7 +1088,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
            LIMIT ${pageLimit}`,
           tierParams,
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
+        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + Math.max(limit * (wantCurForFetch ? 8 : 1), limit));
         total = tierFts.rows.length + offset;
       }
     } else {
@@ -1159,13 +1164,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     const want = country.toUpperCase();
     const wantCur = (COUNTRY_CURRENCY[want] || '').toUpperCase();
     rows = (rows as Record<string, unknown>[]).filter(r => {
-      if (String(r.country_code || '').toUpperCase() !== want) return false;
+      const cc = String(r.country_code || '').toUpperCase();
+      if (cc && cc !== want) return false;
       if (wantCur) {
         const cur = String(r.currency || '').toUpperCase();
-        if (cur && cur !== wantCur) return false;
+        if (cur !== wantCur) return false;
       }
       return true;
-    });
+    }).slice(0, limit);
   }
 
   const products = (rows as Record<string, unknown>[]).map(r =>
