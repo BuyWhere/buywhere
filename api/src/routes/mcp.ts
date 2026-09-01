@@ -704,7 +704,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       idParams.push(0);
       const idOffset = idParams.length;
       const idResult = await db.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
+        // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
+        `SELECT id, sku AS source, merchant_id AS domain, url, title,
                 price, currency, image_url, brand, mpn, gtin, category_path,
                 avg_rating AS rating, review_count, metadata, updated_at, region, country_code
          FROM products ${idWhere}
@@ -986,8 +987,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               detailParams.push(region);
               detailConditions.push(`region = $${detailParams.length}`);
             }
+            // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
             const detailResult = await searchClient.query(
-              `SELECT id, sku AS source, source AS domain, url, title,
+              `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
                       url_last_checked_at, url_status
                FROM products WHERE ${detailConditions.join(' AND ')}`,
@@ -1017,8 +1019,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
+            // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
             const detailResult = await searchClient.query(
-              `SELECT id, sku AS source, source AS domain, url, title,
+              `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
                FROM products WHERE id IN (${ph}) AND is_active = true`,
@@ -1039,11 +1042,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
              SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
                     sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
                     sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
+                    sp.merchant_id,
                     ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
              FROM ${ftsTable} sp ${tierWhere}
              LIMIT ${pageLimit}
            )
-           SELECT id, sku AS source, source AS domain, url, title, price, currency,
+           // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
+           SELECT id, sku AS source, merchant_id AS domain, url, title, price, currency,
                   image_url, metadata, updated_at, region, country_code, category,
                   category_path, url_last_checked_at, url_status, rank
            FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
@@ -1064,8 +1069,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
 
       const needsFilter = !!(country || region);
       const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+      // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
       const rawResult = await searchClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
+        `SELECT id, sku AS source, merchant_id AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 url_last_checked_at, url_status,
                 region, country_code
@@ -1270,8 +1276,9 @@ async function handleGetProduct(args: Record<string, unknown>, caller?: { apiKey
 
   let result;
   try {
+    // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
     result = await db.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
+      `SELECT id, sku AS source, merchant_id AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id = $1`,
@@ -1304,8 +1311,9 @@ async function handleCompareProducts(args: Record<string, unknown>, caller?: { a
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
+    // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
     result = await db.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
+      `SELECT id, sku AS source, merchant_id AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id IN (${placeholders})`,
@@ -1437,8 +1445,9 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // idx_sp_disc_* (created alongside this change) makes country filters index-only.
     const candidateLimit = categoryLower ? 200 : 200;
     const candidateParams = [...params, candidateLimit];
+    // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
     const dataResult = await dealsClient.query(
-      `SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+      `SELECT p.id, p.sku AS source, p.merchant_id AS domain, p.url, p.title,
               p.price,
               NULL::numeric AS original_price,
               p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
@@ -2472,8 +2481,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 3: fetch product details from main DB
   const nearIds = nearResult.rows.map(r => r.product_id);
   const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
+  // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
   const detailResult = await db.query(
-    `SELECT id, title, price, currency, source AS domain, url, image_url
+    `SELECT id, title, price, currency, merchant_id AS domain, url, image_url
      FROM products WHERE id IN (${ph}) AND is_active = true`,
     nearIds
   );
