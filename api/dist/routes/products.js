@@ -1410,12 +1410,18 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       ` : `
+        WITH empty_q_hits AS (
+          SELECT id
+          FROM products
+          ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+          ORDER BY products.id DESC
+          LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+        )
         SELECT ${joinedColumns}
-        FROM products
+        FROM empty_q_hits
+        JOIN products ON products.id = empty_q_hits.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
-        ORDER BY ${buildSortOrder()}
-        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+        ORDER BY products.id DESC
       `;
     }
     let client;
@@ -1775,6 +1781,21 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
             return;
         }
         client.release();
+        // BUY-79484: empty-q browse must never 500.
+        if (!q && !res.headersSent) {
+            res.status(200).json({
+                data: [],
+                meta: {
+                    total: 0,
+                    limit,
+                    offset,
+                    response_time_ms: Date.now() - requestStart,
+                    cached: false,
+                    degraded: true,
+                },
+            });
+            return;
+        }
         throw err;
     }
     client.release();

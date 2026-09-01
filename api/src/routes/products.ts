@@ -1429,12 +1429,18 @@ router.get(
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       ` : `
+        WITH empty_q_hits AS (
+          SELECT id
+          FROM products
+          ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+          ORDER BY products.id DESC
+          LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+        )
         SELECT ${joinedColumns}
-        FROM products
+        FROM empty_q_hits
+        JOIN products ON products.id = empty_q_hits.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
-        ORDER BY ${buildSortOrder()}
-        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+        ORDER BY products.id DESC
       `;
     }
 
@@ -1812,6 +1818,23 @@ router.get(
         return;
       }
       client.release();
+      // BUY-79484: empty-q browse must never 500. Statement timeout / planner
+      // surprises on the parent table still happen after the $0 keep-alive fix;
+      // return the same degraded envelope the handler-timeout path uses.
+      if (!q && !res.headersSent) {
+        res.status(200).json({
+          data: [],
+          meta: {
+            total: 0,
+            limit,
+            offset,
+            response_time_ms: Date.now() - requestStart,
+            cached: false,
+            degraded: true,
+          },
+        });
+        return;
+      }
       throw err;
     }
     client.release();
