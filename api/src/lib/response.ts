@@ -57,6 +57,21 @@ function normalizeImageUrl(imageUrl: unknown): string | null {
   return imageUrl;
 }
 
+
+// BUY-69998: derive coarse region labels from ISO country codes so API +
+// mcp-railway responses agree. The DB column `region` is unreliable: rows
+// occasionally land with `region=sg` and `country_code=US` (or vice versa)
+// when ingest runs across markets, contradicting FE fulfilment logic. Use
+// the country_code as the source of truth and only fall back to the stored
+// region when the country is unknown.
+export function regionForCountry(countryCode: string | null | undefined): string | null {
+  const cc = (countryCode || '').toUpperCase();
+  if (!cc) return null;
+  if (cc === 'US' || cc === 'CA' || cc === 'MX') return 'us';
+  if (['SG','MY','TH','VN','PH','ID','GB','IN','AU'].includes(cc)) return 'sea';
+  return null;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -99,7 +114,16 @@ export function buildProduct(
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
   const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
-  const destinationUrl = affiliateUrl ?? (row.url as string);
+
+  // BUY-67318: hide all buy-side fields when the probe worker has confirmed
+  // the listing is dead (HTTP 404/410 or other 4xx). The redirect handler
+  // (/r/direct/{id}) already returns 410 in this case; this serializer step
+  // prevents surfacing a buy button to that dead page from search/listings.
+  // We still emit `url_status: 'dead'` so consumers can distinguish "no link"
+  // (genuinely missing) from "link removed because dead" and surface a
+  // tombstone / "no longer available" UI.
+  const isUrlDead = (row.url_status as string | null | undefined) === 'dead';
+  const destinationUrl = isUrlDead ? null : (affiliateUrl ?? (row.url as string));
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
@@ -129,9 +153,18 @@ export function buildProduct(
     title: row.title as string,
     price: { amount: sanitizedAmount, currency },
     merchant,
-    url: destinationUrl,
+    url: destinationUrl as string | null,
     image_url: normalizeImageUrl(row.image_url),
-    region: (row.region as string) || null,
+    // BUY-69998: replace stored region when it disagrees with country_code.
+    region: (() => {
+      const rawRegion = (row.region as string) || null;
+      const cc = ((row.country_code as string) || '').toUpperCase();
+      const expected = regionForCountry(cc);
+      if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
+        return expected ?? rawRegion;
+      }
+      return rawRegion;
+    })(),
     country_code: (row.country_code as string) || null,
     category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
     updated_at: (row.updated_at as string) || null,
