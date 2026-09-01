@@ -100,13 +100,11 @@ export function buildProduct(
     // confusing FE fulfilment logic). Keep the row's own region when present
     // AND consistent with the country_code; otherwise replace it.
     region: (() => {
-      const rawRegion = (row.region as string) || null;
+      // BUY-79497: country_code is source of truth. Catalog often stores
+      // region='sea' on SG/MY rows; agents treat that as a leak vs ISO market.
       const cc = ((row.country_code as string) || '').toUpperCase();
       const expected = regionForCountry(cc);
-      if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
-        return expected ?? rawRegion;
-      }
-      return rawRegion;
+      return expected ?? ((row.region as string) || null);
     })(),
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,

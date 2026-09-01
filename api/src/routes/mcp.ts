@@ -208,9 +208,11 @@ async function findBestPriceViaRestFallback(opts: {
     const offers = p.offers;
     const amount = offers && typeof offers === 'object' ? (offers.lowPrice ?? offers.price ?? null) : null;
     const curr = (offers && typeof offers === 'object' && offers.priceCurrency) || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
+    const title = p.name || p.title;
     return {
       id: p.sku || p['@id'] || p.id,
-      title: p.name || p.title,
+      title,
+      name: title,
       price: { amount: amount != null ? Number(amount) : null, currency: curr },
       merchant: p.brand?.name || p.seller || p.merchant || null,
       url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
@@ -415,7 +417,6 @@ function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''):
   ).trim().toUpperCase();
   const regionCountry: Record<string, string> = {
     us: 'US',
-    sea: 'SG',
     sg: 'SG',
     my: 'MY',
     th: 'TH',
@@ -891,6 +892,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
   }
+  if (country && COUNTRY_CURRENCY[country]) {
+    params.push(COUNTRY_CURRENCY[country]);
+    conditions.push(`currency = $${params.length}`);
+  }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // BUY-72082: Tier search via search_products partitioned table (97M rows,
@@ -927,6 +932,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   if (country && !useChildTable) {
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
+  }
+  if (country && COUNTRY_CURRENCY[country]) {
+    tierParams.push(COUNTRY_CURRENCY[country]);
+    tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
   if (useChildTable) {
     tierConditions.push('sp.is_active = true');
@@ -1471,8 +1480,25 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
   const minDiscount = Number(args.min_discount) || 10;
   const market = normalizeMcpMarket(args);
-  const region = market.rawRegion;
+  const regionLower = String(market.rawRegion || '').toLowerCase();
+  const COARSE_DEAL_REGIONS = new Set(['sea', 'eu', 'au', 'global']);
   const effectiveCountry = market.country;
+  // BUY-79497: region=sea without a country is an unbounded offer_aggregation
+  // scan (~3.5s empty). Fail-fast unless we have a country to index on.
+  if (COARSE_DEAL_REGIONS.has(regionLower) && !effectiveCountry) {
+    const tLimit = Math.min(Number(args.limit) || 20, 100);
+    const tOffset = Number(args.offset) || 0;
+    return {
+      ...buildSearchResponse([], 0, tLimit, tOffset, Date.now() - t0, false),
+      unavailable: true,
+      emptiness_reason: 'region_unsupported',
+      meta: {
+        emptiness_reason: 'region_unsupported',
+        diagnostic: { requested_region: regionLower, hint: 'pass country_code=SG|US|MY|… or region=sg|us' },
+      },
+    };
+  }
+  const region = COARSE_DEAL_REGIONS.has(regionLower) ? '' : market.rawRegion;
   const currency = ((args.currency as string) || (effectiveCountry ? COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
@@ -1936,7 +1962,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
     (typeof args.country === 'string' && args.country.trim() !== '')
   );
-  const productName = ((args.product_name as string) || (args.q as string) || '').trim();
+  const productName = ((args.product_name as string) || (args.q as string) || (args.query as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name (or q) is required' };
 
   const market = normalizeMcpMarket(args, 'SG');
@@ -2230,6 +2256,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return {
       id: r.id,
       title: r.title,
+      name: r.title,
       price: { amount: price, currency: curr },
       normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
       merchant: r.domain as string,
@@ -3078,7 +3105,7 @@ function attachOutboundUrls(response: any): void {
 // query return the same session id, which is what an agent resuming a multi-merchant
 // shopping flow expects.
 async function attachShoppingJobId(response: any, args: Record<string, unknown>): Promise<void> {
-  const productName = String(args.product_name || args.q || '').trim();
+  const productName = String(args.product_name || args.q || args.query || '').trim();
   const deliverTo = String(args.deliver_to || '').trim().toUpperCase();
   const country = String(args.country_code || args.country || '').trim().toUpperCase();
   const sessionKey = productName && deliverTo

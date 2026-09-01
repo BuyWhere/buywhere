@@ -156,6 +156,8 @@ async function searchProductsViaRestFallback(opts: {
     };
     const rows = body.products || body.results || body.data || [];
     if (!Array.isArray(rows) || rows.length === 0) return null;
+    const expectedCc = (opts.country || '').toUpperCase();
+    const expectedCur = (opts.currency || '').toUpperCase();
     const products = rows.map((r) => {
       const price = r.price;
       const flattened: Record<string, unknown> = { ...r };
@@ -167,6 +169,20 @@ async function searchProductsViaRestFallback(opts: {
       if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
       if (!flattened.source && r.merchant) flattened.source = r.merchant;
       return buildProduct(flattened, opts.currency, opts.compact);
+    }).filter((p) => {
+      // BUY-79497: REST fallback can mix markets; drop currency/country leaks.
+      if (expectedCc) {
+        const cc = String(p.country_code || '').toUpperCase();
+        if (cc && cc !== expectedCc) return false;
+      }
+      if (expectedCur) {
+        const price = p.price as unknown;
+        const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
+          ? String((price as { currency?: string }).currency || '').toUpperCase()
+          : '';
+        if (cur && cur !== expectedCur) return false;
+      }
+      return true;
     });
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
     return { products, total };
@@ -231,6 +247,7 @@ async function findBestPriceViaRestFallback(opts: {
     return {
       id: p.id,
       title: p.title,
+      name: p.title,
       price: { amount, currency: curr },
       merchant: p.merchant,
       url: p.url,
@@ -776,6 +793,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
   }
+  if (country && COUNTRY_CURRENCY[country]) {
+    params.push(COUNTRY_CURRENCY[country]);
+    conditions.push(`currency = $${params.length}`);
+  }
   if (category) {
     params.push(`%${category}%`);
     conditions.push(`category ILIKE $${params.length}`);
@@ -820,6 +841,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   if (country && !useChildTable) {
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
+  }
+  if (country && COUNTRY_CURRENCY[country]) {
+    tierParams.push(COUNTRY_CURRENCY[country]);
+    tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
   if (useChildTable) {
     tierConditions.push('sp.is_active = true');
@@ -1232,8 +1257,22 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const regionArg = ((args.region as string) || '').toLowerCase();
   const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
-  const region = regionArg;
+  // BUY-79497: coarse region=sea has no country/currency — idx_sp_disc walk
+  // times out ~3.5s empty. Fail-fast with unavailable rather than a full scan.
+  const COARSE_DEAL_REGIONS = new Set(['sea', 'eu', 'au', 'global']);
+  const region = COARSE_DEAL_REGIONS.has(regionArg) ? '' : regionArg;
   const country = dealsCountry;
+  if (COARSE_DEAL_REGIONS.has(regionArg) && !country) {
+    return {
+      ...buildSearchResponse([], 0, Math.min(Number(args.limit) || 20, 100), Number(args.offset) || 0, Date.now() - t0, false),
+      unavailable: true,
+      emptiness_reason: 'region_unsupported',
+      meta: {
+        emptiness_reason: 'region_unsupported',
+        diagnostic: { requested_region: regionArg, hint: 'pass country_code=SG|US|MY|… or region=sg|us' },
+      },
+    };
+  }
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -1616,7 +1655,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
     (typeof args.country === 'string' && args.country.trim() !== '')
   );
-  const productName = ((args.product_name as string) || (args.q as string) || '').trim();
+  const productName = ((args.product_name as string) || (args.q as string) || (args.query as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
@@ -1850,6 +1889,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const data = candidates.map((r: Record<string, unknown>) => ({
     id: r.id,
     title: r.title,
+    name: r.title,
     price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
     normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
     merchant: r.domain as string,
@@ -2598,7 +2638,7 @@ function attachOutboundUrls(response: any): void {
 // Attach a shopping_job_id (UUID) to find_best_price_v2 responses. Deterministic v5 over
 // (product_name, deliver_to, country) so retries return the same id; randomUUID fallback.
 function attachShoppingJobId(response: any, args: Record<string, unknown>): void {
-  const productName = String(args.product_name || args.q || '').trim();
+  const productName = String(args.product_name || args.q || args.query || '').trim();
   const deliverTo = String(args.deliver_to || '').trim().toUpperCase();
   const country = String(args.country_code || args.country || '').trim().toUpperCase();
   const sessionKey = productName && deliverTo

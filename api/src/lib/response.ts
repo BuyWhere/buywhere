@@ -159,13 +159,10 @@ export function buildProduct(
     image_url: normalizeImageUrl(row.image_url),
     // BUY-69998: replace stored region when it disagrees with country_code.
     region: (() => {
-      const rawRegion = (row.region as string) || null;
+      // BUY-79497: country_code is source of truth (catalog region='sea' on SG).
       const cc = ((row.country_code as string) || '').toUpperCase();
       const expected = regionForCountry(cc);
-      if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
-        return expected ?? rawRegion;
-      }
-      return rawRegion;
+      return expected ?? ((row.region as string) || null);
     })(),
     country_code: (row.country_code as string) || null,
     category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
