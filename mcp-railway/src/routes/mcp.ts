@@ -958,7 +958,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // server caches the parse. Different param counts get different names.
   let _spQueryCounter = 0;
   function spQuery<T extends import('pg').QueryResultRow = any>(sql: string, values: unknown[], nameSuffix: string): Promise<import('pg').QueryResult<T>> {
-    return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}` });
+    // BUY-79598: include a per-acquire counter so pooled connections cannot
+    // reuse a prepared name from a previous checkout with a different param
+    // count (08P01 → api_error on macbook/nike).
+    _spQueryCounter += 1;
+    return searchClient.query<T>({ text: sql, values, name: `sp_${nameSuffix}_${_spQueryCounter}` });
   }
 
   try {
