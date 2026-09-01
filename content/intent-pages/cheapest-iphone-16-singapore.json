@@ -133,5 +133,6 @@
   },
   "owner": "Wave",
   "reviewer": "Fetch",
-  "queueRow": 51
+  "queueRow": 51,
+  "minPrice": 34.99
 }
