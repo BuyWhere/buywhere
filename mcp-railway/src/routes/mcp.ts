@@ -201,6 +201,24 @@ async function searchProductsViaRestFallback(opts: {
       return true;
     }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
+    if (products.length === 0 && rows.length > 0) {
+      // BUY-79598: REST market=macbook returns MDL/USD labelled rows with no
+      // country_code; dropping them left MCP with api_error while REST had hits.
+      return {
+        products: rows.slice(0, Math.max(opts.limit, 1)).map((r) => {
+          const price = r.price;
+          const flattened: Record<string, unknown> = { ...r };
+          if (price && typeof price === 'object' && !Array.isArray(price)) {
+            const p = price as { amount?: unknown; currency?: unknown };
+            flattened.price = p.amount;
+            if (p.currency) flattened.currency = p.currency;
+          }
+          if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
+          return buildProduct(flattened, opts.currency, opts.compact);
+        }),
+        total: Number(body.meta?.total ?? body.total ?? rows.length) || rows.length,
+      };
+    }
     return { products, total };
   } catch (err) {
     console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
@@ -1104,13 +1122,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           ? COUNTRY_CURRENCY[country].toUpperCase()
           : '';
         const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
-        const tierFts = await searchClient.query<Record<string, unknown>>(
+        const tierFts = await spQuery<Record<string, unknown>>(
           `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
                   sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
                   sp.category_path, sp.url_last_checked_at, sp.url_status
            FROM ${ftsTable} sp ${tierWhere}
            LIMIT ${pageLimit}`,
           tierParams,
+          `kwfts_${tierParams.length}_${pageLimit}`,
         );
         // BUY-79497: apply currency post-filter so cross-currency rows (USD Shopify in SG,
         // SGD rows in US) are dropped from the result set before pagination.
@@ -1127,13 +1146,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         if (wantCur && candidates.length === 0 && q) {
           const curParams = [...tierParams, wantCur];
           const curWhere = `${tierWhere} AND sp.currency = $${curParams.length}`;
-          const retry = await searchClient.query<Record<string, unknown>>(
+          const retry = await spQuery<Record<string, unknown>>(
             `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
                     sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
                     sp.category_path, sp.url_last_checked_at, sp.url_status
              FROM ${ftsTable} sp ${curWhere}
              LIMIT ${pageLimit}`,
             curParams,
+            `kwfts_cur_${curParams.length}_${pageLimit}`,
           );
           candidates = retry.rows as Record<string, unknown>[];
         }
