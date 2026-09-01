@@ -110,9 +110,24 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
-function buildRestNoMatchEmptiness(countryCode?: string | null) {
-  const requestedCountry = countryCode?.toUpperCase() || null;
-  const regionSupported = !requestedCountry || SUPPORTED_REGIONS.has(requestedCountry);
+function restDestinationPresent(countryCode?: string | null, deliverTo?: string | null): boolean {
+  // BUY-79591: diagnostic.deliver_to_present is the request-level fact that a
+  // buyer-market signal was passed (deliver_to / country / country_code / cc),
+  // not whether the engine used it as a hard filter. REST used to key this off
+  // countryCode only, so `?q=…&deliver_to=SG` returned meta.deliver_to="SG"
+  // with diagnostic.deliver_to_present=false.
+  return Boolean((countryCode && String(countryCode).trim()) || (deliverTo && String(deliverTo).trim()));
+}
+
+function restRegionCode(countryCode?: string | null, deliverTo?: string | null): string | null {
+  const cc = countryCode?.toUpperCase() || null;
+  const dt = deliverTo?.toUpperCase() || null;
+  return cc || dt;
+}
+
+function buildRestNoMatchEmptiness(countryCode?: string | null, deliverTo?: string | null) {
+  const regionCode = restRegionCode(countryCode, deliverTo);
+  const regionSupported = !regionCode || SUPPORTED_REGIONS.has(regionCode);
   return {
     emptiness_reason: regionSupported ? 'no_match' as const : 'region_unsupported' as const,
     confidence: regionSupported ? 'high' as const : 'low' as const,
@@ -121,22 +136,22 @@ function buildRestNoMatchEmptiness(countryCode?: string | null) {
       indexed_for_region: regionSupported,
       category_recognized: true,
       rate_limit_remaining: null,
-      deliver_to_present: Boolean(requestedCountry),
+      deliver_to_present: restDestinationPresent(countryCode, deliverTo),
     },
   };
 }
 
-function buildRestApiErrorEmptiness(countryCode?: string | null) {
-  const requestedCountry = countryCode?.toUpperCase() || null;
+function buildRestApiErrorEmptiness(countryCode?: string | null, deliverTo?: string | null) {
+  const regionCode = restRegionCode(countryCode, deliverTo);
   return {
     emptiness_reason: 'api_error' as const,
     confidence: 'low' as const,
     diagnostic: {
       engine_status: 'degraded' as const,
-      indexed_for_region: !requestedCountry || SUPPORTED_REGIONS.has(requestedCountry),
+      indexed_for_region: !regionCode || SUPPORTED_REGIONS.has(regionCode),
       category_recognized: true,
       rate_limit_remaining: null,
-      deliver_to_present: Boolean(requestedCountry),
+      deliver_to_present: restDestinationPresent(countryCode, deliverTo),
     },
   };
 }
@@ -233,7 +248,7 @@ async function tryIdentifierLookup(
     client.release();
 
     if (rows.length === 0) {
-      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode)) as unknown as Record<string, unknown>;
+      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -573,7 +588,7 @@ async function tryTierSearch(
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
       if (useChildTable) {
         if (res.headersSent) return true;
-        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode)) as unknown as Record<string, unknown>;
+        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
@@ -924,7 +939,7 @@ router.get(
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
-        const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode));
+        const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode, deliverTo));
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -1015,7 +1030,7 @@ router.get(
         parsed.response_time_ms = elapsed;
         const cachedProducts = parsed.products || parsed.results || parsed.data || [];
         if (Array.isArray(cachedProducts) && cachedProducts.length === 0 && parsed?.meta && !parsed.meta.emptiness_reason) {
-          Object.assign(parsed.meta, buildRestNoMatchEmptiness(countryCode));
+          Object.assign(parsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
         }
         recordProductViewsBulk({
           productIds: cachedProducts
@@ -1050,7 +1065,7 @@ router.get(
           semParsed.response_time_ms = Date.now() - requestStart;
           const semProducts = semParsed.products || semParsed.results || semParsed.data || [];
           if (Array.isArray(semProducts) && semProducts.length === 0 && semParsed?.meta && !semParsed.meta.emptiness_reason) {
-            Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode));
+            Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
           }
           res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
           res.set('X-Cache', 'HIT-SEMANTIC');
@@ -1832,7 +1847,7 @@ router.get(
         }
         client.release();
         if (!res.headersSent) {
-          res.status(200).json(buildSearchResponse([], 0, limit, offset, 0, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode)));
+          res.status(200).json(buildSearchResponse([], 0, limit, offset, 0, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode, deliverTo)));
         }
         return;
       }
@@ -1928,7 +1943,7 @@ router.get(
       undefined,
       hasMore ?? false,
       countryCode || null,
-      filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode) : null,
+      filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null,
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 

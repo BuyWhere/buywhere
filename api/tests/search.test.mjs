@@ -407,6 +407,42 @@ describe('NL search queries — response correctness', () => {
     assert.equal(hitBody.meta.emptiness_reason, undefined);
   });
 
+  it('BUY-79591: deliver_to param sets diagnostic.deliver_to_present even without country=', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const presentRes = await fetch(`http://localhost:${port}/v1/products/search?q=zzzznonexistentsku999xyz&deliver_to=SG`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const presentBody = await presentRes.json();
+    assert.equal(presentRes.status, 200);
+    assert.equal(presentBody.meta.deliver_to, 'SG');
+    assert.equal(presentBody.meta.diagnostic.deliver_to_present, true);
+    assert.notEqual(presentBody.meta.emptiness_reason, 'deliver_to_missing');
+
+    const omittedRes = await fetch(`http://localhost:${port}/v1/products/search?q=zzzznonexistentsku999xyz`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const omittedBody = await omittedRes.json();
+    assert.equal(omittedRes.status, 200);
+    assert.equal(omittedBody.meta.diagnostic.deliver_to_present, false);
+
+    const invalidRes = await fetch(`http://localhost:${port}/v1/products/search?q=zzzznonexistentsku999xyz&deliver_to=XX`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const invalidBody = await invalidRes.json();
+    assert.equal(invalidRes.status, 200);
+    assert.equal(invalidBody.meta.diagnostic.deliver_to_present, true);
+    assert.equal(invalidBody.meta.emptiness_reason, 'region_unsupported');
+  });
+
   it('supports pagination via limit and offset', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {
