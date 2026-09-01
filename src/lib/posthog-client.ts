@@ -81,4 +81,18 @@ export function captureProductCardClick(input: {
   const properties = productCardClickProperties(input);
   captureWhenReady("product_card_click", properties);
   captureWhenReady("affiliate_click", properties);
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  if (
+    path.includes("/cheapest") ||
+    path.includes("/best") ||
+    path.includes("/top") ||
+    path.includes("/review") ||
+    /\/(macbook|iphone|ipad|airpods|monitor|tv|laptop)/i.test(path)
+  ) {
+    captureWhenReady("intent_page_r_click", {
+      ...properties,
+      page_slug: path,
+      ts: new Date().toISOString(),
+    });
+  }
 }

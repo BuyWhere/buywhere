@@ -66,31 +66,56 @@ export interface AffiliateClickEvent {
   sessionId?: string | null;
 }
 
+function isIntentPagePath(pathname?: string | null, referrer?: string | null): boolean {
+  const candidates = [pathname || '', referrer || ''];
+  return candidates.some((p) => {
+    const path = p.replace(/^https?:\/\/[^/]+/i, '');
+    return (
+      path.includes('/cheapest') ||
+      path.includes('/best') ||
+      path.includes('/top') ||
+      path.includes('/review') ||
+      /\/(macbook|iphone|ipad|airpods|monitor|tv|laptop)/i.test(path)
+    );
+  });
+}
+
 export function trackAffiliateClick(event: AffiliateClickEvent): void {
   const ph = getClient();
   if (!ph) return;
+  const props = {
+    product_id: event.productId,
+    merchant_id: event.merchantId,
+    affiliate_link_id: event.affiliateLinkId,
+    source: event.source,
+    page_slug: event.pathname || null,
+    ts: new Date().toISOString(),
+    ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
+    ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
+    ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
+    ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
+    ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
+    // BUY-74988: $set ensures PostHog materializes source → mat_source so
+    // HogQL property-filtered queries (mat_source=NULL → 0 results) resolve.
+    $set: {
+      source: event.source,
+      ...(event.pathname ? { pathname: event.pathname } : {}),
+      ...(event.currentUrl ? { current_url: event.currentUrl } : {}),
+    },
+  };
   ph.capture({
     distinctId: event.apiKeyId || event.apiKey || 'anonymous',
     event: 'affiliate_click',
-    properties: {
-      product_id: event.productId,
-      merchant_id: event.merchantId,
-      affiliate_link_id: event.affiliateLinkId,
-      source: event.source,
-      ...(event.apiKeyId ? { api_key_id: event.apiKeyId } : {}),
-      ...(event.pathname ? { pathname: event.pathname, $pathname: event.pathname } : {}),
-      ...(event.currentUrl ? { current_url: event.currentUrl, $current_url: event.currentUrl } : {}),
-      ...(event.referrer ? { referrer: event.referrer, $referrer: event.referrer } : {}),
-      ...(event.sessionId ? { session_id: event.sessionId, $session_id: event.sessionId } : {}),
-      // BUY-74988: $set ensures PostHog materializes source → mat_source so
-      // HogQL property-filtered queries (mat_source=NULL → 0 results) resolve.
-      $set: {
-        source: event.source,
-        ...(event.pathname ? { pathname: event.pathname } : {}),
-        ...(event.currentUrl ? { current_url: event.currentUrl } : {}),
-      },
-    },
+    properties: props,
   });
+  // BUY-79342: dedicated intent-page event for P6.1 HogQL / v_ceo_kpis smoke.
+  if (isIntentPagePath(event.pathname, event.referrer)) {
+    ph.capture({
+      distinctId: event.apiKeyId || event.apiKey || 'anonymous',
+      event: 'intent_page_r_click',
+      properties: props,
+    });
+  }
 }
 
 export function trackRegistration(apiKey: string, agentName: string, signupChannel: string | null, utmSource: string | null): void {

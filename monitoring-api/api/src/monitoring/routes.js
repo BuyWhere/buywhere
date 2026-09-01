@@ -336,7 +336,8 @@ function registerRoutes(app, pool) {
                 mcp_v2_external_agent_calls_with_deliver_to_30d,
                 affiliate_click_intent_page_total_24h,
                 intent_page_r_link_density_avg_24h,
-                affiliate_redirect_success_rate_24h
+                affiliate_redirect_success_rate_24h,
+                affiliate_revenue_intent_page_total_24h_usd
            FROM monitoring.v_ceo_kpis`
       );
       const row = result.rows[0] || null;

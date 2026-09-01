@@ -73,6 +73,7 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           affiliate_click_intent_page_total_24h: '127',
           intent_page_r_link_density_avg_24h: '6.4000000000000000',
           affiliate_redirect_success_rate_24h: '0.987654',
+          affiliate_revenue_intent_page_total_24h_usd: '0.00',
         }],
       }),
     };
@@ -101,6 +102,7 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
     assert.equal(k.affiliate_click_intent_page_total_24h, '127');
     assert.equal(k.intent_page_r_link_density_avg_24h, '6.4000000000000000');
     assert.equal(k.affiliate_redirect_success_rate_24h, '0.987654');
+    assert.equal(k.affiliate_revenue_intent_page_total_24h_usd, '0.00');
 
     // Pre-existing fields preserved verbatim.
     assert.equal(k.silently_empty_rate_24h, '0.000000');
@@ -130,6 +132,7 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           affiliate_click_intent_page_total_24h: '0',
           intent_page_r_link_density_avg_24h: '0',
           affiliate_redirect_success_rate_24h: null,
+          affiliate_revenue_intent_page_total_24h_usd: '0.00',
         }],
       }),
     };
@@ -172,6 +175,7 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
           affiliate_click_intent_page_total_24h: '0',
           intent_page_r_link_density_avg_24h: '0',
           affiliate_redirect_success_rate_24h: null,
+          affiliate_revenue_intent_page_total_24h_usd: '0.00',
         }] };
       },
     };
@@ -196,6 +200,7 @@ describe('ceo_kpis route — BUY-75445 external-agent counter', () => {
       'affiliate_click_intent_page_total_24h',
       'intent_page_r_link_density_avg_24h',
       'affiliate_redirect_success_rate_24h',
+      'affiliate_revenue_intent_page_total_24h_usd',
     ]) {
       assert.ok(capturedSql.includes(col), `SQL missing column ${col}`);
     }
