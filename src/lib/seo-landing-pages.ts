@@ -1035,13 +1035,40 @@ const GENERIC_ACCESSORY_RE =
 // donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
 // "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
 const GENERIC_ACCESSORY_SUBSTRING_RE =
-  /\b(?:bagpack|backpack|bags?|mounts?|donor\s+board|logic\s+board|repair\s+replacement|spare|parts?)\b/i;
+  /\b(?:bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare|parts?)\b/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
 ): boolean {
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
   return GENERIC_ACCESSORY_RE.test(text) || GENERIC_ACCESSORY_SUBSTRING_RE.test(text);
+}
+
+/**
+ * BUY-79341: first-fold packing. Acceptance wants ≥6 primaries and ≤1 accessory
+ * in the first 8 cards. Never emit an all-accessory fold; if fewer than
+ * `minPrimary` primaries exist, still put every primary ahead of accessories
+ * (cross-class safety: never 8/8 accessories).
+ */
+export function packPrimaryFirstFold(
+  products: LandingProduct[],
+  foldSize = 8,
+  minPrimary = 6,
+): LandingProduct[] {
+  const primaries = products.filter((p) => !isGenericAccessoryProduct(p));
+  const accessories = products.filter((p) => isGenericAccessoryProduct(p));
+  if (primaries.length === 0) return products.slice(0, foldSize);
+  // Prefer filling the fold with primaries; allow at most one accessory when
+  // we already have minPrimary primaries (Atlas gate: max 1 accessory / first 8).
+  const takePrimary = Math.min(primaries.length, foldSize);
+  const remaining = foldSize - takePrimary;
+  const takeAcc =
+    remaining > 0 && takePrimary >= minPrimary
+      ? Math.min(1, accessories.length, remaining)
+      : remaining > 0 && takePrimary < minPrimary
+        ? Math.min(accessories.length, remaining)
+        : 0;
+  return [...primaries.slice(0, takePrimary), ...accessories.slice(0, takeAcc)];
 }
 
 export function compareLandingCardOrder(
@@ -1202,9 +1229,10 @@ export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "br
 function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
   if (!config.excludeAccessories) return false;
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
-  // BUY-79341: parts/donor-board/bagpack listings match requiredProductTerms
-  // ("macbook pro") so they survived category-specific filters.
-  if (isGenericAccessoryProduct(product)) return true;
+  // BUY-79341: bagpack/mounts/parts are DEMOTEd via isGenericAccessoryProduct +
+  // packPrimaryFirstFold, not hard-dropped here. Dropping them at collect time
+  // starved /best-laptops-us and /cheapest-macbook-pro-singapore below the
+  // 8-card gate after the residual accessories were the priced hits.
   if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
   if (config.searchCategory === "gaming_laptops") {
     // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
@@ -1657,7 +1685,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featured = [...verifiedProducts].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId, config),
     );
-    const finalProducts = applyFinalCountryGate(featured).slice(0, 8);
+    const finalProducts = packPrimaryFirstFold(applyFinalCountryGate(featured), 8, 6);
     if (finalProducts.length < 4) {
       console.warn(
         `[seo] ${config.slug}: BUY-73741 final gate dropped below 4 cards (${featured.length} -> ${finalProducts.length}). Falling back to top-up branch.`,
@@ -1671,7 +1699,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           topUp.push(withFallbackDetailUrl(fb, config.country));
         }
       }
-      return applyFinalCountryGate(topUp).slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+      return packPrimaryFirstFold(applyFinalCountryGate(topUp), 8, 6).map((p) => withLiveProductDetailUrl(p, config.country));
     }
     return finalProducts.map((p) => withLiveProductDetailUrl(p, config.country));
   }
@@ -1694,7 +1722,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredTopUp = [...topUp].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId, config),
     );
-    return applyFinalCountryGate(featuredTopUp).slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    return packPrimaryFirstFold(applyFinalCountryGate(featuredTopUp), 8, 6).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
@@ -1711,9 +1739,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredFallback = [...fallback].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId, config),
     );
-    return applyFinalCountryGate(featuredFallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+    return packPrimaryFirstFold(applyFinalCountryGate(featuredFallback), 8, 6).map((fb) => withFallbackDetailUrl(fb, config.country));
   }
-  return applyFinalCountryGate(fallback).slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+  return packPrimaryFirstFold(applyFinalCountryGate(fallback), 8, 6).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(
@@ -3663,7 +3691,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     searchQuery: "laptop",
     // BUY-79032: "Laptops" + no minPrice returned null-price accessory noise;
     // the live US partition needs the same query shape as /laptop-us.
-    backupQueries: ["MacBook", "Dell XPS", "ThinkPad", "HP laptop"],
+    backupQueries: ["MacBook", "MacBook Air", "Dell XPS", "ThinkPad", "HP laptop", "Lenovo Yoga"],
     excludeAccessories: true,
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],

@@ -9,6 +9,7 @@ import {
   getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
   isGenericAccessoryProduct,
+  packPrimaryFirstFold,
   resolveHeroTitle,
   seoLandingPages,
   stripCountryTokens,
@@ -1707,6 +1708,29 @@ test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", 
   assert.equal(ordered[0].id, "mbp");
   assert.equal(seoLandingPages["best-laptops-us"].excludeAccessories, true);
   assert.equal(seoLandingPages["cheapest-macbook-pro-singapore"]?.excludeAccessories, true);
+
+  const packed = packPrimaryFirstFold(ordered, 8, 6);
+  const packedAcc = packed.filter((p) => isGenericAccessoryProduct(p)).length;
+  const packedPri = packed.filter((p) => !isGenericAccessoryProduct(p)).length;
+  assert.equal(packedPri, 3, "all available primaries occupy the fold first");
+  assert.ok(packedAcc <= 1 || packedPri < 6, "at most 1 accessory once 6 primaries exist");
+  assert.ok(packed[0] && !isGenericAccessoryProduct(packed[0]));
+
+  const extraPrimaries: LandingProduct[] = Array.from({ length: 6 }, (_, i) => ({
+    id: `p${i}`,
+    name: `Apple MacBook Pro 14-inch M${i + 1}`,
+    price: 2000 + i,
+    currency: "USD",
+    merchant: "Best Buy",
+    imageUrl: `https://images.example/p${i}.jpg`,
+    href: `/r/direct/p${i}`,
+    brand: "Apple",
+    category: "Laptops",
+  })) as LandingProduct[];
+  const stuffed = packPrimaryFirstFold([...extraPrimaries, bagpack, mount, donor, spare], 8, 6);
+  assert.equal(stuffed.length, 7);
+  assert.equal(stuffed.filter((p) => isGenericAccessoryProduct(p)).length, 1);
+  assert.equal(stuffed.filter((p) => !isGenericAccessoryProduct(p)).length, 6);
 });
 
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {
