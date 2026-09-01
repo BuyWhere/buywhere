@@ -47,11 +47,11 @@ const V2_BUYER_TOOLS = new Set([
 // parent `products` table has 373M rows / 297GB with severe bloat (11M dead
 // tuples), so PK-joins and fallback scans against it time out. Route the FBP
 // final join + ILIKE fallback to products_partitioned_{cc} for these countries.
-const FAST_CHILD_TABLE_COUNTRIES = new Set([
-  'SG','US','MY','TH','VN','PH','ID','GB','CA','AU','IN','IT','ES','MX',
-  'ZA','BR','NZ','NL','PL','SE','CH','DK','JP','DE','FR','IE','NO',
-  'BE','AT','PT',
-]);
+// BUY-70498: only route to child tables that actually hold catalog rows.
+// products_partitioned_{th,vn,my,id} are empty/near-empty while search_products
+// still has the SEA catalog. Using the empty child tables made search_products
+// and find_best_price return 0 rows in ~40ms (false no-match).
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -1515,11 +1515,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT $${tierParams.length}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata,
-              p.url_last_checked_at, p.url_status
+              p.country_code, p.updated_at, p.category, NULL::text[] AS category_path, NULL::jsonb AS metadata,
+              NULL::timestamptz AS url_last_checked_at, 'ok'::text AS url_status
        FROM page_ids pi
        JOIN ${tbl} p ON p.id = pi.id
-       WHERE p.is_active = true
        ORDER BY (CASE WHEN pi.price BETWEEN 5 AND 10000 THEN pi.price END) ASC NULLS LAST, pi.updated_at DESC`,
       tierParams
     );

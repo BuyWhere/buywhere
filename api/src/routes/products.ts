@@ -44,11 +44,8 @@ const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v12-b77812';
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
-const FAST_CHILD_TABLE_COUNTRIES = new Set([
-  'SG','US','MY','TH','VN','PH','ID','GB','CA','AU','IN','IT','ES','MX',
-  'ZA','BR','NZ','NL','PL','SE','CH','DK','JP','DE','FR','IE','NO',
-  'BE','AT','PT',
-]);
+// BUY-70498: child tables for TH/VN/MY/ID are empty; keep FTS on search_products.
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
