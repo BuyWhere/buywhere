@@ -178,6 +178,29 @@ async function searchProductsViaRestFallback(opts: {
   }
 }
 
+function aliasSearchEnvelope(resp: ReturnType<typeof buildSearchResponse>) {
+  const r = resp as ReturnType<typeof buildSearchResponse> & {
+    products?: unknown;
+    data?: unknown;
+    items?: unknown;
+    meta?: Record<string, unknown>;
+  };
+  const list = r.results || [];
+  r.products = list;
+  r.data = list;
+  r.items = list;
+  r.meta = {
+    ...(r.meta || {}),
+    total: r.total,
+    limit: r.page?.limit,
+    offset: r.page?.offset,
+    response_time_ms: r.response_time_ms,
+    cached: r.cached,
+    fallback: 'rest_search',
+  };
+  return r;
+}
+
 async function findBestPriceViaRestFallback(opts: {
   productName: string;
   country: string;
@@ -679,14 +702,22 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     (typeof args.country === 'string' && args.country.trim() !== '')
   );
 
+  const restFallbackOpts = {
+    q, country, limit, offset, compact, currency,
+    apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
+  };
+  // Start REST in parallel with the catalog_search DB path. When the MCP pool
+  // is saturated, REST on buywhere-api still returns hits; we only use it if
+  // the primary path degrades or the circuit is open.
+  const restFallbackPromise = q
+    ? searchProductsViaRestFallback(restFallbackOpts)
+    : Promise.resolve(null);
+
   if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
-    const restHits = await searchProductsViaRestFallback({
-      q, country, limit, offset, compact, currency,
-      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
-    });
+    const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
-      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
@@ -825,13 +856,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     searchClient = await acquireMcpClient();
   } catch (acquireErr) {
     recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-    const restHits = await searchProductsViaRestFallback({
-      q, country, limit, offset, compact, currency,
-      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
-    });
+    const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
-      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
     const degradedKind = classifyMcpDegradedKind(acquireErr);
     return buildMcpDegradedSearchResponse({
@@ -1079,13 +1107,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0,200)}`);
     console.warn(`[search_products] DEBUG: tierParams.length=${tierParams.length} tierWhere="${tierWhere}" q="${q}" country="${country}" domain="${domain}" mode="${mode}" useVector=${useVector}`);
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
-    const restHits = await searchProductsViaRestFallback({
-      q, country, limit, offset, compact, currency,
-      apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
-    });
+    const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
-      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
