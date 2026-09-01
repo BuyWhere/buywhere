@@ -1594,12 +1594,25 @@ test("BUY-79277: accessory demotion ranks earpads below primary headphones", () 
     category: "Laptops",
   } as LandingProduct;
 
+  const hybrid = {
+    id: "5",
+    name: "Hybrid Earpads for Sony WH-1000XM6 Headphones - Cooling Gel Gaming Cushions with Super Soft Fabric & Thick Memory Foam",
+    price: 19,
+    currency: "USD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/5.jpg",
+    href: "/r/direct/5",
+    brand: "Sony",
+    category: "Headphones",
+  } as LandingProduct;
+
   assert.equal(isGenericAccessoryProduct(earpad), true);
+  assert.equal(isGenericAccessoryProduct(hybrid), true, "mid-title Earpads must demote (live /best-headphones-us slot 1)");
   assert.equal(isGenericAccessoryProduct(primary), false);
   assert.equal(isGenericAccessoryProduct(spare), true);
   assert.equal(isGenericAccessoryProduct(refurbished), false);
 
-  const mixed = [earpad, primary, spare, refurbished];
+  const mixed = [hybrid, earpad, primary, spare, refurbished];
   const ordered = [...mixed].sort((a, b) =>
     compareLandingCardOrder(a, b, undefined, findFloorPriceProductId(mixed)),
   );
@@ -1705,16 +1718,34 @@ test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", 
   const firstAcc = ordered.findIndex((p) => isGenericAccessoryProduct(p));
   const lastPri = [...ordered].map((p, i) => ({ p, i })).filter(({ p }) => !isGenericAccessoryProduct(p)).at(-1).i;
   assert.ok(lastPri < firstAcc, "all primaries rank above accessories");
-  assert.equal(ordered[0].id, "mbp");
+  assert.ok(!isGenericAccessoryProduct(ordered[0]), "slot 1 must be a primary laptop/MacBook, not a bag/mount/part");
+  assert.ok(["lap", "mbp", "refurb"].includes(ordered[0].id));
   assert.equal(seoLandingPages["best-laptops-us"].excludeAccessories, true);
   assert.equal(seoLandingPages["cheapest-macbook-pro-singapore"]?.excludeAccessories, true);
 
   const packed = packPrimaryFirstFold(ordered, 8, 6);
-  const packedAcc = packed.filter((p) => isGenericAccessoryProduct(p)).length;
-  const packedPri = packed.filter((p) => !isGenericAccessoryProduct(p)).length;
+  const packedFold = packed.slice(0, 8);
+  const packedAcc = packedFold.filter((p) => isGenericAccessoryProduct(p)).length;
+  const packedPri = packedFold.filter((p) => !isGenericAccessoryProduct(p)).length;
   assert.equal(packedPri, 3, "all available primaries occupy the fold first");
-  assert.ok(packedAcc <= 1 || packedPri < 6, "at most 1 accessory once 6 primaries exist");
+  assert.ok(packedAcc <= 1, "never pad first-8 with leftover bags/parts (BUY-79345)");
   assert.ok(packed[0] && !isGenericAccessoryProduct(packed[0]));
+
+  const editorialFillers: LandingProduct[] = Array.from({ length: 5 }, (_, i) => ({
+    id: `fb${i}`,
+    name: `Lenovo ThinkPad X1 Carbon Gen ${i + 9}`,
+    price: 1200 + i,
+    currency: "USD",
+    merchant: "Lenovo",
+    imageUrl: `https://images.example/fb${i}.jpg`,
+    href: `/search?q=thinkpad&country=us`,
+    brand: "Lenovo",
+    category: "Laptops",
+  })) as LandingProduct[];
+  const topped = packPrimaryFirstFold(ordered, 8, 6, editorialFillers);
+  const toppedFold = topped.slice(0, 8);
+  assert.ok(toppedFold.filter((p) => !isGenericAccessoryProduct(p)).length >= 6);
+  assert.ok(toppedFold.filter((p) => isGenericAccessoryProduct(p)).length <= 1);
 
   const extraPrimaries: LandingProduct[] = Array.from({ length: 6 }, (_, i) => ({
     id: `p${i}`,
@@ -1728,9 +1759,10 @@ test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", 
     category: "Laptops",
   })) as LandingProduct[];
   const stuffed = packPrimaryFirstFold([...extraPrimaries, bagpack, mount, donor, spare], 8, 6);
-  assert.equal(stuffed.length, 7);
-  assert.equal(stuffed.filter((p) => isGenericAccessoryProduct(p)).length, 1);
-  assert.equal(stuffed.filter((p) => !isGenericAccessoryProduct(p)).length, 6);
+  const stuffedFold = stuffed.slice(0, 8);
+  assert.equal(stuffedFold.filter((p) => isGenericAccessoryProduct(p)).length, 1);
+  assert.equal(stuffedFold.filter((p) => !isGenericAccessoryProduct(p)).length, 6);
+  assert.ok(stuffed.length >= 8, "leftover cards stay after the fold for /r/direct count");
 });
 
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {

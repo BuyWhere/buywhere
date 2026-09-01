@@ -1030,12 +1030,12 @@ export function findFloorPriceProductId(products: LandingProduct[]): string | nu
 // (standalone accessory IS the product). Also catches headphone-specific
 // accessories at the start of product names.
 const GENERIC_ACCESSORY_RE =
-  /^(?:ear\s*pads?|earpads?|headphone\s+case|earbud(?:\s+(?:case|cover|tips))?|amplifier|replacement|spare|parts?|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
+  /^(?:ear\s*pads?|earpads?|headphone\s+case|earbud(?:\s+(?:case|cover|tips))?|amplifier|replacement|spare|parts|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
 // BUY-79341: residual accessories that sit mid/end of title (Bagpack, " - Parts",
 // donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
 // "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
 const GENERIC_ACCESSORY_SUBSTRING_RE =
-  /\b(?:bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare|parts?)\b/i;
+  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
@@ -1054,21 +1054,31 @@ export function packPrimaryFirstFold(
   products: LandingProduct[],
   foldSize = 8,
   minPrimary = 6,
+  fillers: LandingProduct[] = [],
 ): LandingProduct[] {
   const primaries = products.filter((p) => !isGenericAccessoryProduct(p));
   const accessories = products.filter((p) => isGenericAccessoryProduct(p));
-  if (primaries.length === 0) return products.slice(0, foldSize);
-  // Prefer filling the fold with primaries; allow at most one accessory when
-  // we already have minPrimary primaries (Atlas gate: max 1 accessory / first 8).
+  if (primaries.length === 0) return products;
+  // Atlas BUY-79345: first-8 must be ≥6 PRIMARY and ≤1 ACC. Never pad the
+  // first fold with leftover bags/parts just because live primaries are short.
   const takePrimary = Math.min(primaries.length, foldSize);
-  const remaining = foldSize - takePrimary;
-  const takeAcc =
-    remaining > 0 && takePrimary >= minPrimary
-      ? Math.min(1, accessories.length, remaining)
-      : remaining > 0 && takePrimary < minPrimary
-        ? Math.min(accessories.length, remaining)
-        : 0;
-  return [...primaries.slice(0, takePrimary), ...accessories.slice(0, takeAcc)];
+  const takeAcc = Math.min(1, accessories.length, Math.max(0, foldSize - takePrimary));
+  const fold: LandingProduct[] = [
+    ...primaries.slice(0, takePrimary),
+    ...accessories.slice(0, takeAcc),
+  ];
+  const foldIds = new Set(fold.map((p) => p.id));
+  if (fold.length < minPrimary) {
+    for (const fb of fillers) {
+      if (fold.length >= foldSize) break;
+      if (foldIds.has(fb.id)) continue;
+      if (isGenericAccessoryProduct(fb)) continue;
+      fold.push(fb);
+      foldIds.add(fb.id);
+    }
+  }
+  const rest = products.filter((p) => !foldIds.has(p.id));
+  return [...fold, ...rest];
 }
 
 export function compareLandingCardOrder(
@@ -1121,7 +1131,7 @@ const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/
 // screens, or screen cleaners reach the product cards regardless of how the
 // upstream search API classifies them.
 const LAPTOP_ACCESSORY_RE =
-  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries|fan|fans|mat|mats|mouse|keyboard|keyboards|speaker|speakers|monitor|monitors|screen|desk|privacy)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop)|\bmicrophone(?:s)?|\bmic(?:s)?\s+(?:for|stand|cable|kit|set|set-up|setup|holder|clip|adapter|adapter|system|windscreen|boom|arm|boom-arm)|\blavalier|\blapel\s+mic|\bwireless\s+mic|\bboya\b|\bheadphone(?:s)?(?:\s+(?:for|stand|holder|case|adapter))?|\bearbud(?:s)?(?:\s+(?:for|holder|case|stand|adapter))?|\bheadset(?:s)?(?:\s+(?:for|stand|holder))?|\bearphone(?:s)?(?:\s+(?:for|holder|case))?|\bairpod(?:s)?\b|\biem(?:s)?\b|\bin[- ]ear\s+monitor(?:s)?|\bstanding\s+desk(?:\s+(?:for|with|adjustable))?|\blap\s+desk|\bbed\s+desk|\bbed\s+table|\bbed\s+tray|\bfolding\s+table|\bportable\s+monitor(?:\s+(?:for|with))?|\bexternal\s+monitor(?:\s+(?:for|with))?|\bscreen\s+extender|\bexternal\s+display(?:\s+(?:for|with))?|\btravel\s+monitor|\bsecond\s+screen(?:\s+(?:for|with))?|\btriple\s+monitor|\bprivacy\s+screen(?:\s+(?:for|with))?|\bprivacy\s+filter(?:\s+(?:for|with))?|\bscreen\s+cleaner|\bcleaning\s+spray|\bscreen\s+wipe(?:s)?|\bcleaning\s+wipe(?:s)?|\bscreen\s+cleaning|\bwireless\s+keyboard(?:\s+(?:for|with))?|\bbluetooth\s+keyboard(?:\s+(?:for|with))?|\bfoldable\s+keyboard(?:\s+(?:for|with))?|\bfolding\s+keyboard(?:\s+(?:for|with))?)/i;
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|bagpack|backpack|backpacks|mount|mounts|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries|fan|fans|mat|mats|mouse|keyboard|keyboards|speaker|speakers|monitor|monitors|screen|desk|privacy)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbagpack(?:s)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop)|\bmicrophone(?:s)?|\bmic(?:s)?\s+(?:for|stand|cable|kit|set|set-up|setup|holder|clip|adapter|adapter|system|windscreen|boom|arm|boom-arm)|\blavalier|\blapel\s+mic|\bwireless\s+mic|\bboya\b|\bheadphone(?:s)?(?:\s+(?:for|stand|holder|case|adapter))?|\bearbud(?:s)?(?:\s+(?:for|holder|case|stand|adapter))?|\bheadset(?:s)?(?:\s+(?:for|stand|holder))?|\bearphone(?:s)?(?:\s+(?:for|holder|case))?|\bairpod(?:s)?\b|\biem(?:s)?\b|\bin[- ]ear\s+monitor(?:s)?|\bstanding\s+desk(?:\s+(?:for|with|adjustable))?|\blap\s+desk|\bbed\s+desk|\bbed\s+table|\bbed\s+tray|\bfolding\s+table|\bportable\s+monitor(?:\s+(?:for|with))?|\bexternal\s+monitor(?:\s+(?:for|with))?|\bscreen\s+extender|\bexternal\s+display(?:\s+(?:for|with))?|\btravel\s+monitor|\bsecond\s+screen(?:\s+(?:for|with))?|\btriple\s+monitor|\bprivacy\s+screen(?:\s+(?:for|with))?|\bprivacy\s+filter(?:\s+(?:for|with))?|\bscreen\s+cleaner|\bcleaning\s+spray|\bscreen\s+wipe(?:s)?|\bcleaning\s+wipe(?:s)?|\bscreen\s+cleaning|\bwireless\s+keyboard(?:\s+(?:for|with))?|\bbluetooth\s+keyboard(?:\s+(?:for|with))?|\bfoldable\s+keyboard(?:\s+(?:for|with))?|\bfolding\s+keyboard(?:\s+(?:for|with))?)/i;
 // Require at least one "true laptop" signal in the product text so we never
 // accept a generic accessory that mentions a laptop model name in passing.
 // Tokens here are intentionally NOT bare "laptop" — that single word is too
@@ -1258,7 +1268,10 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
     const hasLooseSignal = LAPTOP_REQUIRED_LOOSE_SIGNALS.some((s) => lower.includes(s));
     return !(hasLaptop && hasLooseSignal);
   }
-  return PRODUCT_ACCESSORY_RE.test(text);
+  // BUY-79277: headphones/earbuds need the same earpad/case filter as
+  // isGenericAccessoryProduct. Use the GENERIC_ACCESSORY_SUBSTRING_RE that
+  // catches "earpads" mid-title (e.g. "Hybrid Earpads for Sony WH-1000XM6").
+  return GENERIC_ACCESSORY_SUBSTRING_RE.test(text);
 }
 
 function matchesAnyToken(text: string, tokens: string[]) {
@@ -1685,7 +1698,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featured = [...verifiedProducts].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId, config),
     );
-    const finalProducts = packPrimaryFirstFold(applyFinalCountryGate(featured), 8, 6);
+    const finalProducts = packPrimaryFirstFold(applyFinalCountryGate(featured), 8, 6, fallback);
     if (finalProducts.length < 4) {
       console.warn(
         `[seo] ${config.slug}: BUY-73741 final gate dropped below 4 cards (${featured.length} -> ${finalProducts.length}). Falling back to top-up branch.`,
@@ -1699,7 +1712,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           topUp.push(withFallbackDetailUrl(fb, config.country));
         }
       }
-      return packPrimaryFirstFold(applyFinalCountryGate(topUp), 8, 6).map((p) => withLiveProductDetailUrl(p, config.country));
+      return packPrimaryFirstFold(applyFinalCountryGate(topUp), 8, 6, fallback).map((p) => withLiveProductDetailUrl(p, config.country));
     }
     return finalProducts.map((p) => withLiveProductDetailUrl(p, config.country));
   }
@@ -1722,7 +1735,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredTopUp = [...topUp].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId, config),
     );
-    return packPrimaryFirstFold(applyFinalCountryGate(featuredTopUp), 8, 6).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    return packPrimaryFirstFold(applyFinalCountryGate(featuredTopUp), 8, 6, fallback).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
@@ -1739,9 +1752,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const featuredFallback = [...fallback].sort((a, b) =>
       compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId, config),
     );
-    return packPrimaryFirstFold(applyFinalCountryGate(featuredFallback), 8, 6).map((fb) => withFallbackDetailUrl(fb, config.country));
+    return packPrimaryFirstFold(applyFinalCountryGate(featuredFallback), 8, 6, fallback).map((fb) => withFallbackDetailUrl(fb, config.country));
   }
-  return packPrimaryFirstFold(applyFinalCountryGate(fallback), 8, 6).map((fb) => withFallbackDetailUrl(fb, config.country));
+  return packPrimaryFirstFold(applyFinalCountryGate(fallback), 8, 6, fallback).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(
@@ -3691,7 +3704,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     searchQuery: "laptop",
     // BUY-79032: "Laptops" + no minPrice returned null-price accessory noise;
     // the live US partition needs the same query shape as /laptop-us.
-    backupQueries: ["MacBook", "MacBook Air", "Dell XPS", "ThinkPad", "HP laptop", "Lenovo Yoga"],
+    backupQueries: ["MacBook", "MacBook Air", "Dell XPS", "ThinkPad", "HP laptop", "Lenovo Yoga", "ASUS Zenbook", "Acer Swift"],
     excludeAccessories: true,
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
