@@ -121,12 +121,32 @@ async function searchProductsViaRestFallback(opts: {
     const headers: Record<string, string> = { accept: 'application/json' };
     const incomingKey = typeof opts.apiKey === 'string' ? opts.apiKey : '';
     if (incomingKey) headers['x-api-key'] = incomingKey;
-    const res = await fetch(`http://127.0.0.1:${PORT}/v1/products/search?${params.toString()}`, {
-      method: 'GET',
-      headers,
-      signal: ac.signal,
-    });
-    if (!res.ok) return null;
+    // Prefer the dedicated buywhere-api service (separate PG pool). Loopback
+    // on this process shares the saturated mcp-server pool and fails the same
+    // way. Public api.buywhere.ai from Railway often 403s via Cloudflare.
+    const bases = [
+      (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
+      'http://buywhere-api.railway.internal:8080',
+      'http://buywhere-api.railway.internal:3000',
+      `http://127.0.0.1:${PORT}`,
+      'https://api.buywhere.ai',
+    ].filter(Boolean);
+    let res: Response | null = null;
+    let lastErr: unknown = null;
+    for (const base of bases) {
+      try {
+        const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
+          method: 'GET',
+          headers,
+          signal: ac.signal,
+        });
+        if (attempt.ok) { res = attempt; break; }
+        lastErr = new Error(`HTTP ${attempt.status} from ${base}`);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!res) throw lastErr || new Error('rest_fallback_exhausted');
     const body = await res.json() as {
       products?: Record<string, unknown>[];
       data?: Record<string, unknown>[];
