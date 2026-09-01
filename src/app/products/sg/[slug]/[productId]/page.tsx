@@ -306,7 +306,10 @@ export default async function SGProductDetailPage({ params }: PageProps) {
               // BUY-75417: route affiliate links through /r/direct/{id} so
               // AI crawlers see a followable server-rendered href instead of
               // an external domain they cannot follow.
-              const redirectHref = buildAffiliateRedirectUrl(product.id);
+              const redirectHref = buildAffiliateRedirectUrl(
+                product.id,
+                `/products/sg/${merchantSlug}/${productId}`,
+              );
               const targetUrl = redirectHref ?? ctaUrl ?? fallbackHref;
               const isExternal = redirectHref
                 ? false

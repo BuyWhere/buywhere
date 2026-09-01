@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { usePathname } from "next/navigation";
 import { AffiliateLink } from "@/components/AffiliateLink";
 import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { CrossMarketWidget } from "@/components/ui/CrossMarketWidget";
@@ -282,6 +283,7 @@ function USRetailerCard({
   onToggleCompare?: () => void;
 }) {
   const info = MERCHANT_INFO[price.merchant] || MERCHANT_INFO["BuyWhere Catalog"];
+  const pathname = usePathname();
 
   return (
     <div
@@ -398,7 +400,7 @@ function USRetailerCard({
             productName={productName}
             // BUY-75417: route through /r/direct/{id} so crawlers see a
             // followable server-rendered href instead of an external domain.
-            href={buildAffiliateRedirectUrl(productId) || price.url}
+            href={buildAffiliateRedirectUrl(productId, pathname) || price.url}
             className="block w-full text-center px-4 py-3 font-semibold rounded-xl transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
           >
             View on {price.merchant}

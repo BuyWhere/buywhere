@@ -10,6 +10,7 @@ import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
+import { usePathname } from 'next/navigation';
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 import { captureProductCardClick } from '@/lib/posthog-client';
 
@@ -138,10 +139,12 @@ function formatUSD(price: number): string {
 
 export const ProductCard = React.memo(function ProductCard({ deal, comparisonEnabled }: ProductCardProps) {
   const config = getMerchantConfig(deal.merchant);
+  const pathname = usePathname();
 
   // BUY-75417: route affiliate links through /r/direct/{id} so crawlers
   // (GPTBot, ClaudeBot, PerplexityBot) see a followable server-rendered href.
-  const redirectHref = buildAffiliateRedirectUrl(deal.id) || deal.url;
+  // BUY-79361: SSR ?pathname= so source_page is set on non-intent surfaces.
+  const redirectHref = buildAffiliateRedirectUrl(deal.id, pathname) || deal.url;
 
   return (
     <a

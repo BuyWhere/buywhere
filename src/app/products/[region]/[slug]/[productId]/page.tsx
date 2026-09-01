@@ -320,7 +320,10 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
               // BUY-75417: route affiliate links through /r/direct/{id} so
               // AI crawlers see a followable server-rendered href instead of
               // an external domain they cannot follow.
-              const redirectHref = buildAffiliateRedirectUrl(product.id);
+              const redirectHref = buildAffiliateRedirectUrl(
+                product.id,
+                `/products/${region}/${merchantSlug}/${productId}`,
+              );
               const targetUrl = redirectHref ?? ctaUrl ?? fallbackHref;
               const isExternal = redirectHref
                 ? false

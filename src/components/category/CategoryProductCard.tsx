@@ -2,8 +2,10 @@
 
 import React from 'react';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import WishlistButton from '@/components/WishlistButton';
 import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 
 export interface BrowseProduct {
   id: number;
@@ -51,10 +53,13 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
   product,
   viewMode,
 }: CategoryProductCardProps) {
+  const pathname = usePathname();
+  const href = buildAffiliateRedirectUrl(product.id, pathname) || product.url;
   if (viewMode === 'list') {
     return (
       <a
-        href={product.url}
+        href={href}
+        onClick={attachProductCardClickAttribution}
         target="_blank"
         rel="noopener noreferrer"
         className="flex gap-4 p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
@@ -125,7 +130,8 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
 
   return (
     <a
-      href={product.url}
+      href={href}
+      onClick={attachProductCardClickAttribution}
       target="_blank"
       rel="noopener noreferrer"
       className="group block bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all duration-200"

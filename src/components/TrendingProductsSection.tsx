@@ -2,7 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { attachProductCardClickAttribution } from '@/lib/click-attribution';
+import { usePathname } from 'next/navigation';
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 import { captureProductCardClick } from '@/lib/posthog-client';
 
 interface TrendingProduct {
@@ -50,9 +51,11 @@ function formatPrice(price: number, currency: string): string {
 }
 
 function TrendingProductCard({ product }: { product: TrendingProduct }) {
+  const pathname = usePathname();
+  const href = buildAffiliateRedirectUrl(product.id, pathname) || product.url;
   return (
     <a
-      href={product.url}
+      href={href}
       onClick={(e) => {
         attachProductCardClickAttribution(e);
         captureProductCardClick({
