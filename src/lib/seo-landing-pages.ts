@@ -307,6 +307,12 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
     const trimmed = value.trim();
     if (!trimmed || trimmed === "#") continue;
 
+    // BUY-78914: live search returns same-origin /r/direct/{id} (and relative
+    // /r/direct/{id}). Treat those as usable hrefs — they are the crawlable
+    // affiliate path the intent-page gate counts. Only skip junk "#".
+    if (trimmed.startsWith("/r/")) {
+      return trimmed;
+    }
     try {
       const url = new URL(trimmed);
       if (url.protocol === "http:" || url.protocol === "https:") {
@@ -373,11 +379,22 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
   // fallbacks with irrelevant foreign-currency cards.
+  // BUY-78914: SG MacBook rows are catalogued as USD even when country_code/region
+  // is SG (Shopify ingest). Dropping them leaves cheapest-*-singapore on editorial
+  // fallbacks with no /r/direct cards. Trust region/country_code over the sticker
+  // currency when the row is already gated to this market.
   const rawCurrency =
     item.price && typeof item.price === "object" && "currency" in item.price
       ? item.price.currency
       : item.price_currency ?? item.currency;
-  if (rawCurrency && rawCurrency.toUpperCase() !== fallbackCurrency.toUpperCase()) {
+  const itemMarket = String(item.country_code ?? item.region ?? "").toUpperCase();
+  const pageMarket = fallbackCurrency === "SGD" ? "SG" : fallbackCurrency === "USD" ? "US" : "";
+  const inPageMarket = Boolean(pageMarket && itemMarket === pageMarket);
+  if (
+    rawCurrency &&
+    rawCurrency.toUpperCase() !== fallbackCurrency.toUpperCase() &&
+    !inPageMarket
+  ) {
     return null;
   }
   const priceValue =
@@ -1357,7 +1374,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // revalidate 60 + cache-bust header so the 15-min empty cache from the
       // uppercase-country bug cannot keep serving 0 live /r/ cards.
       const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
-        headers: { Accept: "application/json", "x-buywhere-seo-cache": "78769" },
+        headers: { Accept: "application/json", "x-buywhere-seo-cache": "78914" },
         next: { revalidate: 60 },
         signal: AbortSignal.timeout(12000),
       });
