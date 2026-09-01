@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v14-b79497'; // BUY-79497: no SQL currency AND on child FTS; post-filter only
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v15-b79497'; // BUY-79497: child FTS miss → archive; post-filter currency
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -614,6 +614,12 @@ async function tryTierSearch(
         // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
         return cur === wantCur;
       });
+    // BUY-79497: child FTS for SG nike/earbuds is 100% USD Shopify in the first
+    // 500 GIN hits. Serving that page empty (or leaking USD) is wrong — fall
+    // through to the archive/parent path which still has SGD amazon.sg/lazada.
+    if (useChildTable && wantCur && products.length === 0) {
+      return false;
+    }
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
     const total = p.offset + products.length + (hasMore && products.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && products.length >= p.limit) as unknown as Record<string, unknown>;
@@ -1054,7 +1060,8 @@ router.get(
             : String((p as { currency?: string }).currency || '').toUpperCase();
           return cur && cur !== wantCur;
         });
-        if (cachedLeak) {
+        const cachedEmpty = Array.isArray(cachedProducts) && cachedProducts.length === 0;
+        if (cachedLeak || cachedEmpty) {
           res.locals.cacheHit = false;
         } else {
           recordProductViewsBulk({
@@ -1170,15 +1177,11 @@ router.get(
     if (storageExclProducts) baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams: unknown[] = [];
     let baseIdx = 1;
-    // BUY-79497: always filter by currency when one is requested/inferred, even without price bounds.
-    // The `OR country_code IS NULL` fallback on line 1162 previously allowed cross-currency rows
-    // (e.g. USD Shopify) to leak into SG results. Hardening currency here closes that gap.
-    if (currency) {
-      baseConditions.push(`currency = $${baseIdx}`);
-      baseParams.push(currency);
-      baseIdx++;
-    } else if (minPrice !== undefined || maxPrice !== undefined) {
-      // Preserve existing behavior: currency filter only when price bounds are present.
+    // BUY-79497: keep SQL currency AND only for explicit price bounds. A hard
+    // currency predicate on the 97M-row archive times out / returns empty for
+    // SG head terms (child GIN is USD Shopify; parent SGD is amazon.sg via
+    // region/source, not currency-first). Isolate currency after fetch.
+    if (minPrice !== undefined || maxPrice !== undefined) {
       baseConditions.push(`currency = $${baseIdx}`);
       baseParams.push(currency);
       baseIdx++;
@@ -1426,9 +1429,14 @@ router.get(
       if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
 
       const responseTimeMs = Date.now() - requestStart;
-      const fallbackProducts = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, compact)
-      );
+      const wantCur = (currency || '').toUpperCase();
+      const fallbackProducts = dataResult.rows
+        .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
+        .filter((prod) => {
+          if (!wantCur) return true;
+          const cur = String(prod.price?.currency || '').toUpperCase();
+          return cur === wantCur;
+        });
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
       );
@@ -1923,9 +1931,14 @@ router.get(
 
     const responseTimeMs = Date.now() - requestStart;
 
-    const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact)
-    );
+    const wantCur = (currency || '').toUpperCase();
+    const products = dataResult.rows
+      .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
+      .filter((prod) => {
+        if (!wantCur) return true;
+        const cur = String(prod.price?.currency || '').toUpperCase();
+        return cur === wantCur;
+      });
 
     // BUY-52290: pre-compute before field-selection so IDs are never stripped.
     // Use the full products array (not filteredProducts) so no IDs are lost.
