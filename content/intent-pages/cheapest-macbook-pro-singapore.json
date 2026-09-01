@@ -20,6 +20,11 @@
     "apple",
     "macbook"
   ],
+  // BUY-79380: cataloged SG MacBook Pro prices are $75-$1700. No minPrice
+  // would let $70 donor boards surface as the hero floor. 50 blocks parts
+  // while keeping real MacBooks ($300+); accessories are already excluded
+  // by LAPTOP_ACCESSORY_RE + GENERIC_ACCESSORY_RE.
+  "minPrice": 50,
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
