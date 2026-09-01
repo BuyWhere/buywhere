@@ -983,13 +983,10 @@ async function handleGetDeals(args) {
     // real discounted products. Query the indexed discount predicate directly.
     let dealsClient = null;
     let products = [];
-    // BUY-79260: use child table for SG/US (same pattern as search_products).
-    // The parent search_products table has 382M rows without a good discount index,
-    // causing 3.5s timeouts. Child tables products_partitioned_{cc} are much smaller.
-    const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has((country || '').toUpperCase());
-    const dealsTable = useChildTable
-        ? `products_partitioned_${(country || 'SG').toLowerCase()}`
-        : 'search_products';
+    // BUY-79200: always use parent search_products table (NOT child tables).
+    // Child tables products_partitioned_{cc} don't have discount data populated.
+    // The fix is to use enable_indexscan=off to force Bitmap Index Scan on the GIN.
+    const dealsTable = 'search_products';
     let total = 0;
     try {
         dealsClient = await acquireMcpClient();
