@@ -13,14 +13,14 @@
   "searchQuery": "Samsung Galaxy S25",
   "backupQueries": [
     "Samsung Galaxy S25 Singapore",
-    "Samsung Galaxy S25+",
-    "Samsung Galaxy S25 256GB"
+    "Samsung Galaxy S25 512GB",
+    "Galaxy S25 Challenger"
   ],
   "minPrice": 900,
   "requiredProductTerms": [
     "galaxy s25",
     "samsung",
-    "256gb"
+    "s25"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Prices checked August 26, 2026",
