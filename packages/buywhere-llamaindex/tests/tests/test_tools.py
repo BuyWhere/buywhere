@@ -63,7 +63,42 @@ def test_compare_id_serialization():
         compare_tool = next(t for t in tools if t.metadata.name == "compare_prices")
         compare_tool.call(product_id="123")
 
-        mock_client_instance.get.assert_called_once_with("/v1/products/123/compare")
+        mock_client_instance.get.assert_called_once_with(
+            "/v1/products/compare",
+            params={"ids": "123"},
+        )
+
+
+def test_search_maps_retailer_alias_to_domain():
+    with patch("buywhere_llamaindex.tools.BuyWhereClient") as MockClient:
+        mock_client_instance = MagicMock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.get.return_value = {"data": []}
+
+        tools = create_buywhere_tools(api_key="key")
+        search_tool = next(t for t in tools if t.metadata.name == "search_products")
+        search_tool.call(q="headphones", retailer="shopee")
+
+        params = mock_client_instance.get.call_args[1]["params"]
+        assert params["domain"] == "shopee"
+        assert "retailer" not in params
+
+
+def test_category_products_uses_slug_route_without_sort():
+    with patch("buywhere_llamaindex.tools.BuyWhereClient") as MockClient:
+        mock_client_instance = MagicMock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.get.return_value = {"data": []}
+
+        tools = create_buywhere_tools(api_key="key")
+        cat_tool = next(t for t in tools if t.metadata.name == "get_category_products")
+        cat_tool.call(category_slug="electronics", limit=5, currency="SGD")
+
+        call_args = mock_client_instance.get.call_args
+        assert call_args[0][0] == "/v1/categories/electronics"
+        assert call_args[1]["params"]["limit"] == 5
+        assert call_args[1]["params"]["currency"] == "SGD"
+        assert "sort" not in call_args[1]["params"]
 
 
 def test_429_retry_behavior():
