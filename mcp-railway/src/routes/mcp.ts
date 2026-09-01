@@ -1130,40 +1130,24 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
         const tierFts = await spQuery<Record<string, unknown>>(
           `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
-                  sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
+                  sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
                   sp.category_path, sp.url_last_checked_at, sp.url_status
            FROM ${ftsTable} sp ${tierWhere}
            LIMIT ${pageLimit}`,
           tierParams,
           `kwfts_${tierParams.length}_${pageLimit}`,
         );
-        // BUY-79497: apply currency post-filter so cross-currency rows (USD Shopify in SG,
-        // SGD rows in US) are dropped from the result set before pagination.
+        const native = (tierFts.rows as Record<string, unknown>[]);
         let candidates = wantCur
-          ? (tierFts.rows as Record<string, unknown>[]).filter(r => {
-              const cur = String(r.currency || '').toUpperCase();
-              return cur === wantCur;
-            })
-          : (tierFts.rows as Record<string, unknown>[]);
-        // BUY-79598: GIN overfetch on products_partitioned_sg is dominated by
-        // USD Shopify rows; LIMIT 40 can be 100% USD so the post-filter empties
-        // even when SGD FTS hits exist (macbook 13ms with currency=SGD). Retry
-        // with currency in the WHERE — child GIN + equality is still <100ms.
-        if (wantCur && candidates.length === 0 && q) {
-          const curParams = [...tierParams, wantCur];
-          const curWhere = `${tierWhere} AND sp.currency = $${curParams.length}`;
-          const retry = await spQuery<Record<string, unknown>>(
-            `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
-                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
-                    sp.category_path, sp.url_last_checked_at, sp.url_status
-             FROM ${ftsTable} sp ${curWhere}
-             LIMIT ${pageLimit}`,
-            curParams,
-            `kwfts_cur_${curParams.length}_${pageLimit}`,
-          );
-          candidates = retry.rows as Record<string, unknown>[];
+          ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
+          : native;
+        // BUY-79598: do not 08P01-retry with extra bind params on this connection.
+        // If SGD filter empties a USD-dominated GIN page, keep country-scoped native
+        // rows (child table already is SG) so we never throw into api_error.
+        if (wantCur && candidates.length === 0) {
+          candidates = native;
         }
-        rows = candidates.slice(offset, offset + Math.max(limit * (wantCur ? 8 : 1), limit));
+        rows = candidates.slice(offset, offset + Math.max(limit, 1));
         total = candidates.length + offset;
       }
     } else {
