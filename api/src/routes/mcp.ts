@@ -933,7 +933,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country]) {
+  if (country && COUNTRY_CURRENCY[country] && !useChildTable) {
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }

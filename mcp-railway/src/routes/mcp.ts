@@ -842,7 +842,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country]) {
+  // BUY-79497: currency isolation on the parent search_products table only.
+  // Child partitions already GIN-scan by country; extra currency AND blows
+  // the 3.5s wall (SG/PH api_error). Post-filter child rows instead.
+  if (country && COUNTRY_CURRENCY[country] && !useChildTable) {
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
@@ -1154,9 +1157,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
   if (country) {
     const want = country.toUpperCase();
-    rows = (rows as Record<string, unknown>[]).filter(r =>
-      String(r.country_code || '').toUpperCase() === want
-    );
+    const wantCur = (COUNTRY_CURRENCY[want] || '').toUpperCase();
+    rows = (rows as Record<string, unknown>[]).filter(r => {
+      if (String(r.country_code || '').toUpperCase() !== want) return false;
+      if (wantCur) {
+        const cur = String(r.currency || '').toUpperCase();
+        if (cur && cur !== wantCur) return false;
+      }
+      return true;
+    });
   }
 
   const products = (rows as Record<string, unknown>[]).map(r =>
