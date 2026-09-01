@@ -26,6 +26,7 @@ categoryIntro {heading, body}, compactCatalogCards, showRelatedCategory.
   Internal links only (/compare, /search?q=..., sibling intent pages).
 - searchQuery/backupQueries/requiredProductTerms/minPrice must make the live catalog return >= 6 priced, on-intent products
   for the country. Run the gate; if < 6 after 3 attempts at tuning, set queue status `blocked:catalog` with the queries you tried and move on.
+  **Exception (BUY-78914):** `cheapest-*` pages MUST omit `minPrice`. The page promise is the live floor; a floor filter drops refurbished / last-gen listings and the page falls back to static cards with no `/r/` links. The loader strips `minPrice` on `cheapest-*` slugs even if a writer leaves it in.
 - Uniqueness: the gate rejects >40% prose overlap with any other page spec. Sibling pages (same intent, other country) need their OWN facts: local retailers, warranty/import, local price bands, local sale calendars — not a find-and-replace of the country name.
 - FAQs answer what a shopper would actually ask an answer engine (price band, "is it worth it", "which one for X", warranty/import in SG).
 - The API/MCP block is rendered by the site from searchQuery + country (BUY-74862) — you do not write it, but your searchQuery must be

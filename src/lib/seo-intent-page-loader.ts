@@ -125,6 +125,12 @@ export function validateIntentPageConfig(
   }
 
   const stripped = stripMetaKeys(raw);
+  // BUY-78914: cheapest-* pages promise the lowest live listing. A writer-set
+  // minPrice (e.g. SGD 2500 on cheapest-macbook-pro-singapore) drops refurbished
+  // / last-gen machines and leaves the page on fallbackProducts with no /r/ cards.
+  if (slug.startsWith("cheapest-")) {
+    delete stripped.minPrice;
+  }
   return stripped as unknown as SeoLandingPageConfig;
 }
 
