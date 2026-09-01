@@ -81,6 +81,7 @@ def transform(p: dict, merchant_id: str, base_url: str, country: str, region: st
         "url": f"{base_url}/products/{handle}",
         "image_url": images[0].get("src") if images else None,
         "category": p.get("product_type") or None,
+        "category_path": [p.get("product_type")] if p.get("product_type") else [],
         "brand": p.get("vendor") or None,
         "is_active": True,
         "is_available": in_stock,
