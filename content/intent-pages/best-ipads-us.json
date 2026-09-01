@@ -4,7 +4,7 @@
   "description": "Which iPad is the best buy in the US in 2026: live prices from Apple, Amazon, Best Buy, Walmart and major retailers compared daily, with guidance on iPad Air, iPad Pro, base iPad, iPad mini, storage, Pencil support and warranty.",
   "heroEyebrow": "US iPad guide 2026",
   "heroTitle": "Best iPads in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best iPads in the US \u2014 from {floorPrice} today",
+  "heroTitleTemplate": "Best iPads in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "In the United States, iPad shopping in 2026 is less about finding a single universal winner and more about matching the right Apple tablet to how you actually work, study or travel in US$. Apple keeps list prices steady, but Amazon, Best Buy, Walmart, Target and warehouse clubs move quickly with gift-card promos, open-box inventory and back-to-school bundles. This page pulls live US listings from BuyWhere's catalog so you can compare the current floor price, spot when the iPad Air undercuts a higher-storage base iPad, and avoid paying Pro money for features you will not use.",
   "canonicalPath": "/best-ipads-us",
   "country": "US",
@@ -23,9 +23,9 @@
     "tablet"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 1, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-01",
   "productSectionTitle": "Live iPad prices in the US",
   "comparisonSectionTitle": "Which iPad should you buy in the US \u2014 at a glance",
   "comparisonColumns": [
@@ -88,7 +88,7 @@
     "Pick the use case first. A household streaming tablet, a college note-taking setup and a drawing workstation should not all land on the same iPad model.",
     "Prioritize storage before cellular unless the iPad travels every day. Phone hotspot covers occasional use, but low storage frustrates you every week.",
     "Treat Pencil and keyboard compatibility as part of the total price. A cheaper tablet can become the wrong choice if it needs a costly accessory generation you did not plan for.",
-    "Compare Apple education pricing against retailer promos rather than assuming Apple is cheaper. Back-to-school gift cards and Best Buy open-box stock often change the winner.",
+    "Compare Apple education pricing against retailer promos rather than assuming Apple is cheaper. Labor Day and remaining back-to-school gift-card stacks at Best Buy, Walmart and Amazon often change the winner before October.",
     "For children, check case availability and AppleCare+ cost before chasing the lowest tablet price. A protected base iPad usually beats an unprotected Air.",
     "Avoid marketplace listings that do not clearly state new, US model and normal return terms. A small discount is not worth grey-market warranty uncertainty.",
     "If you want the Pro, verify that you need the display, speakers or sustained chip performance. Casual browsing feels fast on every current iPad."
