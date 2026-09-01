@@ -42,8 +42,9 @@ def _make_tools(client: BuyWhereClient) -> List[FunctionTool]:
         limit: int = 10,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
-        retailer: Optional[str] = None,
+        domain: Optional[str] = None,
         country: Optional[str] = None,
+        retailer: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Search for products across all retailers by keyword.
 
@@ -52,16 +53,19 @@ def _make_tools(client: BuyWhereClient) -> List[FunctionTool]:
             limit: Maximum number of results to return (1-50, default 10).
             min_price: Minimum price filter.
             max_price: Maximum price filter.
-            retailer: Filter by retailer slug (e.g. 'lazada_sg', 'shopee_sg').
+            domain: Filter by merchant platform (e.g. 'lazada', 'shopee').
             country: ISO country code filter (e.g. 'SG', 'MY', 'US').
+            retailer: Deprecated alias for domain; mapped to the `domain` query param.
         """
         params: Dict[str, Any] = {"q": q, "limit": limit}
         if min_price is not None:
             params["min_price"] = min_price
         if max_price is not None:
             params["max_price"] = max_price
-        if retailer:
-            params["retailer"] = retailer
+        # Prod search accepts `source`/`domain`, not `retailer` (silently ignored).
+        platform = domain or retailer
+        if platform:
+            params["domain"] = platform
         if country:
             params["country"] = country
         return client.get("/v1/products/search", params=params)
@@ -74,13 +78,19 @@ def _make_tools(client: BuyWhereClient) -> List[FunctionTool]:
         """
         return client.get(f"/v1/products/{product_id}")
 
-    def compare_prices(product_id: str) -> Dict[str, Any]:
-        """Compare prices for a product across all retailers that carry it.
+    def compare_prices(
+        product_id: Optional[str] = None,
+        product_ids: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Compare products side-by-side on GET /v1/products/compare?ids=.
 
         Args:
-            product_id: The BuyWhere product identifier to compare prices for.
+            product_id: One product ID, or a comma-separated list.
+            product_ids: Alternate name for the same value (2–10 IDs).
         """
-        return client.get(f"/v1/products/{product_id}/compare")
+        raw = product_ids or product_id or ""
+        ids = ",".join(part.strip() for part in raw.split(",") if part.strip())
+        return client.get("/v1/products/compare", params={"ids": ids})
 
     def find_deals(
         min_discount: int = 20,
@@ -117,19 +127,23 @@ def _make_tools(client: BuyWhereClient) -> List[FunctionTool]:
     def get_category_products(
         category_slug: str,
         limit: int = 10,
-        sort: Optional[str] = None,
+        offset: int = 0,
+        currency: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get products within a specific category.
 
         Args:
             category_slug: The category identifier slug (e.g. 'electronics', 'health-beauty').
             limit: Maximum number of products to return (1-50, default 10).
-            sort: Sort order — 'price_asc', 'price_desc', 'discount_desc', or 'relevance'.
+            offset: Pagination offset (default 0).
+            currency: Currency for prices/product counts (default SGD on the API).
         """
-        params: Dict[str, Any] = {"limit": limit}
-        if sort:
-            params["sort"] = sort
-        return client.get(f"/v1/categories/{category_slug}/products", params=params)
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        if currency:
+            params["currency"] = currency
+        # Live route is GET /v1/categories/:slug (currency/limit/offset). There is
+        # no /products suffix and `sort` is not accepted.
+        return client.get(f"/v1/categories/{category_slug}", params=params)
 
     return [
         FunctionTool.from_defaults(fn=search_products),

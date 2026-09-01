@@ -31,10 +31,10 @@ print(response)
 |------|-------------|
 | `search_products` | Full-text product search across all retailers |
 | `get_product` | Fetch a single product by ID |
-| `compare_prices` | Compare prices for a product across retailers |
+| `compare_prices` | Compare 2–10 products side-by-side (`GET /v1/products/compare?ids=`) |
 | `find_deals` | Discover products with the biggest discounts |
 | `browse_categories` | List all available product categories |
-| `get_category_products` | Get products within a specific category |
+| `get_category_products` | Get products in a category (`GET /v1/categories/:slug`) |
 | `get_deals` | Get the current deals feed |
 
 ## Configuration
