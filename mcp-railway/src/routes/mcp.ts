@@ -748,7 +748,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     });
   }
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
+  const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -757,11 +758,18 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       // or degraded responses to prevent cache poisoning that perpetuates
       // transient 0-result outages (cache → serve 0 → cache 0 → …).
       if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
-        // BUY-75411: record cache-hit wall-clock latency so the admin probe
-        // can report p95 over the sliding window. Sorted set key shape
-        // matches api/src/monitoring/cacheStats.ts exactly.
-        await recordCacheHitLatency(redis, Date.now() - t0);
-        return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+        const wantCur = (currency || '').toUpperCase();
+        const leak = wantCur && (parsed.results as Record<string, unknown>[]).some((p) => {
+          const price = p.price as unknown;
+          const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
+            ? String((price as { currency?: string }).currency || '').toUpperCase()
+            : String((p as { currency?: string }).currency || '').toUpperCase();
+          return cur !== wantCur;
+        });
+        if (!leak) {
+          await recordCacheHitLatency(redis, Date.now() - t0);
+          return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+        }
       }
     }
   } catch (_) { /* redis miss — proceed */ }

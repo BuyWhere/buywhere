@@ -791,7 +791,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // be satisfied by keyword results (and vice versa). When embedding fails and we
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
-  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
+  const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -804,10 +805,18 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       // or degraded responses to prevent cache poisoning that perpetuates
       // transient 0-result outages (cache → serve 0 → cache 0 → …).
       if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
-        // BUY-75411: record cache-hit wall-clock latency so the admin probe
-        // can report p95 over the sliding window.
-        await recordCacheHitLatency(redis, Date.now() - t0);
-        return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+        const wantCur = (currency || '').toUpperCase();
+        const leak = wantCur && (parsed.results as Record<string, unknown>[]).some((p) => {
+          const price = p.price as unknown;
+          const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
+            ? String((price as { currency?: string }).currency || '').toUpperCase()
+            : String((p as { currency?: string }).currency || '').toUpperCase();
+          return cur !== wantCur;
+        });
+        if (!leak) {
+          await recordCacheHitLatency(redis, Date.now() - t0);
+          return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+        }
       }
     }
   } catch (_) { /* redis miss — proceed */ }
@@ -2558,10 +2567,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       if (keys.length > 0) await redis.del(...keys);
       const searchKeys = await redis.keys('search:*');
       if (searchKeys.length > 0) await redis.del(...searchKeys);
-      // BUY-75291: MCP /search_products uses fts:v7:* keys; prior ingestion
-      // paths only busted products:* + search:*, so per-(q,cc) snapshots
-      // survived reindexes indefinitely. Clear the FTS namespace on success.
-      const ftsKeys = await redis.keys('fts:v7:*');
+      // BUY-75291 / BUY-79497: MCP search_products uses fts:v8:* (was v7).
+      const ftsKeys = await redis.keys('fts:v8:*');
       if (ftsKeys.length > 0) await redis.del(...ftsKeys);
       await redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
     } catch (e) {
