@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { USCategorySearch } from "@/components/USCategorySearch";
 import { USDealsSection } from "@/components/USDealsSection";
@@ -261,7 +262,10 @@ function CTASection({ category }: { category: string }) {
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
    const { category } = await params;
-   const categoryData = CATEGORY_META[category] || DEFAULT_CATEGORY;
+   const categoryData = CATEGORY_META[category];
+   if (!categoryData) {
+     return { title: "Page Not Found", robots: { index: false, follow: false } };
+   }
 
    return {
      title: categoryData.title,
@@ -304,6 +308,13 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
     category,
     country: "US",
   });
+
+  // BUY-79468: unknown /us/<slug> was a 200 empty shell (0 /r/) with an
+  // indexable canonical. Real category pages (electronics, fashion, …) and
+  // accidental-but-hydrated subcategory slugs keep 200; empty shells 404+noindex.
+  if (!CATEGORY_META[category] && products.length === 0) {
+    notFound();
+  }
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
