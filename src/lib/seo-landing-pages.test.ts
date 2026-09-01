@@ -1493,6 +1493,15 @@ test("BUY-77675: laptop token floor requires strict model OR loose+signal", () =
   }
 });
 
+test("BUY-79032: getSeoLandingProducts must not send searchCategory as API category=", () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.equal(
+    source.includes('params.set("category", config.searchCategory)'),
+    false,
+    "category=laptops / gaming_laptops planner-timeouts US/SG SEO SSR (BUY-77791/BUY-79032)",
+  );
+});
+
 // BUY-78306 loader follow-up: when a JSON intent-page override ships an empty
 // `fallbackProducts` array, the loader must inherit the curated editorial picks
 // from the TS file. Without this, live-search variance leaves the page with

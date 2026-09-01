@@ -1359,9 +1359,10 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         limit: config.excludeAccessories ? "24" : "8",
         region: config.country.toLowerCase(),
       });
-      if (config.searchCategory) {
-        params.set("category", config.searchCategory);
-      }
+      // BUY-77791 / BUY-79032: do NOT send searchCategory as the API `category=`
+      // filter. `category=laptops` and `category=gaming_laptops` planner-timeout
+      // (10s degraded, total=0) on US/SG partitions and force the page onto
+      // fallbackProducts. Keep searchCategory for local accessory/GPU filters.
 
       // Route through BuyWhere's own /api/products/search route handler rather
       // than the external product API. The route handler injects the backend
@@ -2089,7 +2090,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     searchQuery: "gaming laptop",
     searchCategory: "gaming_laptops",
     excludeAccessories: true,
-backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
@@ -3507,7 +3508,13 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     country: "US",
     currency: "USD",
     locale: "en_US",
-    searchQuery: "Laptops",
+    searchQuery: "laptop",
+    // BUY-79032: "Laptops" + no minPrice returned null-price accessory noise;
+    // the live US partition needs the same query shape as /laptop-us.
+    backupQueries: ["MacBook", "Dell XPS", "ThinkPad", "HP laptop"],
+    excludeAccessories: true,
+    minPrice: 300,
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptops offers across the US",
     comparisonSectionTitle: "Popular Laptops picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
