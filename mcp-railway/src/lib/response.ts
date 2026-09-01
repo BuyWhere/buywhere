@@ -86,7 +86,7 @@ export function buildProduct(
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
+    price: formatPriceField(amount, currency) as unknown as ProductPrice, // string when sentinel, see BUY-65559
     normalized_price_usd,
     merchant,
     url: destinationUrl,

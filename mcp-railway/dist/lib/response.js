@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.PRICE_UNAVAILABLE_TEXT = exports.PRICE_SENTINEL_MIN = exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.isSentinelPrice = isSentinelPrice;
+exports.formatPriceField = formatPriceField;
+exports.formatSimilarPriceField = formatSimilarPriceField;
+exports.regionForCountry = regionForCountry;
 exports.buildProduct = buildProduct;
 exports.buildSearchResponse = buildSearchResponse;
 const affiliateWrapper_1 = require("./affiliateWrapper");
@@ -16,6 +20,33 @@ exports.CURRENCY_RATES = {
 exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
+// BUY-69998: Map ISO country codes to the coarse region labels agents expect
+// (sea/us/global). Without this, mcp-railway search responses surfaced
+// `country_code=US` rows tagged with `region=sg`, contradicting the FE/agent
+// contract that branch on `region` to pick fulfillment logic. The downstream
+// SQL filter remains on country_code; this is purely a response-shape fix.
+exports.PRICE_SENTINEL_MIN = 10;
+exports.PRICE_UNAVAILABLE_TEXT = 'see merchant (price unavailable in catalog) — click through to confirm';
+function isSentinelPrice(amount) {
+    return typeof amount !== 'number' || !Number.isFinite(amount) || amount < exports.PRICE_SENTINEL_MIN;
+}
+function formatPriceField(amount, currency) {
+    if (isSentinelPrice(amount)) {
+        return exports.PRICE_UNAVAILABLE_TEXT;
+    }
+    return { amount: amount, currency };
+}
+function formatSimilarPriceField(amount, currency) {
+    return formatPriceField(amount, currency);
+}
+function regionForCountry(countryCode) {
+    const cc = (countryCode || '').toUpperCase();
+    if (!cc)
+        return null;
+    // BUY-69998: region is the lowercase ISO market, matching country_code.
+    // Coarse labels like leftover `sg` shards must not contradict US/VN rows.
+    return cc.toLowerCase();
+}
 function buildProduct(row, defaultCurrency, compact) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
@@ -44,12 +75,24 @@ function buildProduct(row, defaultCurrency, compact) {
     const base = {
         id: productId,
         title: row.title,
-        price: { amount, currency },
+        price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
         normalized_price_usd,
         merchant,
         url: destinationUrl,
         image_url: row.image_url || null,
-        region: row.region || null,
+        // BUY-69998: derive region from country_code when the row is missing or
+        // contradictory (mcp-railway used to surface `region=sg` on US rows,
+        // confusing FE fulfilment logic). Keep the row's own region when present
+        // AND consistent with the country_code; otherwise replace it.
+        region: (() => {
+            const rawRegion = row.region || null;
+            const cc = (row.country_code || '').toUpperCase();
+            const expected = regionForCountry(cc);
+            if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
+                return expected ?? rawRegion;
+            }
+            return rawRegion;
+        })(),
         country_code: row.country_code || null,
         updated_at: row.updated_at || null,
         // BUY-75368: A2 weekly-report needs url_last_checked_at + url_status on
