@@ -22,6 +22,15 @@ export const HOTLINK_BLOCKED_HOSTS = new Set([
   "unsplash.com",
 ]);
 
+// BUY-70558 / BUY-70340: Akamai-backed product image CDNs that reject SSR
+// HEAD probes without browser referer context, but render in the browser when
+// no referrer is sent. Treat them as reachable at SSR and use the same
+// /api/image-proxy path as other hotlink-sensitive hosts; if the upstream is
+// truly dead, ProductGridImage's onError placeholder remains the fallback.
+export const REFERER_GATED_HOSTS = new Set([
+  "c1.neweggimages.com",
+]);
+
 /**
  * True when the URL's hostname is a known hotlink-blocked host that
  * /api/image-proxy is allowed to fetch server-side.
@@ -29,7 +38,8 @@ export const HOTLINK_BLOCKED_HOSTS = new Set([
 export function isHotlinkBlockedHost(imageUrl?: string | null): boolean {
   if (!imageUrl) return false;
   try {
-    return HOTLINK_BLOCKED_HOSTS.has(new URL(imageUrl).hostname);
+    const hostname = new URL(imageUrl).hostname;
+    return HOTLINK_BLOCKED_HOSTS.has(hostname) || REFERER_GATED_HOSTS.has(hostname);
   } catch {
     return false;
   }
@@ -47,7 +57,7 @@ export function viaImageProxy(imageUrl?: string | null): string | null {
   try {
     const url = new URL(imageUrl);
     if (url.protocol !== "https:" && url.protocol !== "http:") return imageUrl;
-    if (!HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return imageUrl;
+    if (!HOTLINK_BLOCKED_HOSTS.has(url.hostname) && !REFERER_GATED_HOSTS.has(url.hostname)) return imageUrl;
     return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
   } catch {
     return imageUrl;
