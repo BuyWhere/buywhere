@@ -1112,6 +1112,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
     dealsClient = await acquireMcpClient();
     await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
+    // BUY-79260: force Bitmap Index Scan on GIN — without this the planner occasionally
+    // picks idx_sp_cc_price and seq-filters, blowing past the 3.5s wall.
+    await dealsClient.query('SET enable_indexscan = off');
     const candidateLimit = 200;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
