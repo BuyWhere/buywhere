@@ -74,3 +74,26 @@ describe('buildProduct currency normalization (BUY-66199)', () => {
     assert.equal(product.price.currency, 'XYZ');
   });
 });
+
+
+describe('BUY-69998: country_code and region agree', () => {
+  it('replaces leftover sg region on a US row', () => {
+    const product = buildProduct(
+      { ...eurRowMislabeledAsUS, country_code: 'US', region: 'sg' },
+      'USD',
+      false,
+    );
+    assert.equal(product.country_code, 'US');
+    assert.equal(product.region, 'us');
+  });
+
+  it('uses vn region for VN rows', () => {
+    const product = buildProduct(
+      { ...eurRowMislabeledAsUS, country_code: 'VN', region: 'sg', currency: 'VND' },
+      'VND',
+      false,
+    );
+    assert.equal(product.country_code, 'VN');
+    assert.equal(product.region, 'vn');
+  });
+});
