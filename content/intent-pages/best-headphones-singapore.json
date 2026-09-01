@@ -1,58 +1,162 @@
 {
   "slug": "best-headphones-singapore",
-  "title": "Best Headphones in Singapore (2026) — Live Prices Compared",
-  "description": "The best headphones in Singapore for 2026: live prices from Amazon.sg, Shopee, Lazada and authorised audio shops, covering over-ear ANC, studio cans and wireless options with local warranty notes.",
-  "heroEyebrow": "Singapore headphone buying guide",
-  "heroTitle": "Best Headphones in Singapore (2026) — ANC, studio and wireless",
-  "heroTitleTemplate": "Best Headphones in Singapore — from {floorPrice} today",
-  "heroBody": "In Singapore headphones have to handle MRT roar, humid outdoor walks and long desk days in S$. This page is the general over-ear and on-ear roundup, not the noise-cancelling-only or AirPods-only siblings. Sony WH, Bose, Apple AirPods Max, Sennheiser and a few studio-wired options show up in the live catalog from Amazon.sg, Shopee Mall, Lazada and specialist shops. Authorised listings keep brand warranty; grey-import cans are cheaper but service is shop-only. Prices stay on the cards, not in this copy.",
+  "title": "Best Headphones in Singapore (2026) — Live SG Prices for ANC, Wireless & Audiophile Picks",
+  "description": "Compare the best headphones to buy in Singapore right now: live local listings for over-ear ANC, wireless earbuds, gaming headsets and audiophile cans, with practical SG advice on warranty, codecs, comfort and where Singapore shoppers actually save.",
+  "heroEyebrow": "Singapore · 2026",
+  "heroTitle": "Best headphones in Singapore (2026) — live prices from {floorPrice}",
+  "heroTitleTemplate": "Best headphones in Singapore (2026) — live prices from {floorPrice}",
+  "heroBody": "Singapore is an MRT and Grab city, so active noise cancellation matters more than open-back soundstages. The same Sony, Bose, Apple, Sennheiser and Audio-Technica models are sold at authorised retailers (Audio House, Harvey Norman, Challenger, the Apple Store) at full local warranty, on Shopee Mall and LazMall at platform-voucher-stacked pricing, and via parallel importers at Sim Lim Square and Funan at meaningful discounts. The spread for the same pair can reach 25 percent, which is why a static 'best price' article goes stale within weeks and why this page reads live listings instead.",
   "canonicalPath": "/best-headphones-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "headphones Singapore",
-  "backupQueries": ["best headphones Singapore", "wireless headphones Singapore", "noise cancelling headphones Singapore"],
-  "minPrice": 80,
-  "requiredProductTerms": ["headphone", "headphones", "headset"],
+  "backupQueries": [
+    "ANC headphones Singapore",
+    "wireless headphones Singapore",
+    "over-ear headphones Singapore",
+    "noise cancelling headphones Singapore"
+  ],
+  "searchCategory": "headphones",
+  "minPrice": 40,
+  "requiredProductTerms": [
+    "headphone",
+    "headphones",
+    "earphone",
+    "earbud",
+    "earpods",
+    "airpods",
+    "sony wh",
+    "bose qc",
+    "sennheiser",
+    "audio technica",
+    "jbl tune",
+    "marshall"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated September 1, 2026",
+  "refreshedLabel": "Prices checked September 1, 2026",
   "datePublished": "2026-09-01",
   "dateModified": "2026-09-01",
   "productSectionTitle": "Live headphone prices in Singapore",
-  "comparisonSectionTitle": "Which headphone type to buy in Singapore",
-  "comparisonColumns": ["Type", "Best for", "Trade-off", "Where it shows up"],
+  "comparisonSectionTitle": "Which headphones should you actually buy in Singapore?",
+  "comparisonColumns": [
+    "Best for",
+    "Type",
+    "ANC",
+    "Battery (hrs)",
+    "Warranty"
+  ],
   "comparisonRows": [
-    { "label": "Wireless ANC over-ear", "values": ["MRT, flights, open offices", "Bulk in a bag, heat on long walks", "Amazon.sg, Shopee Mall, authorised audio"] },
-    { "label": "AirPods Max / Apple", "values": ["iPhone users who want spatial audio", "Price and weight", "Apple Store, authorised, Amazon.sg"] },
-    { "label": "Studio wired", "values": ["Mixing, editing, no battery anxiety", "Cable and no ANC", "Stereo, Challenger, specialist shops"] },
-    { "label": "Budget wireless", "values": ["Homework and Zoom", "Weaker ANC and build", "Lazada, Shopee"] }
+    {
+      "label": "Sony WH-1000XM6",
+      "values": [
+        "Commute, flights, deep focus",
+        "Over-ear",
+        "Yes (class-leading)",
+        "36",
+        "1 yr Sony Singapore"
+      ]
+    },
+    {
+      "label": "Bose QuietComfort Ultra",
+      "values": [
+        "Long-haul comfort, voice calls",
+        "Over-ear",
+        "Yes",
+        "24",
+        "1 yr Bose Singapore"
+      ]
+    },
+    {
+      "label": "Apple AirPods Pro 3",
+      "values": [
+        "iPhone owners, daily driver",
+        "In-ear",
+        "Yes",
+        "8 (24 with case)",
+        "1 yr Apple Singapore"
+      ]
+    },
+    {
+      "label": "Sennheiser Momentum 4",
+      "values": [
+        "Audiophile wireless",
+        "Over-ear",
+        "Yes",
+        "60",
+        "2 yr Sennheiser Singapore"
+      ]
+    },
+    {
+      "label": "JBL Tune 770NC",
+      "values": [
+        "Budget ANC, students",
+        "Over-ear",
+        "Yes",
+        "44",
+        "1 yr JBL Singapore"
+      ]
+    }
   ],
-  "highlightSectionTitle": "What changed for Singapore headphone buyers in 2026",
+  "highlightSectionTitle": "What actually matters when buying headphones in Singapore in 2026",
   "highlights": [
-    { "title": "ANC still wins the commute", "body": "North-South and East-West line noise is the actual test, not a quiet US review room. Sony and Bose remain the default over-ear picks when the catalog has local-set stock; cheaper no-name ANC often leaks on the train." },
-    { "title": "Heat and clamp", "body": "Over-ear pads get sweaty in outdoor humidity. Prefer breathable pads and a lighter clamp if you walk between MRT and office; studio cans that shine in air-con can be miserable outdoors." },
-    { "title": "Earbuds vs headphones", "body": "If you want pocketable ANC, the AirPods and wireless-earbuds pages are the better match. This roundup is for people who want a headband, longer battery and less in-ear fatigue." }
+    {
+      "title": "ANC beats soundstage on the MRT",
+      "body": "The North-South and East-West lines run at 90 dB during peak hour. Passive open-back designs sound wonderful at home but leak noise on the train; active noise cancellation is the feature that actually changes daily life in Singapore. If you commute, prioritise ANC over driver size."
+    },
+    {
+      "title": "Match the codec to your phone",
+      "body": "iPhone only supports AAC and SBC over Bluetooth; Android phones with Qualcomm SoCs add aptX HD and LDAC. The same pair of headphones sounds different on iPhone and Android because of codec negotiation. Buy the codec your phone supports at its highest tier."
+    },
+    {
+      "title": "Local set vs parallel import: read the fine print",
+      "body": "Authorised Singapore sets carry a one-year local distributor warranty and, for Sony and Bose, in-store service at Audio House and the brand service centres. Parallel imports at Sim Lim Square and Funan price 15-25 percent lower but Sony Singapore and Bose Singapore will not service them under warranty. For over-ear pairs that can fail at the headband hinge, the authorised price is the safer pick."
+    },
+    {
+      "title": "Sale windows are predictable",
+      "body": "Shopee 9.9, 10.10, 11.11 and 12.12, plus Lazada's Birthday Sale in March, are the deepest sale windows on the platforms. Audio House runs a National Day promotion in August with bundle discounts. Outside these windows, authorised prices hold near list."
+    }
   ],
-  "adviceSectionTitle": "How to buy headphones in S$ without getting burned",
+  "adviceSectionTitle": "How to choose headphones in Singapore this year",
   "advicePoints": [
-    "Confirm local-set / authorised seller if you want Sony, Bose or Apple service. Parallel imports skip brand Singapore warranty.",
-    "Stack Shopee and Lazada vouchers on 9.9 and 11.11; Amazon.sg often matches afterwards.",
-    "Prefer listings that include a case and charging cable in the photos — some grey units omit them.",
-    "Do not buy 'gaming RGB' headsets for commuting; they are heavy, leak sound and the mic boom is wasted on a train.",
-    "If you only care about ANC, also open the noise-cancelling-headphones sibling rather than stretching a studio-wired pair."
+    "If you commute on the MRT daily, buy over-ear ANC (Sony WH-1000XM6 or Bose QuietComfort Ultra). In-ear ANC (AirPods Pro 3 or Sony WF-1000XM5) is the right answer if you also exercise.",
+    "For iPhone owners, the AirPods Pro 3 are the right default: same-day Apple Singapore warranty, Find My integration, and seamless switching between iPhone, iPad and Mac.",
+    "For Android owners, Sony WH-1000XM6 (over-ear) and Sony WF-1000XM5 (in-ear) are the strongest picks; LDAC support means you actually hear the higher-bitrate track.",
+    "If you want the best wireless sound and you do not need the strongest ANC, the Sennheiser Momentum 4 are the audiophile pick and run 60 hours per charge.",
+    "Add a hard case to the budget if you commute — drops at the MRT turnstile are the most common cause of broken hinges."
   ],
-  "faqSectionTitle": "Headphones in Singapore — common questions",
+  "faqSectionTitle": "Best headphones in Singapore — common questions",
   "faqs": [
-    { "question": "Are Sony WH still the best headphones in Singapore?", "answer": "They remain a safe ANC pick when local-set stock is in the catalog. Bose, Sennheiser and AirPods Max beat them for some ears and ecosystems — use the live cards rather than a single winner." },
-    { "question": "Do parallel-import headphones have warranty in Singapore?", "answer": "Usually shop warranty only. Brand service centres want proof of authorised local purchase." },
-    { "question": "Headphones or earbuds for the MRT?", "answer": "Over-ear ANC isolates better for long rides; earbuds win if you need them in a pocket and you already own AirPods. This page is the over-ear view." },
-    { "question": "When are headphones cheapest in Singapore?", "answer": "Marketplace sale days (9.9, 11.11, 12.12) and payday campaigns. Watch the live table rather than waiting on a rumoured price drop." }
+    {
+      "question": "Which headphones cancel the most noise on the Singapore MRT?",
+      "answer": "The Sony WH-1000XM6 and the Bose QuietComfort Ultra are the strongest ANC pairs you can buy in Singapore today; both drop the 90 dB peak-hour MRT noise to under 30 dB at the ear. For in-ear ANC, the AirPods Pro 3 and the Sony WF-1000XM5 are the closest competitors."
+    },
+    {
+      "question": "Where is the cheapest place to buy headphones in Singapore?",
+      "answer": "For a local warranty set, Audio House, Harvey Norman, Challenger and the Apple Store hold near list price. Shopee Mall and LazMall official stores stack platform vouchers during the 9.9, 10.10, 11.11 and 12.12 sales and often beat the high street by 10-15 percent. For the deepest discount, Sim Lim Square and Funan parallel imports undercut authorised retailers by 15-25 percent but you lose the local distributor warranty."
+    },
+    {
+      "question": "Should I buy a parallel-import pair in Singapore?",
+      "answer": "Only if you are happy losing the local distributor warranty and you treat the pair as disposable. Parallel imports at Sim Lim Square and Funan price 15-25 percent below authorised retailers, but Sony Singapore and Bose Singapore will not service them under warranty. For over-ear pairs whose headband hinges or earpads can fail after two years, the authorised price is the safer pick."
+    },
+    {
+      "question": "Are AirPods worth it in Singapore if I do not own an iPhone?",
+      "answer": "No. AirPods rely on Apple's H1/H2 chip for seamless pairing, Find My and the spatial audio head-tracking; on Android you lose all three and the sound quality is no better than a third-party pair at half the price. Buy Sony, Bose or Sennheiser instead if your phone runs Android."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/best-headphones-us" },
-  "inboundLinks": ["/best-noise-cancelling-headphones-singapore", "/airpods-singapore"],
-  "categoryIntro": { "heading": "Why Singapore headphone listings look chaotic", "body": "Audio is sold by Apple, Challenger, Stereo, Amazon.sg and two marketplaces at once. US roundups name Best Buy open-box deals that do not exist here. This page filters to SGD headphones, flags local-set vs import, and leaves earbuds to their own URLs so the product cards stay on-intent." },
+  "hreflangAlternates": {
+    "en-US": "/best-headphones-us"
+  },
+  "categoryIntro": {
+    "heading": "Why headphone prices vary so much in Singapore",
+    "body": "Singapore is an MRT and Grab city, so active noise cancellation matters more than open-back soundstages. The same Sony, Bose, Apple, Sennheiser and Audio-Technica models are sold at authorised retailers (Audio House, Harvey Norman, Challenger, the Apple Store) at full local warranty, on Shopee Mall and LazMall at platform-voucher-stacked pricing, and via parallel importers at Sim Lim Square and Funan at meaningful discounts. Authorised retailers carry Singapore local sets with full manufacturer warranty; parallel imports skip the local distributor markup but lose the brand's Singapore warranty. The spread for the same pair can reach 25 percent, which is why a static 'best price' article goes stale within weeks and why this page reads live listings instead."
+  },
   "owner": "Buzz",
-  "reviewer": "Hue",
-  "queueRow": 202
+  "reviewer": "Fetch",
+  "queueRow": 0,
+  "inboundLinks": [
+    "/airpods-pro-3-price-singapore",
+    "/best-air-purifiers-singapore"
+  ]
 }
