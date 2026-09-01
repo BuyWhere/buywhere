@@ -1,58 +1,160 @@
 {
   "slug": "best-laptops-singapore",
-  "title": "Best Laptops in Singapore (2026) — Live Prices Compared",
-  "description": "The best laptops in Singapore for 2026: live prices from Amazon.sg, Shopee, Lazada, Challenger and Courts, compared on CPU, screen, battery and local warranty so you can pick a MacBook, Windows ultrabook or gaming chassis without guessing.",
-  "heroEyebrow": "Singapore laptop buying guide",
-  "heroTitle": "Best Laptops in Singapore (2026) — live prices, local warranty",
-  "heroTitleTemplate": "Best Laptops in Singapore — from {floorPrice} today",
-  "heroBody": "In Singapore a laptop is a GST-inclusive S$ purchase that also has to survive MRT commutes, HDB desks and two-year school or office cycles. This page is the general laptop roundup — not the gaming-only, business-only or budget-only siblings — so it mixes MacBook Air and Pro, Windows ultrabooks from ASUS, Lenovo and HP, and a few RTX-class machines when the live catalog actually has them in SGD. Authorised Challenger, Courts and Harvey Norman listings usually carry local warranty; Amazon.sg and Shopee Mall can undercut during 9.9 and 11.11, but you still have to read whether the set is Apple Singapore / brand-authorised or a parallel import. Prices stay off this prose; the cards below are the live floor.",
+  "title": "Best Laptops in Singapore (2026) — Live SG Prices for MacBook, Windows & Student Picks",
+  "description": "Compare the best laptops to buy in Singapore right now: live local listings for MacBook, Windows ultrabooks, student notebooks, business machines and gaming laptops, with practical SG advice on warranty, RAM, storage, weight and where Singapore shoppers actually save.",
+  "heroEyebrow": "Singapore · 2026",
+  "heroTitle": "Best laptops in Singapore (2026) — live prices from {floorPrice}",
+  "heroTitleTemplate": "Best laptops in Singapore (2026) — live prices from {floorPrice}",
+  "heroBody": "Singapore has no single dominant electronics retailer, so the same laptop is sold at the Apple Store, Challenger, Harvey Norman and Best Denki at full local warranty, on Shopee Mall and LazMall at platform-voucher-stacked pricing, and at Sim Lim Square and Funan via parallel importers at meaningful discounts. The spread for the same configuration can reach 20 percent, which is why a static 'best price' article goes stale within days and why this page reads live listings instead.",
   "canonicalPath": "/best-laptops-singapore",
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
   "searchQuery": "laptop Singapore",
-  "backupQueries": ["best laptop Singapore", "cheap laptop Singapore", "notebook Singapore"],
-  "minPrice": 500,
-  "requiredProductTerms": ["laptop", "notebook", "macbook"],
+  "backupQueries": [
+    "best laptop Singapore",
+    "cheap laptop Singapore",
+    "MacBook Singapore",
+    "Windows laptop Singapore"
+  ],
+  "searchCategory": "laptop",
+  "minPrice": 400,
+  "requiredProductTerms": [
+    "laptop",
+    "notebook",
+    "macbook",
+    "zenbook",
+    "yoga",
+    "thinkpad",
+    "swift",
+    "vivobook",
+    "ideapad",
+    "surface"
+  ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated September 1, 2026",
+  "refreshedLabel": "Prices checked September 1, 2026",
   "datePublished": "2026-09-01",
   "dateModified": "2026-09-01",
   "productSectionTitle": "Live laptop prices in Singapore",
-  "comparisonSectionTitle": "Which laptop type to buy in Singapore",
-  "comparisonColumns": ["Type", "Who it is for", "What to watch", "Where to buy"],
+  "comparisonSectionTitle": "Which laptop should you actually buy in Singapore?",
+  "comparisonColumns": [
+    "Best for",
+    "Weight",
+    "Battery (hrs)",
+    "RAM",
+    "Warranty"
+  ],
   "comparisonRows": [
-    { "label": "MacBook Air / Pro", "values": ["Students and professionals already in Apple", "Local set vs parallel import warranty", "Apple Store, authorised resellers, Amazon.sg"] },
-    { "label": "Windows ultrabook", "values": ["Office work, Excel, browser tabs", "RAM (16 GB floor) and screen brightness", "Challenger, Courts, Shopee Mall official"] },
-    { "label": "Gaming / creator chassis", "values": ["AAA games, video export, 3D", "Heat, weight, and PSU brick size", "Aftershock, iO, Harvey Norman"] },
-    { "label": "Budget Windows", "values": ["Homework and Zoom", "Avoid 8 GB RAM and 720p panels", "Lazada, Shopee, Courts clearance"] }
+    {
+      "label": "Apple MacBook Air 13 (M4)",
+      "values": [
+        "Students, writers, most office work",
+        "1.24 kg",
+        "18",
+        "16 GB",
+        "1 yr Apple Singapore"
+      ]
+    },
+    {
+      "label": "Apple MacBook Pro 14 (M4 Pro)",
+      "values": [
+        "Video, code, design",
+        "1.55 kg",
+        "24",
+        "24 GB",
+        "1 yr Apple Singapore"
+      ]
+    },
+    {
+      "label": "ASUS Zenbook 14 OLED",
+      "values": [
+        "Windows ultrabook buyers",
+        "1.20 kg",
+        "15",
+        "16 GB",
+        "1 yr ASUS Singapore"
+      ]
+    },
+    {
+      "label": "Lenovo ThinkPad E14 Gen 5",
+      "values": [
+        "Office, IT-managed, SME",
+        "1.64 kg",
+        "13",
+        "16 GB",
+        "3 yr on-site Lenovo"
+      ]
+    },
+    {
+      "label": "MSI Cyborg 15 RTX 4060",
+      "values": [
+        "Entry gaming / eSports",
+        "1.98 kg",
+        "6",
+        "16 GB",
+        "2 yr MSI Singapore"
+      ]
+    }
   ],
-  "highlightSectionTitle": "What actually matters on a Singapore laptop in 2026",
+  "highlightSectionTitle": "What actually matters when buying a laptop in Singapore in 2026",
   "highlights": [
-    { "title": "Local warranty beats a lower sticker", "body": "Apple Singapore and brand-authorised Windows sellers service local sets. A cheaper grey-import MacBook or ThinkPad that looks identical will be refused at the service centre. If you cannot confirm 'local set' on the listing, treat it as shop-warranty only." },
-    { "title": "Heat and humidity are real", "body": "Thin gaming laptops that look fine in US reviews throttle in a poorly ventilated HDB room. Prefer models with vapour chambers or at least dual fans if you game; for office work, a 16-inch MacBook Air or a ThinkPad with a known keyboard still wins on daily comfort." },
-    { "title": "RAM and storage you cannot cheaply upgrade", "body": "Most 2026 ultrabooks solder RAM. 16 GB is the practical floor for Chrome plus Office; 8 GB machines feel finished after one OS update. On MacBooks, pay for the storage you need at purchase — aftermarket SSD upgrades are not a thing." }
+    {
+      "title": "Buy 16 GB RAM minimum, even for school",
+      "body": "macOS on-device AI, Xcode, Adobe Creative Cloud and Windows 11 24H2 all assume 16 GB minimum now. 8 GB laptops still ship in Singapore and look cheap, but they bottleneck within two years of typical use and you cannot upgrade RAM after the fact on modern thin-and-light designs."
+    },
+    {
+      "title": "Local set vs parallel import: read the fine print",
+      "body": "Authorised Singapore sets carry a one-year local distributor warranty and AppleCare+ or Microsoft Complete eligibility; parallel imports at Sim Lim Square and Funan price 10-18 percent lower but Apple Singapore and Microsoft Singapore will not service them under warranty. For a four-year machine, the authorised price is cheaper once repairs and battery service are factored in."
+    },
+    {
+      "title": "Match the machine to your commute",
+      "body": "Singapore MRT in the morning peak is crowded; a sub-1.3 kg ultrabook fits on a lap tray and stays cool on the train. Anything 2 kg or heavier belongs on a desk with an external monitor; you will not carry it daily."
+    },
+    {
+      "title": "Sale windows are predictable",
+      "body": "Shopee 9.9, 10.10, 11.11 and 12.12, plus Lazada's Birthday Sale in March, are the deepest sale windows on the platforms. Apple Singapore's back-to-school promotion in July bundles AirPods on MacBook and iPad purchases for students. Outside these windows, authorised prices hold near list."
+    }
   ],
-  "adviceSectionTitle": "How to choose without overpaying in S$",
+  "adviceSectionTitle": "How to choose a laptop in Singapore this year",
   "advicePoints": [
-    "Start from use: if you only browse and write, a MacBook Air or a 16 GB Windows ultrabook is enough; do not pay for RTX because a review chart showed it.",
-    "Check GST-inclusive price and whether the listing is local-set. Parallel imports skip Apple / Lenovo Singapore warranty.",
-    "Time Shopee and Lazada official stores around 9.9, 11.11 and payday vouchers; Amazon.sg often matches a few days later.",
-    "Ignore listings far below the live floor with no reviews — they are usually pre-orders, missing chargers, or refurb units.",
-    "If you need a discrete GPU, compare this page against the gaming-laptop sibling rather than stretching a thin ultrabook."
+    "Pick the operating system first. macOS only makes sense if you already own an iPhone or iPad and use AirDrop, or if your school or job is Apple-only. Otherwise Windows gives you more laptop for the same money.",
+    "For university and most office work, the MacBook Air 13 (M4) or an ASUS Zenbook 14 OLED are the right picks. Both are under 1.3 kg and run all-day battery.",
+    "If you edit video, compile code daily, or use AutoCAD or Revit, step up to the MacBook Pro 14 (M4 Pro) or a Lenovo ThinkPad P-series workstation with 32 GB RAM.",
+    "Buy a local set at Challenger, Harvey Norman, the Apple Store or Best Denki if you want warranty. Buy a parallel import at Sim Lim Square or Funan only if you are happy replacing the machine within three years.",
+    "Add a USB-C hub, an external SSD and a sleeve to the budget — they cost another 10-15 percent of the laptop and are not optional for daily use."
   ],
-  "faqSectionTitle": "Laptops in Singapore — common questions",
+  "faqSectionTitle": "Best laptops in Singapore — common questions",
   "faqs": [
-    { "question": "Is a MacBook still the best laptop in Singapore in 2026?", "answer": "For battery life, screen and resale, yes for many buyers already in iPhone. For Excel-heavy office work, Windows ports, or games, a ThinkPad, Yoga or ASUS Windows machine is the better fit." },
-    { "question": "Do I need local warranty on a laptop in Singapore?", "answer": "Yes if you want Apple or brand service centres to honour it. Parallel imports are cheaper but you are limited to the shop's own warranty." },
-    { "question": "What is a sensible laptop budget in Singapore?", "answer": "Usable Windows homework machines start in the mid-hundreds of S$; a comfortable 16 GB ultrabook or MacBook Air sits higher; gaming chassis with current RTX sit above that. Use the live cards — this page does not quote a fixed price." },
-    { "question": "Should I buy during 11.11 or wait for GST sales?", "answer": "Platform campaigns on Shopee and Lazada usually beat in-store GST periods for marketplace brands. Apple authorised pricing moves less. Watch the live table in the week of 9.9 / 11.11." }
+    {
+      "question": "Is the MacBook Air enough for university in Singapore, or should I get the Pro?",
+      "answer": "For most university courses in Singapore — engineering, business, design, humanities — the MacBook Air 13 (M4) with 16 GB RAM is enough. Get the Pro only if your course uses Final Cut, Logic, AutoCAD or a daily code compile; otherwise the Air's battery and weight will serve you better on campus and on the MRT."
+    },
+    {
+      "question": "Where is the cheapest place to buy a laptop in Singapore?",
+      "answer": "For a local warranty set, the Apple Store and Challenger hold near list price; Shopee Mall and LazMall official stores stack platform vouchers during the 9.9, 10.10, 11.11 and 12.12 sales and often beat the high street by 8-12 percent. For the deepest discount, Sim Lim Square and Funan parallel imports undercut authorised retailers by 10-18 percent but you lose the local distributor warranty."
+    },
+    {
+      "question": "Should I buy a parallel-import laptop in Singapore?",
+      "answer": "Only if you are happy losing the local distributor warranty and you plan to replace the machine within three years. Parallel imports at Sim Lim Square and Funan price 10-18 percent below authorised retailers, but Apple Singapore, Microsoft Singapore and the brand service centres will not service them free under warranty. For a four-year machine, the authorised price is cheaper once repairs and battery service are factored in."
+    },
+    {
+      "question": "Is 8 GB RAM enough on a laptop in 2026?",
+      "answer": "No, unless you only browse Safari or Edge with a handful of tabs and never edit photos or videos. macOS on-device AI, Xcode, Adobe Creative Cloud and Windows 11 24H2 all assume 16 GB minimum now. 8 GB laptops still ship in Singapore and look cheap, but they bottleneck within two years of typical use."
+    }
   ],
   "fallbackProducts": [],
-  "hreflangAlternates": { "en-US": "/best-laptops-us" },
-  "inboundLinks": ["/best-business-laptops-singapore", "/best-macbooks-singapore"],
-  "categoryIntro": { "heading": "Why Singapore laptop prices scatter", "body": "There is no single Best Buy equivalent. Challenger, Courts, Harvey Norman, the Apple Store, Aftershock and two giant marketplaces all sell overlapping SKUs with different voucher stacks. A US roundup that names Best Buy and Amazon.com does not map. This page is the SG generalist: live SGD listings, local-set language, and pointers to the gaming and business siblings when you already know the type." },
+  "hreflangAlternates": {
+    "en-US": "/best-laptops-us"
+  },
+  "categoryIntro": {
+    "heading": "Why laptop prices vary so much in Singapore",
+    "body": "Singapore has no single dominant electronics retailer, so the same laptop is sold at the Apple Store and authorised resellers (Challenger, Harvey Norman, Best Denki) at full warranty, on Shopee Mall and LazMall at platform-voucher-stacked pricing, and through parallel importers at Sim Lim Square and Funan at meaningful discounts. Authorised retailers carry Singapore local sets with full manufacturer warranty; parallel imports skip the local distributor markup but lose the brand's Singapore warranty. The spread for the same configuration can reach 20 percent, which is why a static 'best price' article goes stale within days and why this page reads live listings instead."
+  },
   "owner": "Buzz",
   "reviewer": "Fetch",
-  "queueRow": 201
+  "queueRow": 0,
+  "inboundLinks": [
+    "/best-business-laptops-singapore",
+    "/best-qled-tvs-singapore"
+  ]
 }
