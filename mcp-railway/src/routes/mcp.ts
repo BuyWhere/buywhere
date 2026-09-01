@@ -1084,10 +1084,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
         // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
         // Shopify SG/US rows are often USD/SGD-mislabelled; LIMIT=page size would leak.
-        const wantCurForFetch = (country && COUNTRY_CURRENCY[country] && useChildTable)
-          ? COUNTRY_CURRENCY[country]
+        const wantCur = (country && COUNTRY_CURRENCY[country] && useChildTable)
+          ? COUNTRY_CURRENCY[country].toUpperCase()
           : '';
-        const pageLimit = Math.min(Math.max((limit + offset) * (wantCurForFetch ? 8 : 1), 1), 80);
+        const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
         const tierFts = await searchClient.query<Record<string, unknown>>(
           `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
                   sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
@@ -1096,8 +1096,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
            LIMIT ${pageLimit}`,
           tierParams,
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + Math.max(limit * (wantCurForFetch ? 8 : 1), limit));
-        total = tierFts.rows.length + offset;
+        // BUY-79497: apply currency post-filter so cross-currency rows (USD Shopify in SG,
+        // SGD rows in US) are dropped from the result set before pagination.
+        const candidates = wantCur
+          ? (tierFts.rows as Record<string, unknown>[]).filter(r => {
+              const cur = String(r.currency || '').toUpperCase();
+              return cur === wantCur;
+            })
+          : (tierFts.rows as Record<string, unknown>[]);
+        rows = candidates.slice(offset, offset + Math.max(limit * (wantCur ? 8 : 1), limit));
+        total = candidates.length + offset;
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -1129,6 +1137,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
         if (region) {
           filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
+        }
+        // BUY-79497: also filter by currency so cross-currency rows don't leak (USD Shopify in SG, SGD in US).
+        const expectedCur = (country && COUNTRY_CURRENCY[country] || '').toUpperCase();
+        if (expectedCur) {
+          filtered = filtered.filter(r => (r.currency as string || '').toUpperCase() === expectedCur);
         }
         rows = filtered.slice(offset, offset + limit);
       } else {

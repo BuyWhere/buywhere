@@ -1126,7 +1126,15 @@ router.get(
     if (storageExclProducts) baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams: unknown[] = [];
     let baseIdx = 1;
-    if (minPrice !== undefined || maxPrice !== undefined) {
+    // BUY-79497: always filter by currency when one is requested/inferred, even without price bounds.
+    // The `OR country_code IS NULL` fallback on line 1162 previously allowed cross-currency rows
+    // (e.g. USD Shopify) to leak into SG results. Hardening currency here closes that gap.
+    if (currency) {
+      baseConditions.push(`currency = $${baseIdx}`);
+      baseParams.push(currency);
+      baseIdx++;
+    } else if (minPrice !== undefined || maxPrice !== undefined) {
+      // Preserve existing behavior: currency filter only when price bounds are present.
       baseConditions.push(`currency = $${baseIdx}`);
       baseParams.push(currency);
       baseIdx++;
