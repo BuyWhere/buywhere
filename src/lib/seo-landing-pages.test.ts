@@ -1609,6 +1609,106 @@ test("BUY-79277: accessory demotion ranks earpads below primary headphones", () 
   assert.equal(seoLandingPages["best-headphones-us"].excludeAccessories, true);
 });
 
+test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", () => {
+  const bagpack = {
+    id: "bag",
+    name: "Cantabil Unisex Colorblock laptop Bagpack",
+    price: 29,
+    currency: "USD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/bag.jpg",
+    href: "/r/direct/bag",
+    brand: "Cantabil",
+    category: "Laptops",
+  } as LandingProduct;
+  const mount = {
+    id: "mount",
+    name: "RAM® No-Drill™ Laptop Mount for 99-16 Ford F-250",
+    price: 189,
+    currency: "USD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/mount.jpg",
+    href: "/r/direct/mount",
+    brand: "RAM",
+    category: "Laptops",
+  } as LandingProduct;
+  const donor = {
+    id: "donor",
+    name: "Apple MacBook Pro Air Logic Board Donor Board For Logic Board Repairs - Parts",
+    price: 45,
+    currency: "SGD",
+    merchant: "Shopee",
+    imageUrl: "https://images.example/donor.jpg",
+    href: "/r/direct/donor",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+  const spare = {
+    id: "spare",
+    name: "Apple MacBook Pro 14-Inch A2992 2023 Repair Replacement Spare - Parts",
+    price: 89,
+    currency: "SGD",
+    merchant: "Shopee",
+    imageUrl: "https://images.example/spare.jpg",
+    href: "/r/direct/spare",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+  const laptop = {
+    id: "lap",
+    name: "Dell XPS 15 9530 Laptop",
+    price: 1499,
+    currency: "USD",
+    merchant: "Best Buy",
+    imageUrl: "https://images.example/lap.jpg",
+    href: "/r/direct/lap",
+    brand: "Dell",
+    category: "Laptops",
+  } as LandingProduct;
+  const macbook = {
+    id: "mbp",
+    name: "Apple MacBook Pro 14-inch M3",
+    price: 2499,
+    currency: "SGD",
+    merchant: "Harvey Norman",
+    imageUrl: "https://images.example/mbp.jpg",
+    href: "/r/direct/mbp",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+  const refurbished = {
+    id: "refurb",
+    name: "Refurbished MacBook Pro 16-inch M3 Pro",
+    price: 2199,
+    currency: "SGD",
+    merchant: "Challenger",
+    imageUrl: "https://images.example/refurb.jpg",
+    href: "/r/direct/refurb",
+    brand: "Apple",
+    category: "Laptops",
+  } as LandingProduct;
+
+  assert.equal(isGenericAccessoryProduct(bagpack), true, "Bagpack (one word) must demote");
+  assert.equal(isGenericAccessoryProduct(mount), true, "Laptop Mount must demote");
+  assert.equal(isGenericAccessoryProduct(donor), true, "Donor Board - Parts must demote");
+  assert.equal(isGenericAccessoryProduct(spare), true, "Repair Replacement Spare - Parts must demote");
+  assert.equal(isGenericAccessoryProduct(laptop), false);
+  assert.equal(isGenericAccessoryProduct(macbook), false);
+  assert.equal(isGenericAccessoryProduct(refurbished), false, "refurbished complete units stay primary");
+
+  const mixed = [bagpack, mount, donor, spare, laptop, macbook, refurbished];
+  const primaries = mixed.filter((p) => !isGenericAccessoryProduct(p));
+  const ordered = [...mixed].sort((a, b) =>
+    compareLandingCardOrder(a, b, undefined, findFloorPriceProductId(primaries)),
+  );
+  const firstAcc = ordered.findIndex((p) => isGenericAccessoryProduct(p));
+  const lastPri = [...ordered].map((p, i) => ({ p, i })).filter(({ p }) => !isGenericAccessoryProduct(p)).at(-1).i;
+  assert.ok(lastPri < firstAcc, "all primaries rank above accessories");
+  assert.equal(ordered[0].id, "mbp");
+  assert.equal(seoLandingPages["best-laptops-us"].excludeAccessories, true);
+  assert.equal(seoLandingPages["cheapest-macbook-pro-singapore"]?.excludeAccessories, true);
+});
+
 test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps JSON content", () => {
   const merged = seoLandingPages["best-macbooks-singapore"];
   assert.ok(merged, "best-macbooks-singapore must exist in the merged registry");

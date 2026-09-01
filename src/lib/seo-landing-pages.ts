@@ -1031,12 +1031,17 @@ export function findFloorPriceProductId(products: LandingProduct[]): string | nu
 // accessories at the start of product names.
 const GENERIC_ACCESSORY_RE =
   /^(?:ear\s*pads?|earpads?|headphone\s+case|earbud(?:\s+(?:case|cover|tips))?|amplifier|replacement|spare|parts?|cases?|covers?|skins?|cables?|chargers?|stands?|mounts?)\b/i;
+// BUY-79341: residual accessories that sit mid/end of title (Bagpack, " - Parts",
+// donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
+// "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
+const GENERIC_ACCESSORY_SUBSTRING_RE =
+  /\b(?:bagpack|backpack|bags?|mounts?|donor\s+board|logic\s+board|repair\s+replacement|spare|parts?)\b/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
 ): boolean {
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
-  return GENERIC_ACCESSORY_RE.test(text);
+  return GENERIC_ACCESSORY_RE.test(text) || GENERIC_ACCESSORY_SUBSTRING_RE.test(text);
 }
 
 export function compareLandingCardOrder(
@@ -1197,6 +1202,9 @@ export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "br
 function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
   if (!config.excludeAccessories) return false;
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  // BUY-79341: parts/donor-board/bagpack listings match requiredProductTerms
+  // ("macbook pro") so they survived category-specific filters.
+  if (isGenericAccessoryProduct(product)) return true;
   if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
   if (config.searchCategory === "gaming_laptops") {
     // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
