@@ -4,6 +4,7 @@
   "description": "The best Android tablets you can actually buy in Singapore right now: live SG listings for everyday use, kids, study and travel, with the buying advice that matters for the local market.",
   "heroEyebrow": "Singapore Android tablet guide",
   "heroTitle": "Best Android tablets in Singapore (2026) — 2026 picks across every budget",
+  "heroTitleTemplate": "Best Android tablets in Singapore (2026) — picks from {floorPrice}",
   "heroBody": "Singapore Android shoppers face a familiar frustration: the splashy global launches are often SKU-locked to other regions, and warranty plus service are determined by who actually ships to your address. This page pulls the live Singapore listings from BuyWhere's catalog — Amazon.sg, Shopee Mall, LazMall and authorised local sellers — so you can see what is genuinely available, what it costs today, and which Android tablet is the right one for how you plan to use it. Cover the everyday pick, the family tablet, the work-and-school pick with a stylus, and the high-refresh OLED option for media.",
   "canonicalPath": "/best-android-tablets-singapore",
   "country": "SG",
@@ -22,9 +23,9 @@
     "wifi"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 25, 2026",
+  "refreshedLabel": "Updated September 1, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-29",
+  "dateModified": "2026-09-01",
   "productSectionTitle": "Live Android tablet prices in Singapore",
   "comparisonSectionTitle": "Best Android tablet in Singapore — at a glance",
   "comparisonColumns": [
@@ -91,7 +92,7 @@
     "Decide Wi-Fi vs cellular first: cellular SKUs are scarce in Singapore and usually command a meaningful premium; if you plan to tether from your phone, Wi-Fi is the better value.",
     "Check the warranty path. Local set (sold and shipped by Amazon.sg, Shopee Mall, LazMall official stores and authorised Singapore distributors) gives you a Singapore service path. Parallel imports may be cheaper but service is at the seller's discretion.",
     "Match the screen to the use case. OLED for media and reading, 120 Hz IPS for stylus and work, 90 Hz LCD for kids and shared use. Do not pay OLED prices if all you do is YouTube and email.",
-    "Budget for accessories. Most stylus and keyboard accessories are sold separately and can add up fast. Look for bundles during 9.9, 10.10, 11.11 and 12.12 sales.",
+    "Budget for accessories. Most stylus and keyboard accessories are sold separately and can add up fast. September's 9.9 window is the next local sale cluster after payday campaigns — wait for official-mall bundles if you also need a keyboard cover.",
     "Compare software support, not just specs on paper. A tablet with five-plus years of updates is a meaningfully better buy than one with two, even if the spec sheet looks similar.",
     "If the choice is between two near-identical tablets, take the one with a more recent Android version and a longer promised update window — that is the part future-proofs the purchase."
   ],
