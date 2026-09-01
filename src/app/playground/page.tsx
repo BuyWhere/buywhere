@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { Check, Copy, Loader2, Play, Sparkles } from 'lucide-react';
 import Nav from '@/components/Nav';
+import { SEARCH_ENDPOINT } from '@/lib/api-endpoints';
 import Footer from '@/components/Footer';
 
 const DEFAULT_LIMIT = 3;
 const DEFAULT_SOURCE = 'amazon_us';
 
 const endpointOptions = [
-  { label: 'Search', value: 'search', method: 'GET', path: '/v1/search' },
+  { label: 'Search', value: 'search', method: 'GET', path: SEARCH_ENDPOINT },
   { label: 'Product by ID', value: 'products', method: 'GET', path: '/v1/products/{id}' },
   { label: 'Categories', value: 'categories', method: 'GET', path: '/v1/categories' },
 ];
@@ -68,7 +69,7 @@ function buildCurlCommand(
     ? `"Authorization: Bearer ${apiKey.trim()}"`
     : '"Authorization: Bearer YOUR_API_KEY"';
 
-  let path = '/v1/search';
+  let path = SEARCH_ENDPOINT;
   const params = new URLSearchParams();
 
   if (endpoint === 'products') {
@@ -162,7 +163,7 @@ export default function PlaygroundPage() {
       q: agentQuery,
       source,
       limit,
-      endpoint: '/v1/search',
+      endpoint: SEARCH_ENDPOINT,
     },
     null,
     2
