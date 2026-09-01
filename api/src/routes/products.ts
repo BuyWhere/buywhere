@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v15-b79497'; // BUY-79497: child FTS miss → archive; post-filter currency
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v16-b79497'; // BUY-79497: isolate currency only when country_code set
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -605,7 +605,8 @@ async function tryTierSearch(
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const wantCur = (p.currency || '').toUpperCase();
+    const isolateCur = !!(p.countryCode && p.currency);
+    const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
     const products = pageRows
       .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
       .filter((prod) => {
@@ -1052,7 +1053,7 @@ router.get(
         }
         // BUY-79497: skip cached pages that still leak the wrong currency
         // (pre-v13 Redis served SG country_code + USD Shopify).
-        const wantCur = (currency || '').toUpperCase();
+        const wantCur = countryCode ? (currency || '').toUpperCase() : '';
         const cachedLeak = wantCur && Array.isArray(cachedProducts) && cachedProducts.some((p: Record<string, unknown>) => {
           const price = p.price as unknown;
           const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
@@ -1429,7 +1430,7 @@ router.get(
       if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
 
       const responseTimeMs = Date.now() - requestStart;
-      const wantCur = (currency || '').toUpperCase();
+      const wantCur = countryCode ? (currency || '').toUpperCase() : '';
       const fallbackProducts = dataResult.rows
         .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
         .filter((prod) => {
@@ -1931,7 +1932,7 @@ router.get(
 
     const responseTimeMs = Date.now() - requestStart;
 
-    const wantCur = (currency || '').toUpperCase();
+    const wantCur = countryCode ? (currency || '').toUpperCase() : '';
     const products = dataResult.rows
       .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
       .filter((prod) => {
