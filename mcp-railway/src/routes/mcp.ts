@@ -91,6 +91,67 @@ async function acquireMcpClient() {
   }
 }
 
+// BUY-79260: when the catalog_search circuit is open (or pool acquire fails),
+// REST /v1/products/search on the same origin is independently healthy. Serve
+// hits from REST instead of returning an empty circuit_open envelope so Cart
+// probes and agent callers keep working while sakura conn ceiling recovers.
+const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
+const REST_SEARCH_BASE = (process.env.BUYWHERE_REST_BASE || 'https://api.buywhere.ai').replace(/\/$/, '');
+
+async function searchProductsViaRestFallback(opts: {
+  q: string;
+  country: string;
+  limit: number;
+  offset: number;
+  compact: boolean;
+  currency: string;
+}): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
+  if (!opts.q) return null;
+  const params = new URLSearchParams();
+  params.set('q', opts.q);
+  if (opts.country) params.set('country', opts.country);
+  params.set('limit', String(Math.min(Math.max(opts.limit, 1), 20)));
+  if (opts.offset) params.set('offset', String(opts.offset));
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+  try {
+    const res = await fetch(`${REST_SEARCH_BASE}/v1/products/search?${params.toString()}`, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: ac.signal,
+    });
+    if (!res.ok) return null;
+    const body = await res.json() as {
+      products?: Record<string, unknown>[];
+      data?: Record<string, unknown>[];
+      results?: Record<string, unknown>[];
+      meta?: { total?: number };
+      total?: number;
+    };
+    const rows = body.products || body.results || body.data || [];
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const products = rows.map((r) => {
+      const price = r.price;
+      const flattened: Record<string, unknown> = { ...r };
+      if (price && typeof price === 'object' && !Array.isArray(price)) {
+        const p = price as { amount?: unknown; currency?: unknown };
+        flattened.price = p.amount;
+        if (p.currency) flattened.currency = p.currency;
+      }
+      if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
+      if (!flattened.source && r.merchant) flattened.source = r.merchant;
+      return buildProduct(flattened, opts.currency, opts.compact);
+    });
+    const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
+    return { products, total };
+  } catch (err) {
+    console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // BUY-74597: fail soft before MCP clients hit their visible timeout. Mirror of
 // api/src/routes/mcp.ts — keeps degraded_kind semantics identical.
 type McpDegradedTool = 'search_products' | 'get_deals' | 'find_best_price';
@@ -544,6 +605,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   );
 
   if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
+    const restHits = await searchProductsViaRestFallback({
+      q, country, limit, offset, compact, currency,
+    });
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
+      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+    }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
@@ -676,7 +744,30 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // (MCP_DB_ACQUIRE_TIMEOUT_MS) instead of waiting the full 3.5s wall.
   // Under load, db.connect() can stall for seconds on a saturated pool and the
   // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
-  const searchClient = await acquireMcpClient();
+  let searchClient: import('pg').PoolClient;
+  try {
+    searchClient = await acquireMcpClient();
+  } catch (acquireErr) {
+    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    const restHits = await searchProductsViaRestFallback({
+      q, country, limit, offset, compact, currency,
+    });
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
+      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+    }
+    const degradedKind = classifyMcpDegradedKind(acquireErr);
+    return buildMcpDegradedSearchResponse({
+      tool: 'search_products',
+      stage: 'catalog_search',
+      kind: degradedKind,
+      limit,
+      offset,
+      responseTimeMs: Date.now() - t0,
+      country: country || null,
+      deliverToPresent,
+    });
+  }
 
   // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
   // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
@@ -911,6 +1002,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0,200)}`);
     console.warn(`[search_products] DEBUG: tierParams.length=${tierParams.length} tierWhere="${tierWhere}" q="${q}" country="${country}" domain="${domain}" mode="${mode}" useVector=${useVector}`);
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
+    const restHits = await searchProductsViaRestFallback({
+      q, country, limit, offset, compact, currency,
+    });
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
+      return buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false);
+    }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
