@@ -261,8 +261,33 @@ export type SeoLandingPageConfig = {
   showRelatedCategory?: boolean;
 };
 
+function inferMerchantLabelFromUrls(urls: Array<string | null | undefined>): string | null {
+  const HOST_TO_LABEL: Array<[RegExp, string]> = [
+    [/(^|\.)bestbuy\.com$/i, "Best Buy"],
+    [/(^|\.)amazon\.com$/i, "Amazon"],
+    [/(^|\.)walmart\.com$/i, "Walmart"],
+    [/(^|\.)target\.com$/i, "Target"],
+    [/(^|\.)bhphotovideo\.com$/i, "B&H Photo"],
+    [/(^|\.)newegg\.com$/i, "Newegg"],
+    [/(^|\.)apple\.com$/i, "Apple"],
+  ];
+  for (const raw of urls) {
+    if (!raw) continue;
+    try {
+      const host = new URL(raw).hostname.replace(/^www\./, "");
+      for (const [re, label] of HOST_TO_LABEL) {
+        if (re.test(host)) return label;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 function formatMerchantName(value?: string | null) {
   if (!value) return "BuyWhere seller";
+}
   // BUY-66324: strip internal tenant/database suffixes before title-casing so
   // upstream values like "shopify_buy30620_stock" or "BUY30590 RETAILER
   // BESTBUY" don't leak raw ingest IDs into the product cards, comparison
@@ -452,6 +477,16 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   const imageUrl = item.image_url || item.image || null;
   const rawMerchantSlug = item.merchant || item.source || null;
   const productId = String(item.id);
+  const merchantLabel =
+    formatMerchantName(item.merchant_name || item.merchant || item.source) || "BuyWhere seller";
+  const inferredMerchant = inferMerchantLabelFromUrls([
+    item.url,
+    item.product_url,
+    item.click_url,
+    item.affiliate_url,
+  ]);
+  const displayMerchant =
+    merchantLabel === "BuyWhere seller" && inferredMerchant ? inferredMerchant : merchantLabel;
   // BUY-79241: priced catalog rows always have a constructible /r/direct/{id}.
   // Prefer the API affiliate URL when present; otherwise mint the crawlable
   // redirect so SSR does not drop live OLED/headphones hits with href="#".
@@ -475,7 +510,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
-    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
+    merchant: displayMerchant,
     merchantSlug: rawMerchantSlug ? rawMerchantSlug.toLowerCase().trim() : null,
     // BUY-64056 (restored; re-revert by BUY-72387 / 2d53dc31 was a silent
     // scope-creep revert that put us back at 100% SVG placeholders on the
@@ -1540,7 +1575,27 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // text VidMee captured on the hydrated page.
   const applyFinalCountryGate = (products: LandingProduct[]): LandingProduct[] => {
     const labelAllowed = filterProductsForCountry(products, allowlistCountry);
-    return labelAllowed.filter((p) => !containsDisallowedMerchantText(p.merchant));
+    const cleaned = labelAllowed.filter((p) => !containsDisallowedMerchantText(p.merchant));
+    // BUY-79241: priced catalog rows with constructible /r/direct/{id} MUST
+    // still render even when ingest slugs (buy79179_targeted) don't map to a
+    // retailer label. Keep those live hits; never re-admit Product A–E.
+    if (cleaned.length >= 3) return cleaned;
+    const kept = new Set(cleaned.map((p) => p.id));
+    for (const p of products) {
+      if (kept.has(p.id)) continue;
+      if (containsDisallowedMerchantText(p.merchant)) continue;
+      const hasDirect = Boolean(
+        p.id &&
+          /^\d+$/.test(String(p.id)) &&
+          p.price !== null &&
+          ((p.href && p.href.includes("/r/")) || (p.affiliateUrl && p.affiliateUrl.includes("/r/"))),
+      );
+      if (!hasDirect) continue;
+      cleaned.push(p);
+      kept.add(p.id);
+      if (cleaned.length >= 3) break;
+    }
+    return cleaned;
   };
 
   if (verifiedProducts.length >= 4) {
