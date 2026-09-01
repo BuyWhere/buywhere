@@ -110,9 +110,16 @@ interface ProductListApiResponse {
     total?: number;
     next_offset?: number | null;
   };
+  pagination?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    total_pages?: number;
+  };
 }
 
 const PRODUCT_PAGE_SIZE = 100;
+const PRODUCT_SITEMAP_MAX_PAGES = 50;
 const PRODUCT_CACHE_TTL_MS = 60 * 60 * 1000;
 
 let cachedUSProducts: { products: USProductForSitemap[]; fetchedAt: number } | null = null;
@@ -134,9 +141,9 @@ export function buildUSProductSlug(product: { id: string; name: string }): strin
   return nameSlug ? `${nameSlug}-${product.id}` : product.id;
 }
 
-async function fetchUSProductPage(baseUrl: string, apiKey: string, offset: number): Promise<ProductListApiResponse> {
+async function fetchUSProductPage(baseUrl: string, apiKey: string, page: number): Promise<ProductListApiResponse> {
   const response = await fetch(
-    `${baseUrl}/v1/products?country_code=US&limit=${PRODUCT_PAGE_SIZE}&offset=${offset}&sort_by=relevance`,
+    `${baseUrl}/v1/products?country_code=US&limit=${PRODUCT_PAGE_SIZE}&page=${page}&sort=created_at&order=desc`,
     {
       headers: apiKey
         ? {
@@ -176,10 +183,10 @@ async function loadUSProductsFromApi(): Promise<USProductForSitemap[]> {
   const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const products: USProductForSitemap[] = [];
   const seenIds = new Set<string>();
-  let offset = 0;
+  let page = 1;
 
-  while (true) {
-    const payload = await fetchUSProductPage(baseUrl, apiKey, offset);
+  while (page <= PRODUCT_SITEMAP_MAX_PAGES) {
+    const payload = await fetchUSProductPage(baseUrl, apiKey, page);
     const items = Array.isArray(payload.data) ? payload.data : [];
 
     for (const item of items) {
@@ -192,12 +199,19 @@ async function loadUSProductsFromApi(): Promise<USProductForSitemap[]> {
       products.push(normalized);
     }
 
+    const totalPages = payload.pagination?.total_pages;
     const nextOffset = payload.meta?.next_offset;
-    if (nextOffset === null || nextOffset === undefined || nextOffset <= offset || items.length === 0) {
+    if (items.length === 0) {
+      break;
+    }
+    if (typeof totalPages === "number" && page >= totalPages) {
+      break;
+    }
+    if (totalPages == null && (nextOffset === null || nextOffset === undefined || items.length < PRODUCT_PAGE_SIZE)) {
       break;
     }
 
-    offset = nextOffset;
+    page += 1;
   }
 
   if (products.length === 0) {

@@ -20,9 +20,16 @@ interface ProductListResponse {
     total?: number;
     next_offset?: number | null;
   };
+  pagination?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    total_pages?: number;
+  };
 }
 
 const PRODUCT_PAGE_SIZE = 100;
+const PRODUCT_SITEMAP_MAX_PAGES = 50;
 const PRODUCT_CACHE_TTL_MS = 60 * 60 * 1000;
 
 let cachedSGProducts: { products: SGProductForSitemap[]; fetchedAt: number } | null = null;
@@ -44,9 +51,9 @@ export function buildSGProductSlug(product: { id: string; name: string }): strin
   return nameSlug ? `${nameSlug}-${product.id}` : product.id;
 }
 
-async function fetchSGProductPage(baseUrl: string, apiKey: string, offset: number): Promise<ProductListResponse> {
+async function fetchSGProductPage(baseUrl: string, apiKey: string, page: number): Promise<ProductListResponse> {
   const response = await fetch(
-    `${baseUrl}/v1/products?country_code=SG&limit=${PRODUCT_PAGE_SIZE}&offset=${offset}&sort_by=relevance`,
+    `${baseUrl}/v1/products?country_code=SG&limit=${PRODUCT_PAGE_SIZE}&page=${page}&sort=created_at&order=desc`,
     {
       headers: apiKey
         ? {
@@ -86,10 +93,10 @@ async function loadSGProductsFromApi(): Promise<SGProductForSitemap[]> {
   const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const products: SGProductForSitemap[] = [];
   const seenIds = new Set<string>();
-  let offset = 0;
+  let page = 1;
 
-  while (true) {
-    const payload = await fetchSGProductPage(baseUrl, apiKey, offset);
+  while (page <= PRODUCT_SITEMAP_MAX_PAGES) {
+    const payload = await fetchSGProductPage(baseUrl, apiKey, page);
     const items = Array.isArray(payload.data) ? payload.data : [];
 
     for (const item of items) {
@@ -102,12 +109,19 @@ async function loadSGProductsFromApi(): Promise<SGProductForSitemap[]> {
       products.push(normalized);
     }
 
+    const totalPages = payload.pagination?.total_pages;
     const nextOffset = payload.meta?.next_offset;
-    if (nextOffset === null || nextOffset === undefined || nextOffset <= offset || items.length === 0) {
+    if (items.length === 0) {
+      break;
+    }
+    if (typeof totalPages === "number" && page >= totalPages) {
+      break;
+    }
+    if (totalPages == null && (nextOffset === null || nextOffset === undefined || items.length < PRODUCT_PAGE_SIZE)) {
       break;
     }
 
-    offset = nextOffset;
+    page += 1;
   }
 
   if (products.length === 0) {

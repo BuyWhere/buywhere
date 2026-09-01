@@ -25,13 +25,24 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async (
   }
 });
 
-test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", async () => {
+test("getCategorySitemapEntries excludes remaining soft-404 slugs", async () => {
   const entries = await getCategorySitemapEntries();
   const urls = entries.map((e) => e.url);
-  for (const slug of ["books-stationery", "garden-outdoor", "pet-supplies", "sports-outdoors"]) {
+  for (const slug of ["garden-outdoor", "pet-supplies"]) {
     assert.ok(
       !urls.some((u) => u.includes(`/categories/${slug}`)),
       `soft-404 slug "${slug}" should not appear in sitemap-categories.xml`,
+    );
+  }
+});
+
+test("BUY-73905: getCategorySitemapEntries includes the five missing working categories", async () => {
+  const entries = await getCategorySitemapEntries();
+  const urls = entries.map((e) => e.url);
+  for (const slug of ["baby-products", "books-stationery", "health-beauty", "home-kitchen", "sports-outdoors"]) {
+    assert.ok(
+      urls.some((u) => u.includes(`/categories/${slug}`)),
+      `expected /categories/${slug} in sitemap-categories.xml`,
     );
   }
 });
