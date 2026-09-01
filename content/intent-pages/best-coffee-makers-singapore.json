@@ -1,0 +1,58 @@
+{
+  "slug": "best-coffee-makers-singapore",
+  "title": "Best Coffee Makers in Singapore (2026) — Live Prices Compared",
+  "description": "The best coffee makers in Singapore for 2026: live prices from Amazon.sg, Shopee, Lazada, Courts and Harvey Norman covering espresso machines, drip brewers and capsule systems with 230V and local-service notes.",
+  "heroEyebrow": "Singapore coffee maker buying guide",
+  "heroTitle": "Best Coffee Makers in Singapore (2026) — espresso, drip and capsules",
+  "heroTitleTemplate": "Best Coffee Makers in Singapore — from {floorPrice} today",
+  "heroBody": "In Singapore a coffee maker is a 230V, GST-inclusive S$ appliance that has to live in a compact HDB kitchen and pull shots before a workday. This page covers espresso machines, drip brewers and capsule systems that actually appear in the local catalog — Breville, De'Longhi, Nespresso, Philips and similar names sold by Courts, Harvey Norman, Amazon.sg, Shopee and Lazada. Grey 110V US imports are a hard no; they will trip or melt on local mains. Prices stay on the live cards.",
+  "canonicalPath": "/best-coffee-makers-singapore",
+  "country": "SG",
+  "currency": "SGD",
+  "locale": "en_SG",
+  "searchQuery": "coffee maker Singapore",
+  "backupQueries": ["coffee machine Singapore", "espresso machine Singapore", "drip coffee maker Singapore"],
+  "minPrice": 50,
+  "requiredProductTerms": ["coffee", "espresso", "brewer"],
+  "excludeAccessories": false,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live coffee maker prices in Singapore",
+  "comparisonSectionTitle": "Which coffee maker type to buy in Singapore",
+  "comparisonColumns": ["Type", "Best for", "Watch-outs", "Typical sellers"],
+  "comparisonRows": [
+    { "label": "Pump espresso", "values": ["Cafe-style milk drinks at home", "Counter space, learning curve, descaling", "Courts, Harvey Norman, Amazon.sg"] },
+    { "label": "Capsule (Nespresso etc.)", "values": ["Speed and consistent shots", "Pod cost and waste", "Authorised, Shopee Mall, department stores"] },
+    { "label": "Drip / filter", "values": ["Batch brew for the household", "Taste is milder than espresso", "Lazada, Courts"] },
+    { "label": "Super-automatic", "values": ["One-touch lattes", "Price, servicing, bean hopper humidity", "Harvey Norman, specialist"] }
+  ],
+  "highlightSectionTitle": "What matters in a Singapore kitchen",
+  "highlights": [
+    { "title": "Voltage and plug", "body": "Buy 220–240V units with a Type G plug. US 120V machines listed by overseas sellers are not a bargain; they need a transformer and still run the heating element outside spec." },
+    { "title": "Humidity and beans", "body": "HDB kitchens are humid. Super-automatics with open hoppers stale beans faster; a sealed hopper or grinding per shot helps. Descale on Singapore water even if you use a filter jug — scale still builds." },
+    { "title": "Service, not just sticker", "body": "Breville and De'Longhi authorised sellers can get parts. A marketplace listing with no local agent is a paperweight when the pump fails after the shop warranty." }
+  ],
+  "adviceSectionTitle": "How to pick a coffee maker without wasting S$",
+  "advicePoints": [
+    "If you drink milk drinks daily, a pump espresso or super-automatic beats a drip machine; if you drink long blacks for four people, drip or a thermal carafe wins.",
+    "Capsule systems look cheap at checkout and get expensive on pods — run the yearly pod math before you commit.",
+    "Confirm 230V and local warranty on the listing. Skip US-plug grey imports.",
+    "Measure the counter: a Breville Barista-class machine is deeper than it looks next to a rice cooker.",
+    "Time Courts and Harvey Norman promotions plus 11.11 marketplace vouchers; do not invent a 'list price' in your head — use the live cards."
+  ],
+  "faqSectionTitle": "Coffee makers in Singapore — common questions",
+  "faqs": [
+    { "question": "Can I use a US coffee maker in Singapore?", "answer": "Not directly. Mains are 230V Type G. A 120V machine needs a bulky transformer and still may not heat correctly. Buy a local-voltage unit." },
+    { "question": "Nespresso or a proper espresso machine?", "answer": "Nespresso wins on speed and consistency. A pump machine wins on milk texture and running cost if you will actually learn it. Super-automatics sit in the middle at a higher price." },
+    { "question": "Where is the cheapest coffee maker in Singapore?", "answer": "Marketplace official stores during 9.9 / 11.11 often undercut department stores on mid-range De'Longhi and Philips; Courts and Harvey Norman still win on bulky espresso machines that need in-store pickup. Check the live table." },
+    { "question": "Do I need a water filter for a coffee maker here?", "answer": "A jug filter slows scale but you should still descale. Singapore water is treated but not soft enough to ignore maintenance." }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": { "en-US": "/best-coffee-makers-us" },
+  "inboundLinks": ["/best-multi-cookers-singapore", "/best-bread-makers-singapore"],
+  "categoryIntro": { "heading": "Why this is not a US coffee-maker roundup", "body": "US pages assume 120V, Best Buy open-box and Costco Kirkland beans. Singapore buyers deal with Type G plugs, compact counters, Courts/Harvey Norman floorstock and Shopee voucher stacks. This spec is written for those constraints and for live SGD catalog cards, not a find-and-replace of the US sibling." },
+  "owner": "Buzz",
+  "reviewer": "Fetch",
+  "queueRow": 203
+}

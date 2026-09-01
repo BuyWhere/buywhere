@@ -10,22 +10,22 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Dyson V15 V12 Detect cordless vacuum Singapore",
+  "searchQuery": "Dyson V12 Detect Slim cordless vacuum Singapore",
   "backupQueries": [
-    "Dyson V15 Detect cordless vacuum Singapore",
-    "Dyson V12 Detect Slim cordless vacuum Singapore",
-    "Dyson Detect cordless vacuum Singapore SGD"
+    "Dyson Detect Slim vacuum Singapore",
+    "Dyson V15 Detect Absolute vacuum Singapore",
+    "Dyson V12 Detect vacuum Courts Harvey Norman Singapore"
   ],
-  "minPrice": 350,
+  "minPrice": 400,
   "requiredProductTerms": [
     "dyson",
     "detect",
-    "cordless"
+    "vacuum"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated August 31, 2026",
   "datePublished": "2026-08-30",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-08-31",
   "productSectionTitle": "Live Dyson V15 and V12 prices in Singapore",
   "comparisonSectionTitle": "Dyson V15 vs V12 — side by side for Singapore homes",
   "comparisonColumns": [
@@ -133,8 +133,9 @@
     "en-US": "/dyson-v15-vs-dyson-v12-us"
   },
   "inboundLinks": [
-    "/search?q=dyson%20v15%20v12%20singapore",
-    "/categories/electronics"
+    "/best-air-purifiers-singapore",
+    "/airpods-pro-3-price-singapore",
+    "/best-macbooks-singapore"
   ],
   "categoryIntro": {
     "heading": "Why Singapore Dyson comparisons need live prices",

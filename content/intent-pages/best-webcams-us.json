@@ -1,0 +1,128 @@
+{
+  "slug": "best-webcams-us",
+  "title": "Best Webcams in the US (2026) \u2014 Live Prices Compared",
+  "description": "Compare live US webcam prices from Amazon, Best Buy and Logitech. 1080p vs 4K, autofocus vs laptop cameras, with honest lighting and mic advice \u2014 no invented specs.",
+  "heroEyebrow": "US webcam buying guide",
+  "heroTitle": "Best webcams in the US \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Best webcams in the US \u2014 from {floorPrice} today",
+  "heroBody": "A dedicated webcam still beats most laptop cameras for work calls because it sits at eye line and handles indoor light without the smeared 720p look. In 2026 the useful split is 1080p 30/60 fps for everyday Zoom, 4K for talking-head recording, and whether autofocus and a real clip will sit on your monitor without a boom arm. This page reads live US catalog prices so you can see which of those models are actually in stock today instead of a roundup that froze last year's Logitech sale.",
+  "canonicalPath": "/best-webcams-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "webcam",
+  "backupQueries": [
+    "Logitech C920",
+    "Logitech Brio",
+    "Razer Kiyo"
+  ],
+  "minPrice": 25,
+  "requiredProductTerms": [
+    "webcam",
+    "web cam",
+    "logitech",
+    "brio",
+    "kiyo"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live webcam prices in the US",
+  "comparisonSectionTitle": "Which webcam to buy",
+  "comparisonColumns": [
+    "Class",
+    "Resolution",
+    "Best for",
+    "Skip if"
+  ],
+  "comparisonRows": [
+    {
+      "label": "1080p workhorse",
+      "values": [
+        "1080p 30/60 fps",
+        "Daily standups and interviews",
+        "You already like your laptop camera in good light"
+      ]
+    },
+    {
+      "label": "4K talking-head",
+      "values": [
+        "2160p, usually cropped in calls",
+        "Course recording and streaming",
+        "Your uplink cannot hold 4K and you will never export video"
+      ]
+    },
+    {
+      "label": "Light-ring compact",
+      "values": [
+        "Built-in ring or fill",
+        "Dim home offices",
+        "You already have a desk lamp in front of your face"
+      ]
+    },
+    {
+      "label": "DSL R / mirrorless as webcam",
+      "values": [
+        "Capture card or USB-C webcam mode",
+        "Highest image quality",
+        "You need plug-and-play for a shared office PC"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually changes between webcams",
+  "highlights": [
+    {
+      "title": "Autofocus vs fixed focus",
+      "body": "Autofocus hunts when you lean in. Fixed-focus 1080p is calmer for sit-down calls. If you gesture a lot, autofocus is still worth it."
+    },
+    {
+      "title": "The mic is rarely the reason to buy",
+      "body": "On-camera mics are a backup. A cheap USB headset will beat almost every webcam mic. Buy the camera for the sensor and the clip, not the 'studio sound' claim."
+    },
+    {
+      "title": "USB bandwidth and OS support",
+      "body": "4K webcams need a USB 3 port and updated firmware on Windows and macOS. A 1080p C-class Logitech still wins on shared office PCs that block extra drivers."
+    }
+  ],
+  "adviceSectionTitle": "How to pick without overpaying",
+  "advicePoints": [
+    "Fix lighting before you upgrade the camera. A lamp in front of your face does more than a 4K sensor in a dark room.",
+    "Prefer authorised Amazon, Best Buy and Logitech listings; marketplace '4K' clones often output upscaled 1080p.",
+    "If you only join calls, 1080p is enough. 4K is for recording, not for Zoom tiles.",
+    "Check the clip: a camera that cannot sit on a thin monitor bezel will need a stand you then have to buy separately.",
+    "Skip bundles of leftover tripods and ring lights unless you were going to buy them anyway."
+  ],
+  "faqSectionTitle": "Webcams in the US \u2014 common questions",
+  "faqs": [
+    {
+      "question": "Is the Logitech C920 still worth it in 2026?",
+      "answer": "As a 1080p workhorse that just works on Windows and macOS, yes. If you record courses or stream, look at Brio-class 4K. This page shows live prices rather than declaring a single winner."
+    },
+    {
+      "question": "Do I need 4K for Zoom?",
+      "answer": "Almost never. Calls downsample. 4K helps if you crop or archive recordings. Spend on lighting first."
+    },
+    {
+      "question": "Laptop cameras got better \u2014 do I still need a webcam?",
+      "answer": "Some 2025\u20132026 laptops are fine in daylight. A dedicated cam still wins on eye line (top of the monitor) and low indoor light. If your laptop already sits at eye height, try that before buying."
+    },
+    {
+      "question": "Should I wait for a sale?",
+      "answer": "Webcam prices move with back-to-school and Prime Day. This page tracks live listings; we do not invent a 'usual' street price in the copy."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {},
+  "inboundLinks": [
+    "/best-business-laptops-us",
+    "/best-mesh-routers-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US webcam listings are messy",
+    "body": "The same Logitech SKU is sold as a retail box, a 'Pro' rename, and a marketplace clone with a similar photo. Platform campaigns dump last year's 1080p bars, then authorised prices snap back. A static 2025 roundup cannot tell you which model is in stock with a real autofocus sensor this week, which is why this page is wired to live catalog search."
+  },
+  "owner": "Buzz",
+  "reviewer": "Hue",
+  "queueRow": 0
+}

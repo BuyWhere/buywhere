@@ -110,7 +110,44 @@
       "answer": "AppleCare+ is sold separately \u2014 Apple includes a 1-year limited warranty. You can add AppleCare+ within 60 days of purchase, with cheaper monthly pricing available in some configurations."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "934726797848479707",
+      "name": "Apple MacBook Air M4 13-inch 16GB/256GB Midnight",
+      "price": 1099,
+      "currency": "USD",
+      "merchant": "Apple",
+      "imageUrl": null,
+      "href": "/r/direct/934726797848479707",
+      "affiliateUrl": "/r/direct/934726797848479707",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "1119149163095490268",
+      "name": "Apple MacBook Air M4 15.3-inch 16GB/512GB Silver",
+      "price": 1729.99,
+      "currency": "USD",
+      "merchant": "Apple",
+      "imageUrl": null,
+      "href": "/r/direct/1119149163095490268",
+      "affiliateUrl": "/r/direct/1119149163095490268",
+      "brand": "Apple",
+      "category": "Laptop"
+    },
+    {
+      "id": "1068569491012625896",
+      "name": "Apple MacBook Air M4 15.3-inch 16GB/512GB Midnight",
+      "price": 1729.99,
+      "currency": "USD",
+      "merchant": "Apple",
+      "imageUrl": null,
+      "href": "/r/direct/1068569491012625896",
+      "affiliateUrl": "/r/direct/1068569491012625896",
+      "brand": "Apple",
+      "category": "Laptop"
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-macbook-air-m4-singapore"
   },
