@@ -226,13 +226,18 @@ export interface SitemapUrlEntry {
 //   - sports-outdoors, pet-supplies (404 / alternate page)
 const CATEGORY_PAGE_SLUGS = [
   "automotive",
+  "baby-products",
   "beauty-health",
+  "books-stationery",
   "electronics",
   "fashion",
   "food-beverages",
   "grocery",
+  "health-beauty",
   "health-wellness",
+  "home-kitchen",
   "home-living",
+  "sports-outdoors",
   "toys-games",
 ] as const;
 

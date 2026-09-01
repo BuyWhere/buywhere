@@ -20,6 +20,7 @@ export async function GET(): Promise<Response> {
     // byte-identical clone of sitemap-compare.xml and /comparisons is 404.
     // Index entries that reference the legacy name will 404.
     { url: `${SITEMAP_BASE_URL}/sitemap-products.xml`, lastModified: now },
+    { url: `${SITEMAP_BASE_URL}/sitemap-products-sg.xml`, lastModified: now },
     // SG product slug pages return 410 (BUY-37747/BUY-37750), so the
     // dedicated SG product sitemap is intentionally gone. Don't list it in
     // the index to avoid GSC "Sitemap could not be read" coverage errors.
