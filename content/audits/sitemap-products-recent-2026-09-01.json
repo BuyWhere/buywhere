@@ -1,0 +1,3008 @@
+{
+  "date": "2026-09-01",
+  "lastmod": "2026-09-01T07:05:00.000Z",
+  "generated_at": "2026-09-01T07:30:52.372Z",
+  "source_queue": "content/audits/midnight-indexing-queue-2026-09-01.json",
+  "entries": [
+    {
+      "url": "https://buywhere.ai/products/us/jewel-baits-freak-o-rig-9222976908544470010",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/jewel-baits-freak-o-rig-9222976908544470011",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/vmc-finesse-neko-hook-9222976908544470012",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/vmc-finesse-neko-hook-9222976908544470013",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/vmc-finesse-neko-hook-9222976908544470014",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/berkley-krej-100-ffs-jerkbait-9222976908544470015",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/berkley-krej-100-ffs-jerkbait-9222976908544470016",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/berkley-krej-100-ffs-jerkbait-9222976908544470017",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/berkley-krej-100-ffs-jerkbait-9222976908544470018",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/berkley-krej-100-ffs-jerkbait-9222976908544470019",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/core-tackle-wacky-shot-9222976908544470020",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/core-tackle-wacky-shot-9222976908544470021",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/yum-yumbrella-flash-mob-jr-9222976908544470022",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eagle-claw-rubber-bobber-stops-9222976908544470023",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eagle-claw-rubber-bobber-stops-9222976908544470024",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-floating-9222976908544470025",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-floating-9222976908544470026",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-floating-9222976908544470027",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-floating-9222976908544470028",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-floating-9222976908544470029",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-salted-9222976908544470030",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-salted-9222976908544470031",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-salted-9222976908544470032",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-salted-9222976908544470033",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strike-king-mag-tumbleweed-salted-9222976908544470034",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469985",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469986",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469987",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469988",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469989",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/payment-to-doubleblind-9222976908544469990",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-tote-9222976908544469991",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-membership-29-monthly-9222976908544469992",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-membership-24-monthly-9222976908544469993",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469994",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469995",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469996",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469997",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469998",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544469999",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/on-shrooms-and-having-a-great-time-boxer-briefs-9222976908544470000",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-membership-monthly-9222976908544470001",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-microdose-9222976908544470002",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-microdose-9222976908544470003",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-microdose-9222976908544470004",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-microdose-9222976908544470005",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-microdose-9222976908544470006",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-issue-5-9222976908544470007",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-community-donors-zoom-9222976908544470008",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-102-bigger-and-better-yields-special-price-w-bundle-9222976908544470009",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/groudon-keycaps-9222976908544469943",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-1891-9222976908544469952",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/unown-keycaps-9222976908544469953",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/unown-keycaps-9222976908544469954",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/unown-keycaps-9222976908544469956",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/arctic-keycaps-set-9222976908544469958",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/gladiatus-keycaps-set-9222976908544469959",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/camp-keycaps-set-9222976908544469961",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tuzi-keycaps-set-9222976908544469962",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/yuru-keycap-set-9222976908544469963",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/evil-dolch-abs-double-shot-keycaps-9222976908544469964",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/dots-keycaps-9222976908544469966",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-1229-9222976908544469967",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-1228-9222976908544469969",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-1121-9222976908544469970",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/blue-samurai-keycaps-set-9222976908544469971",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/c64-dye-subbed-pbt-keycap-set-9222976908544469973",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/analog-dreams-keycaps-9222976908544469974",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-999-9222976908544469975",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-997-9222976908544469977",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-995-9222976908544469978",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-994-9222976908544469980",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-993-9222976908544469981",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-992-9222976908544469982",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-5-9222976908544469983",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2204-9222976908544469818",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2203-9222976908544469819",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2202-9222976908544469820",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2201-9222976908544469821",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2200-9222976908544469822",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2199-9222976908544469823",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2198-9222976908544469824",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2197-9222976908544469825",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2196-9222976908544469826",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2195-9222976908544469827",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2194-9222976908544469828",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2193-9222976908544469829",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2192-9222976908544469830",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2191-9222976908544469831",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2190-9222976908544469832",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2189-9222976908544469833",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2188-9222976908544469834",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2187-9222976908544469835",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2186-9222976908544469836",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2185-9222976908544469837",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2184-9222976908544469838",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2183-9222976908544469839",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2182-9222976908544469840",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2095-9222976908544469841",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2033-9222976908544469842",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/spro-dura-slick-taru-swivel-9222976908544469736",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/spro-dura-slick-taru-swivel-9222976908544469737",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/powerbait-maxscent-moeba-9222976908544469738",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/powerbait-maxscent-moeba-9222976908544469739",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/powerbait-maxscent-moeba-9222976908544469740",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/powerbait-maxscent-moeba-9222976908544469741",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/powerbait-maxscent-moeba-9222976908544469742",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/owner-double-toad-hooks-9222976908544469743",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/evolution-outdoor-ballistix-3-7-twitch-tackle-tray-9222976908544469744",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/evolution-outdoor-ballistix-3-7-blade-runner-tackle-tray-9222976908544469745",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/evolution-outdoor-ballistix-3-7-tackle-tray-usa-edition-9222976908544469746",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/evolution-outdoor-ballistix-3-5-terminal-tackle-tray-9222976908544469747",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fishlab-pro-bio-gill-glide-bait-9222976908544469748",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fishlab-pro-bio-gill-glide-bait-9222976908544469749",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fishlab-pro-bio-gill-glide-bait-9222976908544469750",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fishlab-pro-bio-gill-glide-bait-9222976908544469751",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fishlab-pro-bio-gill-glide-bait-9222976908544469752",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/core-tackle-straight-shank-dice-rig-hook-9222976908544469753",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eagle-claw-reel-grease-9222976908544469754",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/duty-3-5-baiting-needle-9222976908544469755",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bait-button-bait-keepers-9222976908544469756",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bait-button-bait-keepers-9222976908544469757",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/flip-clip-3pk-9222976908544469758",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/daiwa-minicast-40-spincast-reel-9222976908544469759",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/jewel-baits-freak-o-rig-9222976908544469760",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469678",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469679",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469680",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469681",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469682",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469683",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469684",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469685",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/into-the-void-tee-9222976908544469686",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469687",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469688",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469689",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469690",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469691",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tee-9222976908544469692",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/transcend-the-mind-tote-9222976908544469693",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469694",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469695",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469696",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469697",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469698",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469699",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469700",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ego-death-tee-9222976908544469701",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stop-tripping-start-tripping-tee-9222976908544469702",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2226-9222976908544469644",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2225-9222976908544469645",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2224-9222976908544469646",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2223-9222976908544469647",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2222-9222976908544469648",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2221-9222976908544469649",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2220-9222976908544469650",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-9222976908544469651",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-9222976908544469652",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-9222976908544469653",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2219-9222976908544469654",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2218-9222976908544469655",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2217-9222976908544469656",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2216-9222976908544469657",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2215-9222976908544469658",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2214-9222976908544469659",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2213-9222976908544469660",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2212-9222976908544469661",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2211-9222976908544469662",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2210-9222976908544469663",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2209-9222976908544469664",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2208-9222976908544469665",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2207-9222976908544469666",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2206-9222976908544469667",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2205-9222976908544469668",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/oyf-training-crue-371584717",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-eye-mask-843443775",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/daytime-routine-incense-provence-butter-843443776",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nighttime-ritual-incense-palau-midnight-843443777",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/daytime-scented-sachet-provence-butter-843443778",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nighttime-scented-sachet-palau-midnight-843443779",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/modal-duvet-cover-843443780",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/modal-flat-sheet-843443781",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/modal-adult-pillowcases-set-843443782",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-dog-bed-cover-843443783",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nakedlab-tote-bag-843443784",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/baby-bamboo-flat-cot-sheet-843443785",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mouth-tape-for-sleep-843443786",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-kids-pillowcases-set-843443787",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/e-gift-card-843443788",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-flat-sheet-843443789",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-cotton-towel-843443790",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/anti-allergy-bamboo-duvet-843443791",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-duvet-cover-843443792",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-fitted-sheet-843443793",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/gift-box-843443794",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-lounge-wear-set-843443795",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/baby-bamboo-fitted-cot-sheet-843443796",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bamboo-adult-pillowcase-set-843443797",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/recycelte-sport-leggings-wei-er-hibiskus-9222976908544469714",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mister-twister-4-double-tail-9222976908544469541",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mister-twister-4-double-tail-9222976908544469542",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mister-twister-4-double-tail-9222976908544469543",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/zebco-omega-pro-spincast-reel-9222976908544469544",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lew-s-speed-spool-itb-200-casting-reel-9222976908544469545",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lew-s-speed-spool-itb-200-casting-reel-9222976908544469546",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469547",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469548",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469549",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469550",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469551",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469552",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469553",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-uv-9222976908544469554",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469555",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469556",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469557",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469558",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469559",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fulling-mill-ez-egg-yarn-mini-uv-9222976908544469560",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/13-fishing-heatwave-spinning-ice-combo-9222976908544469561",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/13-fishing-heatwave-spinning-ice-combo-9222976908544469562",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/13-fishing-heatwave-spinning-ice-combo-9222976908544469563",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/13-fishing-heatwave-spinning-ice-combo-9222976908544469564",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fish-feathers-fly-line-wipes-camo-9222976908544469565",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fundamentals-of-psychedelics-bundle-9222976908544469468",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-issue-7-9222976908544469469",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db101-how-to-grow-mushrooms-special-discount-9222976908544469470",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-microdose-special-discount-9222976908544469471",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-microdose-special-discount-9222976908544469472",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-take-shrooms-and-lsd-9222976908544469473",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/psychedelic-essentials-bundle-9222976908544469474",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/how-to-trip-sit-9222976908544469475",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-use-psychedelics-special-discount-9222976908544469476",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-issue-6-9222976908544469477",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469478",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469479",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469480",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469481",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469482",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469483",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grow-magic-tee-9222976908544469484",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2251-9222976908544469436",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2250-9222976908544469437",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2249-9222976908544469438",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2248-9222976908544469439",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2247-9222976908544469440",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2246-9222976908544469441",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2245-9222976908544469442",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2244-9222976908544469443",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2243-9222976908544469444",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2242-9222976908544469445",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2241-9222976908544469446",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2240-9222976908544469447",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2239-9222976908544469448",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2238-9222976908544469449",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2237-9222976908544469450",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2236-9222976908544469451",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2235-9222976908544469452",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2234-9222976908544469453",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2233-9222976908544469454",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2232-9222976908544469455",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2231-9222976908544469456",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2230-9222976908544469457",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2229-9222976908544469458",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2228-9222976908544469459",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2227-9222976908544469460",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-chatterbait-elite-evo-9222976908544469348",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-chatterbait-elite-evo-9222976908544469357",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-chatterbait-elite-evo-9222976908544469358",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-chatterbait-elite-evo-9222976908544469361",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pulse-tail-pro-9222976908544469363",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pulse-tail-pro-9222976908544469367",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pulse-tail-pro-9222976908544469369",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pro-9222976908544469371",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pro-9222976908544469373",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pro-9222976908544469375",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savage-gear-3d-line-thru-trout-pro-9222976908544469377",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-off-the-grid-repair-kit-9222976908544469382",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-linesplice-9222976908544469384",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-linesight-9222976908544469386",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-linesight-glo-9222976908544469388",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-reline-3-6-weight-9222976908544469393",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/restorline-handheld-heat-gun-9222976908544469394",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mach-baits-machshad-9222976908544469396",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mach-baits-machshad-9222976908544469399",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/13-fishing-surge-inline-ice-fishing-combo-9222976908544469400",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strikemaster-mora-maven-replacement-power-auger-blades-9222976908544469402",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-nedlockz-hd-jighead-9222976908544469405",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-nedlockz-hd-jighead-9222976908544469406",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-nedlockz-hd-jighead-9222976908544469407",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/z-man-nedlockz-hd-jighead-9222976908544469408",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-gift-9222976908544469320",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-gift-9222976908544469324",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-gift-9222976908544469325",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-gift-9222976908544469327",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-gift-9222976908544469328",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-subscription-9222976908544469329",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-issue-8-9222976908544469333",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-membership-9222976908544469334",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-membership-9222976908544469335",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-membership-9222976908544469336",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-gift-membership-9222976908544469338",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-membership-9222976908544469339",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-egift-card-9222976908544469341",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-egift-card-9222976908544469343",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-egift-card-9222976908544469346",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-egift-card-9222976908544469349",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-egift-card-9222976908544469351",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/psychedelics-and-maternity-9222976908544469352",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/psychedelics-and-maternity-9222976908544469354",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-0-o-f-f-m-e-m-b-e-r-s-h-i-p-9222976908544469355",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2268-9222976908544469319",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2267-9222976908544469340",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2266-9222976908544469342",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fog-blue-gradient-backlight-keycaps-9222976908544469344",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fog-blue-gradient-backlight-keycaps-9222976908544469347",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pink-gradient-backlight-keycaps-9222976908544469350",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pink-gradient-backlight-keycaps-9222976908544469353",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2265-9222976908544469359",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2264-9222976908544469360",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2263-9222976908544469362",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2262-9222976908544469364",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2261-9222976908544469366",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2260-9222976908544469368",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2259-9222976908544469370",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2258-9222976908544469374",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2257-9222976908544469376",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2256-9222976908544469380",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2255-9222976908544469381",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2254-9222976908544469383",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2253-9222976908544469385",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finalkey-v65-r2-9222976908544469391",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finalkey-v65-r2-9222976908544469412",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finalkey-v65-r2-9222976908544469415",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finalkey-v65-r2-9222976908544469416",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2252-9222976908544469417",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/that-vanilla-from-france-tart-653741123",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/the-my-eyes-are-watering-lime-tart-653741124",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/the-feels-like-fall-carrot-ginger-tart-653741126",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/the-gooey-chocolate-caramel-pecan-tart-653741127",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/the-lip-smackin-lemon-tart-653741129",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/the-very-dark-chocolate-tart-653741130",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-tee-371584697",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/zentank-371584698",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nty-x-champion-all-seasons-coat-371584699",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-racer-tank-371584700",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tumbler-40oz-371584701",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-muscle-tank-371584703",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-baby-tee-371584704",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nty-baseball-cap-371584705",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/naked-truth-yoga-pull-over-371584706",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/yoga-mat-371584707",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bella-muscle-tank-371584708",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nty-scented-soy-candle-9oz-371584709",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/laid-back-tbl-zip-371584710",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/micro-rip-tank-371584711",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/markaba-tee-371584712",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/nty-cropped-hoodie-371584713",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sat-kriya-journal-371584714",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/laid-back-luxe-trackpants-371584715",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/laid-back-luxe-hoodie-371584716",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2290-9222976908544469251",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-1-9222976908544469252",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-1-9222976908544469253",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diykeycap-gift-card-1-9222976908544469254",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2289-9222976908544469255",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2288-9222976908544469256",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2287-9222976908544469257",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2286-9222976908544469258",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2285-9222976908544469259",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2284-9222976908544469260",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2283-9222976908544469261",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2282-9222976908544469262",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2281-9222976908544469263",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2280-9222976908544469264",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2279-9222976908544469265",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2278-9222976908544469266",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2277-9222976908544469267",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2276-9222976908544469268",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2275-9222976908544469269",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2274-9222976908544469270",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2273-9222976908544469271",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2272-9222976908544469272",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2271-9222976908544469273",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2270-9222976908544469274",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2269-9222976908544469275",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/journeying-on-legal-psychoactives-workshop-9222976908544469149",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/journeying-on-legal-psychoactives-workshop-9222976908544469153",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/journeying-on-legal-psychoactives-workshop-9222976908544469155",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-grow-mushrooms-beginner-9222976908544469157",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-grow-mushrooms-beginner-9222976908544469160",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/db-101-how-to-grow-mushrooms-beginner-9222976908544469162",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/doubleblind-issue-9-9222976908544469166",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/foraging-workshop-with-caine-barlow-9222976908544469167",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/psychedelics-intimacy-and-sex-summit-9222976908544469169",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469170",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469171",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469172",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469173",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469187",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469193",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469197",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469199",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469202",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469204",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469207",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469211",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469213",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/i-d-rather-be-on-acid-tee-9222976908544469215",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/netbait-baitfuel-hextek-virus-9222976908544469151",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/netbait-baitfuel-hextek-virus-9222976908544469156",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469159",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469161",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469163",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469164",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469165",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469183",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469184",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hag-s-big-tex-prickly-pear-9222976908544469186",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eagle-claw-lazer-sharp-green-head-hage-fish-skin-sabiki-rigs-9222976908544469188",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eagle-claw-lazer-sharp-green-head-hage-fish-skin-sabiki-rigs-9222976908544469189",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/morrish-hopper-foam-body-cutter-9222976908544469190",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hareline-shimmer-rabbit-strips-9222976908544469192",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hedron-grizzly-barred-flashabou-9222976908544469194",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hareline-brass-eyes-9222976908544469195",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hareline-sunken-barbell-eyes-9222976908544469198",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/costa-rincon-ii-matte-black-w-blue-mirror-580g-9222976908544469200",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cortland-classic-series-444-sink-tip-type-6-fly-line-9222976908544469203",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469205",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469209",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469214",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469216",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469218",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/megabass-dogmax-9222976908544469219",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2315-9222976908544468988",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2314-9222976908544468989",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2313-9222976908544468990",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2312-9222976908544468991",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2311-9222976908544468992",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2310-9222976908544468993",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2309-9222976908544468994",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2308-9222976908544468995",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2307-9222976908544468996",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2306-9222976908544468997",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2305-9222976908544468998",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2304-9222976908544468999",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2303-9222976908544469000",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2302-9222976908544469001",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2301-9222976908544469002",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2300-9222976908544469003",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2299-9222976908544469004",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2298-9222976908544469005",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2297-9222976908544469006",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2296-9222976908544469007",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2295-9222976908544469008",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2294-9222976908544469009",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2293-9222976908544469010",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2292-9222976908544469011",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2291-9222976908544469012",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2340-9222976908544468843",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2339-9222976908544468909",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2338-9222976908544468916",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2337-9222976908544468921",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2336-9222976908544468923",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2335-9222976908544468925",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2334-9222976908544468927",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2333-9222976908544468933",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2332-9222976908544468935",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2331-9222976908544468937",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2330-9222976908544468939",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2329-9222976908544468940",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2328-9222976908544468941",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2327-9222976908544468942",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2326-9222976908544468943",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2325-9222976908544468944",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2324-9222976908544468945",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2323-9222976908544468946",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2322-9222976908544468947",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2321-9222976908544468948",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2320-9222976908544468949",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2319-9222976908544468950",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2318-9222976908544468951",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2317-9222976908544468952",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-keycap-2316-9222976908544468953",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pink-tweed-dress-653740173",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/timeless-midi-dress-653740174",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pink-tweed-dress-653740175",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tweed-mini-dress-653740176",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/crop-jacket-653740177",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/strapless-mini-dress-653740178",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/timeless-white-midi-skirt-653740179",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sculpted-midi-dress-653740180",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sophisticated-milky-white-dress-653740181",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/organza-trench-coat-653740182",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/blue-organza-summer-coat-653740183",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/signature-pearl-dress-653740184",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/elegant-white-blazer-653740185",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/black-evening-slit-gown-653740186",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/black-elegant-dress-653740187",
+      "lastModified": "2026-09-01T07:05:00.000Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    }
+  ]
+}
