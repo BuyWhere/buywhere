@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v13-b79497'; // BUY-79497: bust pre-currency-isolation Redis pages (SG USD Shopify)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v14-b79497'; // BUY-79497: no SQL currency AND on child FTS; post-filter only
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -330,10 +330,13 @@ async function tryTierSearch(
   let i = 1;
   const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
   const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
-  // BUY-79497: always filter by currency when one is available, even without price bounds.
-  // The tier path previously only filtered currency when price bounds were present,
-  // allowing USD rows to leak into SG results for broad queries.
-  if (p.currency) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  // BUY-79497: do NOT AND currency on child-table FTS. products_partitioned_sg
+  // GIN + currency = SGD returns empty for nike/earbuds (planner / column
+  // mismatch vs Shopify USD labelled SG). Isolate currency in the JS
+  // post-filter below. Keep SQL currency only on the parent search_products
+  // table (and when the caller passed explicit price bounds).
+  if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  else if (p.currency && (p.minPrice != null || p.maxPrice != null)) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   // Child partition already scoped to country; extra country_code predicate
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
@@ -608,7 +611,8 @@ async function tryTierSearch(
       .filter((prod) => {
         if (!wantCur) return true;
         const cur = String(prod.price?.currency || '').toUpperCase();
-        return !cur || cur === wantCur;
+        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
+        return cur === wantCur;
       });
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
     const total = p.offset + products.length + (hasMore && products.length >= p.limit ? 1 : 0);
