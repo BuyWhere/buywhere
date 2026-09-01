@@ -13,6 +13,7 @@ export const CURRENCY_RATES: Record<string, number> = {
 
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  PH: 'PHP', ID: 'IDR',
 };
 
 // BUY-69998: Map ISO country codes to the coarse region labels agents expect
@@ -83,9 +84,12 @@ export function buildProduct(
   const rate = CURRENCY_RATES[currency] ?? null;
   const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
 
+  const title = row.title as string;
   const base: CanonicalProduct = {
     id: productId,
-    title: row.title as string,
+    title,
+    // BUY-79449 / BUY-78151: schema.org Product.name is the agent-facing alias of title.
+    name: title,
     price: formatPriceField(amount, currency) as unknown as ProductPrice, // string when sentinel, see BUY-65559
     normalized_price_usd,
     merchant,

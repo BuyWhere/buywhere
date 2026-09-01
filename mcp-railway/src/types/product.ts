@@ -12,6 +12,8 @@ export interface ComparisonAttribute {
 export interface CanonicalProduct {
   id: string;
   title: string;
+  /** schema.org Product.name — alias of title (BUY-78151 / BUY-79449). */
+  name?: string;
   price: ProductPrice;
   merchant: string;
   url: string;

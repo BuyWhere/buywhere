@@ -1227,7 +1227,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
   const minDiscount = Number(args.min_discount) || 10;
   // BUY-59768: infer currency from country_code (or region) when not explicitly set.
-  const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
+  const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', ph: 'PH', id: 'ID' };
   const explicitCurrency = ((args.currency as string) || '').toUpperCase();
   const regionArg = ((args.region as string) || '').toLowerCase();
   const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
@@ -2230,18 +2230,38 @@ const MARKET_TO_COUNTRY: Record<string, string> = {
 
 function normalizeMarketArg(args: Record<string, unknown>): void {
   const market = (args.market as string || "").trim();
-  if (!market) return;
-  const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
-  if (!args.country_code && !args.country) {
-    args.country_code = mapped;
+  if (market) {
+    const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+    if (!args.country_code && !args.country) {
+      args.country_code = mapped;
+    }
+  }
+  // BUY-79449: Cart/agents pass region=sg|us|my|th|ph|id|vn as ISO market, but
+  // search_products.region is the coarse catalog shard (sea/us/eu/au). Treating
+  // ISO codes as sp.region matches 0 rows (or REST-fallback unscoped hits).
+  const rawRegion = String(args.region || '').trim().toLowerCase();
+  if (!rawRegion) return;
+  const COARSE = new Set(['sea', 'us', 'eu', 'au', 'global']);
+  if (COARSE.has(rawRegion)) {
+    if (rawRegion === 'us' && !args.country_code && !args.country && !args.deliver_to) {
+      args.country_code = 'US';
+    }
+    return;
+  }
+  const iso = MARKET_TO_COUNTRY[rawRegion] || (rawRegion.length === 2 ? rawRegion.toUpperCase() : '');
+  if (iso) {
+    if (!args.country_code && !args.country && !args.deliver_to) {
+      args.country_code = iso;
+    }
+    delete args.region;
   }
 }
 
 // A bogus code (e.g. "ZZ") silently falls through to default-market queries,
 // making it impossible to verify the filter was honoured.
 const VALID_COUNTRY_CODES: Record<string, string[]> = {
-  search_products: ['SG', 'US', 'VN', 'TH', 'MY'],
-  get_deals: ['SG', 'US', 'VN', 'TH', 'MY'],
+  search_products: ['SG', 'US', 'VN', 'TH', 'MY', 'PH', 'ID', 'AU', 'GB'],
+  get_deals: ['SG', 'US', 'VN', 'TH', 'MY', 'PH', 'ID', 'AU', 'GB'],
   list_categories: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'],
   find_best_price: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
 };

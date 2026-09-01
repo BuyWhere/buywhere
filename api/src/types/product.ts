@@ -12,6 +12,7 @@ export interface ComparisonAttribute {
 export interface CanonicalProduct {
   id: string;
   title: string;
+  name?: string;
   price: ProductPrice;
   merchant: string;
   // BUY-74689: opaque `merchants.id` reference. Distinct from `merchant` (the

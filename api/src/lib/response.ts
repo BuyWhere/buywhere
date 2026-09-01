@@ -148,9 +148,11 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
+  const title = row.title as string;
   const base: CanonicalProduct = {
     id: productId,
-    title: row.title as string,
+    title,
+    name: title,
     price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl as string | null,

@@ -2680,10 +2680,28 @@ const MARKET_TO_COUNTRY: Record<string, string> = {
 
 function normalizeMarketArg(args: Record<string, unknown>): void {
   const market = (args.market as string || "").trim();
-  if (!market) return;
-  const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
-  if (!args.country_code && !args.country) {
-    args.country_code = mapped;
+  if (market) {
+    const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+    if (!args.country_code && !args.country) {
+      args.country_code = mapped;
+    }
+  }
+  // BUY-79449: ISO region=sg|my|… is a country alias, not catalog region (sea/us).
+  const rawRegion = String(args.region || '').trim().toLowerCase();
+  if (!rawRegion) return;
+  const COARSE = new Set(['sea', 'us', 'eu', 'au', 'global']);
+  if (COARSE.has(rawRegion)) {
+    if (rawRegion === 'us' && !args.country_code && !args.country && !args.deliver_to) {
+      args.country_code = 'US';
+    }
+    return;
+  }
+  const iso = MARKET_TO_COUNTRY[rawRegion] || (rawRegion.length === 2 ? rawRegion.toUpperCase() : '');
+  if (iso) {
+    if (!args.country_code && !args.country && !args.deliver_to) {
+      args.country_code = iso;
+    }
+    delete args.region;
   }
 }
 
