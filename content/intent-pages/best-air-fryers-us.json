@@ -1,0 +1,132 @@
+{
+  "slug": "best-air-fryers-us",
+  "title": "Best Air Fryers in the US (2026) \u2014 Live Prices Compared",
+  "description": "Compare live US air fryer prices from Amazon, Walmart, Target and Best Buy. Basket vs oven vs dual-zone models, with buying advice on capacity, wattage and accessories \u2014 no invented specs.",
+  "heroEyebrow": "US air fryer buying guide",
+  "heroTitle": "Best air fryers in the US \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Best air fryers in the US \u2014 from {floorPrice} today",
+  "heroBody": "Air fryers moved from gadget to weekday appliance in US kitchens because they brown frozen food and leftovers without heating a full oven. In 2026 the useful split is not brand hype: compact basket fryers for one or two people, family-size baskets that can take a bag of fries, dual-zone machines that run two foods at once, and toaster-oven air fryers that also toast and bake. This page reads live US listings from BuyWhere's catalog so you can see which of those shapes is actually in stock and what authorised retailers are asking today, instead of a static roundup that froze last year's sale prices.",
+  "canonicalPath": "/best-air-fryers-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "air fryer",
+  "backupQueries": [
+    "Ninja air fryer",
+    "Cosori air fryer",
+    "Instant Vortex air fryer"
+  ],
+  "minPrice": 35,
+  "requiredProductTerms": [
+    "air fryer",
+    "airfryer",
+    "ninja",
+    "cosori",
+    "instant"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live air fryer prices in the US",
+  "comparisonSectionTitle": "Which air fryer shape to buy",
+  "comparisonColumns": [
+    "Shape",
+    "Typical capacity",
+    "What it does well",
+    "Skip if"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Compact basket (2\u20134 qt)",
+      "values": [
+        "One\u2013two people",
+        "Fast preheat",
+        "Leftovers and frozen snacks",
+        "Skip if you cook for a family most nights"
+      ]
+    },
+    {
+      "label": "Family basket (5\u20138 qt)",
+      "values": [
+        "3\u20135 people",
+        "Weeknight proteins + fries",
+        "Most US listings",
+        "Skip if counter space is tiny"
+      ]
+    },
+    {
+      "label": "Dual-zone",
+      "values": [
+        "Two independent baskets",
+        "Fries + protein together",
+        "Ninja-style SKUs",
+        "Skip if you almost never cook two foods"
+      ]
+    },
+    {
+      "label": "Toaster-oven air fryer",
+      "values": [
+        "Rack + tray",
+        "Toast, bake, air-fry",
+        "Replaces a toaster oven",
+        "Skip if you only want a pull-out basket"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually changes between models",
+  "highlights": [
+    {
+      "title": "Wattage and recovery",
+      "body": "Higher wattage recovers temperature faster after you open the basket. That matters more for frozen fries and wings than for reheating pizza. Listings that hide wattage are harder to compare; prefer ones that state it."
+    },
+    {
+      "title": "Basket coating and parts",
+      "body": "Non-stick baskets scratch if you use metal tongs. Removable, dishwasher-safe baskets and crisper plates are the maintenance difference between a machine you keep using and one that lives in a cupboard."
+    },
+    {
+      "title": "Preheat and shake prompts",
+      "body": "Preheat and shake reminders are small software features that prevent pale food. Dual-zone sync is only useful if you actually cook two items to finish together."
+    }
+  ],
+  "adviceSectionTitle": "How to pick without overpaying",
+  "advicePoints": [
+    "Match capacity to the largest meal you cook weekly, not a holiday crowd. Oversized baskets waste energy and counter space.",
+    "Ignore accessory bundles that pad the listing with parchment liners and silicone cups you can buy separately for less.",
+    "Prefer authorised Amazon, Walmart, Target or Best Buy listings over marketplace third-party sellers with vague return windows.",
+    "If you already own a convection toaster oven, a compact basket fryer is usually enough; you do not need a second oven-style unit.",
+    "Check whether replacement baskets are sold for the model. Unobtanium parts are why cheap no-name fryers get thrown out."
+  ],
+  "faqSectionTitle": "Air fryers in the US \u2014 common questions",
+  "faqs": [
+    {
+      "question": "Is an air fryer just a small convection oven?",
+      "answer": "Functionally yes: a heating element and a fan in a tight chamber. Basket models are faster to preheat and easier to shake; oven-style models toast and bake more like a toaster oven. Buy the shape that matches how you cook, not a marketing name."
+    },
+    {
+      "question": "Do I need a dual-zone air fryer?",
+      "answer": "Only if you regularly cook two foods with different times. For one-person meals or a single frozen bag, a family basket with a shake reminder is simpler and usually cheaper."
+    },
+    {
+      "question": "Are Cosori, Ninja and Instant still the main US brands?",
+      "answer": "They dominate authorised retail listings in 2026, alongside Instant Vortex and store brands at Walmart and Target. Treat unknown brands with no replacement-part pages as disposable, even if the headline price looks tempting."
+    },
+    {
+      "question": "Should I wait for a sale?",
+      "answer": "US air fryer prices move with Prime Day, Black Friday and back-to-school campaigns. This page tracks live listings so you can see whether today's floor is already a sale or still list-ish \u2014 we do not invent a 'usual' price in the copy."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {},
+  "inboundLinks": [
+    "/best-multi-cookers-us",
+    "/best-rice-cookers-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US air fryer prices bounce around",
+    "body": "The same Cosori or Ninja SKU is sold by Amazon, Walmart, Target, Best Buy and marketplace resellers at once. Platform campaigns drop the floor for a weekend, then authorised listings snap back. A static 'best of' article dated last year cannot tell you which shape is in stock at a sane price this week, which is why this page is wired to live catalog search instead of a frozen table."
+  },
+  "owner": "Buzz",
+  "reviewer": "Hue",
+  "queueRow": 0
+}
