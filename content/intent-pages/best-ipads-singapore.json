@@ -10,13 +10,13 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "iPad",
+  "searchQuery": "iPad Air",
   "backupQueries": [
-    "Apple iPad",
-    "iPad Air",
-    "iPad Pro"
+    "iPad Pro 11",
+    "Apple iPad Air",
+    "iPad"
   ],
-  "minPrice": 400,
+  "minPrice": 200,
   "requiredProductTerms": [
     "ipad",
     "apple",

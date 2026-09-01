@@ -10,17 +10,17 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "MacBook",
+  "searchQuery": "MacBook Air 13",
   "backupQueries": [
-    "MacBook Air",
-    "MacBook Pro",
-    "Apple laptop"
+    "Apple MacBook",
+    "MacBook Air M5",
+    "13-inch MacBook Air"
   ],
   "minPrice": 700,
   "requiredProductTerms": [
     "macbook",
-    "apple",
-    "laptop"
+    "air",
+    "apple"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",

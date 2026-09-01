@@ -10,17 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "budget laptop",
+  "searchQuery": "ASUS laptop",
   "backupQueries": [
-    "cheap laptop",
-    "student laptop",
-    "laptop under 800"
+    "Lenovo IdeaPad",
+    "HP ProBook",
+    "Vivobook"
   ],
   "minPrice": 300,
   "requiredProductTerms": [
     "laptop",
-    "notebook",
-    "chromebook"
+    "asus",
+    "windows"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
