@@ -158,6 +158,55 @@ async function searchProductsViaRestFallback(opts: {
   }
 }
 
+async function findBestPriceViaRestFallback(opts: {
+  productName: string;
+  country: string;
+  t0: number;
+  apiKey?: string;
+}): Promise<{ best_price: Record<string, unknown> | null; alternatives: Record<string, unknown>[]; meta: Record<string, unknown> } | null> {
+  const restHits = await searchProductsViaRestFallback({
+    q: opts.productName,
+    country: opts.country,
+    limit: 10,
+    offset: 0,
+    compact: true,
+    currency: COUNTRY_CURRENCY[opts.country] || 'SGD',
+    apiKey: opts.apiKey,
+  });
+  if (!restHits || restHits.products.length === 0) return null;
+  const data = restHits.products.map((p) => {
+    const price = p.price as unknown;
+    let amount: number | null = null;
+    let curr = COUNTRY_CURRENCY[opts.country] || 'SGD';
+    if (price && typeof price === 'object' && !Array.isArray(price) && 'amount' in (price as object)) {
+      const po = price as { amount?: unknown; currency?: string };
+      amount = po.amount != null ? Number(po.amount) : null;
+      if (po.currency) curr = po.currency;
+    } else if (typeof price === 'number') {
+      amount = price;
+    }
+    return {
+      id: p.id,
+      title: p.title,
+      price: { amount, currency: curr },
+      merchant: p.merchant,
+      url: p.url,
+      image_url: p.image_url,
+      country_code: opts.country,
+    };
+  });
+  return {
+    best_price: data[0] ?? null,
+    alternatives: data.slice(1),
+    meta: {
+      total: data.length,
+      country: opts.country,
+      response_time_ms: Date.now() - opts.t0,
+      fallback: 'rest_search',
+    },
+  };
+}
+
 // BUY-74597: fail soft before MCP clients hit their visible timeout. Mirror of
 // api/src/routes/mcp.ts — keeps degraded_kind semantics identical.
 type McpDegradedTool = 'search_products' | 'get_deals' | 'find_best_price';
