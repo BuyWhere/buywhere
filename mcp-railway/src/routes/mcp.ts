@@ -1117,9 +1117,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
     dealsClient = await acquireMcpClient();
     await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
-    // BUY-79260: force Bitmap Index Scan on GIN — without this the planner occasionally
-    // picks idx_sp_cc_price and seq-filters, blowing past the 3.5s wall.
-    await dealsClient.query('SET enable_indexscan = off');
+    // BUY-74579: do NOT set enable_indexscan=off here. That GIN-search setting
+    // forces BitmapAnd(idx_sp_disc, idx_sp_cc_price)+Sort (~700k cost, JIT)
+    // instead of Index Scan Backward on idx_sp_disc (~10k, already ordered).
+    // Live EXPLAIN 2026-09-01: BitmapAnd exceeds the 3.5s MCP wall.
     const candidateLimit = 200;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
