@@ -18,7 +18,13 @@ export interface CanonicalProduct {
   // platform slug, e.g. `bestdenki`, `shopee_sg`) — `merchant_id` joins 1:1 to
   // `merchants.id` and is the lookup key for `merchant_name` / `merchant_slug`.
   merchant_id?: string | null;
-  url: string;
+  // BUY-67318: when the probe worker confirms the listing is dead (HTTP 404/410
+  // or other 4xx) we null the URL so the FE doesn't render a buy button to a
+  // page that no longer exists. The redirect handler (/r/direct/{id}) already
+  // returns 410 in this case; the serializer removes the link from search and
+  // listings too. `url_status: 'dead'` is still emitted so consumers can show
+  // a tombstone / "no longer available" UI.
+  url: string | null;
   image_url: string | null;
   region: string | null;
   country_code: string | null;
