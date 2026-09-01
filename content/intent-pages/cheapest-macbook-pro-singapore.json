@@ -20,6 +20,7 @@
     "Apple MacBook Pro M3",
     "Apple MacBook Pro M2"
   ],
+  "minPrice": 1500,
   "requiredProductTerms": [
     "macbook pro",
     "apple",
