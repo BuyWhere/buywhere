@@ -240,7 +240,7 @@ var BuyWhereClient = class {
     if (searchParams.platform) {
       query.set("platform", searchParams.platform);
     }
-    return this.request(`/v1/search?${query.toString()}`);
+    return this.request(`/v1/products/search?${query.toString()}`);
   }
   async compare(params) {
     if (Array.isArray(params)) {
@@ -628,11 +628,17 @@ var AutocompleteClient = class {
     if (options.currency) {
       params.set("currency", options.currency);
     }
-    const response = await this.client.request(
-      `/api/v1/search?${params.toString()}`
-    );
+    const response = await this.client.request(`/v1/products/search?${params.toString()}`);
     return {
-      items: response.items || [],
+      items: (response.results ?? []).map((p) => ({
+        id: typeof p.id === "string" ? parseInt(p.id, 10) : p.id,
+        name: p.title,
+        price: p.price?.amount ?? null,
+        currency: p.price?.currency ?? "SGD",
+        source: p.merchant,
+        brand: p.metadata?.brand ?? null,
+        image_url: p.image_url
+      })),
       query
     };
   }
@@ -720,7 +726,7 @@ var AgentsClient = class {
     const ftsQuery = new URLSearchParams(query);
     ftsQuery.set("mode", "fts");
     const semanticUrl = `/v2/agents/search?${query.toString()}`;
-    const ftsUrl = `/v1/search?${ftsQuery.toString()}`;
+    const ftsUrl = `/v1/products/search?${ftsQuery.toString()}`;
     try {
       return await circuitBreaker.execute(
         () => this.client.request(semanticUrl)
