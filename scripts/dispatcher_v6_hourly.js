@@ -243,11 +243,14 @@ function buildConnectionString() {
   if (!raw) {
     throw new Error('Set CANONICAL_DATABASE_URL, MAGLEV_DB_URL, DATABASE_URL, or BUYWHERE_DATABASE_URL for the canonical DB.');
   }
-  const hostname = new URL(raw).hostname;
-  if (hostname === ROUNDHOUSE_HOST) {
+  const parsed = new URL(raw);
+  if (parsed.hostname === ROUNDHOUSE_HOST) {
     throw new Error(`Refusing canonical DB connection to control-plane host ${ROUNDHOUSE_HOST}`);
   }
-  return raw;
+  if (parsed.searchParams.get('sslmode') === 'require' && !parsed.searchParams.has('uselibpqcompat')) {
+    parsed.searchParams.set('uselibpqcompat', 'true');
+  }
+  return parsed.toString();
 }
 
 function buildClient() {
