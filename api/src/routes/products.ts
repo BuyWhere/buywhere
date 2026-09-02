@@ -432,6 +432,24 @@ async function tryTierSearch(
       THEN 0.08 ELSE 1.0
     END`;
 
+  // BUY-80220: primary-device queries must rank actual devices above the
+  // high-cardinality accessory merchants that repeat iPhone/iPad/AirPods in
+  // every case/mount/glass SKU title. Keep this lexical/category based because
+  // some product partitions do not expose canonical_category yet.
+  const primaryDeviceBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(iphone|ipad|airpods?|airpods pro|galaxy tab|pixel tablet|android tablet|smartphone|tablet|oled tv|television|headphones?|earbuds?)\\M'
+        OR lower(sp.category) ~* '\\m(smartphones?|tablets?|tvs?|televisions?|headphones?|audio)\\M'
+      THEN 3.0 ELSE 1.0
+    END`;
+  const deviceAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(iphone|ipad|airpods?|phone|tablet)\\M'
+        AND (lower(sp.title) ~* '\\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare)\\M'
+          OR lower(sp.category) ~* '\\m(accessory|accessories|case|cases|mount|mounts|screen protector)\\M')
+      THEN 0.08 ELSE 1.0
+    END`;
+
   const laptopBoost = `
     CASE
       WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
@@ -465,7 +483,9 @@ async function tryTierSearch(
       -- The CASE expressions reference the cand alias (c.*) directly.
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${primaryDeviceBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
             (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
@@ -504,7 +524,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -515,7 +535,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -1522,18 +1542,28 @@ router.get(
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rh.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                 -- BUY-63738: boost laptop products and penalize accessories
+                 -- BUY-80220: boost primary devices and demote accessory SKUs above pure ts_rank.
                  CASE
                    WHEN lower(rh.title) LIKE '%laptop%' OR lower(rh.title) LIKE '%notebook%' OR lower(rh.title) LIKE '%macbook%'
                      OR lower(rh.category) LIKE '%laptop%'
+                     OR lower(rh.title) ~* '\m(iphone|ipad|airpods?|airpods pro|galaxy tab|pixel tablet|android tablet|smartphone|tablet|oled tv|television|headphones?|earbuds?)\M'
+                     OR lower(rh.category) ~* '\m(smartphones?|tablets?|tvs?|televisions?|headphones?|audio)\M'
                      OR array_to_string(rh.category_path, ' ') LIKE '%laptop%'
-                   THEN 2.0 ELSE 1.0
+                     OR lower(array_to_string(rh.category_path, ' ')) ~* '\m(smartphones?|tablets?|tvs?|televisions?|headphones?|audio)\M'
+                   THEN 3.0 ELSE 1.0
                  END *
                  CASE
                    WHEN rh.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                      OR rh.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                      OR array_to_string(rh.category_path, ' ') ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                    THEN 0.25 ELSE 1.0
+                 END *
+                 CASE
+                   WHEN lower(rh.title) ~* '\m(iphone|ipad|airpods?|phone|tablet)\M'
+                     AND (lower(rh.title) ~* '\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare)\M'
+                       OR lower(rh.category) ~* '\m(accessory|accessories|case|cases|mount|mounts|screen protector)\M'
+                       OR lower(array_to_string(rh.category_path, ' ')) ~* '\m(accessory|accessories|case|cases|mount|mounts|screen protector)\M')
+                   THEN 0.08 ELSE 1.0
                  END AS rank
           FROM recent_hits rh
           ORDER BY rank DESC, rh.id DESC
