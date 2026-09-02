@@ -21,10 +21,8 @@ export async function GET(): Promise<Response> {
     // Index entries that reference the legacy name will 404.
     { url: `${SITEMAP_BASE_URL}/sitemap-products.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-products-sg.xml`, lastModified: now },
-    // SG product slug pages return 410 (BUY-37747/BUY-37750), so the
-    // dedicated SG product sitemap is intentionally gone. Don't list it in
-    // the index to avoid GSC "Sitemap could not be read" coverage errors.
-    // Removed from the index per BUY-67478.
+    { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
+    // BUY-73905 restored SG sitemap as HTTP 200; keep it. BUY-65280 adds merchants.
     { url: `${SITEMAP_BASE_URL}/sitemap-brands.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-stores.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-docs.xml`, lastModified: now },
