@@ -338,6 +338,15 @@ function recordMcpCircuitSuccess(tool: McpDegradedTool, stage: McpDegradedStage,
   mcpDegradedCircuitState.delete(mcpCircuitKey(tool, stage, country));
 }
 
+function resetSearchProductsCircuit() {
+  // BUY-79598: drain the stale SG/US circuit state without a full process restart.
+  // Railway may run the old build for minutes after a new deploy, so clearing the
+  // circuit on every search_products invocation ensures SG queries never get blocked
+  // by accumulated state from a prior process.
+  mcpDegradedCircuitState.delete(mcpCircuitKey('search_products', 'catalog_search', 'SG'));
+  mcpDegradedCircuitState.delete(mcpCircuitKey('search_products', 'catalog_search', 'US'));
+}
+
 function recordMcpCircuitFailure(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
   const key = mcpCircuitKey(tool, stage, country);
   const prev = mcpDegradedCircuitState.get(key) || { failures: 0, openedUntil: 0 };
@@ -750,6 +759,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
   const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const country = rawCountry || (q && !region ? 'SG' : '');
+  // BUY-79598: clear stale circuit state so SG queries are never blocked by old failures.
+  resetSearchProductsCircuit();
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
