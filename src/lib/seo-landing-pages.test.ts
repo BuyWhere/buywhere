@@ -287,7 +287,7 @@ test("QA-sampled SEO source configs do not contain synthetic placeholders", () =
   }
 });
 
-test("BUY-72906: US SEO landing search passes deliver_to + include_unshippable=false + country", async () => {
+test("BUY-80147: US SEO landing search passes country_code (not deliver_to) + include_unshippable=false + country", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   globalThis.fetch = async (input) => {
@@ -305,7 +305,8 @@ test("BUY-72906: US SEO landing search passes deliver_to + include_unshippable=f
   try {
     await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
     assert.match(requestedUrl, /[?&]country=us/);
-    assert.match(requestedUrl, /[?&]deliver_to=us/);
+    assert.match(requestedUrl, /[?&]country_code=US/);
+    assert.doesNotMatch(requestedUrl, /[?&]deliver_to=/);
     assert.match(requestedUrl, /[?&]include_unshippable=false/);
   } finally {
     globalThis.fetch = originalFetch;

@@ -131,7 +131,7 @@ export async function fetchCategoryProducts({
     const params = new URLSearchParams({
       q: query,
       country,
-      deliver_to: country,
+      country_code: country,
       include_unshippable: "false",
       limit: String(Math.max(limit * 3, 24)),
       region: country,

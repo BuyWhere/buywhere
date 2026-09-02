@@ -1618,14 +1618,15 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // Roborock Costco) are indexed under region=US. Call canonical v1 with
       // `query`+`region=US` (site `/api/products/search` is rate-limited and
       // `q`+`country=US` only returns Wyze). Accessory/minPrice filters still
-      // run locally below. Other landings keep lowercase country + deliver_to.
+      // run locally below. Other landings use country_code (BUY-80147: deliver_to
+      // is a stale Redis empty-result HIT).
       if (highRecallRobotUs) {
         params.set("query", query);
         params.set("region", "US");
       } else {
         params.set("q", query);
         params.set("country", config.country.toLowerCase());
-        params.set("deliver_to", config.country.toLowerCase());
+        params.set("country_code", config.country.toUpperCase());
         params.set("include_unshippable", "false");
         params.set("region", config.country.toLowerCase());
       }

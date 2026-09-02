@@ -127,7 +127,7 @@ export function renderProductLlmsSnippet(input: LlmsProductSnippetInput): string
     `endpoint: GET https://api.buywhere.ai/v1/products/${input.productId}`,
   );
   lines.push(
-    `endpoint: GET https://api.buywhere.ai/v1/products/search?q=${encodeURIComponent(input.title)}&deliver_to=${input.country.toUpperCase()}`,
+    `endpoint: GET https://api.buywhere.ai/v1/products/search?q=${encodeURIComponent(input.title)}&country_code=${input.country.toUpperCase()}`,
   );
   lines.push(
     "auth: Bearer bw_live_<key>  (POST https://api.buywhere.ai/v1/keys)",
@@ -196,7 +196,7 @@ export function renderCategoryLlmsSnippet(input: LlmsCategorySnippetInput): stri
   lines.push("## How to fetch via REST");
   lines.push(`endpoint: GET https://api.buywhere.ai/v1/categories/${input.slug}`);
   lines.push(
-    `endpoint: GET https://api.buywhere.ai/v1/products/search?category=${input.slug}&deliver_to=${input.country.toUpperCase()}`,
+    `endpoint: GET https://api.buywhere.ai/v1/products/search?category=${input.slug}&country_code=${input.country.toUpperCase()}`,
   );
 
   return lines.join("\n");
