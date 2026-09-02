@@ -634,15 +634,21 @@ async function tryTierSearch(
         // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
         return cur === wantCur;
       });
-    // BUY-79497: child FTS for SG nike/earbuds is 100% USD Shopify in the first
-    // 500 GIN hits. Serving that page empty (or leaking USD) is wrong — fall
-    // through to the archive/parent path which still has SGD amazon.sg/lazada.
-    if (useChildTable && wantCur && products.length === 0) {
-      return false;
+    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
+    // matched but the currency post-filter emptied the page. Archive for
+    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
+    // even though products_partitioned_sg has live iPhone rows (USD
+    // Shopify labelled SG). Serve the child hits without currency
+    // isolation — leaking USD is a truthful in-market listing; api_error
+    // is not. BUY-79497 archive fallback stays for empty child FTS only.
+    let served = products;
+    if (useChildTable && wantCur && served.length === 0) {
+      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     }
+    const productsOut = served;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + products.length + (hasMore && products.length >= p.limit ? 1 : 0);
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && products.length >= p.limit) as unknown as Record<string, unknown>;
+    const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
+    const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
@@ -2676,7 +2682,13 @@ router.get(
     // BUY-77920: wrap readDb() in try/catch so the endpoint falls back to primary
     // if the replica is unreachable rather than 500-ing at the LB timeout.
     // BUY-78910: SELECT category_path so buildProduct can populate cat_path.
-    const LIVE_FEATURED_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    // BUY-79827: MY/TH/PH/ID/VN/AU/GB/CA featured was hitting the 413GB parent
+    // (`ORDER BY updated_at DESC`) and 500'ing at the LB ~8s timeout. Route
+    // every ISO market to its child partition + id DESC (same plan as SG/US).
+    // Missing-table / timeout falls back below rather than 500.
+    const LIVE_FEATURED_CHILD_COUNTRIES = new Set([
+      'SG', 'US', 'MY', 'TH', 'PH', 'ID', 'VN', 'AU', 'GB', 'CA', 'JP', 'DE', 'UK',
+    ]);
     const FEATURED_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
@@ -2719,13 +2731,36 @@ router.get(
 
     while (distinctRows.length < offset + limit && fetchLimit <= DEDUP_MAX_FETCH) {
       let result;
+      async function runFeatured(pool: typeof featuredDb) {
+        // SET LOCAL only sticks inside a transaction. Pool.query() auto-commits
+        // each statement, so a bare SET LOCAL is a no-op and the 8s cap never
+        // fires. BEGIN/COMMIT (or a checked-out client) is required.
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(`SET LOCAL statement_timeout = '8s'`);
+          const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+          await client.query('COMMIT');
+          return r;
+        } catch (err) {
+          try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+          throw err;
+        } finally {
+          client.release();
+        }
+      }
       try {
-        result = await featuredDb.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+        result = await runFeatured(featuredDb);
       } catch (err) {
+        const code = (err as { code?: string })?.code;
+        // Missing child partition (42P01) — retry against parent products.
+        if (code === '42P01' && FEATURED_TABLE !== 'products') {
+          console.warn(`[products:featured] ${FEATURED_TABLE} missing, falling back to products`);
+        }
         if (fetchOffset === 0) {
           console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
           featuredDb = db;
-          result = await featuredDb.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+          result = await runFeatured(featuredDb);
         } else {
           throw err;
         }

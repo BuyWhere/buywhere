@@ -77,6 +77,43 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
   };
 }
 
+// GET /v1/brands  — BUY-79827 listing endpoint.
+// Shopper/FE probes hit /v1/brands (plural) for the catalog index. Returns
+// every BRAND_METADATA entry with slug, name, description, logo_url. Cached
+// for the same 15 min as the per-slug route (brands rarely change).
+router.get(
+  '/',
+  queryLogMiddleware('brand.list'),
+  async (req: Request, res: Response) => {
+    const cacheKey = 'brands:list';
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
+    } catch (err) {
+      console.error('[brands] redis get error (list):', err);
+      // Continue without cache.
+    }
+
+    const brands = Object.entries(BRAND_METADATA).map(([slug, meta]) => ({
+      slug,
+      name: meta.name,
+      description: meta.description,
+      logo_url: meta.logo_url ?? null,
+    }));
+
+    try {
+      await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(brands));
+    } catch (err) {
+      console.error('[brands] redis set error (list):', err);
+      // Continue without caching.
+    }
+
+    res.json(brands);
+  }
+);
+
 // GET /v1/brand/:slug
 // 2026-08-27: `WHERE brand = $1` was a sequential scan of the 365M-row products table (no brand index) →
 // 30 s statement timeout → 500 → every brand page 404'd whenever the Redis cache expired. Narrowing with the

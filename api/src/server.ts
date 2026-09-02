@@ -246,14 +246,28 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
-  // BUY-77195: backward-compat alias — callers probe /v1/featured instead of /v1/products/featured
-  app.use('/v1/featured', productsRouter);
+  // BUY-77195 / BUY-79827: callers probe GET /v1/featured?country=MY. Mounting
+  // productsRouter at /v1/featured previously hit GET `/` (the list handler),
+  // which scans the parent table for MY and 500s at ~8s. Rewrite `/` →
+  // `/featured` so the alias lands on the featured handler.
+  app.use('/v1/featured', (req, _res, next) => {
+    const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    const pathOnly = req.url.includes('?') ? req.url.slice(0, req.url.indexOf('?')) : req.url;
+    if (pathOnly === '/' || pathOnly === '') {
+      req.url = '/featured' + q;
+    }
+    next();
+  }, productsRouter);
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
   // The MCP listings ledger: shared state for every external surface we appear on.
   app.use('/v1/mcp-listings', mcpListingsRouter);
   app.use('/v1/brand', brandsRouter);
+  // BUY-79827: plural alias for brand listing. Shopper + FE probe /v1/brands
+  // (plural) for the catalog index; the singular route above stays for deep
+  // links to /v1/brand/:slug.
+  app.use('/v1/brands', brandsRouter);
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
   // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.
