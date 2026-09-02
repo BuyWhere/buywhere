@@ -487,12 +487,39 @@ async def search_products(
     # Hard cap: no single search query should block for more than 8s.
     # SQLAlchemy 2.0 autobegin starts a transaction on the first execute, so
     # SET LOCAL scopes the timeout to this transaction only.
+    # BUY-80024: Route single-country queries through partition tables to bypass BUY-72082 saturation.
+    # Partition tables (products_partitioned_sg, products_partitioned_us) are much smaller and query in <20s
+    # even when the main 28M+ products table is saturated.
+    _USE_PARTITION = True  # Enable partition routing for single-country queries
+    _PARTITION_MAP = {
+        "SG": "products_partitioned_sg",
+        "US": "products_partitioned_us",
+        "MY": "products_partitioned_my",
+        "TH": "products_partitioned_th",
+        "VN": "products_partitioned_vn",
+        "PH": "products_partitioned_ph",
+        "ID": "products_partitioned_id",
+    }
+
+    # Determine which table to use: partition for single-country, main for multi-country or no filter
+    _single_country = None
+    if _USE_PARTITION and country is not None:
+        country_list = [c.strip().upper() for c in country.split(",")]
+        if len(country_list) == 1 and country_list[0] in _PARTITION_MAP:
+            _single_country = country_list[0]
+
     try:
         await db.execute(text("SET LOCAL statement_timeout = '8000'"))
     except Exception:
         pass  # Non-fatal — proceed without timeout if the session state doesn't allow it
 
-    base_query = select(Product).where(Product.is_active == True)
+    if _single_country:
+        # Use partition table - construct raw SQL to avoid SQLAlchemy model mismatch
+        partition_name = _PARTITION_MAP[_single_country]
+        # Note: Partition tables have same schema + search_vector column
+        base_query = select(Product).select_from(text(partition_name)).where(Product.is_active == True)
+    else:
+        base_query = select(Product).where(Product.is_active == True)
 
     if q:
         base_query = base_query.where(
