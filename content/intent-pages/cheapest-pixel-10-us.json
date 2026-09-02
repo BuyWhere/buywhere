@@ -18,9 +18,7 @@
   ],
   "minPrice": 500,
   "requiredProductTerms": [
-    "pixel 10",
-    "pixel",
-    "google"
+    "pixel 10"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
@@ -155,5 +153,5 @@
   "owner": "Venture",
   "reviewer": "Hue",
   "queueRow": 64,
-  "minPrice": 29.95
+  "minPrice": 500
 }
