@@ -91,81 +91,139 @@ async function acquireMcpClient() {
 // hits from REST instead of returning an empty circuit_open envelope so Cart
 // probes and agent callers keep working while sakura conn ceiling recovers.
 const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
-async function searchProductsViaRestFallback(opts) {
-    if (!opts.q)
-        return null;
+function restSearchQueryParams(opts) {
     const params = new URLSearchParams();
     params.set('q', opts.q);
-    // BUY-79598: country_code+currency zeros high-recall REST searches (macbook/nike).
     if (opts.country) {
-        params.set('market', opts.country);
-        params.set('deliver_to', opts.country);
+        if (opts.mode === 'market') {
+            // BUY-79598: market=/deliver_to= keeps high-recall (macbook/nike) from
+            // being zeroed by REST's strict country_code post-filter.
+            params.set('market', opts.country);
+            params.set('deliver_to', opts.country);
+        }
+        else {
+            // BUY-79631: country= returns native-currency market rows (SGD shirts)
+            // so BUY-79642 isolation does not empty the page.
+            params.set('country', opts.country);
+            params.set('deliver_to', opts.country);
+        }
     }
     params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
     if (opts.offset)
         params.set('offset', String(opts.offset));
+    return params;
+}
+function isolateRestSearchHits(rows, opts) {
+    const expectedCc = (opts.country || '').toUpperCase();
+    const expectedCur = (opts.currency || '').toUpperCase();
+    const products = rows.map((r) => {
+        const price = r.price;
+        const flattened = { ...r };
+        let rowCurrency = '';
+        if (price && typeof price === 'object' && !Array.isArray(price)) {
+            const p = price;
+            flattened.price = p.amount;
+            if (p.currency) {
+                rowCurrency = String(p.currency).toUpperCase();
+                flattened.currency = rowCurrency;
+            }
+        }
+        if (!flattened.domain && r.merchant)
+            flattened.domain = r.merchant;
+        if (!flattened.source && r.merchant)
+            flattened.source = r.merchant;
+        return { product: (0, response_1.buildProduct)(flattened, opts.currency, opts.compact), rowCurrency };
+    }).filter((item) => {
+        const p = item.product;
+        if (expectedCc) {
+            const cc = String(p.country_code || '').toUpperCase();
+            if (cc && cc !== expectedCc)
+                return false;
+        }
+        if (expectedCur) {
+            const fromProduct = String(p.price?.currency || '').toUpperCase();
+            const cur = item.rowCurrency || fromProduct;
+            if (cur && cur !== expectedCur)
+                return false;
+        }
+        return true;
+    }).map((item) => item.product);
+    return { products, dropped: rows.length - products.length };
+}
+async function searchProductsViaRestFallback(opts) {
+    if (!opts.q)
+        return null;
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
     try {
         const headers = { accept: 'application/json' };
-        if (opts.apiKey)
-            headers['x-api-key'] = opts.apiKey;
-        // Loopback on this process: public api.buywhere.ai from Railway often 403s
-        // via Cloudflare, and mcp-server's pool is the one that's saturated.
-        const httpRes = await fetch(`http://127.0.0.1:${config_1.PORT}/v1/products/search?${params.toString()}`, {
-            method: 'GET',
-            headers,
-            signal: ac.signal,
-        });
-        const res = httpRes;
-        if (!res.ok)
-            return null;
-        const body = await res.json();
-        const rows = body.products || body.results || body.data || [];
-        if (!Array.isArray(rows) || rows.length === 0)
-            return null;
-        const expectedCc = (opts.country || '').toUpperCase();
-        const expectedCur = (opts.currency || '').toUpperCase();
-        const products = rows.map((r) => {
-            const price = r.price;
-            const flattened = { ...r };
-            let rowCurrency = '';
-            if (price && typeof price === 'object' && !Array.isArray(price)) {
-                const p = price;
-                flattened.price = p.amount;
-                if (p.currency) {
-                    rowCurrency = String(p.currency).toUpperCase();
-                    flattened.currency = rowCurrency;
+        const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
+            || process.env.BUYWHERE_INTERNAL_API_KEY
+            || process.env.BUYWHERE_API_KEY
+            || '';
+        if (incomingKey) {
+            headers['x-api-key'] = incomingKey.replace(/^Bearer\s+/i, '');
+            headers['authorization'] = incomingKey.startsWith('Bearer ') ? incomingKey : `Bearer ${incomingKey}`;
+        }
+        const bases = [
+            (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
+            'http://buywhere-api.railway.internal:8080',
+            'http://buywhere-api.railway.internal:3000',
+            `http://127.0.0.1:${config_1.PORT}`,
+            'https://api.buywhere.ai',
+        ].filter(Boolean);
+        const fetchRows = async (mode) => {
+            const params = restSearchQueryParams({
+                q: opts.q,
+                country: opts.country,
+                limit: opts.limit,
+                offset: opts.offset,
+                mode,
+            });
+            let lastErr = null;
+            for (const base of bases) {
+                try {
+                    const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
+                        method: 'GET',
+                        headers,
+                        signal: ac.signal,
+                    });
+                    if (!attempt.ok) {
+                        lastErr = new Error(`HTTP ${attempt.status} from ${base}`);
+                        continue;
+                    }
+                    const body = await attempt.json();
+                    const rows = body.products || body.results || body.data || [];
+                    if (Array.isArray(rows) && rows.length > 0)
+                        return rows;
+                    lastErr = new Error(`empty from ${base} mode=${mode}`);
+                }
+                catch (e) {
+                    lastErr = e;
                 }
             }
-            if (!flattened.domain && r.merchant)
-                flattened.domain = r.merchant;
-            if (!flattened.source && r.merchant)
-                flattened.source = r.merchant;
-            return { product: (0, response_1.buildProduct)(flattened, opts.currency, opts.compact), rowCurrency };
-        }).filter((item) => {
-            const p = item.product;
-            if (expectedCc) {
-                const cc = String(p.country_code || '').toUpperCase();
-                if (cc && cc !== expectedCc)
-                    return false;
+            if (lastErr) {
+                console.warn('[search_products] REST fetch mode=', mode, lastErr?.message?.slice(0, 160));
             }
-            if (expectedCur) {
-                const fromProduct = String(item.product.price?.currency || '').toUpperCase();
-                const cur = item.rowCurrency || fromProduct;
-                if (cur && cur !== expectedCur)
-                    return false;
-            }
-            return true;
-        }).map((item) => item.product);
-        const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
-        if (products.length === 0 && rows.length > 0) {
-            // BUY-79642: explicit country/currency isolation wins over fallback recall.
-            // Returning SG/USD rows for MY/SG searches is worse than a no-match/degraded
-            // envelope, and Cart treats country/currency leaks as SEV regressions.
             return null;
+        };
+        // Prefer market aliases for recall, then country= if isolation empties the page
+        // (shirt SG: market= returns USD-labelled SG Shopify; country= returns SGD).
+        for (const mode of ['market', 'country']) {
+            const rows = await fetchRows(mode);
+            if (!rows || rows.length === 0)
+                continue;
+            const isolated = isolateRestSearchHits(rows, {
+                country: opts.country,
+                currency: opts.currency,
+                compact: opts.compact,
+            });
+            if (isolated.products.length > 0) {
+                return { products: isolated.products, total: isolated.products.length };
+            }
+            console.warn(`[search_products] BUY-79631: REST ${mode} isolation emptied n=${rows.length} q=${opts.q} country=${opts.country}`);
         }
-        return { products, total };
+        return null;
     }
     catch (err) {
         console.warn('[search_products] REST fallback failed:', err?.message?.slice(0, 160));
