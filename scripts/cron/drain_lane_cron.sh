@@ -15,8 +15,15 @@ SCHEDULER="$SCRIPT_DIR/drain_lane_scheduler.mjs"
 CATALOG_DB_URL_FILE="${CATALOG_DB_URL_FILE:-$REPO_ROOT/data/.catalog_db_url}"
 CATALOG_DB_URL="${CATALOG_DB_URL:-$(cat "$CATALOG_DB_URL_FILE" 2>/dev/null || true)}"
 DRAIN_HOURS="${DRAIN_HOURS:-6}"
+LOCK_FILE="${LOCK_FILE:-/tmp/buywhere-drain-lane-rotator.lock}"
 
 mkdir -p "$LOG_DIR"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] drain_lane_cron: previous rotation still running; skipping" >> "$LOG_DIR/drain_lane_scheduler.log"
+  exit 0
+fi
 
 TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 

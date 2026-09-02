@@ -1,83 +1,13 @@
 {
-  "_doc": "BUY-70996 — Drain lane rotation config. Controls which lanes run and their time budgets to bias toward net-new inserts.",
-  "_updated": "2026-08-17",
-  
   "target_insert_share_pct": 70,
   "minimum_insert_share_pct": 40,
-  
+  "rotation_rules": {},
   "lanes": {
-    "woocommerce_deep": {
-      "description": "Deep-page known WooCommerce merchants",
-      "script": "buy31015-woocommerce-deep-page.mjs",
-      "keepalive": "buy31015-deep-page-keepalive.sh",
-      "category": "re_crawl",
-      "priority": 2,
-      "default_budget_pct": 30,
-      "min_budget_pct": 10,
-      "max_budget_pct": 40,
-      "source_filter": "woocommerce_deep"
-    },
-    "crew_wc_rest": {
-      "description": "Crew REST sub-lane for WC merchants",
-      "script": "buy31142-crew-wc-rest.mjs",
-      "keepalive": "buy31142-crew-wc-rest-keep-alive.sh",
-      "category": "re_crawl",
-      "priority": 3,
-      "default_budget_pct": 20,
-      "min_budget_pct": 5,
-      "max_budget_pct": 30,
-      "source_filter": "woocommerce_deep"
-    },
-    "shopify_discovery": {
-      "description": "Discover new Shopify merchants + sample products",
-      "script": "scrapers/shopify_feed_discovery.py",
-      "category": "discovery",
-      "priority": 1,
-      "default_budget_pct": 20,
-      "min_budget_pct": 15,
-      "max_budget_pct": 35,
-      "source_filter": "shopify_discovery"
-    },
-    "bigcommerce_discovery": {
-      "description": "Discover new BigCommerce merchants",
-      "script": "scrapers/bigcommerce_public_discovery.py",
-      "category": "discovery",
-      "priority": 1,
-      "default_budget_pct": 10,
-      "min_budget_pct": 5,
-      "max_budget_pct": 20,
-      "source_filter": "bigcommerce"
-    },
-    "magento_discovery": {
-      "description": "Discover new Magento merchants",
-      "script": "scrapers/magento_public_discovery.py",
-      "category": "discovery",
-      "priority": 1,
-      "default_budget_pct": 10,
-      "min_budget_pct": 5,
-      "max_budget_pct": 20,
-      "source_filter": "magento"
-    },
-    "scraper_sg": {
-      "description": "SG platform scrapers (Shopee, Lazada, Carousell, etc.)",
-      "script": "ingest_scrapers_railway.py",
-      "category": "discovery",
-      "priority": 1,
-      "default_budget_pct": 10,
-      "min_budget_pct": 5,
-      "max_budget_pct": 20,
-      "source_filter": "scraper_sg"
-    }
-  },
-
-  "rotation_rules": {
-    "when_insert_share_below_min": "Boost discovery lanes to max_budget; shrink re_crawl lanes to min_budget",
-    "when_insert_share_healthy": "Use default_budget for all lanes",
-    "when_insert_share_high": "Allow re_crawl lanes to expand slightly; discovery stays at default",
-    "cooldown_minutes": 30,
-    "max_consecutive_re_crawl_hours": 4
-  },
-
-  "discovery_boost_multiplier": 2.0,
-  "re_crawl_shrink_multiplier": 0.5
+    "scout": {"category": "discovery", "priority": 1, "source_filter": "scout", "default_budget_pct": 25, "min_budget_pct": 15, "max_budget_pct": 50},
+    "hunt2": {"category": "discovery", "priority": 2, "source_filter": "hunt2", "default_budget_pct": 20, "min_budget_pct": 10, "max_budget_pct": 35},
+    "crate": {"category": "discovery", "priority": 3, "source_filter": "crate", "default_budget_pct": 15, "min_budget_pct": 8, "max_budget_pct": 25},
+    "stock": {"category": "re_crawl", "priority": 9, "source_filter": "stock", "default_budget_pct": 20, "min_budget_pct": 5, "max_budget_pct": 30},
+    "woocommerce": {"category": "re_crawl", "priority": 8, "source_filter": "woocommerce", "default_budget_pct": 10, "min_budget_pct": 5, "max_budget_pct": 20},
+    "shopify": {"category": "re_crawl", "priority": 7, "source_filter": "shopify", "default_budget_pct": 10, "min_budget_pct": 5, "max_budget_pct": 20}
+  }
 }

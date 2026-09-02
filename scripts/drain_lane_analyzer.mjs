@@ -103,20 +103,28 @@ async function getLaneRatios(client, hoursBack) {
 }
 
 async function getProductCountsBySource(client, hoursBack) {
-  const result = await client.query(`
-    SELECT
-      source,
-      COUNT(*) AS total_products,
-      COUNT(*) FILTER (WHERE created_at >= NOW() - ($1::text || ' hours')::interval) AS recent_inserts,
-      COUNT(*) FILTER (WHERE updated_at >= NOW() - ($1::text || ' hours')::interval
-                        AND created_at < NOW() - ($1::text || ' hours')::interval) AS recent_updates_only
-    FROM products
-    WHERE source IS NOT NULL
-    GROUP BY source
-    ORDER BY total_products DESC
-    LIMIT 30
-  `, [String(hoursBack)]);
-  return result.rows;
+  // Avoid full-table products GROUP BY (statement_timeout / cancel).
+  try {
+    const result = await client.query(`
+      SELECT
+        source,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - ($1::text || ' hours')::interval) AS recent_inserts,
+        COUNT(*) FILTER (WHERE updated_at >= NOW() - ($1::text || ' hours')::interval
+                          AND created_at < NOW() - ($1::text || ' hours')::interval) AS recent_updates_only,
+        0::bigint AS total_products
+      FROM products
+      WHERE source IS NOT NULL
+        AND (created_at >= NOW() - ($1::text || ' hours')::interval
+          OR updated_at >= NOW() - ($1::text || ' hours')::interval)
+      GROUP BY source
+      ORDER BY recent_inserts DESC
+      LIMIT 30
+    `, [String(hoursBack)]);
+    return result.rows;
+  } catch (err) {
+    console.error('[analyzer] product counts skipped:', String(err.message).split('\n')[0]);
+    return [];
+  }
 }
 
 function buildRecommendations(config, laneRatios, productCounts) {
