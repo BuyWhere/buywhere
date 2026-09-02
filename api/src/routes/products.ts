@@ -2696,6 +2696,8 @@ router.get(
     // Missing-table / timeout falls back below rather than 500.
     const LIVE_FEATURED_CHILD_COUNTRIES = new Set([
       'SG', 'US', 'MY', 'TH', 'PH', 'ID', 'VN', 'AU', 'GB', 'CA', 'JP', 'DE', 'UK',
+      // BUY-80256: TW featured 500'd — ORDER BY updated_at on parent times out.
+      'TW', 'KR',
     ]);
     const FEATURED_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode)
@@ -2768,9 +2770,18 @@ router.get(
         if (fetchOffset === 0) {
           console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
           featuredDb = db;
-          result = await runFeatured(featuredDb);
+          try {
+            result = await runFeatured(featuredDb);
+          } catch (err2) {
+            // BUY-80256: do not 500 the public carousel when both replica+primary
+            // time out (TW/KR parent scan). Return empty degraded envelope.
+            console.warn(`[products:featured] primary also failed for ${countryCode}: ${(err2 as Error).message}`);
+            const degraded = buildSearchResponse([], 0, limit, offset, Date.now() - start, true);
+            res.set('Cache-Control', 'public, max-age=15');
+            return res.json(degraded);
+          }
         } else {
-          throw err;
+          break;
         }
       }
       if (result.rows.length === 0) break;
