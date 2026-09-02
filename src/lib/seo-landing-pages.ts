@@ -925,6 +925,21 @@ function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h:
   return null;
 }
 
+function isTrustedAirPurifierShopifyPhoto(config: SeoLandingPageConfig, product: LandingProduct): boolean {
+  if (config.slug !== "air-purifier-singapore" || config.country !== "SG") return false;
+  if (!product.imageUrl) return false;
+  const merchant = (product.merchantSlug || product.merchant || "").toLowerCase();
+  if (!/^(levoit(?:[._-]?sg)?|sterra(?:[._-]?sg)?)$/.test(merchant) && merchant !== "levoit.sg" && merchant !== "sterra.sg") {
+    return false;
+  }
+  try {
+    const url = new URL(product.imageUrl);
+    return url.hostname === "cdn.shopify.com";
+  } catch {
+    return false;
+  }
+}
+
 const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
 const SQUARE_FILE_SIZE_THRESHOLD = 250 * 1024; // < 250 KB square product photos are likely centered-on-white
 
@@ -1783,9 +1798,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const reachable = await verifyReachableImage(product.imageUrl);
       if (!reachable) return { passed: false, reason: "unreachable", fingerprint: null };
       const qualityPassed = await verifyUsableImageContent(product.imageUrl);
-      if (!qualityPassed) return { passed: false, reason: "low_quality", fingerprint: null };
+      if (!qualityPassed && !isTrustedAirPurifierShopifyPhoto(config, product)) {
+        return { passed: false, reason: "low_quality", fingerprint: null };
+      }
       const fingerprint = await fingerprintRemoteImage(product.imageUrl);
-      return { passed: true, reason: "ok", fingerprint };
+      return { passed: true, reason: qualityPassed ? "ok" : "trusted_shopify_photo", fingerprint };
     })
   );
 
