@@ -341,6 +341,11 @@ export function buildSearchResponse(
         diagnostic: emptiness.diagnostic,
         degraded_kind: emptiness.degraded_kind,
         ...(emptiness.degraded_kind && { degraded_reason: emptiness.diagnostic.timed_out_stage ?? 'catalog_search' }),
+        // BUY-79690: echo normalized dest whenever the caller passed one (country=/country_code=/deliver_to=),
+        // including empty 200s. diagnostic.deliver_to_present===true means the caller passed a signal.
+        ...(emptiness.diagnostic.deliver_to_present && expectedCountryCode && {
+          deliver_to: String(expectedCountryCode).toUpperCase(),
+        }),
       }),
       // BUY-79690: echo normalized dest whenever the caller passed one, including
       // empty 200s via country=/country_code= (not only deliver_to=).

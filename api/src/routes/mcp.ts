@@ -852,6 +852,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
   // BUY-79690: do not silently default dest — empty+no dest is deliver_to_missing.
   const country = rawCountry;
+  // BUY-79690: tracks whether the caller passed any dest signal. Used to gate
+  // meta.deliver_to echo (only when explicit) and to drive deriveEmptiness signal.
+  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -1541,12 +1544,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     emptiness = deriveEmptiness(signals);
   }
 
+  // BUY-79690: expectedCountryCode = dest only when caller passed one explicitly.
+  // hasExplicitCountry covers deliver_to / country_code / country (any of the three).
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false,
-    undefined, undefined, deliverToPresent ? (country || null) : null,
+    undefined, undefined, hasExplicitCountry ? (country || null) : null,
     emptiness,
   );
-  // BUY-79690: do not clobber deriveEmptiness (deliver_to_missing / region_unsupported).
 
   try {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', MCP_FTS_CACHE_TTL_SECONDS);
