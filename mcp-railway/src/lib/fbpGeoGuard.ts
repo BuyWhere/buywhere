@@ -1,8 +1,5 @@
 // BUY-79892: find_best_price geo + high-side outlier guard.
-// Catalog rows are often labelled country_code=US while the listing URL is an
-// IN/CO/EU retailer and the amount is local currency stored as USD
-// (iplanet.one ₹57504, mac-center.com COP 48999). The existing BUY-63229
-// guard is a *floor* (15% of median) so these high outliers still win.
+// Keep in sync with api/src/lib/fbpGeoGuard.ts
 
 const CC_TLD: Record<string, string> = {
   in: 'IN', co: 'CO', vn: 'VN', th: 'TH', my: 'MY', sg: 'SG', ph: 'PH',
@@ -20,7 +17,6 @@ const GENERIC_TLDS = new Set([
   'info', 'biz', 'one',
 ]);
 
-/** Hosts whose TLD is generic (.com/.one) but the retailer is not US. */
 const FOREIGN_HOSTS: Record<string, string> = {
   'iplanet.one': 'IN',
   'mac-center.com': 'CO',
@@ -61,7 +57,6 @@ function hostnameFromUrl(url: unknown): string | null {
   }
 }
 
-/** Infer merchant country from listing URL host. Null = unknown (keep). */
 export function inferHostCountry(url: unknown): string | null {
   const host = hostnameFromUrl(url);
   if (!host) return null;
@@ -73,7 +68,6 @@ export function inferHostCountry(url: unknown): string | null {
   if (CC_TLD[tld] && !GENERIC_TLDS.has(tld)) {
     return CC_TLD[tld];
   }
-  // *.co is Colombia unless it's a known generic marketplace
   if (tld === 'co' && parts.length >= 2 && !GENERIC_TLDS.has(parts[parts.length - 2])) {
     return 'CO';
   }
@@ -83,15 +77,10 @@ export function inferHostCountry(url: unknown): string | null {
 export function hostMatchesRequestedCountry(url: unknown, requestedCountry: string): boolean {
   const cc = (requestedCountry || '').toUpperCase();
   const inferred = inferHostCountry(url);
-  if (!inferred) return true; // unknown host — do not drop
+  if (!inferred) return true;
   return inferred === cc;
 }
 
-/**
- * Drop rows whose URL host is a different country than the request, then
- * drop USD-normalized prices above 4× median (or a device-aware cap).
- * If filtering would empty the set, keep the geo-filtered set (or original).
- */
 export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>>(opts: {
   rows: T[];
   requestedCountry: string;
@@ -110,8 +99,6 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
     if (sorted.length >= 3) {
       const mid = Math.floor(sorted.length / 2);
       const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-      // Device phones in USD rarely exceed ~$2500; 4× median catches INR/COP
-      // mislabelled as USD (57504 vs median ~1063).
       const deviceCap = deviceType === 'phone' ? 2500 : deviceType === 'laptop' ? 8000 : 15000;
       maxAllowedUsd = Math.min(deviceCap, Math.max(median * 4, median + 500));
       const filtered = working.filter((r) => rowToUsd(r) <= (maxAllowedUsd as number));
