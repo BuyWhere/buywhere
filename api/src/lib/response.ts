@@ -16,6 +16,61 @@ export const CURRENCY_RATES: Record<string, number> = {
 // the union of the openapi /mcp enum, the fleet onboarding targets, and
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
+export const COUNTRY_CURRENCY: Record<string, string> = {
+  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
+  // Single-currency regions stored under EUR/USD on the catalog:
+  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
+};
+
+/** BUY-80323: nested REST/MCP price currency (offers.priceCurrency, price.currency, row.currency). */
+export function extractRowCurrency(row: Record<string, unknown> | null | undefined): string {
+  if (!row) return '';
+  const offers = row.offers;
+  if (offers && typeof offers === 'object' && !Array.isArray(offers)) {
+    const o = offers as { priceCurrency?: unknown; currency?: unknown };
+    const c = o.priceCurrency ?? o.currency;
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  const nested = row.price;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const p = nested as { currency?: unknown; priceCurrency?: unknown };
+    const c = p.currency ?? p.priceCurrency;
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  for (const key of ['currency', 'priceCurrency'] as const) {
+    const c = row[key];
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  return '';
+}
+
+/**
+ * BUY-80323: keep native-currency rows for the request country.
+ * Shopify MY/SG ingest often stores USD on .com.my hosts (machines.com.my AppleCare 149 USD).
+ * Prefer empty over leaking foreign currency. Unknown/empty currency is kept only
+ * when mixed with native rows (cannot prove a mismatch).
+ */
+export function filterNativeCurrencyRows<T extends Record<string, unknown>>(
+  rows: T[],
+  country: string,
+): T[] {
+  const want = (COUNTRY_CURRENCY[country] || '').toUpperCase();
+  if (!want || rows.length === 0) return rows;
+  const nativeOrUnknown = rows.filter((r) => {
+    const cur = extractRowCurrency(r);
+    return !cur || cur === want;
+  });
+  const knownNative = nativeOrUnknown.filter((r) => extractRowCurrency(r) === want);
+  if (knownNative.length > 0) return nativeOrUnknown;
+  const mismatched = rows.some((r) => {
+    const cur = extractRowCurrency(r);
+    return cur && cur !== want;
+  });
+  if (mismatched) return [];
+  return rows;
+}
+
 /** BUY-79642: flatten nested REST `{amount,currency}` or numeric/string prices. */
 export function extractNumericPrice(raw: unknown): number | null {
   if (raw == null) return null;
@@ -30,13 +85,6 @@ export function extractNumericPrice(raw: unknown): number | null {
   }
   return null;
 }
-
-export const COUNTRY_CURRENCY: Record<string, string> = {
-  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
-  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
-  // Single-currency regions stored under EUR/USD on the catalog:
-  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
-};
 
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:

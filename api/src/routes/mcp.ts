@@ -7,7 +7,7 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup, recordCacheHitLatency } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals, extractNumericPrice } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals, extractNumericPrice, extractRowCurrency, filterNativeCurrencyRows } from '../lib/response';
 import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
@@ -333,6 +333,18 @@ function aliasSearchEnvelope(resp: ReturnType<typeof buildSearchResponse>) {
   return r;
 }
 
+// BUY-80323: AppleCare / warranty / service-plan titles match "airpods" FTS
+// but are not hardware. Rank them after real product titles so FBP does not
+// pick a 2-year AppleCare plan as the "best price".
+const FBP_WARRANTY_PATTERN = /\b(applecare|apple care|warranty|service plan|care\+|protection plan|extended warranty)\b/i;
+function rankFbpHardwareFirst<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const aW = FBP_WARRANTY_PATTERN.test(String(a.title || a.name || '')) ? 1 : 0;
+    const bW = FBP_WARRANTY_PATTERN.test(String(b.title || b.name || '')) ? 1 : 0;
+    return aW - bW;
+  });
+}
+
 async function findBestPriceViaRestFallback(opts: {
   productName: string;
   country: string;
@@ -364,16 +376,20 @@ async function findBestPriceViaRestFallback(opts: {
       id: p.sku || p['@id'] || p.id,
       title,
       name: title,
-      price: { amount: amount != null ? Number(amount) : null, currency: curr },
+      price: { amount: amount != null ? Number(amount) : null, currency: String(curr).toUpperCase() },
+      currency: String(curr).toUpperCase(),
       merchant: p.brand?.name || p.seller || p.merchant || null,
       url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
       image_url: Array.isArray(p.image) ? p.image[0] : p.image,
       country_code: opts.country,
     };
   });
+  // BUY-80323: REST isolation can miss nested offer currency; drop USD leaks on MY/SG.
+  const native = filterNativeCurrencyRows(data as Record<string, unknown>[], opts.country);
+  const ranked = rankFbpHardwareFirst(native);
   return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
+    best_price: ranked[0] ?? null,
+    alternatives: ranked.slice(1),
     meta: {
       total: data.length,
       country: opts.country,
@@ -2231,6 +2247,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(searchName, country);
 
+  // BUY-80322: load FX rates early for REST fallback geo guard
+  const rates = getCachedFxRates();
+
   const CANDIDATE_POOL = Math.max(limit * 5, 50); // BUY-79200: 500-row heap walk on 78GB search_products blows the 3.5s wall
 
   // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
@@ -2238,7 +2257,30 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
     if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
-      return restFbp;
+      // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
+      const allRows = [restFbp.best_price, ...restFbp.alternatives];
+      const rowToUsd = (r: Record<string, unknown>) => {
+        const price = r.price as { amount: number; currency: string } | null;
+        if (!price?.amount) return 0;
+        const fxRate = rates[price.currency] ?? CURRENCY_RATES[price.currency] ?? 1;
+        return price.amount * fxRate;
+      };
+      const geo = applyFbpGeoAndHighOutlierGuard({
+        rows: allRows as unknown as Record<string, unknown>[],
+        requestedCountry: country,
+        rowToUsd,
+        deviceType: deviceFilter.type,
+      });
+      if (geo.geoDropped > 0 || geo.highDropped > 0) {
+        console.log(`[find_best_price] BUY-80322 REST fallback geo guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} product="${productName}" country=${country}`);
+      }
+      const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
+      const guarded = rankFbpHardwareFirst(native);
+      return {
+        best_price: guarded[0] ?? null,
+        alternatives: guarded.slice(1),
+        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
+      };
     }
     return buildMcpDegradedBestPriceResponse({
       productName,
@@ -2348,7 +2390,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     await bestPriceClient.query('SET enable_indexscan = on');
     await bestPriceClient.query('SET enable_seqscan = on');
     const ranked = (candResult.rows as Record<string, unknown>[]).sort((a, b) => {
-      const accRe = /(replacement|repair|ear ?pad|earpad|cushion|protector|charger|charging cable|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare part|for use with|compatible with)/i;
+      const accRe = /(replacement|repair|ear ?pad|earpad|cushion|protector|charger|charging cable|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare part|for use with|compatible with|applecare|apple care|warranty|service plan|protection plan)/i;
       const aAcc = accRe.test(String(a.title || '')) ? 1 : 0;
       const bAcc = accRe.test(String(b.title || '')) ? 1 : 0;
       if (aAcc !== bAcc) return aAcc - bAcc;
@@ -2388,7 +2430,30 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
     if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
-      return restFbp;
+      // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
+      const allRows = [restFbp.best_price, ...restFbp.alternatives];
+      const rowToUsd = (r: Record<string, unknown>) => {
+        const price = r.price as { amount: number; currency: string } | null;
+        if (!price?.amount) return 0;
+        const fxRate = rates[price.currency] ?? CURRENCY_RATES[price.currency] ?? 1;
+        return price.amount * fxRate;
+      };
+      const geo = applyFbpGeoAndHighOutlierGuard({
+        rows: allRows as unknown as Record<string, unknown>[],
+        requestedCountry: country,
+        rowToUsd,
+        deviceType: deviceFilter.type,
+      });
+      if (geo.geoDropped > 0 || geo.highDropped > 0) {
+        console.log(`[find_best_price] BUY-80322 REST fallback geo guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} product="${productName}" country=${country}`);
+      }
+      const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
+      const guarded = rankFbpHardwareFirst(native);
+      return {
+        best_price: guarded[0] ?? null,
+        alternatives: guarded.slice(1),
+        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
+      };
     }
     return buildMcpDegradedBestPriceResponse({
       productName,
@@ -2423,7 +2488,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // only populates for recognised device families — so "Silicone Protective Cover Set for
   // Sony WH-1000XM5" passed as the product itself and became the "best price". This
   // pattern mirrors the SQL de-prioritisation exactly, so ranking and filtering agree.
-  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
+  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit|applecare|apple care|warranty|service plan|protection plan)\b/i;
   const isAccessory = (r: Record<string, unknown>) => {
     if (ACCESSORY_PATTERN.test(String(r.title ?? ''))) return true;
     if (!deviceFilter.type) return false;
@@ -2452,7 +2517,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   // BUY-63229: median-based outlier guard — normalize each row's price to USD by
   // its own currency so scam listings priced in foreign currency can't slip past.
-  const rates = getCachedFxRates();
+  // Note: rates is already loaded at line 2204 for REST fallback geo guard (BUY-80322)
   const rowToUsd = (r: Record<string, unknown>) => {
     const curr = ((r.currency as string) || currency).toUpperCase();
     const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
@@ -2525,6 +2590,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     }
     finalRows = geo.rows;
   }
+
+  // BUY-80323: SQL currency predicate is not enough — Shopify MY rows can be
+  // country_code=MY with currency=USD (machines.com.my AppleCare 149 USD).
+  finalRows = filterNativeCurrencyRows(finalRows, country);
+  finalRows = rankFbpHardwareFirst(finalRows);
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
     const price = extractNumericPrice(r.price);
