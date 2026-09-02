@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildAffiliateRedirectFromMerchantUrl } from '@/lib/click-attribution';
 
 export const revalidate = 900;
 
@@ -99,7 +100,10 @@ export default async function DealsPage() {
                         </span>
                       </div>
                       <a
-                        href={deal.url}
+                        href={buildAffiliateRedirectFromMerchantUrl(deal.url) || deal.url}
+                        target="_blank"
+                        rel="nofollow sponsored noopener noreferrer"
+                        data-affiliate-redirect="deals-card"
                         className="block text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                       >
                         View Deal

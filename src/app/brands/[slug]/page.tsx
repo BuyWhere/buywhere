@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { apiBase, apiHeaders } from "@/lib/server-api";
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { buildAffiliateRedirectFromMerchantUrl } from '@/lib/click-attribution';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -203,7 +204,13 @@ export default async function BrandsBrandPage({ params }: PageProps) {
                       ${product.price.toFixed(2)}
                     </p>
                     <a
-                      href={product.compare_url}
+                      href={
+                        buildAffiliateRedirectFromMerchantUrl(product.compare_url) ||
+                        product.compare_url
+                      }
+                      target="_blank"
+                      rel="nofollow sponsored noopener noreferrer"
+                      data-affiliate-redirect="brand-card"
                       className="block text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                       Compare Prices

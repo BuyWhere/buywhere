@@ -1,5 +1,6 @@
 import { toSiteUrl } from "@/lib/site-url";
 import { normalizeUSMerchantPrice, type USMerchantPrice, type USProductOfferApiItem } from "@/lib/us-products";
+import { buildAffiliateRedirectUrl, buildAffiliateRedirectFromMerchantUrl } from "@/lib/click-attribution";
 
 const IN_STOCK = "https://schema.org/InStock";
 const OUT_OF_STOCK = "https://schema.org/OutOfStock";
@@ -149,6 +150,7 @@ export default function USProductSsrPriceTable({
               <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Price</th>
               <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Currency</th>
               <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Availability</th>
+              <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Buy</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -157,6 +159,9 @@ export default function USProductSsrPriceTable({
               const displayPrice = Number.isFinite(numericPrice)
                 ? formatPriceNumber(numericPrice, "USD")
                 : "Price unavailable";
+              const buyHref =
+                buildAffiliateRedirectUrl(productId, pagePath) ||
+                buildAffiliateRedirectFromMerchantUrl(row.url);
               return (
                 <tr key={row.merchant}>
                   <th scope="row" className="px-4 py-3 font-medium text-gray-900">
@@ -168,6 +173,19 @@ export default function USProductSsrPriceTable({
                   <td className="px-4 py-3 text-gray-700">USD</td>
                   <td className="px-4 py-3 text-gray-700">
                     {row.inStock ? "In Stock" : "Out of Stock"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {buyHref ? (
+                      <a
+                        href={buyHref}
+                        target="_blank"
+                        rel="nofollow sponsored noopener noreferrer"
+                        data-affiliate-redirect="us-product-table"
+                        className="text-indigo-600 font-semibold hover:text-indigo-800"
+                      >
+                        View at {row.merchant}
+                      </a>
+                    ) : null}
                   </td>
                 </tr>
               );

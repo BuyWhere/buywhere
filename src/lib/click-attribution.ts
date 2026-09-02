@@ -58,6 +58,22 @@ export function buildAffiliateRedirectUrl(
   return url;
 }
 
+/**
+ * BUY-79817: wrap a raw merchant URL in the legacy `/r?u=` redirect so SSR
+ * surfaces that only have a destination (deals, brand compare_url, price-row
+ * fallbacks) still ship a crawlable /r/ anchor instead of leaking the retailer.
+ */
+export function buildAffiliateRedirectFromMerchantUrl(
+  rawUrl: string | null | undefined,
+): string | null {
+  if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed === "#") return null;
+  if (trimmed.startsWith("/r/") || trimmed.startsWith("/r?")) return trimmed;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return `/r?u=${encodeURIComponent(trimmed)}`;
+}
+
 function safePostHogSessionId(): string | null {
   try {
     const maybePostHog = posthog as typeof posthog & { get_session_id?: () => string | null };
