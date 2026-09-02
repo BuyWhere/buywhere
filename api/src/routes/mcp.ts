@@ -101,6 +101,9 @@ const MCP_TOOL_WALL_MS: Record<string, number> = {
   find_best_price: 20000,
   find_best_price_v2: 20000,
 };
+// BUY-80177: SEA REST is empty/slow (MY ~4.7s n=0, ID/PH 500). Do not wait 8-9s
+// for a fill that does not come. Fail-fast 3.5s catalog wall. Durable recall: BUY-77118.
+const MCP_SEARCH_SEA_WALL_MS = parseInt(process.env.MCP_SEARCH_SEA_WALL_MS || '3500', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -145,6 +148,10 @@ async function showStatementTimeout(client: any): Promise<string | null> {
 // hits from REST instead of returning an empty circuit_open envelope so Cart
 // probes and agent callers keep working while sakura conn ceiling recovers.
 const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
+// BUY-80177: SEA REST is empty-slow, so an 8s abort parks the client. Named SEA
+// budget defaults to 2.5s (same as SG/US); raise env if REST starts returning hits.
+const REST_SEARCH_FALLBACK_SEA_MS = parseInt(process.env.MCP_REST_FALLBACK_SEA_TIMEOUT_MS || '2500', 10);
+const SEA_REST_FALLBACK_COUNTRIES = new Set(['MY', 'TH', 'VN', 'ID', 'PH']);
 
 function restSearchQueryParams(opts: {
   q: string;
@@ -205,6 +212,9 @@ function isolateRestSearchHits(
       const cur = item.rowCurrency || fromProduct;
       if (cur && cur !== expectedCur) return false;
     }
+    // BUY-80191: REST can still serialize {amount:null} for bad rows.
+    const amt = extractNumericPrice(p.price);
+    if (amt == null || !(amt > 0)) return false;
     return true;
   }).map((item) => item.product);
   return { products, dropped: rows.length - products.length };
@@ -221,7 +231,10 @@ async function searchProductsViaRestFallback(opts: {
 }): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
   if (!opts.q) return null;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+  const restBudgetMs = SEA_REST_FALLBACK_COUNTRIES.has((opts.country || '').toUpperCase())
+    ? REST_SEARCH_FALLBACK_SEA_MS
+    : REST_SEARCH_FALLBACK_MS;
+  const timer = setTimeout(() => ac.abort(), restBudgetMs);
   try {
     const headers: Record<string, string> = { accept: 'application/json' };
     const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
@@ -947,7 +960,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v11:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -988,7 +1001,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     try {
       const idIdx = 1;
       const idParams: unknown[] = [identifier.normalized];
-      const idConds: string[] = ['is_active = true'];
+      const idConds: string[] = ['is_active = true', 'price > 0'];
       idConds.push(identifierMatchPredicate(identifier, idIdx).sql);
       if (country) {
         idParams.push(country.toUpperCase());
@@ -1029,7 +1042,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     }
   }
 
-  const conditions: string[] = ['is_active = true'];
+  // BUY-80191: REST archive already requires `price > 0`. MCP FTS/identifier
+  // paths omitted it, so US child-table hits (Shopify/Woo null-price stubs from
+  // ingest batches like BUY-80080) filled the default page of 20 with
+  // `price.amount=null`. Freshness gate for agent-DX: unpriced rows are not
+  // sellable catalog.
+  const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
   if (q) {
@@ -1067,7 +1085,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // Drops is_active (tier only contains active products) and category ILIKE
   // (tier category is a slug, not free-text). Uses sp.* prefix to avoid
   // ambiguity when the tier query joins back to products for full columns.
-  const tierConditions: string[] = [];
+  const tierConditions: string[] = ['sp.price > 0'];
   const tierParams: unknown[] = [];
   if (q) {
     tierParams.push(q);
@@ -1097,10 +1115,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country]) {
+  if (country && COUNTRY_CURRENCY[country] && useChildTable) {
     // BUY-80024: FAST child tables (products_partitioned_sg) GIN-rank USD Shopify
     // rows first. Isolation then drops them and MCP returns total=24 data=[].
     // Push native currency into FTS so overfetch is SGD/USD-native, not leaks.
+    // BUY-79945: do NOT bind currency on the parent search_products SEA path.
+    // The extra equality fights the GIN bitmap (2.5s empty / no_match) while
+    // post-filter isolation still drops foreign currencies.
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
@@ -1289,7 +1310,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const detailParams: unknown[] = [...pageIds];
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailConditions = [`id IN (${ph})`, 'is_active = true'];
+            const detailConditions = [`id IN (${ph})`, 'is_active = true', 'price > 0'];
             if (country) {
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
@@ -1335,7 +1356,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM products WHERE id IN (${ph}) AND is_active = true AND price > 0`,
               tierIds
             );
             // Preserve tier ranking order
@@ -1555,6 +1576,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         const cur = String(r.currency || '').toUpperCase();
         if (cur && cur !== wantCur) return false;
       }
+      // BUY-80191: drop unpriced rows even if SQL missed them (REST fallback /
+      // cached pages / child-table nulls).
+      const amt = extractNumericPrice(r.price);
+      if (amt == null || !(amt > 0)) return false;
       return true;
     });
     // BUY-79642: never fall back to currency/country leaks. If overfetch did not
@@ -1582,7 +1607,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   );
   const products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact, merchantMapForMcpSearch, caller)
-  );
+  ).filter((p) => {
+    const amt = extractNumericPrice(p.price);
+    return amt != null && amt > 0;
+  });
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
   // the response is genuinely empty (products.length === 0) — non-empty responses
@@ -3041,19 +3069,31 @@ function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, sta
   });
 }
 
+function mcpToolWallMs(name: string, args: Record<string, unknown>): number {
+  const base = MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS;
+  if (name === 'search_products' || name === 'search_products_v2') {
+    const cc = String(
+      args.deliver_to || args.country_code || args.country || args.market || '',
+    ).trim().toUpperCase();
+    if (SEA_REST_FALLBACK_COUNTRIES.has(cc)) return Math.max(base, MCP_SEARCH_SEA_WALL_MS);
+  }
+  return base;
+}
+
 async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
   const startedAt = Date.now();
+  const wallMs = mcpToolWallMs(name, args);
   let timer: NodeJS.Timeout | undefined;
   const wall = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), (MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS));
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), wallMs);
   });
   try {
     return await Promise.race([work(), wall]);
   } catch (err) {
     const message = String((err as { message?: string })?.message || '');
     if (message.includes('mcp_catalog_wall_timeout')) {
-      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${(MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS)}ms catalog wall — flushing degraded envelope`);
+      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${wallMs}ms catalog wall — flushing degraded envelope`);
       return mcpCatalogWallEnvelope(name, args, startedAt) as T;
     }
     throw err;
