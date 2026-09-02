@@ -10,11 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "ASUS mesh",
+  "searchQuery": "Deco",
   "backupQueries": [
-    "Deco",
-    "ASUS ZenWiFi AX XD6",
-    "TP-LINK DECO BE5000"
+    "ASUS mesh",
+    "TP-LINK DECO BE5000",
+    "ASUS ZenWiFi AX XD6"
   ],
   "minPrice": 150,
   "requiredProductTerms": [
