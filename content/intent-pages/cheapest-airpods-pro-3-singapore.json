@@ -109,7 +109,56 @@
       "answer": "Yes for audio and basic noise cancellation, but adaptive audio, hearing features, seamless switching and find-my rely on an iPhone, so Android users get less value for the money."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "57221486",
+      "name": "Genesis Airpods Pro 2 Case 2022 3 in 1 Casing Gen 4 4th 3rd 2nd 1st Hard Silicone Generation Airpod Cover",
+      "price": 7.99,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7qveq-lhbedgieu337ea",
+      "href": "/r/direct/57221486",
+      "affiliateUrl": "/r/direct/57221486",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54615200",
+      "name": "Genesis Airpods Pro 2 Case 2022 3 in 1 Casing Gen 4 4th 3rd 2nd 1st Hard Silicone Generation Airpod Cover",
+      "price": 7.99,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7qveq-lhbedgieu337ea",
+      "href": "/r/direct/54615200",
+      "affiliateUrl": "/r/direct/54615200",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "65875547",
+      "name": "Apple AirPods Pro 3",
+      "price": 304.99,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90250051_XL1_20260423201957_de81fcf705c3c81cba15aae09807e025.jpg",
+      "href": "/r/direct/65875547",
+      "affiliateUrl": "/r/direct/65875547",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "65875532",
+      "name": "Apple AirPods Pro 3",
+      "price": 305.0,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90235571_XL1_20260424213256_deeb57409622106236efea31f26c50e2.jpg",
+      "href": "/r/direct/65875532",
+      "affiliateUrl": "/r/direct/65875532",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-airpods-pro-3-us"
   },

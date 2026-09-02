@@ -1,10 +1,10 @@
 {
   "slug": "best-air-fryers-us",
-  "title": "Best Air Fryers in the US (2026) \u2014 Live Prices Compared",
-  "description": "Compare live US air fryer prices from Amazon, Walmart, Target and Best Buy. Basket vs oven vs dual-zone models, with buying advice on capacity, wattage and accessories \u2014 no invented specs.",
+  "title": "Best Air Fryers in the US (2026) — Live Prices Compared",
+  "description": "Compare live US air fryer prices from Amazon, Walmart, Target and Best Buy. Basket vs oven vs dual-zone models, with buying advice on capacity, wattage and accessories — no invented specs.",
   "heroEyebrow": "US air fryer buying guide",
-  "heroTitle": "Best air fryers in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best air fryers in the US \u2014 from {floorPrice} today",
+  "heroTitle": "Best air fryers in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best air fryers in the US — from {floorPrice} today",
   "heroBody": "Air fryers moved from gadget to weekday appliance in US kitchens because they brown frozen food and leftovers without heating a full oven. In 2026 the useful split is not brand hype: compact basket fryers for one or two people, family-size baskets that can take a bag of fries, dual-zone machines that run two foods at once, and toaster-oven air fryers that also toast and bake. This page reads live US listings from BuyWhere's catalog so you can see which of those shapes is actually in stock and what authorised retailers are asking today, instead of a static roundup that froze last year's sale prices.",
   "canonicalPath": "/best-air-fryers-us",
   "country": "US",
@@ -38,18 +38,18 @@
   ],
   "comparisonRows": [
     {
-      "label": "Compact basket (2\u20134 qt)",
+      "label": "Compact basket (2–4 qt)",
       "values": [
-        "One\u2013two people",
+        "One–two people",
         "Fast preheat",
         "Leftovers and frozen snacks",
         "Skip if you cook for a family most nights"
       ]
     },
     {
-      "label": "Family basket (5\u20138 qt)",
+      "label": "Family basket (5–8 qt)",
       "values": [
-        "3\u20135 people",
+        "3–5 people",
         "Weeknight proteins + fries",
         "Most US listings",
         "Skip if counter space is tiny"
@@ -97,7 +97,7 @@
     "If you already own a convection toaster oven, a compact basket fryer is usually enough; you do not need a second oven-style unit.",
     "Check whether replacement baskets are sold for the model. Unobtanium parts are why cheap no-name fryers get thrown out."
   ],
-  "faqSectionTitle": "Air fryers in the US \u2014 common questions",
+  "faqSectionTitle": "Air fryers in the US — common questions",
   "faqs": [
     {
       "question": "Is an air fryer just a small convection oven?",
@@ -113,10 +113,59 @@
     },
     {
       "question": "Should I wait for a sale?",
-      "answer": "US air fryer prices move with Prime Day, Black Friday and back-to-school campaigns. This page tracks live listings so you can see whether today's floor is already a sale or still list-ish \u2014 we do not invent a 'usual' price in the copy."
+      "answer": "US air fryer prices move with Prime Day, Black Friday and back-to-school campaigns. This page tracks live listings so you can see whether today's floor is already a sale or still list-ish — we do not invent a 'usual' price in the copy."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908550994774",
+      "name": "Instant Pot® Pro™ Crisp & Air Fryer 8QT Multi-Use Pressure Cooker and Air Fryer",
+      "price": 229.95,
+      "currency": "USD",
+      "merchant": "instantpot.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0850/1690/3989/files/IB_113-0043-01_Pro-Crisp-8QT_ATF_Square_Tile1.png?v=1745812411",
+      "href": "/r/direct/9222976908550994774",
+      "affiliateUrl": "/r/direct/9222976908550994774",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36478486",
+      "name": "Sencor Vita Fryer – SFR 3130BK | 3.5L Oil-Free Air Fryer with 1300W High-Speed Air Circulation",
+      "price": 36199,
+      "currency": "USD",
+      "merchant": "habitt.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0429/7654/2881/files/da39a77b-69e8-48d1-b41c-9e24d46da541_48c87150-039d-4dd2-8101-a5b386b81240.png?v=1775112136",
+      "href": "/r/direct/36478486",
+      "affiliateUrl": "/r/direct/36478486",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37089188",
+      "name": "50Pcs Air Fryer Disposable Paper Non-Stick Airfryer Baking Papers Round Air-Fryer Paper Liners Paper Kitchen Accessories",
+      "price": 12.9,
+      "currency": "USD",
+      "merchant": "ebony-usa.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Sbc0cb8fb1e6642e59f322e0ba2ce23f1a.webp?v=1775228105",
+      "href": "/r/direct/37089188",
+      "affiliateUrl": "/r/direct/37089188",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37089190",
+      "name": "50Pcs Air Fryer Disposable Paper Non-Stick Airfryer Baking Papers Round Air-Fryer Paper Liners Paper Kitchen Accessories",
+      "price": 14.34,
+      "currency": "USD",
+      "merchant": "ebony-usa.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Sbc0cb8fb1e6642e59f322e0ba2ce23f1a.webp?v=1775228105",
+      "href": "/r/direct/37089190",
+      "affiliateUrl": "/r/direct/37089190",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-multi-cookers-us",

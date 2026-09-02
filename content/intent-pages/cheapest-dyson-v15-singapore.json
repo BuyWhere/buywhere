@@ -109,7 +109,56 @@
       "answer": "Dyson.sg Certified Refurbished units ship with the same 2‑year Singapore warranty as new and are a reliable way to save. Third‑party refurbished listings from unknown sellers carry much shorter warranties and are not worth the small extra discount."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55978388",
+      "name": "Dyson Airstrait Hair Straightener - Ceramic Pink/Rose Gold (HT01 CEPK)",
+      "price": 499.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/149/Slide1_yga7-b1.JPG",
+      "href": "/r/direct/55978388",
+      "affiliateUrl": "/r/direct/55978388",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55927330",
+      "name": "Dyson HD16 Supersonic Hair Dryer - Ambersilk/Ceramic Topaz",
+      "price": 549.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/186/supernural1234.jpg",
+      "href": "/r/direct/55927330",
+      "affiliateUrl": "/r/direct/55927330",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55802693",
+      "name": "Dyson Supersonic HD17 Ceramic Pink - 113335-01",
+      "price": 709.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/161/Slide1_tcdt-jt.JPG",
+      "href": "/r/direct/55802693",
+      "affiliateUrl": "/r/direct/55802693",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55781514",
+      "name": "Dyson HS02 Airwrap Origin Multi-Styler - Nickel/Copper",
+      "price": 319.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/172/Dyson_HS02_Airwrap_Origin_Multi-Styler_-_NickelCopper_01.JPG",
+      "href": "/r/direct/55781514",
+      "affiliateUrl": "/r/direct/55781514",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-dyson-v15-us"
   },

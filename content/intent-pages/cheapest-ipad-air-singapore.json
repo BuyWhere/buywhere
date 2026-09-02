@@ -123,7 +123,56 @@
       "answer": "Cellular is worth it only if the iPad leaves the house daily without your phone. For home, office or campus use with Wi-Fi and occasional phone hotspot, Wi-Fi is the better value."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55869896",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024nillkinflip3.jpg?v=1734092569",
+      "href": "/r/direct/55869896",
+      "affiliateUrl": "/r/direct/55869896",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55869879",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Camshield Pad Case Series Camera Protective Magnetic Kickstand Stylus Holder Rugged Back Case",
+      "price": 58,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024camshield1.jpg?v=1734093824",
+      "href": "/r/direct/55869879",
+      "affiliateUrl": "/r/direct/55869879",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55864104",
+      "name": "Apple iPad Air 11\" (2025) / (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / (2021) / (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipad11_10.9nillkin6.jpg?v=1776857179",
+      "href": "/r/direct/55864104",
+      "affiliateUrl": "/r/direct/55864104",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54517975",
+      "name": "TORRII TORERO for iPad Air 11\" (M3/M2) Compatible for iPad Pro 11\" (4/3/2/1) / iPad Air 6/5/4 - Black",
+      "price": 59.9,
+      "currency": "SGD",
+      "merchant": "robinsons_sg",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/2956/6186/files/294072120_318d9a14-eab5-44d9-8119-847f342efef9.png?v=1777403078",
+      "href": "/r/direct/54517975",
+      "affiliateUrl": "/r/direct/54517975",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-ipad-air-us"
   },

@@ -131,7 +131,44 @@
       "answer": "Samsung OLEDs are compatible with any VESA-compliant wall mount. However, they are thinner and lighter than LCD sets of the same size, so an articulating mount designed for OLEDs prevents stress on the panel. Most buyers use a fixed or tilting wall mount."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513103",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV (2024)",
+      "price": 1799.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513103",
+      "affiliateUrl": "/r/direct/9222976908546513103",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513105",
+      "name": "Samsung 65\" Class S95D OLED 4K Smart TV with Glare-Free (2024)",
+      "price": 2499.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s95d-65.jpg",
+      "href": "/r/direct/9222976908546513105",
+      "affiliateUrl": "/r/direct/9222976908546513105",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513104",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV with HDR (2024) - Best Buy Exclusive Bundle",
+      "price": 1899.99,
+      "currency": "USD",
+      "merchant": "bestbuy.com",
+      "imageUrl": "https://pisces.bbystatic.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513104",
+      "affiliateUrl": "/r/direct/9222976908546513104",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-samsung-oled-tv-65-singapore"
   },

@@ -120,7 +120,56 @@
       "answer": "Yes for audio and basic noise cancellation. Adaptive audio, hearing features, heart-rate sensing and seamless switching rely on an iPhone, so Android users get less value for the money and a discounted AirPods Pro 2 is usually a smarter pick."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "35817846",
+      "name": "25W CryoBoost Foldable 3-in-1 Magnetic Charger & AirPods Pro 3 Cyber Tough Case Bundle – EU Plug-Black",
+      "price": 129.78,
+      "currency": "USD",
+      "merchant": "esrgear.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0694/0242/7619/files/25W-CryoBoost-Foldable-3-in-1-Magnetic-Charger-_-AirPods-Pro-3-Cyber-Tough-Case-Bundle-_-EU-Plug-Black-ESR-239030698.jpg?v=1778039078",
+      "href": "/r/direct/35817846",
+      "affiliateUrl": "/r/direct/35817846",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35817847",
+      "name": "25W CryoBoost Foldable 3-in-1 Magnetic Charger & AirPods Pro 3 Cyber Tough Case Bundle – US Plug-Black",
+      "price": 110.18,
+      "currency": "USD",
+      "merchant": "esrgear.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0694/0242/7619/files/25W-CryoBoost-Foldable-3-in-1-Magnetic-Charger-_-AirPods-Pro-3-Cyber-Tough-Case-Bundle-_-EU-Plug-Black-ESR-239028958.jpg?v=1778038999",
+      "href": "/r/direct/35817847",
+      "affiliateUrl": "/r/direct/35817847",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35817848",
+      "name": "25W CryoBoost Foldable 3-in-1 Magnetic Charger and AirPods Pro 3 Orbit Hybrid Case Bundle – EU Plug-Black",
+      "price": 128.83,
+      "currency": "USD",
+      "merchant": "esrgear.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0694/0242/7619/files/25W-CryoBoost-Foldable-3-in-1-Magnetic-Charger-and-AirPods-Pro-3-Orbit-Hybrid-Case-Bundle-_-EU-Plug-Black-ESR-239026219.jpg?v=1778038419",
+      "href": "/r/direct/35817848",
+      "affiliateUrl": "/r/direct/35817848",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35817849",
+      "name": "25W CryoBoost Foldable 3-in-1 Magnetic Charger and AirPods Pro 3 Orbit Hybrid Case Bundle – US Plug-Black",
+      "price": 109.23,
+      "currency": "USD",
+      "merchant": "esrgear.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0694/0242/7619/files/25W-CryoBoost-Foldable-3-in-1-Magnetic-Charger-_-AirPods-Pro-3-Cyber-Tough-Case-Bundle-_-US-Plug-Black-ESR-239026370.jpg?v=1778038466",
+      "href": "/r/direct/35817849",
+      "affiliateUrl": "/r/direct/35817849",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-airpods-pro-3-singapore"
   },

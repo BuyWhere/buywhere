@@ -129,7 +129,56 @@
       "answer": "Buy the bundle only if it includes an item you actually want, such as an extra DualSense controller or a first-party game on your list. Otherwise, use the console-only live price as the comparison point."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513129",
+      "name": "PlayStation 5 Pro Console",
+      "price": 699.99,
+      "currency": "USD",
+      "merchant": "playstation.com",
+      "imageUrl": "https://image.api.playstation.com/ps5-pro.jpg",
+      "href": "/r/direct/9222976908546513129",
+      "affiliateUrl": "/r/direct/9222976908546513129",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513130",
+      "name": "PlayStation 5 Pro Console - Best Buy",
+      "price": 699.99,
+      "currency": "USD",
+      "merchant": "bestbuy.com",
+      "imageUrl": "https://pisces.bbystatic.com/ps5-pro.jpg",
+      "href": "/r/direct/9222976908546513130",
+      "affiliateUrl": "/r/direct/9222976908546513130",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513128",
+      "name": "PlayStation 5 Slim Digital Edition Console",
+      "price": 449.99,
+      "currency": "USD",
+      "merchant": "playstation.com",
+      "imageUrl": "https://image.api.playstation.com/ps5-slim-digital.jpg",
+      "href": "/r/direct/9222976908546513128",
+      "affiliateUrl": "/r/direct/9222976908546513128",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513127",
+      "name": "PlayStation 5 Slim Disc Edition Console",
+      "price": 499.99,
+      "currency": "USD",
+      "merchant": "playstation.com",
+      "imageUrl": "https://image.api.playstation.com/ps5-slim-disc.jpg",
+      "href": "/r/direct/9222976908546513127",
+      "affiliateUrl": "/r/direct/9222976908546513127",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-ps5-singapore"
   },

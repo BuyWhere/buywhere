@@ -111,7 +111,56 @@
       "answer": "Yes — every recent MacBook supports external 4K displays. For a clean single-cable setup, choose a monitor with USB-C input at 65W or higher so the monitor can power and display the laptop at the same time."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "56689803",
+      "name": "SAMSUNG 43\" M7 4K FLAT SMART 4K MONITOR LS43FM702UEXXS - C",
+      "price": 728,
+      "currency": "SGD",
+      "merchant": "gaincity",
+      "imageUrl": "https://www.gaincity.com/media/catalog/product/cache/536afec13b83561b0ba5a4d9f2d0caf7/s/4/s43fm700_013_front3_black_1.jpg",
+      "href": "/r/direct/56689803",
+      "affiliateUrl": "/r/direct/56689803",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56582169",
+      "name": "SAMSUNG 32\" M8 4K FLAT SMART 4K MONITOR LS32FM803UEXXS",
+      "price": 888,
+      "currency": "SGD",
+      "merchant": "gaincity",
+      "imageUrl": "https://www.gaincity.com/media/catalog/product/cache/536afec13b83561b0ba5a4d9f2d0caf7/m/8/m80f_001_front1_white.jpg",
+      "href": "/r/direct/56582169",
+      "affiliateUrl": "/r/direct/56582169",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56582168",
+      "name": "SAMSUNG 43\" M7 4K FLAT SMART 4K MONITOR LS43FM702UEXXS",
+      "price": 728,
+      "currency": "SGD",
+      "merchant": "gaincity",
+      "imageUrl": "https://www.gaincity.com/media/catalog/product/cache/536afec13b83561b0ba5a4d9f2d0caf7/s/4/s43fm700_013_front3_black.jpg",
+      "href": "/r/direct/56582168",
+      "affiliateUrl": "/r/direct/56582168",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56581379",
+      "name": "SAMSUNG 32\" M8 4K FLAT SMART 4K MONITOR LS32FM803UEXXS - C",
+      "price": 888,
+      "currency": "SGD",
+      "merchant": "gaincity",
+      "imageUrl": "https://www.gaincity.com/media/catalog/product/cache/536afec13b83561b0ba5a4d9f2d0caf7/m/8/m80f_001_front1_white_1.jpg",
+      "href": "/r/direct/56581379",
+      "affiliateUrl": "/r/direct/56581379",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-4k-monitors-us"
   },

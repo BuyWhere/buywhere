@@ -121,7 +121,56 @@
       "answer": "Yes — it is one of the best gaming TVs at any price. Four HDMI 2.1 ports, 4K/120 (144Hz for PC), VRR support and near-instant pixel response make it a natural pairing for current consoles."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513104",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV with HDR (2024) - Best Buy Exclusive Bundle",
+      "price": 1899.99,
+      "currency": "USD",
+      "merchant": "bestbuy.com",
+      "imageUrl": "https://pisces.bbystatic.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513104",
+      "affiliateUrl": "/r/direct/9222976908546513104",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513103",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV (2024)",
+      "price": 1799.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513103",
+      "affiliateUrl": "/r/direct/9222976908546513103",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513105",
+      "name": "Samsung 65\" Class S95D OLED 4K Smart TV with Glare-Free (2024)",
+      "price": 2499.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s95d-65.jpg",
+      "href": "/r/direct/9222976908546513105",
+      "affiliateUrl": "/r/direct/9222976908546513105",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513108",
+      "name": "LG 65\" Class G4 OLED evo 4K Smart TV with Brightness Booster Max (2024)",
+      "price": 2499.99,
+      "currency": "USD",
+      "merchant": "lg.com",
+      "imageUrl": "https://www.lg.com/us/images/tvs/md07555857/gallery/large01.jpg",
+      "href": "/r/direct/9222976908546513108",
+      "affiliateUrl": "/r/direct/9222976908546513108",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-oled-tvs-us",

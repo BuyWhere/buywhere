@@ -105,7 +105,56 @@
       "answer": "Historically during Black Friday, Cyber Monday and the broader holiday window in late November and early December. Outside those events, the live product cards on this page reflect the current US$ floor across US-authorised retailers."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37377305",
+      "name": "Sony WH-1000XM5 Replacement Earpads - Soft PU Leather & Memory Foam Ear Pad Cushions For Extra Comfort, Easy & Quick Installation",
+      "price": 18.38,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/files/BWAVZ_SONY_1000XM5_BLK_05.jpg?v=1695630877",
+      "href": "/r/direct/37377305",
+      "affiliateUrl": "/r/direct/37377305",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37377078",
+      "name": "Replacement Audio Cable Compatible with Sony MDR-1000X WH-1000XM5 WH-1000XM4 WH-1000XM3 MDR-1A WH-1000X MDR-XB950BT MDR-XB950N1 MDR-ZX770BN",
+      "price": 16.99,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/files/BWAVZ-910189-CBL-SNY-MDR1000-00.jpg?v=1749189372",
+      "href": "/r/direct/37377078",
+      "affiliateUrl": "/r/direct/37377078",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36532134",
+      "name": "Bronze Dragon Portable Cable for Sony WH-1000XM5",
+      "price": 365.0,
+      "currency": "USD",
+      "merchant": "moon-audio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0834/0245/7402/files/Bronze_Dragon_Portable_Cable_for_Sony_WH-1000XM5_Resized-2__74033.1715951932.1280.1280.jpg?v=1719257222",
+      "href": "/r/direct/36532134",
+      "affiliateUrl": "/r/direct/36532134",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36532135",
+      "name": "Bronze Dragon Portable Cable for Sony WH-1000XM5",
+      "price": 385.0,
+      "currency": "USD",
+      "merchant": "moon-audio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0834/0245/7402/files/Bronze_Dragon_Portable_Cable_for_Sony_WH-1000XM5_Resized-2__74033.1715951932.1280.1280.jpg?v=1719257222",
+      "href": "/r/direct/36532135",
+      "affiliateUrl": "/r/direct/36532135",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-sony-wh-1000xm6-singapore"
   },

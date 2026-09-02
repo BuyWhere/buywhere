@@ -111,7 +111,56 @@
       "answer": "Only if you use the Pro features: sustained performance, the better display, extra ports, stronger speakers or larger 16-inch screen. If your workload is mostly browser, documents and light creative work, a MacBook Air is usually the cheaper and lighter choice."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37377379",
+      "name": "Adhesive Under Desk Laptop Holder Mount, Upto 1.9” / 48mm Thick, For Laptops Macbook Routers Surface iPads Tablets & More",
+      "price": 16.58,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/files/BWAVZ_SIMP_LAP-MNT_V2_BK_01.jpg?v=1683014655",
+      "href": "/r/direct/37377379",
+      "affiliateUrl": "/r/direct/37377379",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37377415",
+      "name": "Under Desk Laptop Mount Holder, Screw In, Devices upto 1.7\" Thick For Laptops Macbook Routers Surface iPads Tablets & More",
+      "price": 16.99,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/products/BWAVZ_SIMP_LAP-MNT_BK_05.jpg?v=1667229734",
+      "href": "/r/direct/37377415",
+      "affiliateUrl": "/r/direct/37377415",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37377405",
+      "name": "Adhesive Tablet & Slim Laptop Wall Mount Holder for iPad, Android, Macbook, Surface, iPad Air, Mini & Pro, Galaxy Tab Note eBooks, Kindle & More",
+      "price": 16.14,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/products/BWAVZ-TAB-MNT-V2-BK-05.jpg?v=1672754574",
+      "href": "/r/direct/37377405",
+      "affiliateUrl": "/r/direct/37377405",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37377458",
+      "name": "Wall Mount Laptop Holder with Adhesive & Screw In, 1.2\" / 31mm, for Macbooks, Surface, Keyboards, Switch, Tablets & More",
+      "price": 20.83,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/products/BWAVZ_LPTOP_WALL_01_10_1.jpg?v=1645420832",
+      "href": "/r/direct/37377458",
+      "affiliateUrl": "/r/direct/37377458",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-macbook-pro-singapore"
   },

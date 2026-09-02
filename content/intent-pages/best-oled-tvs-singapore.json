@@ -111,7 +111,56 @@
       "answer": "A 77-inch TV fits a typical 4-room HDB living room at a viewing distance of about 2.5m. The rule of thumb is the TV should be roughly half the viewing distance in inches for an immersive cinema feel, and a third the distance for a comfortable everyday TV feel — at 2.5m viewing distance, 77-inch sits at the immersive end of comfortable."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "58827976",
+      "name": "SAMSUNG QA77S90DAEXXS 77 IN OLED QUANTUM HDR OLED PLUS SMART TV",
+      "price": 7599,
+      "currency": "SGD",
+      "merchant": "courts_sg",
+      "imageUrl": "https://www.courts.com.sg/media/catalog/product/i/p/ip195034_00.jpg?quality=80&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+      "href": "/r/direct/58827976",
+      "affiliateUrl": "/r/direct/58827976",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "59005002",
+      "name": "Samsung 55-inch OLED S85F 4K Samsung Vision AI 2025 Smart TV - Graphite Black (QA55S85FAEXXS)",
+      "price": 2399,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/162/Samsung_55-inch_OLED_S85F_4K_Samsung_Vision_AI_2025_Smart_TV_-_Graphite_Black_(QA55S85FAEXXS)_01.JPG",
+      "href": "/r/direct/59005002",
+      "affiliateUrl": "/r/direct/59005002",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "58827874",
+      "name": "Samsung 48-inch OLED S90H 4K Samsung Vision AI 2026 Smart TV - Graphite Black (QA48S90HAKXXS)",
+      "price": 2399,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58827874",
+      "affiliateUrl": "/r/direct/58827874",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "58827873",
+      "name": "Samsung 55-inch OLED S90H 4K Samsung Vision AI 2026 Smart TV - Graphite Black (QA55S90HAKXXS)",
+      "price": 3099,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58827873",
+      "affiliateUrl": "/r/direct/58827873",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-oled-tvs-us"
   },

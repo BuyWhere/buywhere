@@ -123,7 +123,56 @@
       "answer": "The iPhone 17 is the safer default for video consistency, skin tones and social clips. The Galaxy S25 gives more manual control, punchier processing and strong AI editing. For casual photos either is excellent; choose based on the editing style you prefer."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908550881752",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881752",
+      "affiliateUrl": "/r/direct/9222976908550881752",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881753",
+      "name": "Samsung Galaxy S25+ 256GB - Titanium",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881753",
+      "affiliateUrl": "/r/direct/9222976908550881753",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881754",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881754",
+      "affiliateUrl": "/r/direct/9222976908550881754",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881756",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1658,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881756",
+      "affiliateUrl": "/r/direct/9222976908550881756",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/galaxy-s25-vs-iphone-17-us"
   },

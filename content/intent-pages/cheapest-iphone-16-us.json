@@ -109,7 +109,56 @@
       "answer": "256GB is the smart floor in 2026 unless you rely entirely on iCloud. 128GB is fine if you shoot mostly in Standard HEIF and stream your music library; 512GB matters only if you shoot a lot of 4K video on the device."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "35785487",
+      "name": "LITO S+ Camera Lens for iPhone 16 / 16 Plus- Silver",
+      "price": 49.9,
+      "currency": "USD",
+      "merchant": "istudiosg.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/CameraLenscover_B.jpg?v=1773736691",
+      "href": "/r/direct/35785487",
+      "affiliateUrl": "/r/direct/35785487",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35785488",
+      "name": "LITO S+ Camera Lens for iPhone 16 / 16 Plus- Black",
+      "price": 49.9,
+      "currency": "USD",
+      "merchant": "istudiosg.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/CameraLenscover_B.jpg?v=1773736691",
+      "href": "/r/direct/35785488",
+      "affiliateUrl": "/r/direct/35785488",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36520662",
+      "name": "Self Love Mp4 Player 2.0 - Apple iPhone 16 Plus",
+      "price": 12.57,
+      "currency": "USD",
+      "merchant": "mobilfox.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0723/2929/8232/files/aBRukdWlsiiSWADwk43wx-liLLEmmTd12Ltsygs29hQ.png?v=1779257205",
+      "href": "/r/direct/36520662",
+      "affiliateUrl": "/r/direct/36520662",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36520118",
+      "name": "Social Queen 2.0 - Apple iPhone 16",
+      "price": 12.57,
+      "currency": "USD",
+      "merchant": "mobilfox.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0723/2929/8232/files/Jxcn19fgMabs18JmqJfZRNLaCRFQlfbRO-ZgojE5_FY.png?v=1779257251",
+      "href": "/r/direct/36520118",
+      "affiliateUrl": "/r/direct/36520118",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-iphone-16-singapore"
   },

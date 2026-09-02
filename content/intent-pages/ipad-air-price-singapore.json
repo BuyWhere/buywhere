@@ -106,7 +106,56 @@
       "answer": "Yes, through the Apple Education Store. Valid Singapore students, teachers and staff can buy current-generation iPad Air with roughly a 6–8% education discount, which often beats the best platform voucher stack on a single order. Compare the Education Store price to the live authorised-reseller and platform listings before deciding."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55869896",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024nillkinflip3.jpg?v=1734092569",
+      "href": "/r/direct/55869896",
+      "affiliateUrl": "/r/direct/55869896",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55869879",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Camshield Pad Case Series Camera Protective Magnetic Kickstand Stylus Holder Rugged Back Case",
+      "price": 58,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024camshield1.jpg?v=1734093824",
+      "href": "/r/direct/55869879",
+      "affiliateUrl": "/r/direct/55869879",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55868705",
+      "name": "ASK PRICE DISPLAY SET Apple Smart Case MGTW2FE/A For Apple iPad Air 1 / iPad Air 2 Red",
+      "price": 10,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/AppleSmartCaseiPadAir12DISPLAY.jpg?v=1748591231",
+      "href": "/r/direct/55868705",
+      "affiliateUrl": "/r/direct/55868705",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55864104",
+      "name": "Apple iPad Air 11\" (2025) / (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / (2021) / (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipad11_10.9nillkin6.jpg?v=1776857179",
+      "href": "/r/direct/55864104",
+      "affiliateUrl": "/r/direct/55864104",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/ipad-air-price-us"
   },

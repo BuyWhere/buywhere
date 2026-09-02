@@ -122,7 +122,56 @@
       "answer": "Historically around back-to-school (late July through early September), Black Friday week, and during Newegg shell-shocker and Amazon Lightning rotations. Outside those windows the live listings on this page show the current floor."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "36994980",
+      "name": "ASUS ROG Strix G16 G614PR-G016W Gaming Laptop – Ryzen 9 8940HX, RTX 5070 Ti 12GB, 16GB DDR5, 1TB SSD, 16\" FHD+ 165Hz, Windows 11",
+      "price": 107777,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/ASUS-ROG-Strix-G16-Gaming-Laptop_01_722f28f2-fdc1-4e15-a429-703d8e292f29.jpg?v=1776776710",
+      "href": "/r/direct/36994980",
+      "affiliateUrl": "/r/direct/36994980",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36993451",
+      "name": "Acer Predator Helios Neo 16 AI Gaming Laptop – Ultra 9 275HX, RTX 5070 8GB, 16GB RAM, 1TB SSD, 16\" QHD 240Hz",
+      "price": 1,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Acer-Predator-Helios-Neo-16-AI_01.jpg?v=1773589310",
+      "href": "/r/direct/36993451",
+      "affiliateUrl": "/r/direct/36993451",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36994847",
+      "name": "GIGABYTE Gaming A16 CWH Laptop – i7-13620H | RTX 5070 8GB | 32GB RAM | 1TB SSD | 165Hz | Black",
+      "price": 77777,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/GIGABYTE-Gaming-A16_01_270a517e-f4ae-4325-9446-e2fac41f8589.jpg?v=1764068248",
+      "href": "/r/direct/36994847",
+      "affiliateUrl": "/r/direct/36994847",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36995091",
+      "name": "ASUS ROG Strix G16 G614PR-RV009W Gaming Laptop – Ryzen 9 8940HX, RTX 5070 Ti, 32GB DDR5, 1TB SSD",
+      "price": 124444,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/ASUS-ROG-Strix-G16_02_8b780dab-c3cf-4827-89c3-760ac629d8cb.jpg?v=1776783733",
+      "href": "/r/direct/36995091",
+      "affiliateUrl": "/r/direct/36995091",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-rtx-5070-laptop-singapore"
   },

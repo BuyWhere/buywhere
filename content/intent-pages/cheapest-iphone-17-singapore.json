@@ -121,7 +121,56 @@
       "answer": "Yes for network — Singapore carriers are SIM-free and unlocked by default. The catch is warranty: parallel imports are not serviceable by Apple Singapore and you cannot add AppleCare+ locally."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513133",
+      "name": "Apple iPhone 17 128GB - Black",
+      "price": 999,
+      "currency": "SGD",
+      "merchant": "apple.com.sg",
+      "imageUrl": "https://store.storeimages.cdn-apple.com/iphone-17-black-sg.jpg",
+      "href": "/r/direct/9222976908546513133",
+      "affiliateUrl": "/r/direct/9222976908546513133",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513273",
+      "name": "Apple iPhone 17 128GB Unlocked - Teal (Harvey Norman)",
+      "price": 999,
+      "currency": "SGD",
+      "merchant": "harveynorman.com.sg",
+      "imageUrl": "https://www.harveynorman.com.sg/images/iphone-17-128-teal.jpg",
+      "href": "/r/direct/9222976908546513273",
+      "affiliateUrl": "/r/direct/9222976908546513273",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513269",
+      "name": "Apple iPhone 17 256GB - Teal",
+      "price": 1149,
+      "currency": "SGD",
+      "merchant": "apple.com.sg",
+      "imageUrl": "https://store.storeimages.cdn-apple.com/iphone-17-teal-sg.jpg",
+      "href": "/r/direct/9222976908546513269",
+      "affiliateUrl": "/r/direct/9222976908546513269",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513271",
+      "name": "Apple iPhone 17 256GB - Lavender (Challenger)",
+      "price": 1099,
+      "currency": "SGD",
+      "merchant": "challenger.com.sg",
+      "imageUrl": "https://online.challenger.sg/images/iphone-17-256-lav.jpg",
+      "href": "/r/direct/9222976908546513271",
+      "affiliateUrl": "/r/direct/9222976908546513271",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-iphone-17-us"
   },

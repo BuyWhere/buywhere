@@ -48,7 +48,7 @@
       "values": [
         "Galaxy Tab A9 / A11 class",
         "Full Play Store, 8–11 inch, LTE optional",
-      "Email, browser, notes without an iPad"
+        "Email, browser, notes without an iPad"
       ]
     },
     {
@@ -114,7 +114,56 @@
       "answer": "Usually no. Phone hotspot covers travel. LTE adds cost and often a worse Wi-Fi configuration at this budget."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37399200",
+      "name": "SAMSUNG Galaxy Tab S9 平板防窺保護膜",
+      "price": 299,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/f751e9a6c12c2bb668903c4a7ce3017f.jpg?v=1767858411",
+      "href": "/r/direct/37399200",
+      "affiliateUrl": "/r/direct/37399200",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399151",
+      "name": "SAMSUNG Galaxy Tab S9 Ultra 多角度書本式皮套",
+      "price": 569,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/60feaeec9f8670d79f5d35247ff4fb8e.jpg?v=1767881563",
+      "href": "/r/direct/37399151",
+      "affiliateUrl": "/r/direct/37399151",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399152",
+      "name": "SAMSUNG Galaxy Tab S9 Ultra 多角度書本式皮套",
+      "price": 569,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/60feaeec9f8670d79f5d35247ff4fb8e.jpg?v=1767881563",
+      "href": "/r/direct/37399152",
+      "affiliateUrl": "/r/direct/37399152",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399168",
+      "name": "SAMSUNG Galaxy Tab S9+ 防眩光螢幕保護貼",
+      "price": 169,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/7fc7e1607d30c44922230217891baf60.jpg?v=1767876410",
+      "href": "/r/direct/37399168",
+      "affiliateUrl": "/r/direct/37399168",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-android-tablets-under-500-singapore"
   },

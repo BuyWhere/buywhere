@@ -114,7 +114,56 @@
       "answer": "Yes if the price gap is large, the battery is healthy, and you want a 360 hinge. No if you want a remaining manufacturer warranty measured in years rather than months."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513019",
+      "name": "Dell Latitude 5550 15.6\" Business Laptop - Intel Core Ultra 7 155U, 16GB RAM, 512GB SSD",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-5550.jpg",
+      "href": "/r/direct/9222976908546513019",
+      "affiliateUrl": "/r/direct/9222976908546513019",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513021",
+      "name": "Dell Latitude 7350 Detachable 13.3\" Business Laptop - Intel Core Ultra 7 164U, 16GB RAM, 512GB SSD",
+      "price": 1899,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-7350.jpg",
+      "href": "/r/direct/9222976908546513021",
+      "affiliateUrl": "/r/direct/9222976908546513021",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36993703",
+      "name": "Used Dell Latitude 3120 Laptop – Intel Pentium Silver N6000, 8GB RAM, 128GB SSD, 13.0″ FHD Display, Intel UHD Graphics, Windows",
+      "price": 7000,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Dell-Latitude-3120-Laptop_01.jpg?v=1770564722",
+      "href": "/r/direct/36993703",
+      "affiliateUrl": "/r/direct/36993703",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36993713",
+      "name": "Used Dell Latitude 5520 Laptop – Core i5-1145G7 – 8GB RAM – 256GB SSD – 15.6\" FHD",
+      "price": 17000,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Dell-Latitude-5520_01.jpg?v=1770560013",
+      "href": "/r/direct/36993713",
+      "affiliateUrl": "/r/direct/36993713",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-ultrabooks-singapore"
   },

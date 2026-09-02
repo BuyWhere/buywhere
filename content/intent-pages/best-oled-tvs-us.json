@@ -1,11 +1,11 @@
 {
   "slug": "best-oled-tvs-us",
-  "title": "Best OLED TVs in the US (2026) \u2014 Live Prices From Every Retailer",
+  "title": "Best OLED TVs in the US (2026) — Live Prices From Every Retailer",
   "description": "The best OLED TVs you can buy in the United States right now: live prices from Amazon, Best Buy, B&H and manufacturer outlets, ranked daily, with expert advice on panel size, brightness and what to avoid.",
   "heroEyebrow": "US OLED TV buying guide",
-  "heroTitle": "Best OLED TVs in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best OLED TVs in the US (2026) \u2014 from {floorPrice} today",
-  "heroBody": "OLED remains the picture-quality reference for TV in 2026: per-pixel light control, infinite contrast, perfect black levels and wide viewing angles. The US OLED market has consolidated to three panel makers \u2014 LG Display, Samsung Display and Sony-branded panels built on those \u2014 and a half-dozen TV brands that use them. Pricing runs from mid-three-figures on a 55-inch entry model to four-figure sums on a 65-inch or 77-inch flagship, with the deepest discounts at the 65-inch size where the panel volume is highest. This page pulls live listings from BuyWhere's catalog every few minutes so the price on each card is what US retailers are actually charging right now, not a static snapshot from earlier in the year.",
+  "heroTitle": "Best OLED TVs in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best OLED TVs in the US (2026) — from {floorPrice} today",
+  "heroBody": "OLED remains the picture-quality reference for TV in 2026: per-pixel light control, infinite contrast, perfect black levels and wide viewing angles. The US OLED market has consolidated to three panel makers — LG Display, Samsung Display and Sony-branded panels built on those — and a half-dozen TV brands that use them. Pricing runs from mid-three-figures on a 55-inch entry model to four-figure sums on a 65-inch or 77-inch flagship, with the deepest discounts at the 65-inch size where the panel volume is highest. This page pulls live listings from BuyWhere's catalog every few minutes so the price on each card is what US retailers are actually charging right now, not a static snapshot from earlier in the year.",
   "canonicalPath": "/best-oled-tvs-us",
   "country": "US",
   "currency": "USD",
@@ -86,7 +86,7 @@
     "Consider the sound. OLED panels are thin and the built-in speakers are usually mediocre; budget for a soundbar or a proper home-theatre setup. Some OLED TVs offer an HDMI eARC port and Dolby Atmos passthrough that high-end sound systems rely on.",
     "Check burn-in coverage. Modern OLED panels include pixel-refresh cycles and screen-shift features that prevent burn-in for normal TV watching; the risk is mostly for users who display static news tickers or game HUDs at full brightness for many hours a day."
   ],
-  "faqSectionTitle": "OLED TVs in the US \u2014 common questions",
+  "faqSectionTitle": "OLED TVs in the US — common questions",
   "faqs": [
     {
       "question": "Is OLED worth it over a good LED-LCD TV in the US?",
@@ -105,7 +105,56 @@
       "answer": "Major sale events (Black Friday, Cyber Monday, Memorial Day, the Super Bowl window) bring the deepest discounts. Outside those windows the live prices on this page show the current floor."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513104",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV with HDR (2024) - Best Buy Exclusive Bundle",
+      "price": 1899.99,
+      "currency": "USD",
+      "merchant": "bestbuy.com",
+      "imageUrl": "https://pisces.bbystatic.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513104",
+      "affiliateUrl": "/r/direct/9222976908546513104",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513103",
+      "name": "Samsung 65\" Class S90D OLED 4K Smart TV (2024)",
+      "price": 1799.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s90d-65.jpg",
+      "href": "/r/direct/9222976908546513103",
+      "affiliateUrl": "/r/direct/9222976908546513103",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513105",
+      "name": "Samsung 65\" Class S95D OLED 4K Smart TV with Glare-Free (2024)",
+      "price": 2499.99,
+      "currency": "USD",
+      "merchant": "samsung.com",
+      "imageUrl": "https://image-us.samsung.com/samsung-s95d-65.jpg",
+      "href": "/r/direct/9222976908546513105",
+      "affiliateUrl": "/r/direct/9222976908546513105",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513108",
+      "name": "LG 65\" Class G4 OLED evo 4K Smart TV with Brightness Booster Max (2024)",
+      "price": 2499.99,
+      "currency": "USD",
+      "merchant": "lg.com",
+      "imageUrl": "https://www.lg.com/us/images/tvs/md07555857/gallery/large01.jpg",
+      "href": "/r/direct/9222976908546513108",
+      "affiliateUrl": "/r/direct/9222976908546513108",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-oled-tvs-singapore"
   },

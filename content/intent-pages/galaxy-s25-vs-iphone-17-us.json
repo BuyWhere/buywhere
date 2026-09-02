@@ -133,7 +133,56 @@
       "answer": "Samsung promises 7 years of OS and security updates for the Galaxy S25; Apple typically supports iPhones for 5-6 years. In practice, both phones will be current through 2030-2031."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "36308108",
+      "name": "iPhone 17 256GB Sage",
+      "price": 81242,
+      "currency": "USD",
+      "merchant": "iplanet.one",
+      "imageUrl": null,
+      "href": "/r/direct/36308108",
+      "affiliateUrl": "/r/direct/36308108",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36308118",
+      "name": "iPhone 17 256GB Lavender",
+      "price": 81242,
+      "currency": "USD",
+      "merchant": "iplanet.one",
+      "imageUrl": null,
+      "href": "/r/direct/36308118",
+      "affiliateUrl": "/r/direct/36308118",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36308786",
+      "name": "iPhone 17 256GB White",
+      "price": 81242,
+      "currency": "USD",
+      "merchant": "iplanet.one",
+      "imageUrl": null,
+      "href": "/r/direct/36308786",
+      "affiliateUrl": "/r/direct/36308786",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36309346",
+      "name": "iPhone 17 512GB Sage",
+      "price": 99813,
+      "currency": "USD",
+      "merchant": "iplanet.one",
+      "imageUrl": null,
+      "href": "/r/direct/36309346",
+      "affiliateUrl": "/r/direct/36309346",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-gaming-laptops-us",
