@@ -34,6 +34,15 @@ USER_AGENT = "BuyWhereBatchIngest/1.0 (+https://buywhere.ai)"
 SUCCESS_HTTP_CODES = {200}
 
 
+
+def country_from_domain(domain: str | None, fallback: str = "SG") -> str:
+    d = (domain or "").lower().split("/")[0].removeprefix("www.")
+    for suffix, cc in ((".com.ph", "PH"), (".ph", "PH"), (".com.sg", "SG"), (".sg", "SG")):
+        if d.endswith(suffix) or d == suffix[1:]:
+            return cc
+    return fallback
+
+
 def normalize_domain(domain: str) -> str:
     domain = (domain or "").strip().lower()
     domain = re.sub(r"^https?://", "", domain)
@@ -195,7 +204,7 @@ def transform_product(product: dict[str, Any], merchant: dict[str, Any]) -> dict
     if not domain or not handle or price is None:
         return None
 
-    country = (merchant.get("country") or "SG").upper()
+    country = (merchant.get("country") or country_from_domain(merchant.get("domain") or merchant.get("id"))).upper()
     currency = "SGD" if country == "SG" else "USD"
     images = product.get("images") or []
     tags = product.get("tags") or []
@@ -249,7 +258,7 @@ def transform_woocommerce_product(product: dict[str, Any], merchant: dict[str, A
     price = money(Decimal(str(raw_price)) / (Decimal(10) ** decimal_places)) if raw_price is not None else None
     if not domain or not slug or price is None:
         return None
-    country = (merchant.get("country") or "SG").upper()
+    country = (merchant.get("country") or country_from_domain(merchant.get("domain") or merchant.get("id"))).upper()
     images = product.get("images") or []
     categories = product.get("categories") or []
     category_names = [c.get("name") for c in categories if isinstance(c, dict) and c.get("name")]

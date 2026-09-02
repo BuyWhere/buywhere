@@ -162,6 +162,15 @@ def record_to_row(record: dict, platform: str) -> dict | None:
     }
 
 
+
+def country_from_merchant_id(mid: str, fallback: str = "SG") -> str:
+    d = (mid or "").lower().split("/")[0].removeprefix("www.")
+    if d.endswith(".com.ph") or d.endswith(".ph") or d.endswith(".ph"):
+        # exact ccTLD, not substring php
+        if d.endswith(".ph") and not d.endswith(".php"):
+            return "PH"
+    return fallback
+
 MERCHANT_UPSERT_SQL = text("""
     INSERT INTO merchants (id, name, source, country, is_active, onboarding_stage)
     VALUES (:id, :name, :source, :country, true, 'active')
@@ -222,7 +231,7 @@ async def ingest_file(engine, filepath: Path, platform: str):
                             "id": mid,
                             "name": row.get("merchant_name", mid),
                             "source": row.get("platform", mid),
-                            "country": "SG",
+                            "country": country_from_merchant_id(mid),
                         }
                 if seen_merchants:
                     try:
@@ -256,7 +265,7 @@ async def ingest_file(engine, filepath: Path, platform: str):
                     "id": mid,
                     "name": row.get("merchant_name", mid),
                     "source": row.get("platform", mid),
-                    "country": "SG",
+                    "country": country_from_merchant_id(mid),
                 }
         if seen_merchants:
             try:

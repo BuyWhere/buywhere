@@ -64,6 +64,8 @@ COUNTRY_BY_TLD = {
     ".in": "IN",
     ".jp": "JP",
     ".sg": "SG",
+    ".com.ph": "PH",
+    ".ph": "PH",
     ".com.au": "AU",
     ".com.tr": "TR",
     ".br": "BR",

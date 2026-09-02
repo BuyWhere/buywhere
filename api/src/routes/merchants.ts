@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
 import { agentIndexMiddleware } from '../middleware/agentHeaders';
+import { countryOrDefault } from '../lib/countryFromTld';
 
 // BUY-52288: DB has 5 actual stages (active, backfilled_orphan, discovered,
 // ingested, interested); the old 4-element list rejected 'ingested' — the value
@@ -91,7 +92,7 @@ router.post(
     const id = body.id.trim();
     const name = body.name.trim();
     const source = body.source.trim();
-    const country = (body.country || 'SG').slice(0, 2);
+    const country = countryOrDefault(body.country, body.domain || body.id).slice(0, 2);
     const domain = typeof body.domain === 'string' ? body.domain.trim() : null;
     const contact_email = typeof body.contact_email === 'string' ? body.contact_email.trim() : null;
     const contact_phone = typeof body.contact_phone === 'string' ? body.contact_phone.trim() : null;
@@ -306,7 +307,7 @@ async function handleOnboardMerchant(req: Request, res: Response) {
   const id = body.id.trim();
   const name = body.name.trim();
   const source = body.source.trim();
-  const country = (body.country || 'SG').slice(0, 2);
+  const country = countryOrDefault(body.country, body.domain || body.id).slice(0, 2);
   const domain = typeof body.domain === 'string' ? body.domain.trim() : null;
   const contact_email = typeof body.contact_email === 'string' ? body.contact_email.trim() : null;
   const contact_phone = typeof body.contact_phone === 'string' ? body.contact_phone.trim() : null;
