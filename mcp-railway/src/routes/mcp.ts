@@ -7,7 +7,7 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, extractNumericPrice } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
@@ -277,14 +277,10 @@ async function findBestPriceViaRestFallback(opts: {
   if (!restHits || restHits.products.length === 0) return null;
   const data = restHits.products.map((p) => {
     const price = p.price as unknown;
-    let amount: number | null = null;
+    let amount = extractNumericPrice(price);
     let curr = COUNTRY_CURRENCY[opts.country] || 'SGD';
-    if (price && typeof price === 'object' && !Array.isArray(price) && 'amount' in (price as object)) {
-      const po = price as { amount?: unknown; currency?: string };
-      amount = po.amount != null ? Number(po.amount) : null;
-      if (po.currency) curr = po.currency;
-    } else if (typeof price === 'number') {
-      amount = price;
+    if (price && typeof price === 'object' && !Array.isArray(price) && (price as { currency?: string }).currency) {
+      curr = String((price as { currency?: string }).currency);
     }
     return {
       id: p.id,
@@ -759,7 +755,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const region = (args.region as string) || '';
+  const rawRegionArg = String(args.region || '').trim().toLowerCase();
+  const countryHint = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const region = (rawRegionArg === 'sea' && countryHint) ? '' : (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
@@ -802,7 +800,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
 
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v9:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PRICE_UNAVAILABLE_TEXT = exports.PRICE_SENTINEL_MIN = exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.extractNumericPrice = extractNumericPrice;
 exports.isSentinelPrice = isSentinelPrice;
 exports.formatPriceField = formatPriceField;
 exports.formatSimilarPriceField = formatSimilarPriceField;
@@ -19,22 +20,40 @@ exports.CURRENCY_RATES = {
 };
 exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+    PH: 'PHP', ID: 'IDR',
 };
 // BUY-69998: Map ISO country codes to the coarse region labels agents expect
 // (sea/us/global). Without this, mcp-railway search responses surfaced
 // `country_code=US` rows tagged with `region=sg`, contradicting the FE/agent
 // contract that branch on `region` to pick fulfillment logic. The downstream
 // SQL filter remains on country_code; this is purely a response-shape fix.
-exports.PRICE_SENTINEL_MIN = 10;
+exports.PRICE_SENTINEL_MIN = 0.01;
 exports.PRICE_UNAVAILABLE_TEXT = 'see merchant (price unavailable in catalog) — click through to confirm';
+function extractNumericPrice(raw) {
+    if (raw == null)
+        return null;
+    if (typeof raw === 'number')
+        return Number.isFinite(raw) ? raw : null;
+    if (typeof raw === 'string') {
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+        const o = raw;
+        return extractNumericPrice(o.amount ?? o.lowPrice ?? o.price);
+    }
+    return null;
+}
 function isSentinelPrice(amount) {
     return typeof amount !== 'number' || !Number.isFinite(amount) || amount < exports.PRICE_SENTINEL_MIN;
 }
 function formatPriceField(amount, currency) {
-    if (isSentinelPrice(amount)) {
-        return exports.PRICE_UNAVAILABLE_TEXT;
+    // BUY-79642: never collapse a finite price into a string — FBP REST
+    // fallback reads price.amount and would otherwise emit amount=null.
+    if (amount == null || !Number.isFinite(amount)) {
+        return { amount: null, currency };
     }
-    return { amount: amount, currency };
+    return { amount, currency };
 }
 function formatSimilarPriceField(amount, currency) {
     return formatPriceField(amount, currency);
@@ -43,13 +62,14 @@ function regionForCountry(countryCode) {
     const cc = (countryCode || '').toUpperCase();
     if (!cc)
         return null;
-    // BUY-69998: region is the lowercase ISO market, matching country_code.
-    // Coarse labels like leftover `sg` shards must not contradict US/VN rows.
-    return cc.toLowerCase();
+    // BUY-79642: ISO country as region (sg/us/th), not catalog shard 'sea'.
+    if (cc.length === 2)
+        return cc.toLowerCase();
+    return null;
 }
 function buildProduct(row, defaultCurrency, compact) {
     const currency = row.currency || defaultCurrency;
-    const amount = row.price != null ? parseFloat(row.price) : null;
+    const amount = extractNumericPrice(row.price);
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
     const productId = String(row.id);
     const merchant = row.domain || '';
@@ -72,9 +92,12 @@ function buildProduct(row, defaultCurrency, compact) {
     // prices misleading. Mirrors find_best_price, which always exposes USD.
     const rate = exports.CURRENCY_RATES[currency] ?? null;
     const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
+    const title = row.title;
     const base = {
         id: productId,
-        title: row.title,
+        title,
+        // BUY-79449 / BUY-78151: schema.org Product.name is the agent-facing alias of title.
+        name: title,
         price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
         normalized_price_usd,
         merchant,

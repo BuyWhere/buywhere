@@ -31,7 +31,7 @@ describe('buildProduct', () => {
     assert.equal(product.merchant, 'shopee_sg');
     assert.equal(product.url, 'https://shopee.sg/product/1');
     assert.equal(product.image_url, 'https://shopee.sg/img/1.jpg');
-    assert.equal(product.region, 'SEA');
+    assert.equal(product.region, 'sg');
     assert.equal(product.country_code, 'SG');
     assert.ok(product.updated_at);
     assert.deepEqual(product.category_path, ['Electronics', 'Laptops']);
@@ -90,6 +90,28 @@ describe('buildProduct', () => {
     const row = { ...baseRow, price: null };
     const product = buildProduct(row, 'SGD', false);
     assert.equal(product.price.amount, null);
+  });
+
+  it('BUY-79642: ISO region from country_code, nested REST price', () => {
+    const nested = buildProduct({
+      ...baseRow,
+      region: 'sea',
+      country_code: 'SG',
+      price: { amount: 1299, currency: 'SGD' },
+    }, 'SGD', false);
+    assert.equal(nested.region, 'sg');
+    assert.equal(nested.price.amount, 1299);
+    assert.equal(nested.price.currency, 'SGD');
+
+    const us = buildProduct({
+      ...baseRow,
+      region: 'sea',
+      country_code: 'US',
+      currency: 'USD',
+      price: 999,
+    }, 'USD', false);
+    assert.equal(us.region, 'us');
+    assert.equal(us.price.amount, 999);
   });
 
   it('handles missing image_url', () => {

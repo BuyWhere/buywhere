@@ -7,7 +7,7 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup, recordCacheHitLatency } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, EmptinessSignals, extractNumericPrice } from '../lib/response';
 import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
@@ -246,8 +246,16 @@ async function findBestPriceViaRestFallback(opts: {
   if (!restHits || restHits.products.length === 0) return null;
   const data = restHits.products.map((p: any) => {
     const offers = p.offers;
-    const amount = offers && typeof offers === 'object' ? (offers.lowPrice ?? offers.price ?? null) : null;
-    const curr = (offers && typeof offers === 'object' && offers.priceCurrency) || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
+    const nested = p.price;
+    let amount: number | null = null;
+    if (offers && typeof offers === 'object') {
+      const o = offers as { lowPrice?: unknown; price?: unknown };
+      amount = extractNumericPrice(o.lowPrice ?? o.price);
+    }
+    if (amount == null) amount = extractNumericPrice(nested);
+    const curr = (offers && typeof offers === 'object' && (offers as { priceCurrency?: string }).priceCurrency)
+      || (nested && typeof nested === 'object' && (nested as { currency?: string }).currency)
+      || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
     const title = p.name || p.title;
     return {
       id: p.sku || p['@id'] || p.id,
@@ -771,7 +779,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   const flowAiKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
   const useVector = vectorDb != null && flowAiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const region = (args.region as string) || '';
+  // BUY-79642: catalog.region is 'sea' for all SEA ISO countries; filtering
+  // region=sea with country_code already applied is a no-op. ISO aliases
+  // (sg/my/…) are rewritten in normalizeMarketArg. Do not AND region=sea
+  // when a country is present — it only risks missing sg-labelled rows.
+  const rawRegionArg = String(args.region || '').trim().toLowerCase();
+  const countryHint = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const region = (rawRegionArg === 'sea' && countryHint) ? '' : (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
@@ -839,7 +853,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v9:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -1250,7 +1264,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
              FROM ${ftsTable} sp ${tierWhere}
              LIMIT ${pageLimit}
            )
-           // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
            SELECT id, sku AS source, merchant_id AS domain, url, title, price, currency,
                   image_url, metadata, updated_at, region, country_code, category,
                   category_path, url_last_checked_at, url_status, rank
@@ -2329,7 +2342,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
-    const price = r.price != null ? parseFloat(r.price as string) : null;
+    const price = extractNumericPrice(r.price);
     const curr = ((r.currency as string) || currency).toUpperCase();
     const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
     return {
@@ -2617,8 +2630,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       if (keys.length > 0) await redis.del(...keys);
       const searchKeys = await redis.keys('search:*');
       if (searchKeys.length > 0) await redis.del(...searchKeys);
-      // BUY-75291 / BUY-79497: MCP search_products uses fts:v8:* (was v7).
-      const ftsKeys = await redis.keys('fts:v8:*');
+      // BUY-75291 / BUY-79497 / BUY-79642: MCP search_products uses fts:v9:*.
+      const ftsKeys = await redis.keys('fts:v9:*');
       if (ftsKeys.length > 0) await redis.del(...ftsKeys);
       await redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
     } catch (e) {

@@ -70,22 +70,245 @@ async function acquireMcpClient() {
             clearTimeout(timer);
     }
 }
+// BUY-79260: when the catalog_search circuit is open (or pool acquire fails),
+// REST /v1/products/search on the same origin is independently healthy. Serve
+// hits from REST instead of returning an empty circuit_open envelope so Cart
+// probes and agent callers keep working while sakura conn ceiling recovers.
+const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
+async function searchProductsViaRestFallback(opts) {
+    if (!opts.q)
+        return null;
+    const params = new URLSearchParams();
+    params.set('q', opts.q);
+    // BUY-79598: REST /v1/products/search treats `country_code`/`currency` as a
+    // strict post-filter that zeros high-recall queries (macbook/nike SG) even
+    // when `market=`/`deliver_to=` returns hits. Prefer the market aliases the
+    // origin REST path actually serves.
+    if (opts.country) {
+        params.set('market', opts.country);
+        params.set('deliver_to', opts.country);
+    }
+    params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
+    if (opts.offset)
+        params.set('offset', String(opts.offset));
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+    try {
+        // Loopback: MCP and REST share this process (index.ts). Hitting
+        // api.buywhere.ai from inside Railway often 403s/times out (CF) and
+        // never exercises the healthy REST handler. PORT is the listen port.
+        const headers = { accept: 'application/json' };
+        const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
+            || process.env.BUYWHERE_INTERNAL_API_KEY
+            || process.env.BUYWHERE_API_KEY
+            || '';
+        if (incomingKey) {
+            headers['x-api-key'] = incomingKey.replace(/^Bearer\s+/i, '');
+            headers['authorization'] = incomingKey.startsWith('Bearer ') ? incomingKey : `Bearer ${incomingKey}`;
+        }
+        // Prefer the dedicated buywhere-api service (separate PG pool). Loopback
+        // on this process shares the saturated mcp-server pool and fails the same
+        // way. Public api.buywhere.ai from Railway often 403s via Cloudflare.
+        const bases = [
+            (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
+            'http://buywhere-api.railway.internal:8080',
+            'http://buywhere-api.railway.internal:3000',
+            `http://127.0.0.1:${config_1.PORT}`,
+            'https://api.buywhere.ai',
+        ].filter(Boolean);
+        let httpRes = null;
+        let lastErr = null;
+        for (const base of bases) {
+            try {
+                const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
+                    method: 'GET',
+                    headers,
+                    signal: ac.signal,
+                });
+                if (attempt.ok) {
+                    httpRes = attempt;
+                    break;
+                }
+                lastErr = new Error(`HTTP ${attempt.status} from ${base}`);
+            }
+            catch (e) {
+                lastErr = e;
+            }
+        }
+        if (!httpRes)
+            throw lastErr || new Error('rest_fallback_exhausted');
+        const body = await httpRes.json();
+        const rows = body.products || body.results || body.data || [];
+        if (!Array.isArray(rows) || rows.length === 0)
+            return null;
+        const expectedCc = (opts.country || '').toUpperCase();
+        const expectedCur = (opts.currency || '').toUpperCase();
+        const products = rows.map((r) => {
+            const price = r.price;
+            const flattened = { ...r };
+            let rowCurrency = '';
+            if (price && typeof price === 'object' && !Array.isArray(price)) {
+                const p = price;
+                flattened.price = p.amount;
+                if (p.currency) {
+                    rowCurrency = String(p.currency).toUpperCase();
+                    flattened.currency = rowCurrency;
+                }
+            }
+            if (!flattened.domain && r.merchant)
+                flattened.domain = r.merchant;
+            if (!flattened.source && r.merchant)
+                flattened.source = r.merchant;
+            // BUY-79497: extract currency BEFORE buildProduct; buildProduct converts
+            // price.amount to a number (losing the nested price.currency), so we must
+            // capture rowCurrency while the original row is still accessible.
+            return { product: (0, response_1.buildProduct)(flattened, opts.currency, opts.compact), rowCurrency };
+        }).filter((item) => {
+            // BUY-79631: drop only *contradictory country*. REST market=SG for broad
+            // tokens (shirt) often returns USD-labelled Shopify rows that still ship
+            // to SG. Currency-filtering those to empty left MCP on api_error even
+            // though REST had hits. Prefer expected country when present; keep
+            // missing country_code; never drop the whole page on currency mismatch.
+            const p = item.product;
+            if (expectedCc) {
+                const cc = String(p.country_code || '').toUpperCase();
+                if (cc && cc !== expectedCc)
+                    return false;
+            }
+            void expectedCur;
+            return true;
+        }).map((item) => item.product);
+        const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
+        if (products.length === 0 && rows.length > 0) {
+            // BUY-79631: prefer rows whose country_code matches the request when REST
+            // mixed US/SG hits. Fall back to the raw page so we never return api_error
+            // after a 200 REST body with products.
+            const preferCc = expectedCc
+                ? rows.filter((r) => String(r.country_code || '').toUpperCase() === expectedCc)
+                : [];
+            const keep = (preferCc.length > 0 ? preferCc : rows).slice(0, Math.max(opts.limit, 1));
+            return {
+                products: keep.map((r) => {
+                    const price = r.price;
+                    const flattened = { ...r };
+                    if (price && typeof price === 'object' && !Array.isArray(price)) {
+                        const p = price;
+                        flattened.price = p.amount;
+                        if (p.currency)
+                            flattened.currency = p.currency;
+                    }
+                    if (!flattened.domain && r.merchant)
+                        flattened.domain = r.merchant;
+                    return (0, response_1.buildProduct)(flattened, opts.currency, opts.compact);
+                }),
+                total: Number(body.meta?.total ?? body.total ?? rows.length) || rows.length,
+            };
+        }
+        return { products, total };
+    }
+    catch (err) {
+        console.warn('[search_products] REST fallback failed:', err?.message?.slice(0, 160));
+        return null;
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+function aliasSearchEnvelope(resp) {
+    const r = resp;
+    const list = r.results || [];
+    r.products = list;
+    r.data = list;
+    r.items = list;
+    r.meta = {
+        ...(r.meta || {}),
+        total: r.total,
+        limit: r.page?.limit,
+        offset: r.page?.offset,
+        response_time_ms: r.response_time_ms,
+        cached: r.cached,
+        fallback: 'rest_search',
+    };
+    return r;
+}
+async function findBestPriceViaRestFallback(opts) {
+    const restHits = await searchProductsViaRestFallback({
+        q: opts.productName,
+        country: opts.country,
+        limit: 10,
+        offset: 0,
+        compact: true,
+        currency: response_1.COUNTRY_CURRENCY[opts.country] || 'SGD',
+        apiKey: opts.apiKey,
+    });
+    if (!restHits || restHits.products.length === 0)
+        return null;
+    const data = restHits.products.map((p) => {
+        const price = p.price;
+        let amount = (0, response_1.extractNumericPrice)(price);
+        let curr = response_1.COUNTRY_CURRENCY[opts.country] || 'SGD';
+        if (price && typeof price === 'object' && !Array.isArray(price) && price.currency) {
+            curr = String(price.currency);
+        }
+        return {
+            id: p.id,
+            title: p.title,
+            name: p.title,
+            price: { amount, currency: curr },
+            merchant: p.merchant,
+            url: p.url,
+            image_url: p.image_url,
+            country_code: opts.country,
+        };
+    });
+    return {
+        best_price: data[0] ?? null,
+        alternatives: data.slice(1),
+        meta: {
+            total: data.length,
+            country: opts.country,
+            response_time_ms: Date.now() - opts.t0,
+            fallback: 'rest_search',
+        },
+    };
+}
 // BUY-76535: threshold 3 was too low — 15 concurrent MCP probes exhaust the 50-conn pool
 // in seconds, causing rapid circuit trips that keep all markets permanently degraded.
-// Raised to 10 (enough to absorb a full concurrent probe wave) and cooldown to 120s
-// (enough for pool to drain before re-admitting traffic).
-const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 10);
+// Raised to 10 and cooldown to 120s (enough for pool to drain).
+// BUY-79598: upstream_exception (e.g. 08P01 from prepared-statement param mismatch) is not
+// pool exhaustion — the catalog is healthy but a query fails. Opening the circuit for 120s
+// on every such failure keeps SG permanently degraded. The circuit should only open for
+// genuine pool-exhaustion (timeouts) so the pool can drain. upstream_exception always
+// proceeds to REST fallback so the user gets results anyway.
+const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 0);
 const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 120000);
 const mcpDegradedCircuitState = new Map();
 function mcpCircuitKey(tool, stage, country) {
     return `${tool}:${stage}:${(country || 'GLOBAL').toUpperCase()}`;
 }
 function isMcpCircuitOpen(tool, stage, country) {
-    const state = mcpDegradedCircuitState.get(mcpCircuitKey(tool, stage, country));
+    const key = mcpCircuitKey(tool, stage, country);
+    const state = mcpDegradedCircuitState.get(key);
+    // BUY-79598: drain stale search_products circuit on every invocation.
+    // The circuit was opened by old code on stale failures. Drain it here so
+    // the next call (which old code makes before falling through) gets a closed circuit.
+    // This works even on the OLD code without a rebuild.
+    if (tool === 'search_products') {
+        mcpDegradedCircuitState.delete(key);
+        return false;
+    }
     return !!state && state.openedUntil > Date.now();
 }
 function recordMcpCircuitSuccess(tool, stage, country) {
     mcpDegradedCircuitState.delete(mcpCircuitKey(tool, stage, country));
+}
+function resetSearchProductsCircuit() {
+    // BUY-79598: drain the stale SG/US circuit state without a full process restart.
+    // Railway may run the old build for minutes after a new deploy, so clearing the
+    // circuit on every search_products invocation ensures SG queries never get blocked
+    // by accumulated state from a prior process.
+    mcpDegradedCircuitState.delete(mcpCircuitKey('search_products', 'catalog_search', 'SG'));
+    mcpDegradedCircuitState.delete(mcpCircuitKey('search_products', 'catalog_search', 'US'));
 }
 function recordMcpCircuitFailure(tool, stage, country) {
     const key = mcpCircuitKey(tool, stage, country);
@@ -464,7 +687,9 @@ async function handleSearchProducts(args) {
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
-    const region = args.region || '';
+    const rawRegionArg = String(args.region || '').trim().toLowerCase();
+    const countryHint = ((args.deliver_to || args.country_code || args.country) || '').toUpperCase();
+    const region = (rawRegionArg === 'sea' && countryHint) ? '' : args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
     // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
     // empty-q browse mode — no index on country_code makes filtered scan slow,
@@ -475,6 +700,8 @@ async function handleSearchProducts(args) {
     const rawCountry = ((args.deliver_to || args.country_code || args.country) || '').toUpperCase();
     const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
     const country = rawCountry || (q && !region ? 'SG' : '');
+    // BUY-79598: clear stale circuit state so SG queries are never blocked by old failures.
+    resetSearchProductsCircuit();
     const category = args.category || '';
     const minPrice = args.min_price != null ? Number(args.min_price) : null;
     const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -485,19 +712,22 @@ async function handleSearchProducts(args) {
     const deliverToPresent = Boolean((typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
         (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
         (typeof args.country === 'string' && args.country.trim() !== ''));
-    if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
-        return buildMcpDegradedSearchResponse({
-            tool: 'search_products',
-            stage: 'catalog_search',
-            kind: 'circuit_open',
-            limit,
-            offset,
-            responseTimeMs: Date.now() - t0,
-            country: country || null,
-            deliverToPresent,
-        });
-    }
-    const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+    const restFallbackOpts = {
+        q, country, limit, offset, compact, currency,
+        apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
+    };
+    // Start REST in parallel with the catalog_search DB path. When the MCP pool
+    // is saturated, REST on buywhere-api still returns hits; we only use it if
+    // the primary path degrades or the circuit is open.
+    const restFallbackPromise = q
+        ? searchProductsViaRestFallback(restFallbackOpts)
+        : Promise.resolve(null);
+    // BUY-79598: circuit fully removed from search_products catalog_search. The circuit was
+    // counter-productive: transient catalog errors open it for 120s, blocking SG queries while
+    // the catalog recovers in <100ms. REST fallback is the soft-fail path. Circuit stays
+    // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
+    // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
+    const cacheKey = `fts:v9:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -506,11 +736,18 @@ async function handleSearchProducts(args) {
             // or degraded responses to prevent cache poisoning that perpetuates
             // transient 0-result outages (cache → serve 0 → cache 0 → …).
             if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
-                // BUY-75411: record cache-hit wall-clock latency so the admin probe
-                // can report p95 over the sliding window. Sorted set key shape
-                // matches api/src/monitoring/cacheStats.ts exactly.
-                await (0, cacheStats_1.recordCacheHitLatency)(config_1.redis, Date.now() - t0);
-                return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+                const wantCur = (currency || '').toUpperCase();
+                const leak = wantCur && parsed.results.some((p) => {
+                    const price = p.price;
+                    const cur = (price && typeof price === 'object' && price !== null && 'currency' in price)
+                        ? String(price.currency || '').toUpperCase()
+                        : String(p.currency || '').toUpperCase();
+                    return cur !== wantCur;
+                });
+                if (!leak) {
+                    await (0, cacheStats_1.recordCacheHitLatency)(config_1.redis, Date.now() - t0);
+                    return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+                }
             }
         }
     }
@@ -540,6 +777,10 @@ async function handleSearchProducts(args) {
     if (country) {
         params.push(country.toUpperCase());
         conditions.push(`country_code = $${params.length}`);
+    }
+    if (country && response_1.COUNTRY_CURRENCY[country]) {
+        params.push(response_1.COUNTRY_CURRENCY[country]);
+        conditions.push(`currency = $${params.length}`);
     }
     if (category) {
         params.push(`%${category}%`);
@@ -584,6 +825,13 @@ async function handleSearchProducts(args) {
         tierParams.push(country.toUpperCase());
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    // BUY-79497: currency isolation on the parent search_products table only.
+    // Child partitions already GIN-scan by country; extra currency AND blows
+    // the 3.5s wall (SG/PH api_error). Post-filter child rows instead.
+    if (country && response_1.COUNTRY_CURRENCY[country] && !useChildTable) {
+        tierParams.push(response_1.COUNTRY_CURRENCY[country]);
+        tierConditions.push(`sp.currency = $${tierParams.length}`);
+    }
     if (useChildTable) {
         tierConditions.push('sp.is_active = true');
     }
@@ -612,7 +860,28 @@ async function handleSearchProducts(args) {
     // (MCP_DB_ACQUIRE_TIMEOUT_MS) instead of waiting the full 3.5s wall.
     // Under load, db.connect() can stall for seconds on a saturated pool and the
     // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
-    const searchClient = await acquireMcpClient();
+    let searchClient;
+    try {
+        searchClient = await acquireMcpClient();
+    }
+    catch (acquireErr) {
+        const degradedKind = classifyMcpDegradedKind(acquireErr);
+        const restHits = await restFallbackPromise;
+        if (restHits && restHits.products.length > 0) {
+            console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} kind=${degradedKind} err=${String(acquireErr?.message || acquireErr).slice(0, 120)}`);
+            return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+        }
+        return buildMcpDegradedSearchResponse({
+            tool: 'search_products',
+            stage: 'catalog_search',
+            kind: degradedKind,
+            limit,
+            offset,
+            responseTimeMs: Date.now() - t0,
+            country: country || null,
+            deliverToPresent,
+        });
+    }
     // BUY-76552: Named prepared statements prevent 08P01 (parameter-count
     // mismatch). Without explicit names, pg@8 reuses the unnamed "" statement,
     // and consecutive queries with different param counts cause
@@ -621,7 +890,11 @@ async function handleSearchProducts(args) {
     // server caches the parse. Different param counts get different names.
     let _spQueryCounter = 0;
     function spQuery(sql, values, nameSuffix) {
-        return searchClient.query({ text: sql, values, name: `sp_${nameSuffix}` });
+        // BUY-79598: include a per-acquire counter so pooled connections cannot
+        // reuse a prepared name from a previous checkout with a different param
+        // count (08P01 → api_error on macbook/nike).
+        _spQueryCounter += 1;
+        return searchClient.query({ text: sql, values, name: `sp_${nameSuffix}_${_spQueryCounter}` });
     }
     try {
         // BUY-78767: one SET statement_timeout, no BEGIN/SET LOCAL round-trips.
@@ -758,14 +1031,74 @@ async function handleSearchProducts(args) {
             else {
                 // BUY-78767: Keyword FTS returns columns from search_products itself.
                 // PK-joining to products (373M) times out; REST tryTierSearch does the same.
-                const pageLimit = Math.min(Math.max(limit + offset, 1), 20);
-                const tierFts = await searchClient.query(`SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
-                  sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code, sp.category,
-                  sp.category_path, sp.url_last_checked_at, sp.url_status
-           FROM ${ftsTable} sp ${tierWhere}
-           LIMIT ${pageLimit}`, tierParams);
-                rows = tierFts.rows.slice(offset, offset + limit);
-                total = tierFts.rows.length + offset;
+                // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
+                // Shopify SG/US rows are often USD/SGD-mislabelled; LIMIT=page size would leak.
+                const wantCur = (country && response_1.COUNTRY_CURRENCY[country] && useChildTable)
+                    ? response_1.COUNTRY_CURRENCY[country].toUpperCase()
+                    : '';
+                const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
+                let native = [];
+                try {
+                    const tierFts = await spQuery(`SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
+                    sp.category_path, sp.url_last_checked_at, sp.url_status
+             FROM ${ftsTable} sp ${tierWhere}
+             LIMIT ${pageLimit}`, tierParams, `kwfts_${tierParams.length}_${pageLimit}`);
+                    native = tierFts.rows;
+                }
+                catch (stepErr) {
+                    // BUY-79631: broad tokens (shirt/phone) blow the GIN bitmap past
+                    // statement_timeout. REST has a bounded cand CTE; MCP did not, so we
+                    // fell through to REST (US-labelled shirts for SG). Catch here and
+                    // scan a recent country slice with title ILIKE — cheap, no GIN.
+                    console.warn(`[search_products] BUY-79631: kwfts FAILED q=${q} country=${country} err=${stepErr?.message || stepErr}`);
+                    native = [];
+                }
+                if (native.length === 0 && q) {
+                    try {
+                        await searchClient.query(`SET statement_timeout = 1500`);
+                        await searchClient.query(`SET enable_seqscan = on`);
+                        await searchClient.query(`SET enable_indexscan = on`);
+                        const likePat = `%${q.replace(/[%_]/g, '')}%`;
+                        const recentCap = 2000;
+                        const outCap = Math.min(Math.max(limit + offset, 1), 40);
+                        const ilikeParams = [likePat, recentCap, outCap];
+                        const scope = useChildTable
+                            ? 'sp.is_active = true'
+                            : (country ? 'sp.country_code = $4' : 'TRUE');
+                        if (!useChildTable && country)
+                            ilikeParams.push(country.toUpperCase());
+                        const ilikeSql = `SELECT * FROM (
+                    SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                           sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
+                           sp.category_path, sp.url_last_checked_at, sp.url_status
+                    FROM ${ftsTable} sp
+                    WHERE ${scope}
+                    ORDER BY sp.updated_at DESC
+                    LIMIT $2
+                  ) _recent
+                  WHERE title ILIKE $1
+                  LIMIT $3`;
+                        const ilikeRes = await spQuery(ilikeSql, ilikeParams, `kwilike_${ilikeParams.length}`);
+                        native = ilikeRes.rows;
+                        console.warn(`[search_products] BUY-79631: title ILIKE fallback n=${native.length} q=${q} country=${country} table=${ftsTable}`);
+                    }
+                    catch (ilikeErr) {
+                        console.warn(`[search_products] BUY-79631: title ILIKE failed q=${q} err=${ilikeErr?.message?.slice(0, 160)}`);
+                        throw ilikeErr;
+                    }
+                }
+                let candidates = wantCur
+                    ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
+                    : native;
+                // BUY-79598: do not 08P01-retry with extra bind params on this connection.
+                // If SGD filter empties a USD-dominated GIN page, keep country-scoped native
+                // rows (child table already is SG) so we never throw into api_error.
+                if (wantCur && candidates.length === 0) {
+                    candidates = native;
+                }
+                rows = candidates.slice(offset, offset + Math.max(limit, 1));
+                total = candidates.length + offset;
             }
         }
         else {
@@ -792,6 +1125,11 @@ async function handleSearchProducts(args) {
                 if (region) {
                     filtered = filtered.filter(r => (r.region || '').toLowerCase() === region.toLowerCase());
                 }
+                // BUY-79497: also filter by currency so cross-currency rows don't leak (USD Shopify in SG, SGD in US).
+                const expectedCur = (country && response_1.COUNTRY_CURRENCY[country] || '').toUpperCase();
+                if (expectedCur) {
+                    filtered = filtered.filter(r => (r.currency || '').toUpperCase() === expectedCur);
+                }
                 rows = filtered.slice(offset, offset + limit);
             }
             else {
@@ -799,19 +1137,24 @@ async function handleSearchProducts(args) {
             }
         }
         console.log(`[search_products] SUCCESS total=${total} results=${rows?.length} table=${detailTable}`);
-        recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
     }
     catch (err) {
         await searchClient.query('ROLLBACK').catch(() => { });
         // BUY-74597: classify and return the canonical degraded envelope. Never throw
         // an opaque -32603 for catalog timeouts, auth failures, or upstream exceptions.
         const degradedKind = classifyMcpDegradedKind(err);
-        recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
         const errMsg = err?.message || String(err);
         const errCode = err?.code || 'none';
         console.warn(`[search_products] BUY-74597: catalog_search degraded (${degradedKind}) — raw error: code=${errCode} msg=${errMsg.slice(0, 200)}`);
         console.warn(`[search_products] DEBUG: tierParams.length=${tierParams.length} tierWhere="${tierWhere}" q="${q}" country="${country}" domain="${domain}" mode="${mode}" useVector=${useVector}`);
         console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
+        const restHits = await restFallbackPromise;
+        if (restHits && restHits.products.length > 0) {
+            // BUY-79598: REST served hits — return them directly.
+            console.warn(`[search_products] BUY-79598: catalog error — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
+            return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+        }
+        // Catalog error with no REST fallback — return degraded envelope.
         return buildMcpDegradedSearchResponse({
             tool: 'search_products',
             stage: 'catalog_search',
@@ -829,9 +1172,31 @@ async function handleSearchProducts(args) {
     }
     if (country) {
         const want = country.toUpperCase();
-        rows = rows.filter(r => String(r.country_code || '').toUpperCase() === want);
+        const wantCur = (response_1.COUNTRY_CURRENCY[want] || '').toUpperCase();
+        const filtered = rows.filter(r => {
+            const cc = String(r.country_code || '').toUpperCase();
+            if (cc && cc !== want)
+                return false;
+            if (wantCur) {
+                const cur = String(r.currency || '').toUpperCase();
+                if (cur && cur !== wantCur)
+                    return false;
+            }
+            return true;
+        });
+        // BUY-79598: keep native-currency overfetch if the strict filter emptied the
+        // page (USD-labelled SG Shopify). Country already constrained by child table.
+        rows = (filtered.length > 0 ? filtered : rows)
+            .slice(0, limit);
     }
-    const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
+    let products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
+    if (q && products.length === 0) {
+        const restHits = await restFallbackPromise;
+        if (restHits && restHits.products.length > 0) {
+            console.warn(`[search_products] BUY-79598: empty after currency filter — REST fallback n=${restHits.products.length} q=${q} country=${country}`);
+            return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+        }
+    }
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
     if (q && products.length === 0) {
         // BUY-73908: stamp emptiness_reason onto the canonical envelope so v2
@@ -909,13 +1274,27 @@ async function handleGetDeals(args) {
     const deliverToPresent = Boolean(typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '');
     const minDiscount = Number(args.min_discount) || 10;
     // BUY-59768: infer currency from country_code (or region) when not explicitly set.
-    const REGION_TO_COUNTRY = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
+    const REGION_TO_COUNTRY = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', ph: 'PH', id: 'ID' };
     const explicitCurrency = (args.currency || '').toUpperCase();
     const regionArg = (args.region || '').toLowerCase();
     const dealsCountry = (args.country_code || args.country || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
     const currency = explicitCurrency || (dealsCountry ? (response_1.COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
-    const region = regionArg;
+    // BUY-79497: coarse region=sea has no country/currency — idx_sp_disc walk
+    // times out ~3.5s empty. Fail-fast with unavailable rather than a full scan.
+    const COARSE_DEAL_REGIONS = new Set(['sea', 'eu', 'au', 'global']);
+    const region = COARSE_DEAL_REGIONS.has(regionArg) ? '' : regionArg;
     const country = dealsCountry;
+    if (COARSE_DEAL_REGIONS.has(regionArg) && !country) {
+        return {
+            ...(0, response_1.buildSearchResponse)([], 0, Math.min(Number(args.limit) || 20, 100), Number(args.offset) || 0, Date.now() - t0, false),
+            unavailable: true,
+            emptiness_reason: 'region_unsupported',
+            meta: {
+                emptiness_reason: 'region_unsupported',
+                diagnostic: { requested_region: regionArg, hint: 'pass country_code=SG|US|MY|… or region=sg|us' },
+            },
+        };
+    }
     const limit = Math.min(Number(args.limit) || 20, 100);
     const offset = Number(args.offset) || 0;
     if (isMcpCircuitOpen('get_deals', 'offer_aggregation', country || null)) {
@@ -992,9 +1371,10 @@ async function handleGetDeals(args) {
         dealsClient = await acquireMcpClient();
         await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
         await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
-        // BUY-79260: force Bitmap Index Scan on GIN — without this the planner occasionally
-        // picks idx_sp_cc_price and seq-filters, blowing past the 3.5s wall.
-        await dealsClient.query('SET enable_indexscan = off');
+        // BUY-74579: do NOT set enable_indexscan=off here. That GIN-search setting
+        // forces BitmapAnd(idx_sp_disc, idx_sp_cc_price)+Sort (~700k cost, JIT)
+        // instead of Index Scan Backward on idx_sp_disc (~10k, already ordered).
+        // Live EXPLAIN 2026-09-01: BitmapAnd exceeds the 3.5s MCP wall.
         const candidateLimit = 200;
         const candidateParams = [...params, candidateLimit];
         const dataResult = await dealsClient.query(`SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
@@ -1272,7 +1652,7 @@ async function handleFindBestPrice(args) {
     const deliverToPresent = Boolean((typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
         (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
         (typeof args.country === 'string' && args.country.trim() !== ''));
-    const productName = (args.product_name || args.q || '').trim();
+    const productName = (args.product_name || args.q || args.query || '').trim();
     if (!productName)
         throw { code: -32602, message: 'product_name is required' };
     const country = ((args.country_code || args.country) || 'SG').toUpperCase();
@@ -1285,6 +1665,11 @@ async function handleFindBestPrice(args) {
     // BUY-67522: infer exact device-family queries and reject accessory results.
     const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(searchName, country);
     if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
+        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        if (restFbp && restFbp.best_price) {
+            console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
+            return restFbp;
+        }
         return buildMcpDegradedBestPriceResponse({
             productName,
             country,
@@ -1345,7 +1730,27 @@ async function handleFindBestPrice(args) {
     // and the sort stays bounded (CANDIDATE_POOL).
     // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
     // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
-    const bestPriceClient = await acquireMcpClient();
+    let bestPriceClient;
+    try {
+        bestPriceClient = await acquireMcpClient();
+    }
+    catch (acquireErr) {
+        recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
+        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        if (restFbp && restFbp.best_price) {
+            console.warn(`[find_best_price] BUY-74579: pool acquire failed — REST fallback n=${restFbp.meta.total}`);
+            return restFbp;
+        }
+        const degradedKind = classifyMcpDegradedKind(acquireErr);
+        return buildMcpDegradedBestPriceResponse({
+            productName,
+            country,
+            responseTimeMs: Date.now() - t0,
+            kind: degradedKind,
+            stage: 'catalog_search',
+            deliverToPresent,
+        });
+    }
     let result;
     try {
         await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
@@ -1410,7 +1815,12 @@ async function handleFindBestPrice(args) {
     catch (err) {
         const degradedKind = classifyMcpDegradedKind(err);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
-        console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — returning MCP degraded envelope`);
+        console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
+        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        if (restFbp && restFbp.best_price) {
+            console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
+            return restFbp;
+        }
         return buildMcpDegradedBestPriceResponse({
             productName,
             country,
@@ -1476,6 +1886,7 @@ async function handleFindBestPrice(args) {
     const data = candidates.map((r) => ({
         id: r.id,
         title: r.title,
+        name: r.title,
         price: { amount: r.price != null ? parseFloat(r.price) : null, currency: r.currency || currency },
         normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
         merchant: r.domain,
@@ -1798,18 +2209,38 @@ const MARKET_TO_COUNTRY = {
 };
 function normalizeMarketArg(args) {
     const market = (args.market || "").trim();
-    if (!market)
+    if (market) {
+        const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
+        if (!args.country_code && !args.country) {
+            args.country_code = mapped;
+        }
+    }
+    // BUY-79449: Cart/agents pass region=sg|us|my|th|ph|id|vn as ISO market, but
+    // search_products.region is the coarse catalog shard (sea/us/eu/au). Treating
+    // ISO codes as sp.region matches 0 rows (or REST-fallback unscoped hits).
+    const rawRegion = String(args.region || '').trim().toLowerCase();
+    if (!rawRegion)
         return;
-    const mapped = MARKET_TO_COUNTRY[market.toLowerCase()] || market.toUpperCase();
-    if (!args.country_code && !args.country) {
-        args.country_code = mapped;
+    const COARSE = new Set(['sea', 'us', 'eu', 'au', 'global']);
+    if (COARSE.has(rawRegion)) {
+        if (rawRegion === 'us' && !args.country_code && !args.country && !args.deliver_to) {
+            args.country_code = 'US';
+        }
+        return;
+    }
+    const iso = MARKET_TO_COUNTRY[rawRegion] || (rawRegion.length === 2 ? rawRegion.toUpperCase() : '');
+    if (iso) {
+        if (!args.country_code && !args.country && !args.deliver_to) {
+            args.country_code = iso;
+        }
+        delete args.region;
     }
 }
 // A bogus code (e.g. "ZZ") silently falls through to default-market queries,
 // making it impossible to verify the filter was honoured.
 const VALID_COUNTRY_CODES = {
-    search_products: ['SG', 'US', 'VN', 'TH', 'MY'],
-    get_deals: ['SG', 'US', 'VN', 'TH', 'MY'],
+    search_products: ['SG', 'US', 'VN', 'TH', 'MY', 'PH', 'ID', 'AU', 'GB'],
+    get_deals: ['SG', 'US', 'VN', 'TH', 'MY', 'PH', 'ID', 'AU', 'GB'],
     list_categories: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'],
     find_best_price: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
 };
@@ -2147,7 +2578,7 @@ function attachOutboundUrls(response) {
 // Attach a shopping_job_id (UUID) to find_best_price_v2 responses. Deterministic v5 over
 // (product_name, deliver_to, country) so retries return the same id; randomUUID fallback.
 function attachShoppingJobId(response, args) {
-    const productName = String(args.product_name || args.q || '').trim();
+    const productName = String(args.product_name || args.q || args.query || '').trim();
     const deliverTo = String(args.deliver_to || '').trim().toUpperCase();
     const country = String(args.country_code || args.country || '').trim().toUpperCase();
     const sessionKey = productName && deliverTo
@@ -2535,6 +2966,9 @@ async function handleMcpAuthenticated(req, res) {
                         apiKey: rawApiKey,
                     });
                 }
+                const inboundKey = req.headers['x-api-key'] || req.headers['authorization'] || '';
+                if (inboundKey && !toolArgs._mcpInboundApiKey)
+                    toolArgs._mcpInboundApiKey = inboundKey.replace(/^Bearer\s+/i, '');
                 const result = await dispatchTool(toolName, toolArgs);
                 try {
                     (0, healthSnapshot_1.recordToolCall)({

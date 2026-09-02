@@ -16,6 +16,21 @@ export const CURRENCY_RATES: Record<string, number> = {
 // the union of the openapi /mcp enum, the fleet onboarding targets, and
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
+/** BUY-79642: flatten nested REST `{amount,currency}` or numeric/string prices. */
+export function extractNumericPrice(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === 'string') {
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as { amount?: unknown; lowPrice?: unknown; price?: unknown };
+    return extractNumericPrice(o.amount ?? o.lowPrice ?? o.price);
+  }
+  return null;
+}
+
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
@@ -67,8 +82,10 @@ function normalizeImageUrl(imageUrl: unknown): string | null {
 export function regionForCountry(countryCode: string | null | undefined): string | null {
   const cc = (countryCode || '').toUpperCase();
   if (!cc) return null;
-  if (cc === 'US' || cc === 'CA' || cc === 'MX') return 'us';
-  if (['SG','MY','TH','VN','PH','ID','GB','IN','AU'].includes(cc)) return 'sea';
+  // BUY-79642: emit ISO country as region (sg/us/th/…), not the catalog shard
+  // label 'sea'. Cart + agents treat product.region as the market; currency
+  // isolation already happens separately.
+  if (cc.length === 2) return cc.toLowerCase();
   return null;
 }
 
@@ -92,7 +109,7 @@ export function buildProduct(
   } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
-  const amount = row.price != null ? parseFloat(row.price as string) : null;
+  const amount = extractNumericPrice(row.price);
 
   // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
   // Validation catches two categories of data-quality failures observed in production:
@@ -104,9 +121,9 @@ export function buildProduct(
   // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
   // stay under $10k. When a price fails validation the amount is nullified so
   // the FE displays nothing instead of a deceptive value.
-  const PRICE_MIN = 5;
-  const PRICE_MAX = 10_000;
-  const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
+  const PRICE_MIN = 0.01;
+  const PRICE_MAX = 10_000_000;
+  const sanitizedAmount = (amount != null && Number.isFinite(amount) && amount >= PRICE_MIN && amount <= PRICE_MAX)
     ? amount
     : null;
 

@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SUPPORTED_REGIONS = exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.extractNumericPrice = extractNumericPrice;
+exports.regionForCountry = regionForCountry;
 exports.buildProduct = buildProduct;
 exports.buildSearchResponse = buildSearchResponse;
 exports.deriveEmptiness = deriveEmptiness;
@@ -18,6 +20,22 @@ exports.CURRENCY_RATES = {
 // the union of the openapi /mcp enum, the fleet onboarding targets, and
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
+/** BUY-79642: flatten nested REST `{amount,currency}` or numeric/string prices. */
+function extractNumericPrice(raw) {
+    if (raw == null)
+        return null;
+    if (typeof raw === 'number')
+        return Number.isFinite(raw) ? raw : null;
+    if (typeof raw === 'string') {
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+        const o = raw;
+        return extractNumericPrice(o.amount ?? o.lowPrice ?? o.price);
+    }
+    return null;
+}
 exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
     PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
@@ -57,6 +75,23 @@ function normalizeImageUrl(imageUrl) {
     }
     return imageUrl;
 }
+// BUY-69998: derive coarse region labels from ISO country codes so API +
+// mcp-railway responses agree. The DB column `region` is unreliable: rows
+// occasionally land with `region=sg` and `country_code=US` (or vice versa)
+// when ingest runs across markets, contradicting FE fulfilment logic. Use
+// the country_code as the source of truth and only fall back to the stored
+// region when the country is unknown.
+function regionForCountry(countryCode) {
+    const cc = (countryCode || '').toUpperCase();
+    if (!cc)
+        return null;
+    // BUY-79642: emit ISO country as region (sg/us/th/…), not the catalog shard
+    // label 'sea'. Cart + agents treat product.region as the market; currency
+    // isolation already happens separately.
+    if (cc.length === 2)
+        return cc.toLowerCase();
+    return null;
+}
 function buildProduct(row, defaultCurrency, compact, 
 // BUY-74689: optional batched lookup from `merchants.id` → {name, slug}. Callers that
 // resolve the map (every product-emitting handler) pass it in; legacy call sites
@@ -70,7 +105,7 @@ merchantMap,
 // carries no Bearer header. Null/omitted = anonymous click, as before.
 caller) {
     const currency = row.currency || defaultCurrency;
-    const amount = row.price != null ? parseFloat(row.price) : null;
+    const amount = extractNumericPrice(row.price);
     // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
     // Validation catches two categories of data-quality failures observed in production:
     //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
@@ -81,16 +116,24 @@ caller) {
     // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
     // stay under $10k. When a price fails validation the amount is nullified so
     // the FE displays nothing instead of a deceptive value.
-    const PRICE_MIN = 5;
-    const PRICE_MAX = 10000;
-    const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
+    const PRICE_MIN = 0.01;
+    const PRICE_MAX = 10000000;
+    const sanitizedAmount = (amount != null && Number.isFinite(amount) && amount >= PRICE_MIN && amount <= PRICE_MAX)
         ? amount
         : null;
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
     const productId = String(row.id);
     const merchant = row.domain || '';
     const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
-    const destinationUrl = affiliateUrl ?? row.url;
+    // BUY-67318: hide all buy-side fields when the probe worker has confirmed
+    // the listing is dead (HTTP 404/410 or other 4xx). The redirect handler
+    // (/r/direct/{id}) already returns 410 in this case; this serializer step
+    // prevents surfacing a buy button to that dead page from search/listings.
+    // We still emit `url_status: 'dead'` so consumers can distinguish "no link"
+    // (genuinely missing) from "link removed because dead" and surface a
+    // tombstone / "no longer available" UI.
+    const isUrlDead = row.url_status === 'dead';
+    const destinationUrl = isUrlDead ? null : (affiliateUrl ?? row.url);
     // BUY-52474: every /v1 product response now carries tracking URLs so the FE
     // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
     // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
@@ -113,14 +156,25 @@ caller) {
         })
         : null;
     const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
+    const title = row.title;
     const base = {
         id: productId,
-        title: row.title,
+        title,
+        name: title,
         price: { amount: sanitizedAmount, currency },
         merchant,
         url: destinationUrl,
         image_url: normalizeImageUrl(row.image_url),
-        region: row.region || null,
+        // BUY-69998: replace stored region when it disagrees with country_code.
+        region: (() => {
+            const rawRegion = row.region || null;
+            const cc = (row.country_code || '').toUpperCase();
+            const expected = regionForCountry(cc);
+            if (!rawRegion || (expected && rawRegion.toLowerCase() !== expected)) {
+                return expected ?? rawRegion;
+            }
+            return rawRegion;
+        })(),
         country_code: row.country_code || null,
         category_path: Array.isArray(row.category_path) ? row.category_path : null,
         updated_at: row.updated_at || null,
@@ -205,7 +259,10 @@ caller) {
         base.comparison_attributes = comparison_attributes;
     }
     else {
+        // BUY-78233: restore product-level meta alias — both meta and metadata
+        // must be exposed on non-compact products for API contract compatibility
         base.metadata = row.metadata;
+        base.meta = row.metadata;
     }
     if (row.original_price != null) {
         base.original_price = parseFloat(row.original_price);

@@ -21,19 +21,35 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
 // `country_code=US` rows tagged with `region=sg`, contradicting the FE/agent
 // contract that branch on `region` to pick fulfillment logic. The downstream
 // SQL filter remains on country_code; this is purely a response-shape fix.
-export const PRICE_SENTINEL_MIN = 10;
+export const PRICE_SENTINEL_MIN = 0.01;
 export const PRICE_UNAVAILABLE_TEXT =
   'see merchant (price unavailable in catalog) — click through to confirm';
+
+export function extractNumericPrice(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === 'string') {
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as { amount?: unknown; lowPrice?: unknown; price?: unknown };
+    return extractNumericPrice(o.amount ?? o.lowPrice ?? o.price);
+  }
+  return null;
+}
 
 export function isSentinelPrice(amount: unknown): boolean {
   return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
 }
 
 export function formatPriceField(amount: number | null, currency: string) {
-  if (isSentinelPrice(amount)) {
-    return PRICE_UNAVAILABLE_TEXT;
+  // BUY-79642: never collapse a finite price into a string — FBP REST
+  // fallback reads price.amount and would otherwise emit amount=null.
+  if (amount == null || !Number.isFinite(amount)) {
+    return { amount: null, currency };
   }
-  return { amount: amount as number, currency };
+  return { amount, currency };
 }
 
 export function formatSimilarPriceField(
@@ -46,9 +62,9 @@ export function formatSimilarPriceField(
 export function regionForCountry(countryCode: string | null | undefined): string | null {
   const cc = (countryCode || '').toUpperCase();
   if (!cc) return null;
-  if (cc === 'US' || cc === 'CA' || cc === 'MX') return 'us';
-  if (['SG','MY','TH','VN','PH','ID','GB','IN','AU'].includes(cc)) return 'sea';
-  return cc.toLowerCase();
+  // BUY-79642: ISO country as region (sg/us/th), not catalog shard 'sea'.
+  if (cc.length === 2) return cc.toLowerCase();
+  return null;
 }
 
 export function buildProduct(
@@ -57,7 +73,7 @@ export function buildProduct(
   compact: boolean,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
-  const amount = row.price != null ? parseFloat(row.price as string) : null;
+  const amount = extractNumericPrice(row.price);
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
