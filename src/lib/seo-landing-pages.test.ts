@@ -202,6 +202,18 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   }
 });
 
+test("best-gaming-laptops-us searchQuery is brand-diverse and does not pin gaming_laptops taxonomy", () => {
+  const config = seoLandingPages["best-gaming-laptops-us"];
+  assert.equal(config.searchCategory, undefined);
+  assert.match(config.searchQuery, /rtx/i);
+  const backups = config.backupQueries ?? [];
+  assert.ok(backups.length >= 4, "need brand-scoped backups so collector can reach 8 unique /r/ cards");
+  const joined = backups.join(" ").toLowerCase();
+  for (const brand of ["rog", "legion", "omen", "alienware"]) {
+    assert.match(joined, new RegExp(brand));
+  }
+});
+
 test("SEO landing products consume live API products payloads", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {

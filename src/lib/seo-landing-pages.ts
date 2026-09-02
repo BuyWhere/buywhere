@@ -2548,10 +2548,19 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "US",
     currency: "USD",
     locale: "en_US",
-    searchQuery: "gaming laptop",
-    searchCategory: "gaming_laptops",
+    // BUY-80261: searchCategory=gaming_laptops collapsed US live /r/ to 3 Gigabyte
+    // SKUs (canonical FAIL 3/8 uniq). Drop the taxonomy filter; brand-scoped backups
+    // keep the collector diverse under the existing RTX 5070/5080 GPU gate.
+    searchQuery: "gaming laptop RTX",
     excludeAccessories: true,
-    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    backupQueries: [
+      "ASUS ROG gaming laptop",
+      "Lenovo Legion laptop",
+      "HP OMEN gaming laptop",
+      "ASUS TUF gaming laptop",
+      "Alienware gaming laptop",
+      "MSI Katana gaming laptop",
+    ],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
