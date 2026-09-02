@@ -107,7 +107,7 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
-      fix: 'BUY-79945-sea-wall',
+      fix: 'BUY-80177-sea-failfast',
     });
   });
 

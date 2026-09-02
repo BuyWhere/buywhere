@@ -101,9 +101,9 @@ const MCP_TOOL_WALL_MS: Record<string, number> = {
   find_best_price: 20000,
   find_best_price_v2: 20000,
 };
-// BUY-79945: SEA search REST fallback is 8s (TH ~7s). The 3500ms catalog wall
-// raced the fallback and flushed api_error at ~3.5s before REST could fill.
-const MCP_SEARCH_SEA_WALL_MS = parseInt(process.env.MCP_SEARCH_SEA_WALL_MS || '9000', 10);
+// BUY-80177: SEA REST is empty/slow (MY ~4.7s n=0, ID/PH 500). Do not wait 8-9s
+// for a fill that does not come. Fail-fast 3.5s catalog wall. Durable recall: BUY-77118.
+const MCP_SEARCH_SEA_WALL_MS = parseInt(process.env.MCP_SEARCH_SEA_WALL_MS || '3500', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -151,7 +151,9 @@ const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_M
 // BUY-79945: SEA FTS on search_products + native-currency predicate often
 // times out / empty; REST /v1/products/search for TH is ~7s. The 2.5s abort
 // clustered empty MCP pages at ~2530ms. Give SEA more REST headroom.
-const REST_SEARCH_FALLBACK_SEA_MS = parseInt(process.env.MCP_REST_FALLBACK_SEA_TIMEOUT_MS || '8000', 10);
+// BUY-80177: SEA REST is empty-slow, so an 8s abort parks the client. Named SEA
+// budget defaults to 2.5s (same as SG/US); raise env if REST starts returning hits.
+const REST_SEARCH_FALLBACK_SEA_MS = parseInt(process.env.MCP_REST_FALLBACK_SEA_TIMEOUT_MS || '2500', 10);
 const SEA_REST_FALLBACK_COUNTRIES = new Set(['MY', 'TH', 'VN', 'ID', 'PH']);
 
 function restSearchQueryParams(opts: {
