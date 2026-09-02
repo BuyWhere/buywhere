@@ -236,3 +236,51 @@ export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
   })
   .map((re) => `\\m(?:${re})\\M`)
   .join('|');
+
+// BUY-80220: primary-device vs accessory ranking.
+// Accessory titles often contain more query lexemes ("iPhone 15 Pro Max Eagle
+// Magnetic Golf Case") than the actual device ("iPhone 17 512GB"), so raw
+// ts_rank puts cases/mounts/AppleCare above handsets/tablets/headphones.
+export const PRIMARY_DEVICE_CATEGORIES = [
+  'Smartphones',
+  'Tablets',
+  'TVs',
+  'Headphones',
+  'Audio',
+] as const;
+
+export const DEVICE_ACCESSORY_TITLE_TOKENS = [
+  'case', 'cases', 'cover', 'covers', 'protector', 'protectors',
+  'screen protector', 'tempered glass', 'mount', 'mounts', 'holder',
+  'stand', 'wallet', 'folio', 'skin', 'skins', 'pouch', 'lanyard',
+  'strap', 'charger', 'cable', 'adapter', 'glass', 'lens', 'kit',
+  'applecare', 'apple care', 'poncho',
+] as const;
+
+export const DEVICE_ACCESSORY_PG_RE_SOURCE = DEVICE_ACCESSORY_TITLE_TOKENS
+  .map((tok) => {
+    const parts = tok.split(/\s+/);
+    return parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  })
+  .map((re) => `\\m(?:${re})\\M`)
+  .join('|');
+
+export function primaryDeviceCategoryBoostSql(alias: string): string {
+  return `CASE
+      WHEN lower(coalesce(${alias}.category, '')) ~* '\\m(smartphones?|tablets?|tvs?|headphones?|audio|iphone|ipad|airpods?)\\M'
+        AND NOT (lower(${alias}.title) ~* '${DEVICE_ACCESSORY_PG_RE_SOURCE}')
+      THEN 4.0
+      WHEN lower(${alias}.title) ~* '\\m(iphone|ipad|airpods?|galaxy s|galaxy z|galaxy tab|pixel [0-9])\\M'
+        AND NOT (lower(${alias}.title) ~* '${DEVICE_ACCESSORY_PG_RE_SOURCE}')
+      THEN 4.0 ELSE 1.0
+    END`;
+}
+
+export function deviceAccessoryPenaltySql(alias: string): string {
+  return `CASE
+      WHEN lower(${alias}.title) ~* '${DEVICE_ACCESSORY_PG_RE_SOURCE}'
+        OR lower(coalesce(${alias}.category, '')) ~* '\\m(accessor(y|ies)|cases?|covers?|mounts?)\\M'
+      THEN 0.12 ELSE 1.0
+    END`;
+}
+

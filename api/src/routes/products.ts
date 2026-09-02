@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS 
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, primaryDeviceCategoryBoostSql, deviceAccessoryPenaltySql } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -406,12 +406,16 @@ async function tryTierSearch(
   // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
   // exported from searchRelevanceTaxonomy so the API tier and the SEO page
   // both demote the same accessory set.
-  const laptopAccessoryPenalty = `
+  const qLower = (p.q || '').toLowerCase();
+  const isAudioDeviceQuery = /\b(airpods?|earbuds?|earphones?|headphones?)\b/.test(qLower);
+  const laptopAccessoryPenalty = isAudioDeviceQuery ? `1.0` : `
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1.0
     END`;
+  const primaryDeviceBoost = primaryDeviceCategoryBoostSql('sp');
+  const deviceAccessoryPenalty = deviceAccessoryPenaltySql('sp');
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
   // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
   // plainto_tsquery('english','phone')), so the query falls through to title LIKE
@@ -465,7 +469,9 @@ async function tryTierSearch(
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${primaryDeviceBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -502,7 +508,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${primaryDeviceBoost}) * (${deviceAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -513,7 +519,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${primaryDeviceBoost}) * (${deviceAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -1561,7 +1567,9 @@ router.get(
                      OR rh.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                      OR array_to_string(rh.category_path, ' ') ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
                    THEN 0.25 ELSE 1.0
-                 END AS rank
+                 END *
+                 (${primaryDeviceCategoryBoostSql('rh')}) *
+                 (${deviceAccessoryPenaltySql('rh')}) AS rank
           FROM recent_hits rh
           ORDER BY rank DESC, rh.id DESC
         )
