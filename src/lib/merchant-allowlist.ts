@@ -696,9 +696,19 @@ export function filterApiItemsForCountry<T extends { merchant?: string | null; s
 // rewriting the label to a generic placeholder would still leak the
 // disallowed merchant to QA via the breadcrumb / merchant badge / "Buy at"
 // button copy.
+// BUY-75120: removed /compumart/i — compumarts.com (compumarts.ae) has valid
+// /r/direct/ affiliate links and its products render correctly with real images.
+// The /compumart/i pattern was added during the BUY-73741 gate hardening to block
+// a specific Arabic-script scraper domain, but the broad substring match also
+// blocked the legitimate compumarts.com storefront that supplies gaming laptops
+// and TVs on US intent pages. Narrow the block to the exact domain forms observed
+// in the catalog: the UAE (.ae) storefront is the scraper source; .com.sg and
+// .com variants that have working /r/direct/ redirects are allowed.
 export const DISALLOWED_MERCHANT_TEXT_PATTERNS: readonly RegExp[] = [
-  /compumart/i,
-  /سوق/,           // "سوق الكمبيوتر" (Arabic "سوق" = "market")
+  /compumarts\.ae\b/i,  // UAE scraper domain — no valid /r/direct/
+  /compumart\.us\b/i,   // US scraper domain — no valid /r/direct/
+  /compumart\.sg\b/i,   // SG scraper domain — no valid /r/direct/
+  /سوق/,                // "سوق الكمبيوتر" (Arabic "سوق" = "market")
   /\bnamshi\b/i,
   /\bmumzworld\b/i,
   /\bnoon\b/i,
