@@ -10,14 +10,14 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "Samsung monitor",
+  "searchQuery": "gaming monitor",
   "backupQueries": [
-    "monitor Samsung",
-    "monitor LG",
+    "monitor 4K",
     "gaming monitor 4K",
-    "LG monitor"
+    "monitor Samsung",
+    "monitor LG"
   ],
-  "minPrice": 200,
+  "minPrice": 150,
   "requiredProductTerms": [
     "monitor",
     "4k",
