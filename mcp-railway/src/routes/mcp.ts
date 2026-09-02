@@ -817,7 +817,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
 
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v11:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1155,7 +1155,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
         // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
         // Shopify SG/US rows are often USD/SGD-mislabelled; LIMIT=page size would leak.
-        const wantCur = (country && COUNTRY_CURRENCY[country] && useChildTable)
+        const wantCur = (country && COUNTRY_CURRENCY[country])
           ? COUNTRY_CURRENCY[country].toUpperCase()
           : '';
         const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
@@ -1322,10 +1322,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       }
       return true;
     });
-    // BUY-79598: keep native-currency overfetch if the strict filter emptied the
-    // page (USD-labelled SG Shopify). Country already constrained by child table.
-    rows = (filtered.length > 0 ? filtered : (rows as Record<string, unknown>[]))
-      .slice(0, limit);
+    // BUY-79631: do NOT restore wrong-currency rows when isolation empties the
+    // page — that served USD Shopify as SG shirts and skipped REST country=.
+    rows = filtered.slice(0, limit);
   }
 
   let products = (rows as Record<string, unknown>[]).map(r =>
