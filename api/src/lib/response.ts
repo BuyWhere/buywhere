@@ -456,9 +456,13 @@ export function deriveEmptiness(signals: EmptinessSignals): {
   // BUY-74597: timeout / auth failure / circuit open / upstream exception take
   // precedence over other empty-result heuristics. They always return
   // status=degraded, confidence=low, and a stage diagnostic.
+  // BUY-79931: timeout is degraded_kind only. P2.6 emptiness_reason enum
+  // is locked (no_data|no_match|api_error|quota|region_unsupported|
+  // category_unsupported|deliver_to_missing|invalid_deliver_to). Timeouts
+  // and infra failures map to api_error so REST and MCP share a class.
   if (signals.degradedKind === 'timeout' || signals.degradedKind === 'partial_timeout') {
     return {
-      emptiness_reason: signals.degradedKind,
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'degraded',
@@ -468,12 +472,12 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         timed_out_stage: signals.timedOutStage ?? null,
         ...baseDiag,
       },
-      degraded_kind: signals.degradedKind,
+      degraded_kind: signals.degradedKind === 'partial_timeout' ? 'partial_timeout' : 'timeout',
     };
   }
   if (signals.degradedKind === 'auth_failure') {
     return {
-      emptiness_reason: 'auth_failure',
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'error',
