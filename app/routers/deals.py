@@ -46,7 +46,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.affiliate_links import get_affiliate_url
-from app.auth import get_current_api_key
+from app.auth import get_current_api_key, get_optional_api_key_or_anonymous
 from app.database import get_db
 from app.models.product import ApiKey, Product
 from app.rate_limit import limiter
@@ -122,7 +122,7 @@ async def get_deals(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> DealsResponse:
     """Return products currently priced below their original price by at least min_discount_pct%."""
     request.state.api_key = api_key

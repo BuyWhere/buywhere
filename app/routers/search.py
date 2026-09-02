@@ -19,7 +19,7 @@ from sqlalchemy import and_, case, func, or_, select, text
 import typing
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_api_key
+from app.auth import get_current_api_key, get_optional_api_key_or_anonymous
 from app.database import get_db, AsyncSessionLocal
 from app.models.product import ApiKey, Product, ImageHash
 from app.models.search_history import SearchHistory
@@ -374,7 +374,7 @@ async def search_products(
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
     include_facets: bool = Query(False, description="Include facet counts in response"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
@@ -763,7 +763,7 @@ async def semantic_search_products(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=10000),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
@@ -855,7 +855,7 @@ async def us_autocomplete(
     region: str = Query("us", description="Region code (only us supported for this endpoint)"),
     limit: int = Query(8, ge=1, le=20, description="Max titles to return"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> USAutocompleteResponse:
     request.state.api_key = api_key
 
@@ -927,7 +927,7 @@ async def search_suggestions(
     country: Optional[str] = Query(None, description="Filter by country code(s), comma-separated (e.g., US,SG)"),
     country_code: Optional[str] = Query(None, description="Alias for country"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> AutocompleteResponse:
     request.state.api_key = api_key
 
@@ -1007,7 +1007,7 @@ async def search_suggestions(
 async def benchmark_search(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ) -> dict:
     request.state.api_key = api_key
 
@@ -1202,7 +1202,7 @@ async def get_search_filters(
     request: Request,
     q: Optional[str] = Query(None, description="Optional search query to get filters scoped to results"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey = Depends(get_optional_api_key_or_anonymous),
 ):
     request.state.api_key = api_key
 

@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.affiliate_links import get_affiliate_url, get_underlying_affiliate_url, is_valid_url
-from app.auth import get_current_api_key
+from app.auth import get_current_api_key, get_optional_api_key_or_anonymous
 from app.database import get_db
 from app.models.product import ApiKey, Click, Product, PriceHistory, ProductView, ProductMatch, ProductReview, ProductQuestion, ProductAnswer
 from app.rate_limit import limiter, rate_limit_from_request
@@ -168,7 +168,7 @@ async def list_products(
     sort_by: Optional[str] = Query(None, description="Sort order: relevance, price_asc, price_desc, newest"),
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
@@ -402,7 +402,7 @@ async def v1_product_search(
     include_facets: bool = Query(False, description="Include facet counts in response"),
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
@@ -620,7 +620,7 @@ async def best_price(
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     country_code: Optional[str] = Query(None, description="ISO-2 country code to restrict search (e.g. SG, US). Prunes partitions for faster queries."),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductResponse:
     """Return the single cheapest listing for a product across all platforms."""
     request.state.api_key = api_key
@@ -686,7 +686,7 @@ async def compare_product_search(
     ids: Optional[str] = Query(None, description="Comma-separated product IDs to compare directly (e.g. 123,456)"),
     limit: int = Query(10, ge=1, le=50, description="Max seed products from search to find matches for"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> CompareSearchResponse:
     request.state.api_key = api_key
 
@@ -1088,7 +1088,7 @@ async def get_trending_products(
     category: Optional[str] = Query(None, max_length=200, description="Filter by category name"),
     limit: int = Query(50, ge=1, le=100, description="Number of products to return (1-100)"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> TrendingResponse:
     request.state.api_key = api_key
 
@@ -1251,7 +1251,7 @@ async def export_products(
     limit: int = Query(1000, ge=1, le=10000, description="Max records to export (up to 10K)"),
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> StreamingResponse:
     request.state.api_key = api_key
 
@@ -1524,7 +1524,7 @@ async def get_product_by_barcode(
     request: Request,
     code: str,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductResponse:
     request.state.api_key = api_key
 
@@ -1553,7 +1553,7 @@ async def get_random_products(
     request: Request,
     limit: int = Query(10, ge=1, le=50, description="Number of random products to return (1-50)"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductListResponse:
     request.state.api_key = api_key
 
@@ -1603,7 +1603,7 @@ async def get_product_deals(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> DealsResponseBase:
     """Return products currently priced below their original price by at least min_discount_pct%."""
     request.state.api_key = api_key
@@ -1648,7 +1648,7 @@ async def get_product(
     product_id: int,
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductResponse:
     request.state.api_key = api_key
 
@@ -1682,7 +1682,7 @@ async def get_similar_products(
     product_id: int,
     limit: int = Query(10, ge=1, le=50, description="Number of similar products to return (1-50)"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> SimilarProductsResponse:
     request.state.api_key = api_key
 
@@ -1857,7 +1857,7 @@ async def get_product_matches(
     limit: int = Query(50, ge=1, le=200, description="Max matches to return"),
     recompute: bool = Query(False, description="Force recompute matches instead of using cached"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductMatchesResponse:
     request.state.api_key = api_key
 
@@ -1925,7 +1925,7 @@ async def get_price_history(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0, le=10000),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> PriceHistoryResponse:
     request.state.api_key = api_key
 
@@ -1988,7 +1988,7 @@ async def get_price_stats(
     request: Request,
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> PriceStats:
     request.state.api_key = api_key
 
@@ -2080,7 +2080,7 @@ async def get_price_prediction(
     request: Request,
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> PricePredictionResponse:
     request.state.api_key = api_key
 
@@ -2168,7 +2168,7 @@ async def get_alternative_products(
     product_id: int,
     limit: int = Query(10, ge=1, le=20, description="Number of alternatives to return"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> RecommendationsResponse:
     request.state.api_key = api_key
 
@@ -2234,7 +2234,7 @@ async def get_bundle_suggestions(
     product_id: int,
     limit: int = Query(10, ge=1, le=20, description="Number of bundle items to return"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> BundleResponse:
     request.state.api_key = api_key
 
@@ -2301,7 +2301,7 @@ async def get_also_searched(
     product_id: int,
     limit: int = Query(10, ge=1, le=20, description="Number of products to return"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> RecommendationsResponse:
     request.state.api_key = api_key
 
@@ -2436,7 +2436,7 @@ async def get_product_reviews(
     request: Request,
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductReviewsResponse:
     request.state.api_key = api_key
 
@@ -2571,7 +2571,7 @@ async def get_product_availability(
     product_id: int,
     force_refresh: bool = Query(False, description="Force URL check instead of using cache"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductAvailabilityResponse:
     request.state.api_key = api_key
 
@@ -2646,7 +2646,7 @@ async def get_product_stock(
     request: Request,
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductStockResponse:
     request.state.api_key = api_key
 
@@ -2686,7 +2686,7 @@ async def get_product_url_availability(
     product_id: int,
     force_refresh: bool = Query(False, description="Force URL check instead of using cache"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> ProductURLAvailabilityResponse:
     request.state.api_key = api_key
 
@@ -2865,7 +2865,7 @@ async def get_price_comparison(
     request: Request,
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> PriceComparisonResponse:
     """Return all platform listings for the same product with price, shipping cost, total cost, seller rating, delivery estimate.
 
@@ -2983,7 +2983,7 @@ async def products_feed(
     ),
     limit: int = Query(1000, ge=1, le=5000, description="Chunk size per iteration (products per yield)"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ):
     request.state.api_key = api_key
 
@@ -3317,7 +3317,7 @@ async def list_questions(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> QuestionListResponse:
     request.state.api_key = api_key
 
@@ -3374,7 +3374,7 @@ async def get_question(
     product_id: int,
     question_id: int,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(get_current_api_key),
+    api_key: ApiKey | object = Depends(get_optional_api_key_or_anonymous),
 ) -> QuestionDetailResponse:
     request.state.api_key = api_key
 

@@ -268,6 +268,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
+        rl = getattr(request.state, "rate_limit_headers", None) or {}
+        for k, v in rl.items():
+            response.headers[k] = str(v)
+        hint = getattr(request.state, "quota_hint", None)
+        if hint is not None:
+            response.headers["X-Quota-Hint"] = "register_for_10x"
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
@@ -376,11 +382,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                             distinct_id=f"bot:{bot_name}",
                         )
                     elif api_key_id:
-                        # Legacy broad event kept for backwards compatibility
+                        rec = getattr(request.state, "api_key", None)
+                        tier = getattr(rec, "tier", None)
+                        distinct = api_key_id if (tier == "anonymous" and str(api_key_id).startswith("anon:")) else f"api_key:{api_key_id}"
+                        props = dict(base_props)
+                        if tier:
+                            props["tier"] = tier
                         post_hog.track_event(
                             event="api_request",
-                            properties=base_props,
-                            distinct_id=f"api_key:{api_key_id}",
+                            properties=props,
+                            distinct_id=distinct,
                         )
 
                     # ── Developer success events ───────────────────────────

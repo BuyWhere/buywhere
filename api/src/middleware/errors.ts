@@ -200,6 +200,13 @@ function nextStepForTier(tier: string): { action: string; message: string; url: 
       url: 'https://api.buywhere.ai/v1/auth/resend-verification',
     };
   }
+  if (tier === 'anonymous' || tier === 'pending_verify') {
+    return {
+      action: 'register',
+      message: 'Register in one call for 10x limits: POST /v1/auth/register?verify=false { "agent_name": "<your-agent>" }.',
+      url: 'https://api.buywhere.ai/v1/auth/register?verify=false',
+    };
+  }
   const up = TIER_UPGRADE[tier];
   if (up) {
     return {

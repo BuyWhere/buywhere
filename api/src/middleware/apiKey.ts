@@ -302,6 +302,162 @@ function tierRpmLimit(tier: string, rowRpmLimit: number | null): number {
   return (TIER_LIMITS[tier] ?? FREE_TIER).rpm;
 }
 
+
+const ANON_REGISTER_HINT = {
+  method: 'POST',
+  url: 'https://api.buywhere.ai/v1/auth/register?verify=false',
+  content_type: 'application/json',
+  body: { agent_name: '<your-agent-name>' },
+  returns: 'api_key (use as Authorization: Bearer <api_key>); 10x limits vs anonymous',
+};
+
+function clientIp(req: Request): string {
+  const xf = (req.headers['x-forwarded-for'] as string | undefined) || '';
+  const first = xf.split(',')[0]?.trim();
+  return first || req.ip || req.socket?.remoteAddress || '0.0.0.0';
+}
+
+function isProbeIp(ip: string): boolean {
+  const probe = (process.env.PROBE_IPS || process.env.INTERNAL_PROBE_IPS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (probe.includes(ip)) return true;
+  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+    return process.env.NODE_ENV !== 'production';
+  }
+  return false;
+}
+
+export function extractPresentedApiKey(req: Request): string | undefined {
+  const authHeader = req.headers['authorization'] || '';
+  const xApiKey = req.headers['x-api-key'] as string | undefined;
+  const queryKey = req.query['api_key'] as string | undefined;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) return authHeader.slice(7).trim();
+  if (typeof authHeader === 'string' && authHeader.startsWith('ApiKey ')) return authHeader.slice(7).trim();
+  if (xApiKey) return String(xApiKey).trim();
+  if (queryKey) return String(queryKey);
+  return undefined;
+}
+
+function attachAnonymousRecord(req: Request, ipHash: string, dailyCount: number, dailyLimit: number, rpmLimit: number): void {
+  req.apiKeyRecord = {
+    id: `anon:${ipHash}`,
+    key: `anon:${ipHash}`,
+    agentName: 'anonymous',
+    tier: 'anonymous',
+    rpmLimit,
+    dailyLimit,
+    signupChannel: 'anonymous',
+    attributionSource: 'ip',
+    isInternal: isProbeIp(clientIp(req)),
+    dailyRequestCount: dailyCount,
+    dailyResetAt: nextMidnightUTC(),
+  };
+}
+
+function maybeSetQuotaHint(res: Response, dailyCount: number, dailyLimit: number): void {
+  if (dailyLimit > 0 && dailyCount / dailyLimit >= 0.8) {
+    res.locals.quotaHint = {
+      register_for_10x: ANON_REGISTER_HINT,
+      message: 'You are at 80% of the anonymous daily quota. Register in one call for 10x limits.',
+    };
+  }
+}
+
+export function attachQuotaHint(body: Record<string, unknown>, res: Response): Record<string, unknown> {
+  if (res.locals.quotaHint && body && typeof body === 'object') {
+    return { ...body, hint: res.locals.quotaHint };
+  }
+  return body;
+}
+
+/** BUY-75313: keyless GET identity + Redis rpm/daily counters keyed by ip hash. */
+export async function allowAnonymous(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (extractPresentedApiKey(req)) {
+    return requireApiKey(req, res, next);
+  }
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return requireApiKey(req, res, next);
+  }
+
+  const ip = clientIp(req);
+  const ipHash = createHash('sha256').update(ip).digest('hex').slice(0, 32);
+  const limits = TIER_LIMITS.anonymous ?? { rpm: 60, daily: 1000 };
+  const now = Date.now();
+  const minuteWindow = Math.floor(now / 60000);
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const rpmRedisKey = `rl:anon:rpm:${ipHash}:${minuteWindow}`;
+  const dailyRedisKey = `rl:anon:daily:${ipHash}:${dayKey}`;
+
+  let rpmCount = 0;
+  let dailyCount = 0;
+  try {
+    const incr = await Promise.race([
+      (async () => {
+        const r = await redis.incr(rpmRedisKey);
+        if (r === 1) redis.expire(rpmRedisKey, 120).catch(() => {});
+        const d = await redis.incr(dailyRedisKey);
+        if (d === 1) {
+          const ttl = Math.max(60, Math.ceil((nextMidnightUTC().getTime() - Date.now()) / 1000));
+          redis.expire(dailyRedisKey, ttl).catch(() => {});
+        }
+        return { r, d };
+      })(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('redis-timeout')), 500)),
+    ]);
+    rpmCount = incr.r;
+    dailyCount = incr.d;
+  } catch (_err) {
+    console.warn('[anon-rate-limit] Redis unavailable, allowing request:', (_err as Error).message);
+    attachAnonymousRecord(req, ipHash, 0, limits.daily, limits.rpm);
+    res.set('X-RateLimit-Limit', String(limits.rpm));
+    res.set('X-RateLimit-Remaining', String(limits.rpm));
+    res.set('X-RateLimit-Limit-Day', String(limits.daily));
+    res.set('X-RateLimit-Remaining-Day', String(limits.daily));
+    next();
+    return;
+  }
+
+  res.set('X-RateLimit-Limit', String(limits.rpm));
+  res.set('X-RateLimit-Remaining', String(Math.max(0, limits.rpm - rpmCount)));
+  res.set('X-RateLimit-Limit-Day', String(limits.daily));
+  res.set('X-RateLimit-Remaining-Day', String(Math.max(0, limits.daily - dailyCount)));
+
+  if (rpmCount > limits.rpm) {
+    sendPerMinuteLimitError(res, 'anonymous', limits.rpm);
+    return;
+  }
+  if (dailyCount > limits.daily) {
+    const body: Record<string, unknown> = {
+      error: 'rate_limit_exceeded',
+      message: `Daily limit of ${limits.daily} requests reached for anonymous tier. Register in one call for 10x limits.`,
+      tier: 'anonymous',
+      limit: limits.daily,
+      reset_at: nextMidnightUTC().toISOString(),
+      hint: {
+        register_for_10x: ANON_REGISTER_HINT,
+      },
+      register: ANON_REGISTER_HINT,
+    };
+    res.set('Retry-After', String(Math.max(1, Math.ceil((nextMidnightUTC().getTime() - Date.now()) / 1000))));
+    res.status(429).json(body);
+    return;
+  }
+
+  attachAnonymousRecord(req, ipHash, dailyCount, limits.daily, limits.rpm);
+  maybeSetQuotaHint(res, dailyCount, limits.daily);
+  const origJson = res.json.bind(res);
+  res.json = ((body: unknown) => {
+    if (res.locals.quotaHint && body && typeof body === 'object' && !Array.isArray(body)) {
+      const rec = body as Record<string, unknown>;
+      if (!rec.hint) rec.hint = res.locals.quotaHint;
+    }
+    return origJson(body);
+  }) as typeof res.json;
+  next();
+}
+
 export async function requireApiKey(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'] || '';
   const xApiKey = req.headers['x-api-key'] as string | undefined;
@@ -589,6 +745,12 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
 
 export async function checkRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.apiKeyRecord) {
+    next();
+    return;
+  }
+
+  // BUY-75313: anonymous GET already counted on rl:anon:* keys.
+  if (req.apiKeyRecord.tier === 'anonymous') {
     next();
     return;
   }

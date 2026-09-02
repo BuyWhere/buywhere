@@ -136,6 +136,8 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; weekly?: 
   // Usable without any human step: 1000/day, 5000/week. Abuse guards: 3 keys/24h/IP
   // (enforced at first use) + rpm cap. Email verification still upgrades to 10k/day.
   pending_verify: { rpm: 60, daily: 1000, weekly: 5000 },
+  // BUY-75313: keyless GET identity — same self-serve quota as pending_verify.
+  anonymous: { rpm: 60, daily: 1000 },
   verified_agent: { rpm: 200, daily: 10000 },
   enterprise: { rpm: 1000, daily: 100000 },
   platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },

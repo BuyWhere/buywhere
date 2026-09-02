@@ -172,6 +172,11 @@ class RedisPerMinuteRateLimitMiddleware(BaseHTTPMiddleware):
         if path.startswith('/health') or path == '/':
             return await call_next(request)
 
+        # BUY-75313: anonymous GET already counted on rl:anon:* keys.
+        rec = getattr(request.state, "api_key", None)
+        if rec is not None and getattr(rec, "tier", None) == "anonymous":
+            return await call_next(request)
+
         identifier = get_key_identifier(request)
         method = request.method
         

@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
 import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
-import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
+import { requireApiKey, checkRateLimit, hashKey, allowAnonymous, attachQuotaHint } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
@@ -966,6 +966,7 @@ router.get(
 router.get(
   '/search',
   agentDetectMiddleware,
+  allowAnonymous,
   checkRateLimit,
   queryLogMiddleware('products.search'),
   asyncHandler(async (req: Request, res: Response) => {
@@ -2058,7 +2059,7 @@ const DEALS_SAMPLE_CAP = 5000; // max candidates to sample for deals
 router.get(
   '/deals',
   agentDetectMiddleware,
-  requireApiKey,
+  allowAnonymous,
   checkRateLimit,
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
@@ -2264,7 +2265,7 @@ router.get(
 router.get(
   '/compare',
   agentDetectMiddleware,
-  requireApiKey,
+  allowAnonymous,
   checkRateLimit,
   queryLogMiddleware('products.compare'),
   asyncHandler(async (req: Request, res: Response) => {
@@ -2755,7 +2756,7 @@ router.get(
 router.get(
   '/:id',
   agentDetectMiddleware,
-  requireApiKey,
+  allowAnonymous,
   checkRateLimit,
   queryLogMiddleware('products.get'),
   asyncHandler(async (req: Request, res: Response) => {

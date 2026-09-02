@@ -244,14 +244,16 @@ export function queryLogMiddleware(endpoint: string) {
       // Extract query text from common params
       const queryText = (req.query.q as string) || (req.query.ids as string) || null;
 
+      const isAnon = apiKeyRecord?.tier === 'anonymous';
+      const apiKeyIdForLog = isAnon ? null : (apiKeyRecord?.id ?? null);
       db.query(
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, returned_product_ids, response_time_ms,
-           status_code, ip_address, user_agent, cache_hit, job_id, degraded_kind)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15, $16)`,
+           status_code, ip_address, user_agent, cache_hit, job_id, degraded_kind, tier, is_internal)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint[], $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
         [
-          apiKeyRecord?.id ?? null,
+          apiKeyIdForLog,
           apiKeyRecord?.agentName ?? null,
           req.agentInfo?.framework || 'unknown',
           req.agentInfo?.sdkLanguage || 'unknown',
@@ -267,6 +269,8 @@ export function queryLogMiddleware(endpoint: string) {
           res.locals.cacheHit ?? null,
           extractJobId(req),
           res.locals.degradedKind ?? null,
+          apiKeyRecord?.tier ?? null,
+          apiKeyRecord?.isInternal === true,
         ]
       ).catch((err) => {
         // Fire-and-forget — don't crash on log failure

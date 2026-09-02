@@ -146,6 +146,115 @@ async def get_current_user(
     return user
 
 
+
+ANONYMOUS_RPM = 60
+ANONYMOUS_DAILY = 1000
+ANON_REGISTER_HINT = {
+    "method": "POST",
+    "url": "https://api.buywhere.ai/v1/auth/register?verify=false",
+    "content_type": "application/json",
+    "body": {"agent_name": "<your-agent-name>"},
+    "returns": "api_key (use as Authorization: Bearer <api_key>); 10x limits vs anonymous",
+}
+
+
+class AnonymousIdentity:
+    """Synthetic key record for keyless GET (BUY-75313)."""
+
+    def __init__(self, ip_hash: str, is_internal: bool = False):
+        self.id = f"anon:{ip_hash}"
+        self.key_hash = ip_hash
+        self.name = "anonymous"
+        self.tier = "anonymous"
+        self.is_active = True
+        self.is_internal = is_internal
+        self.developer_id = None
+        self.rate_limit = ANONYMOUS_RPM
+
+
+def _client_ip(request: Request) -> str:
+    xf = request.headers.get("x-forwarded-for") or ""
+    first = xf.split(",")[0].strip()
+    return first or (request.client.host if request.client else "0.0.0.0")
+
+
+def _ip_hash(ip: str) -> str:
+    return hashlib.sha256(ip.encode("utf-8")).hexdigest()[:32]
+
+
+async def _anon_rate_limit(request: Request, ip_hash: str) -> None:
+    from datetime import datetime, timezone, timedelta
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    minute = int(datetime.now(timezone.utc).timestamp() // 60)
+    rpm_key = f"rl:anon:rpm:{ip_hash}:{minute}"
+    daily_key = f"rl:anon:daily:{ip_hash}:{day}"
+    rpm = daily = 0
+    try:
+        from redis.asyncio import Redis
+        from app.config import get_settings, build_redis_url
+        settings = get_settings()
+        r = Redis.from_url(build_redis_url(settings.redis_url, settings.redis_password), decode_responses=True)
+        rpm = await r.incr(rpm_key)
+        if rpm == 1:
+            await r.expire(rpm_key, 120)
+        daily = await r.incr(daily_key)
+        if daily == 1:
+            await r.expire(daily_key, 86400)
+        await r.aclose()
+    except Exception:
+        rpm = daily = 0
+    request.state.rate_limit_headers = {
+        "X-RateLimit-Limit": str(ANONYMOUS_RPM),
+        "X-RateLimit-Remaining": str(max(0, ANONYMOUS_RPM - rpm)),
+        "X-RateLimit-Limit-Day": str(ANONYMOUS_DAILY),
+        "X-RateLimit-Remaining-Day": str(max(0, ANONYMOUS_DAILY - daily)),
+    }
+    if rpm > ANONYMOUS_RPM or daily > ANONYMOUS_DAILY:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "tier": "anonymous",
+                "message": "Anonymous quota exceeded. Register in one call for 10x limits.",
+                "hint": {"register_for_10x": ANON_REGISTER_HINT},
+                "register": ANON_REGISTER_HINT,
+            },
+        )
+    if ANONYMOUS_DAILY and daily / ANONYMOUS_DAILY >= 0.8:
+        request.state.quota_hint = {
+            "register_for_10x": ANON_REGISTER_HINT,
+            "message": "You are at 80% of the anonymous daily quota. Register in one call for 10x limits.",
+        }
+
+
+async def get_optional_api_key_or_anonymous(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(HTTPBearer(auto_error=False)),
+    db: AsyncSession = Depends(get_db),
+):
+    """GET read path: keyed auth when present, else anonymous IP identity."""
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    else:
+        x = request.headers.get("X-API-Key")
+        if x:
+            token = x.strip()
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:].strip()
+    if token:
+        return await get_current_api_key(request, HTTPAuthorizationCredentials(scheme="Bearer", credentials=token), db)
+    ip = _client_ip(request)
+    ip_hash = _ip_hash(ip)
+    await _anon_rate_limit(request, ip_hash)
+    probe = os.environ.get("PROBE_IPS") or os.environ.get("INTERNAL_PROBE_IPS") or ""
+    probe_ips = {s.strip() for s in probe.split(",") if s.strip()}
+    ident = AnonymousIdentity(ip_hash, is_internal=ip in probe_ips)
+    request.state.api_key = ident
+    return ident
+
+
 async def get_current_api_key(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
@@ -153,11 +262,12 @@ async def get_current_api_key(
 ) -> ApiKey:
     if hasattr(request.state, "api_key") and request.state.api_key is not None:
         api_key = request.state.api_key
-        await db.execute(
-            update(ApiKey)
-            .where(ApiKey.id == api_key.id)
-            .values(last_used_at=datetime.now(timezone.utc))
-        )
+        if getattr(api_key, "tier", None) != "anonymous" and getattr(api_key, "id", None):
+            await db.execute(
+                update(ApiKey)
+                .where(ApiKey.id == api_key.id)
+                .values(last_used_at=datetime.now(timezone.utc))
+            )
         return api_key
 
     token = credentials.credentials
