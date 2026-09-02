@@ -932,6 +932,9 @@ function isTrustedAirPurifierShopifyPhoto(config: SeoLandingPageConfig, product:
   if (!/^(levoit(?:[._-]?sg)?|sterra(?:[._-]?sg)?)$/.test(merchant) && merchant !== "levoit.sg" && merchant !== "sterra.sg") {
     return false;
   }
+  if (product.imageUrl.startsWith("/api/image-proxy")) {
+    return product.imageUrl.includes("cdn.shopify.com") || product.imageUrl.includes("cdn.shopify.com".replaceAll(".", "%2E"));
+  }
   try {
     const url = new URL(product.imageUrl);
     return url.hostname === "cdn.shopify.com";
