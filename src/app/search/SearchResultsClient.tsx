@@ -1233,8 +1233,11 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
 
         <div className="space-y-1.5">
           <h2
-            // BUY-75930: break-words prevents mid-specifier truncation like "2.4GH..."
-            className="line-clamp-2 break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            // BUY-62625: do not line-clamp titles — two-line ellipsis hid model
+            // specs (e.g. wireless headphones). Wrap fully so essential content
+            // stays visible. BUY-75930: break-words still prevents mid-token crop.
+            className="break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            data-testid="search-product-title"
             title={product.name}
             aria-label={product.name}
           >
