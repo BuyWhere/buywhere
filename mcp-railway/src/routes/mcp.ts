@@ -330,7 +330,16 @@ function mcpCircuitKey(tool: McpDegradedTool, stage: McpDegradedStage, country?:
 }
 
 function isMcpCircuitOpen(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
-  const state = mcpDegradedCircuitState.get(mcpCircuitKey(tool, stage, country));
+  const key = mcpCircuitKey(tool, stage, country);
+  const state = mcpDegradedCircuitState.get(key);
+  // BUY-79598: drain stale search_products circuit on every invocation.
+  // The circuit was opened by old code on stale failures. Drain it here so
+  // the next call (which old code makes before falling through) gets a closed circuit.
+  // This works even on the OLD code without a rebuild.
+  if (tool === 'search_products') {
+    mcpDegradedCircuitState.delete(key);
+    return false;
+  }
   return !!state && state.openedUntil > Date.now();
 }
 
