@@ -404,12 +404,20 @@ async function tryTierSearch(
   // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
   // exported from searchRelevanceTaxonomy so the API tier and the SEO page
   // both demote the same accessory set.
-  const laptopAccessoryPenalty = `
+  // BUY-80415: only demote laptop accessories on laptop queries. The laptop
+  // accessory regex includes `airpods`/`earbuds`/`skin`/`case`, which otherwise
+  // self-penalizes AirPods Pro 3 units and lets kate-spade/tips win.
+  const qLower = p.q.toLowerCase();
+  const isLaptopQuery = /\b(laptop|macbook|notebook|chromebook)\b/.test(qLower);
+  const isPhoneQuery = /\b(iphone|smartphone|(?<![a-z])phone(?![a-z]))\b/.test(qLower);
+  const isEarbudQuery = /\b(airpods?|earbuds?|earphones?|headphones?)\b/.test(qLower);
+  const queryWantsAccessory = /\b(case|cases|cover|covers|pouch|skin|skins|tip|tips|charger|cable|holder)\b/.test(qLower);
+  const laptopAccessoryPenalty = isLaptopQuery ? `
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1.0
-    END`;
+    END` : '1.0';
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
   // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
   // plainto_tsquery('english','phone')), so the query falls through to title LIKE
@@ -445,10 +453,15 @@ async function tryTierSearch(
   const deviceAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '\\m(iphone|ipad|airpods?|phone|tablet)\\M'
-        AND (lower(sp.title) ~* '\\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare)\\M'
+        AND (lower(sp.title) ~* '\\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare|tip|tips|ear.?tip|foam|replacement|kate.?spade|pouch|belt)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories|case|cases|mount|mounts|screen protector)\\M')
       THEN 0.08 ELSE 1.0
     END`;
+  const intentAccessoryFilter = (!queryWantsAccessory && (isPhoneQuery || isEarbudQuery))
+    ? (isEarbudQuery
+      ? ` AND NOT (lower(sp.title) ~* '\\m(tip|tips|ear.?tip|skin|skins|kate.?spade|foam|replacement)\\M')`
+      : ` AND NOT (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|skin|skins|belt)\\M')`)
+    : '';
 
   const laptopBoost = `
     CASE
@@ -579,7 +592,10 @@ async function tryTierSearch(
     // BUY-77812: always lead with FTS. The phone-category regex scan on
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    let rows = (await client.query(mkQuery(andMatch, intentAccessoryFilter), params)).rows;
+    if (rows.length === 0 && intentAccessoryFilter) {
+      rows = (await client.query(mkQuery(andMatch), params)).rows;
+    }
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
@@ -588,6 +604,13 @@ async function tryTierSearch(
     const skipSlowFallbacks = useChildTable;
     if (rows.length === 0 && !skipSlowFallbacks && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
+    }
+    if (rows.length === 0 && useChildTable) {
+      // BUY-80415: SG AirPods Pro 3 units exist but search_vector is empty, so
+      // FTS is 0-row. Bounded title ILIKE on the child table recovers them.
+      try {
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+      } catch { /* child title fallback is best-effort */ }
     }
     if (rows.length === 0) {
       // BUY-77644: broad OR fallbacks on multi-word queries union huge posting lists
