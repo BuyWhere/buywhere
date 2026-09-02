@@ -802,7 +802,10 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
           });
           if (!(get.ok || get.status === 206)) return false;
           const getContentType = (get.headers.get("content-type") || "").toLowerCase();
-          return getContentType.startsWith("image/");
+          if (!getContentType.startsWith("image/") || getContentType.includes("svg")) return false;
+          const getLen = Number(get.headers.get("content-length") || "0");
+          if (getLen > 0 && getLen < MIN_PRODUCT_PHOTO_BYTES) return false;
+          return true;
         }
         return false;
       }
