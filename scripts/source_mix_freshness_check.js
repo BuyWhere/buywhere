@@ -47,6 +47,7 @@ const CANDIDATE_FRESHNESS_HEALTHY_HOURS = 48;
 const RECONCILIATION_GAP_ABS_THRESHOLD = 100_000;
 const RECONCILIATION_GAP_PCT_THRESHOLD = 0.10; // 10% of ing_inserted
 const RECONCILIATION_WINDOW_HOURS = 24;
+const ROUNDHOUSE_HOST = 'roundhouse.proxy.rlwy.net';
 
 function buildConnectionString() {
   // BUY-73337: prefer CANONICAL_DATABASE_URL (catalog DSN) so an ambient
@@ -57,7 +58,14 @@ function buildConnectionString() {
   if (!raw) {
     throw new Error('Set CANONICAL_DATABASE_URL, BUYWHERE_DATABASE_URL, or DATABASE_URL.');
   }
-  return raw;
+  const parsed = new URL(raw);
+  if (parsed.hostname === ROUNDHOUSE_HOST) {
+    throw new Error(`Refusing canonical DB connection to control-plane host ${ROUNDHOUSE_HOST}`);
+  }
+  if (parsed.searchParams.get('sslmode') === 'require' && !parsed.searchParams.has('uselibpqcompat')) {
+    parsed.searchParams.set('uselibpqcompat', 'true');
+  }
+  return parsed.toString();
 }
 
 function buildClient() {
