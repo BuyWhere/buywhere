@@ -1855,6 +1855,12 @@ test("BUY-79816: Best Denki Magento placeholders fail URL heuristic", () => {
     true,
   );
   assert.equal(
+    looksLikeRetailerPlaceholderUrl(
+      "https://cdn.bestdenki.com.sg/media/catalog/product/cache/7eb369f27775f2db92648609527c34e5/2/9/2918218-1.jpg",
+    ),
+    true,
+  );
+  assert.equal(
     looksLikeRetailerPlaceholderUrl("https://cdn.bestdenki.com.sg/media/catalog/product/real-laptop.jpg"),
     false,
   );

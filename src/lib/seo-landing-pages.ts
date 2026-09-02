@@ -10,6 +10,7 @@ import {
 } from "@/lib/merchant-allowlist";
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 import { apiBase, apiHeaders } from "@/lib/server-api";
+import { createHash } from "node:crypto";
 
 const BASE_URL = "https://buywhere.ai";
 
@@ -605,7 +606,7 @@ export function looksLikeRetailerPlaceholderUrl(imageUrl: string | null | undefi
   if (!imageUrl) return false;
   const u = imageUrl.toLowerCase();
   if (u.includes("placeholder") || u.includes("/no_selection") || u.includes("noimage")) return true;
-  if (/cdn\.bestdenki\.com\.sg\/media\/catalog\/product\/cache\/[^/]+\/2\/9\/29181\d{2}-1(?:_\d+)?\.jpe?g/.test(u)) {
+  if (/cdn\.bestdenki\.com\.sg\/media\/catalog\/product\/cache\/[^/]+\/2\/9\/2918\d{3}-1(?:_\d+)?\.jpe?g/.test(u)) {
     return true;
   }
   return false;
@@ -1009,6 +1010,30 @@ async function verifyUsableImageContent(
     }
   } catch {
     return true; // probe failed — pass through; the reachable check is enough to gate dead URLs
+  }
+}
+
+/** BUY-79816: first 8KiB MD5 so Magento cache-path variants of the same JPEG collide. */
+async function fingerprintRemoteImage(imageUrl: string, timeoutMs = 2500): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "follow",
+        headers: { Range: "bytes=0-8191" },
+      });
+      if (!res.ok && res.status !== 206) return null;
+      const buf = new Uint8Array(await res.arrayBuffer());
+      if (buf.byteLength < 32) return null;
+      return createHash("md5").update(buf).digest("hex");
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
   }
 }
 
@@ -1718,18 +1743,17 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // Process each product through quality gate with fallback
   const imageQualityResults = await Promise.all(
     collected.map(async (product) => {
-      if (!product.imageUrl) return { passed: false, reason: "no_url" };
-      if (!sanitizeProductImageUrl(product.imageUrl)) return { passed: false, reason: "invalid_url" };
+      if (!product.imageUrl) return { passed: false, reason: "no_url", fingerprint: null as string | null };
+      if (!sanitizeProductImageUrl(product.imageUrl)) return { passed: false, reason: "invalid_url", fingerprint: null };
       if (looksLikeRetailerPlaceholderUrl(product.imageUrl)) {
-        return { passed: false, reason: "placeholder_url" };
+        return { passed: false, reason: "placeholder_url", fingerprint: null };
       }
-      // First check: reachable
       const reachable = await verifyReachableImage(product.imageUrl);
-      if (!reachable) return { passed: false, reason: "unreachable" };
-      // Second check: quality gate (size + color diversity via verifyUsableImageContent)
+      if (!reachable) return { passed: false, reason: "unreachable", fingerprint: null };
       const qualityPassed = await verifyUsableImageContent(product.imageUrl);
-      if (!qualityPassed) return { passed: false, reason: "low_quality" };
-      return { passed: true, reason: "ok" };
+      if (!qualityPassed) return { passed: false, reason: "low_quality", fingerprint: null };
+      const fingerprint = await fingerprintRemoteImage(product.imageUrl);
+      return { passed: true, reason: "ok", fingerprint };
     })
   );
 
@@ -1798,25 +1822,28 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
   }
 
-  // BUY-79816: Hash collision detection - no two cards should share identical image URL
+  // BUY-79816: no two cards share identical image bytes (URL or Magento-path variants).
   const seenImageUrls = new Set<string>();
+  const seenFingerprints = new Set<string>();
+  const qualityById = new Map(collected.map((p, i) => [p.id, imageQualityResults[i]]));
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
     if (!product.imageUrl) {
-      // Null images (from fallback chain) don't collide - allow them
       dedupedProducts.push(product);
       continue;
     }
-    const imageKey = product.imageUrl;
-    if (seenImageUrls.has(imageKey)) {
-      // Collision: keep the card, empty the image (never two cards, same bytes).
+    const fp = qualityById.get(product.id)?.fingerprint || null;
+    const urlHit = seenImageUrls.has(product.imageUrl);
+    const fpHit = Boolean(fp && seenFingerprints.has(fp));
+    if (urlHit || fpHit) {
       console.warn(
-        `[seo] BUY-79816 hash collision for ${imageKey} - nulling duplicate from ${product.merchant}`
+        `[seo] BUY-79816 hash collision for ${product.imageUrl} - nulling duplicate from ${product.merchant}`
       );
       dedupedProducts.push({ ...product, imageUrl: null });
       continue;
     }
-    seenImageUrls.add(imageKey);
+    seenImageUrls.add(product.imageUrl);
+    if (fp) seenFingerprints.add(fp);
     dedupedProducts.push(product);
   }
 
