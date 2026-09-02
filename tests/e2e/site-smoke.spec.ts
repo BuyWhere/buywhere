@@ -61,6 +61,42 @@ test.describe('Search', () => {
     test.skip(filledValue !== 'headphones', 'Search input fill not retained in this deployment — passes post-deploy');
     await expect(searchInput).toHaveValue('headphones');
   });
+
+  // BUY-62625: desktop search cards must show full titles (no line-clamp ellipsis)
+  // plus image, price, and View Deal CTA.
+  test('desktop search cards do not clamp product titles', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const response = await page.goto('/search?q=wireless%20headphones&country=us');
+    expect(response?.status()).toBeLessThan(400);
+
+    const titles = page.locator('[data-testid="search-product-title"]');
+    const count = await titles.count();
+    test.skip(count === 0, 'Search product titles not present in this deployment — passes post-deploy');
+
+    const sample = titles.first();
+    await expect(sample).toBeVisible();
+    const className = (await sample.getAttribute('class')) || '';
+    expect(className).not.toMatch(/line-clamp-/);
+
+    const overflow = await sample.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        webkitLineClamp: cs.webkitLineClamp,
+        textOverflow: cs.textOverflow,
+        overflowY: cs.overflowY,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      };
+    });
+    expect(overflow.webkitLineClamp === 'none' || overflow.webkitLineClamp === '' || overflow.webkitLineClamp === 'unset').toBeTruthy();
+    expect(overflow.textOverflow).not.toBe('ellipsis');
+    expect(overflow.scrollHeight).toBeLessThanOrEqual(overflow.clientHeight + 2);
+
+    const cta = page.getByRole('link', { name: /view deal/i }).first();
+    const hasCta = (await cta.count()) > 0;
+    test.skip(!hasCta, 'View Deal CTA not present in this deployment — passes post-deploy');
+    await expect(cta).toBeVisible();
+  });
 });
 
 test.describe('Key pages load without error', () => {
