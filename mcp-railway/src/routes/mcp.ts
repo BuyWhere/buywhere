@@ -190,28 +190,30 @@ async function searchProductsViaRestFallback(opts: {
       // capture rowCurrency while the original row is still accessible.
       return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
     }).filter((item) => {
-      // BUY-79497 / BUY-79598: drop *contradictory* country/currency, but keep
-      // rows with missing country_code (REST market= often omits it) and keep
-      // native-currency hits. An all-drop here is what turned healthy REST
-      // macbook/nike into MCP api_error.
+      // BUY-79631: drop only *contradictory country*. REST market=SG for broad
+      // tokens (shirt) often returns USD-labelled Shopify rows that still ship
+      // to SG. Currency-filtering those to empty left MCP on api_error even
+      // though REST had hits. Prefer expected country when present; keep
+      // missing country_code; never drop the whole page on currency mismatch.
       const p = item.product;
       if (expectedCc) {
         const cc = String(p.country_code || '').toUpperCase();
         if (cc && cc !== expectedCc) return false;
       }
-      if (expectedCur) {
-        const fromProduct = String((item.product.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
-        const cur = item.rowCurrency || fromProduct;
-        if (cur && cur !== expectedCur) return false;
-      }
+      void expectedCur;
       return true;
     }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
     if (products.length === 0 && rows.length > 0) {
-      // BUY-79598: REST market=macbook returns MDL/USD labelled rows with no
-      // country_code; dropping them left MCP with api_error while REST had hits.
+      // BUY-79631: prefer rows whose country_code matches the request when REST
+      // mixed US/SG hits. Fall back to the raw page so we never return api_error
+      // after a 200 REST body with products.
+      const preferCc = expectedCc
+        ? rows.filter((r) => String(r.country_code || '').toUpperCase() === expectedCc)
+        : [];
+      const keep = (preferCc.length > 0 ? preferCc : rows).slice(0, Math.max(opts.limit, 1));
       return {
-        products: rows.slice(0, Math.max(opts.limit, 1)).map((r) => {
+        products: keep.map((r) => {
           const price = r.price;
           const flattened: Record<string, unknown> = { ...r };
           if (price && typeof price === 'object' && !Array.isArray(price)) {
@@ -1155,8 +1157,48 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           );
           native = tierFts.rows as Record<string, unknown>[];
         } catch (stepErr) {
-          console.warn(`[search_products] BUY-79598: kwfts FAILED q=${q} country=${country} err=${(stepErr as any)?.message || stepErr}`);
-          throw stepErr;
+          // BUY-79631: broad tokens (shirt/phone) blow the GIN bitmap past
+          // statement_timeout. REST has a bounded cand CTE; MCP did not, so we
+          // fell through to REST (US-labelled shirts for SG). Catch here and
+          // scan a recent country slice with title ILIKE — cheap, no GIN.
+          console.warn(`[search_products] BUY-79631: kwfts FAILED q=${q} country=${country} err=${(stepErr as any)?.message || stepErr}`);
+          native = [];
+        }
+        if (native.length === 0 && q) {
+          try {
+            await searchClient.query(`SET statement_timeout = 1500`);
+            await searchClient.query(`SET enable_seqscan = on`);
+            await searchClient.query(`SET enable_indexscan = on`);
+            const likePat = `%${q.replace(/[%_]/g, '')}%`;
+            const recentCap = 2000;
+            const outCap = Math.min(Math.max(limit + offset, 1), 40);
+            const ilikeParams: unknown[] = [likePat, recentCap, outCap];
+            const scope = useChildTable
+              ? 'sp.is_active = true'
+              : (country ? 'sp.country_code = $4' : 'TRUE');
+            if (!useChildTable && country) ilikeParams.push(country.toUpperCase());
+            const ilikeSql = `SELECT * FROM (
+                    SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                           sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
+                           sp.category_path, sp.url_last_checked_at, sp.url_status
+                    FROM ${ftsTable} sp
+                    WHERE ${scope}
+                    ORDER BY sp.updated_at DESC
+                    LIMIT $2
+                  ) _recent
+                  WHERE title ILIKE $1
+                  LIMIT $3`;
+            const ilikeRes = await spQuery<Record<string, unknown>>(
+              ilikeSql,
+              ilikeParams,
+              `kwilike_${ilikeParams.length}`,
+            );
+            native = ilikeRes.rows as Record<string, unknown>[];
+            console.warn(`[search_products] BUY-79631: title ILIKE fallback n=${native.length} q=${q} country=${country} table=${ftsTable}`);
+          } catch (ilikeErr) {
+            console.warn(`[search_products] BUY-79631: title ILIKE failed q=${q} err=${(ilikeErr as Error)?.message?.slice(0, 160)}`);
+            throw ilikeErr;
+          }
         }
         let candidates = wantCur
           ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
