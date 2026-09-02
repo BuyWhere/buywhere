@@ -1364,8 +1364,11 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
            FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
           tierParams
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
-        total = tierFts.rows.length + offset;
+        // BUY-80026: do NOT paginate here. Currency/country isolation below drops
+        // SG-USD (and similar) leaks; slicing offset first made page 0 empty while
+        // offset=10 still hit native-currency rows later in the overfetch window.
+        rows = tierFts.rows as Record<string, unknown>[];
+        total = Math.max(tierFts.rows.length, offset + rows.length);
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -1553,7 +1556,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     });
     // BUY-79642: never fall back to currency/country leaks. If overfetch did not
     // find native-market rows, return empty/degraded rather than SG/USD or MY/SG.
-    rows = filtered.slice(0, limit);
+    // BUY-80026: paginate AFTER isolation so offset=0 is not a page of discarded leaks.
+    rows = filtered.slice(offset, offset + limit);
   }
 
   // BUY-79642: SEA markets (MY/TH/VN/ID/PH) have no FAST child table; FTS on
