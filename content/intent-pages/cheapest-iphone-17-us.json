@@ -16,7 +16,7 @@
     "Apple iPhone 17",
     "iPhone 17 256GB"
   ],
-  "minPrice": 600,
+  "minPrice": 829,
   "requiredProductTerms": [
     "iphone 17",
     "iphone",
@@ -112,7 +112,6 @@
       "price": 999,
       "currency": "USD",
       "merchant": "Apple Store",
-      "imageUrl": null,
       "href": "/search?q=iPhone+17+Pro&country=us",
       "brand": "Apple",
       "category": "Smartphone"
@@ -123,7 +122,6 @@
       "price": 1199,
       "currency": "USD",
       "merchant": "Apple Store",
-      "imageUrl": null,
       "href": "/search?q=iPhone+17+Pro+Max&country=us",
       "brand": "Apple",
       "category": "Smartphone"
@@ -134,7 +132,6 @@
       "price": 799,
       "currency": "USD",
       "merchant": "Apple Store",
-      "imageUrl": null,
       "href": "/search?q=iPhone+17&country=us",
       "brand": "Apple",
       "category": "Smartphone"
@@ -145,7 +142,6 @@
       "price": 899,
       "currency": "USD",
       "merchant": "Best Buy",
-      "imageUrl": null,
       "href": "/search?q=iPhone+17+Plus&country=us",
       "brand": "Apple",
       "category": "Smartphone"
@@ -164,6 +160,5 @@
   },
   "owner": "Venture",
   "reviewer": "Hue",
-  "queueRow": 54,
-  "minPrice": 829
+  "queueRow": 54
 }
