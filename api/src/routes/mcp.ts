@@ -544,8 +544,8 @@ async function filterVectorCandidatesByMarket(
       `SELECT id FROM products WHERE ${conditions.join(' AND ')}`,
       params
     );
-    const allowed = new Set(result.rows.map((r: { id: string }) => r.id));
-    return candidateIds.filter(id => allowed.has(id));
+    const allowed = new Set(result.rows.map((r: { id: string }) => String(r.id)));
+    return candidateIds.map(String).filter(id => allowed.has(id));
   } catch (err) {
     console.warn('[search] vector candidate market filter failed, using global set:', (err as Error).message);
     // Roll back to the vector-stage savepoint so a filter failure cannot poison the
@@ -1097,7 +1097,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country] && !useChildTable) {
+  if (country && COUNTRY_CURRENCY[country]) {
+    // BUY-80024: FAST child tables (products_partitioned_sg) GIN-rank USD Shopify
+    // rows first. Isolation then drops them and MCP returns total=24 data=[].
+    // Push native currency into FTS so overfetch is SGD/USD-native, not leaks.
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
