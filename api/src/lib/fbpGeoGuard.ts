@@ -5,7 +5,7 @@
 // guard is a *floor* (15% of median) so these high outliers still win.
 
 const CC_TLD: Record<string, string> = {
-  in: 'IN', co: 'CO', vn: 'VN', th: 'TH', my: 'MY', sg: 'SG', ph: 'PH',
+  in: 'IN', one: 'IN', co: 'CO', vn: 'VN', th: 'TH', my: 'MY', sg: 'SG', ph: 'PH',
   id: 'ID', jp: 'JP', kr: 'KR', au: 'AU', nz: 'NZ', uk: 'GB', gb: 'GB',
   de: 'DE', fr: 'FR', it: 'IT', es: 'ES', nl: 'NL', br: 'BR', mx: 'MX',
   ca: 'CA', ae: 'AE', sa: 'SA', tw: 'TW', hk: 'HK', cn: 'CN', ch: 'CH',
@@ -17,7 +17,7 @@ const CC_TLD: Record<string, string> = {
 
 const GENERIC_TLDS = new Set([
   'com', 'net', 'org', 'io', 'ai', 'app', 'shop', 'store', 'online', 'xyz',
-  'info', 'biz', 'one',
+  'info', 'biz',
 ]);
 
 /** Hosts whose TLD is generic (.com/.one) but the retailer is not US. */
@@ -70,7 +70,7 @@ export function inferHostCountry(url: unknown): string | null {
   const parts = host.split('.');
   const tld = parts[parts.length - 1];
   if (tld === 'uk' && parts[parts.length - 2] === 'co') return 'GB';
-  if (CC_TLD[tld] && !GENERIC_TLDS.has(tld)) {
+  if (CC_TLD[tld] && tld !== 'com' && tld !== 'net' && tld !== 'org') {
     return CC_TLD[tld];
   }
   // *.co is Colombia unless it's a known generic marketplace
@@ -83,7 +83,7 @@ export function inferHostCountry(url: unknown): string | null {
 export function hostMatchesRequestedCountry(url: unknown, requestedCountry: string): boolean {
   const cc = (requestedCountry || '').toUpperCase();
   const inferred = inferHostCountry(url);
-  if (!inferred) return true; // unknown host — do not drop
+  if (!inferred) return true; // unknown host — do not drop (amazon.com etc handled)
   return inferred === cc;
 }
 
@@ -101,7 +101,10 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
   const { rows, requestedCountry, rowToUsd, deviceType } = opts;
   const geoKept = rows.filter((r) => hostMatchesRequestedCountry(r.url ?? r.product_url, requestedCountry));
   const geoDropped = rows.length - geoKept.length;
-  const working = geoKept.length > 0 ? geoKept : rows;
+  // Prefer an empty in-country set over restoring foreign winners (euronics.ie /
+  // jbhifi.com.au / fonezone.me labelled country_code=US). Callers already have
+  // emptiness_reason handling for zero rows.
+  const working = geoKept;
 
   let highDropped = 0;
   let maxAllowedUsd: number | null = null;
@@ -114,16 +117,30 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
       // mislabelled as USD (57504 vs median ~1063).
       const deviceCap = deviceType === 'phone' ? 2500 : deviceType === 'laptop' ? 8000 : 15000;
       maxAllowedUsd = Math.min(deviceCap, Math.max(median * 4, median + 500));
-      const filtered = working.filter((r) => rowToUsd(r) <= (maxAllowedUsd as number));
+      // Phone band: also drop cheap-FX leftovers (CHF/TRY stored as USD) below 40% of median.
+      const minPhoneUsd = deviceType === 'phone' ? Math.max(400, median * 0.4) : 0;
+      const filtered = working.filter((r) => {
+        const usd = rowToUsd(r);
+        if (usd > (maxAllowedUsd as number)) return false;
+        if (minPhoneUsd > 0 && usd < minPhoneUsd) return false;
+        return true;
+      });
       if (filtered.length > 0) {
         highDropped = working.length - filtered.length;
         return { rows: filtered, geoDropped, highDropped, maxAllowedUsd };
       }
     }
-  } else if (deviceType === 'phone') {
-    maxAllowedUsd = 2500;
-    const filtered = working.filter((r) => rowToUsd(r) <= 2500);
-    highDropped = working.length - filtered.length;
+  }
+  // BUY-79892: leftover 1–2 row set after geo drop still needs the phone band
+  // (milagron.com $359.99 silicone case after .ie/.me drop).
+  if (deviceType === 'phone') {
+    maxAllowedUsd = maxAllowedUsd ?? 2500;
+    const minPhoneUsd = 400;
+    const filtered = working.filter((r) => {
+      const usd = rowToUsd(r);
+      return usd >= minPhoneUsd && usd <= (maxAllowedUsd as number);
+    });
+    highDropped += working.length - filtered.length;
     return { rows: filtered, geoDropped, highDropped, maxAllowedUsd };
   }
 

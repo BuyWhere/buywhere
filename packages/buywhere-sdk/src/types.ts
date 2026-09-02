@@ -29,6 +29,8 @@ export interface GetProductParams {
   product_id: number;
 }
 
+export type SearchModeOption = 'keyword' | 'semantic' | 'hybrid';
+
 export interface SearchParams {
   query: string;
   country?: string;
@@ -39,6 +41,12 @@ export interface SearchParams {
   price_min?: number;
   price_max?: number;
   platform?: string;
+  /**
+   * Explicitly request a search mode. Falls back to hybrid (RRF blend of FTS
+   * and vector) when not specified. keyword=FTS only; semantic=vector only.
+   * @default 'hybrid'
+   */
+  mode?: SearchModeOption;
 }
 
 /** Honesty envelope from GET /v1/products/search (BWEXT-69EEE94E). */

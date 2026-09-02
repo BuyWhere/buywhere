@@ -462,7 +462,8 @@ function buildMcpDegradedBestPriceResponse(opts: {
   deliverToPresent: boolean;
 }) {
   const country = opts.country || 'SG';
-  const emptinessReason = opts.kind === 'partial_timeout' ? 'partial_timeout' : (opts.kind === 'timeout' ? 'timeout' : opts.kind === 'auth_failure' ? 'auth_failure' : 'api_error');
+  // BUY-79931: emptiness_reason stays on the locked P2.6 enum; timeout is degraded_kind only.
+  const emptinessReason = 'api_error';
   return {
     best_price: null,
     alternatives: [],
@@ -543,8 +544,8 @@ async function filterVectorCandidatesByMarket(
       `SELECT id FROM products WHERE ${conditions.join(' AND ')}`,
       params
     );
-    const allowed = new Set(result.rows.map((r: { id: string }) => r.id));
-    return candidateIds.filter(id => allowed.has(id));
+    const allowed = new Set(result.rows.map((r: { id: string }) => String(r.id)));
+    return candidateIds.map(String).filter(id => allowed.has(id));
   } catch (err) {
     console.warn('[search] vector candidate market filter failed, using global set:', (err as Error).message);
     // Roll back to the vector-stage savepoint so a filter failure cannot poison the
@@ -586,7 +587,7 @@ function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''):
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Treat deliver_to as REQUIRED for buyer-facing use (ISO-3166 country of the end user); it takes precedence over country_code/country and prevents all-market scans. Returns product records with title, description, image, price, and merchant information. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields. BUY-74597 degraded contract: when the catalog query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` naming the failed stage (catalog_search / offer_aggregation / merchant_join). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Agents should branch on `meta.degraded === true` (or `meta.status === "degraded"`) instead of treating empty `data` as no_match.',
+    description: 'Search the BuyWhere product catalog by keyword. Treat deliver_to as REQUIRED for buyer-facing use (ISO-3166 country of the end user); it takes precedence over country_code/country and prevents all-market scans. Returns product records with title, description, image, price, and merchant information. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields. BUY-74597 degraded contract: when the catalog query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` naming the failed stage (catalog_search / offer_aggregation / merchant_join). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Agents should branch on `meta.degraded === true` (or `meta.status === "degraded"`) instead of treating empty `data` as no_match.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -644,7 +645,7 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
+    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -675,7 +676,7 @@ const TOOLS = [
   },
   {
     name: 'find_best_price',
-    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. BUY-74597 degraded contract: when the candidates query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.degraded=true`, `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage="catalog_search"`, with `best_price=null` and `alternatives=[]`. It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
+    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. BUY-74597 degraded contract: when the candidates query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.degraded=true`, `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage="catalog_search"`, with `best_price=null` and `alternatives=[]`. It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1096,7 +1097,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country] && !useChildTable) {
+  if (country && COUNTRY_CURRENCY[country]) {
+    // BUY-80024: FAST child tables (products_partitioned_sg) GIN-rank USD Shopify
+    // rows first. Isolation then drops them and MCP returns total=24 data=[].
+    // Push native currency into FTS so overfetch is SGD/USD-native, not leaks.
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
@@ -1206,7 +1210,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               // BUY-74181: re-scope global vector candidates to the requested market
@@ -1232,7 +1236,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecResult = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               vecRows = vecResult.rows;
@@ -1363,8 +1367,11 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
            FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
           tierParams
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
-        total = tierFts.rows.length + offset;
+        // BUY-80026: do NOT paginate here. Currency/country isolation below drops
+        // SG-USD (and similar) leaks; slicing offset first made page 0 empty while
+        // offset=10 still hit native-currency rows later in the overfetch window.
+        rows = tierFts.rows as Record<string, unknown>[];
+        total = Math.max(tierFts.rows.length, offset + rows.length);
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -1552,7 +1559,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     });
     // BUY-79642: never fall back to currency/country leaks. If overfetch did not
     // find native-market rows, return empty/degraded rather than SG/USD or MY/SG.
-    rows = filtered.slice(0, limit);
+    // BUY-80026: paginate AFTER isolation so offset=0 is not a page of discarded leaks.
+    rows = filtered.slice(offset, offset + limit);
   }
 
   // BUY-79642: SEA markets (MY/TH/VN/ID/PH) have no FAST child table; FTS on
@@ -2870,9 +2878,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
+      `SELECT product_id, ((embedding_v2::halfvec(1024)) <=> $1::halfvec(1024))::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`,
+       ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT $3`,
       [refEmbedding, productId, limit]
     );
   } catch {
@@ -3648,6 +3656,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
   if (method === 'tools/list') {
     return res.json(jsonrpcOk(id, { tools: TOOLS_ALL }));
+  }
+  // BWEXT-F4FAFBA7: an unknown METHOD must be a JSON-RPC -32601, per spec,
+  // regardless of auth. Only tools/call proceeds to the authenticated handler —
+  // previously unknown methods fell through to requireApiKey and surfaced as
+  // an HTTP 401, which strict clients cannot distinguish from an auth problem.
+  if (method !== 'tools/call') {
+    return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
   }
   return next();
 });

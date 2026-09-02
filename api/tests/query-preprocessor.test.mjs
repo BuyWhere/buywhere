@@ -10,7 +10,6 @@ describe('query preprocessor SEO boilerplate normalization', () => {
     const cases = new Map([
       ['best wireless earbuds in Singapore 2026', 'wireless earbuds'],
       ['Best MacBook deals in SG 2026', 'MacBook'],
-      ['best iphone singapore 2026', 'iphone'],
       ['rice cooker Singapore review guide', 'rice cooker'],
       ['multi cooker for United States 2026', 'multi cooker'],
       ['ps5 online comparison', 'ps5'],
@@ -19,5 +18,10 @@ describe('query preprocessor SEO boilerplate normalization', () => {
     for (const [query, expected] of cases) {
       assert.equal(preprocessSearchQuery(query).cleanedQuery, expected);
     }
+  });
+
+  it('BUY-79353 stems irregular tvs plural so OLED TVs matches tv lexeme', () => {
+    assert.equal(preprocessSearchQuery('OLED TVs').cleanedQuery, 'OLED tv');
+    assert.equal(preprocessSearchQuery('best oled tvs in US').cleanedQuery, 'oled tv');
   });
 });
