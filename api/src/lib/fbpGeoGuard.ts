@@ -8,7 +8,8 @@ const CC_TLD: Record<string, string> = {
   in: 'IN', one: 'IN', co: 'CO', vn: 'VN', th: 'TH', my: 'MY', sg: 'SG', ph: 'PH',
   id: 'ID', jp: 'JP', kr: 'KR', au: 'AU', nz: 'NZ', uk: 'GB', gb: 'GB',
   de: 'DE', fr: 'FR', it: 'IT', es: 'ES', nl: 'NL', br: 'BR', mx: 'MX',
-  ca: 'CA', ae: 'AE', sa: 'SA', tw: 'TW', hk: 'HK', cn: 'CN',
+  ca: 'CA', ae: 'AE', sa: 'SA', tw: 'TW', hk: 'HK', cn: 'CN', ch: 'CH',
+  tr: 'TR', se: 'SE', no: 'NO', dk: 'DK', pl: 'PL', cz: 'CZ', at: 'AT',
 };
 
 const GENERIC_TLDS = new Set([
@@ -107,9 +108,13 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
       // mislabelled as USD (57504 vs median ~1063).
       const deviceCap = deviceType === 'phone' ? 2500 : deviceType === 'laptop' ? 8000 : 15000;
       maxAllowedUsd = Math.min(deviceCap, Math.max(median * 4, median + 500));
+      // Phone band: also drop cheap-FX leftovers (CHF/TRY stored as USD) below 40% of median.
+      const minPhoneUsd = deviceType === 'phone' ? Math.max(400, median * 0.4) : 0;
       const filtered = working.filter((r) => {
         const usd = rowToUsd(r);
-        return usd <= (maxAllowedUsd as number);
+        if (usd > (maxAllowedUsd as number)) return false;
+        if (minPhoneUsd > 0 && usd < minPhoneUsd) return false;
+        return true;
       });
       if (filtered.length > 0) {
         highDropped = working.length - filtered.length;

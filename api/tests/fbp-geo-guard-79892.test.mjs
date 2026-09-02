@@ -58,6 +58,11 @@ test('BUY-79892 amazon.com is US and kept', () => {
   assert.equal(hostMatches('https://www.amazon.com/dp/x', 'US'), true);
 });
 
+test('BUY-79892 revendo.ch is not US', () => {
+  assert.equal(inferHostCountry('https://revendo.ch/products/outlet-apple-iphone-15-128-gb-rose'), 'CH');
+  assert.equal(hostMatches('https://revendo.ch/products/x', 'US'), false);
+});
+
 test('BUY-79892 Cart 06:45Z candidate set: US phone not 57504 IN', () => {
   const rows = [
     { title: 'iPhone 15 128GB Blue', price: 57504, url: 'https://iplanet.one/products/iphone-15-mtp43hn-a' },
