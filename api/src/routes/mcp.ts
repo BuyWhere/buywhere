@@ -912,7 +912,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v9:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -1510,6 +1510,19 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     // BUY-79642: never fall back to currency/country leaks. If overfetch did not
     // find native-market rows, return empty/degraded rather than SG/USD or MY/SG.
     rows = filtered.slice(0, limit);
+  }
+
+  // BUY-79642: SEA markets (MY/TH/VN/ID/PH) have no FAST child table; FTS on
+  // search_products often 25P02/timeout → api_error in ~60ms while REST
+  // /v1/products/search is independently healthy (MYR/VND hits). Previously
+  // restFallbackPromise only applied on thrown errors / circuit_open, so
+  // empty api_error envelopes won. Prefer REST hits whenever FTS is empty.
+  if (q && (rows as unknown[]).length === 0) {
+    const restHits = await restFallbackPromise;
+    if (restHits && restHits.products.length > 0) {
+      console.warn(`[search_products] BUY-79642: empty FTS — REST fallback n=${restHits.products.length} country=${country} q=${q}`);
+      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+    }
   }
 
   const merchantMapForMcpSearch = await lookupMerchantMap(
@@ -2689,8 +2702,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       if (keys.length > 0) await redis.del(...keys);
       const searchKeys = await redis.keys('search:*');
       if (searchKeys.length > 0) await redis.del(...searchKeys);
-      // BUY-75291 / BUY-79497 / BUY-79642: MCP search_products uses fts:v9:*.
-      const ftsKeys = await redis.keys('fts:v9:*');
+      // BUY-75291 / BUY-79497 / BUY-79642: MCP search_products uses fts:v10:*.
+      const ftsKeys = await redis.keys('fts:v10:*');
       if (ftsKeys.length > 0) await redis.del(...ftsKeys);
       await redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
     } catch (e) {
