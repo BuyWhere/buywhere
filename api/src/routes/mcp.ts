@@ -209,6 +209,7 @@ async function searchProductsViaRestFallback(opts: {
       'https://api.buywhere.ai',
     ].filter(Boolean);
 
+    let restHttpOk = false;
     const fetchRows = async (mode: 'market' | 'country'): Promise<Record<string, unknown>[] | null> => {
       const params = restSearchQueryParams({
         q: opts.q,
@@ -234,6 +235,7 @@ async function searchProductsViaRestFallback(opts: {
             data?: Record<string, unknown>[];
             results?: Record<string, unknown>[];
           };
+          restHttpOk = true;
           const rows = body.products || body.results || body.data || [];
           if (Array.isArray(rows) && rows.length > 0) return rows;
           lastErr = new Error(`empty from ${base} mode=${mode}`);
@@ -262,7 +264,8 @@ async function searchProductsViaRestFallback(opts: {
       }
       console.warn(`[search_products] BUY-79631: REST ${mode} isolation emptied n=${rows.length} q=${opts.q} country=${opts.country}`);
     }
-    return null;
+    // BUY-79642: HTTP 200 with 0 isolated hits is a real no_match, not transport fail.
+    return restHttpOk ? { products: [], total: 0 } : null;
   } catch (err) {
     console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
     return null;
@@ -1454,13 +1457,17 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
+    // BUY-79642: REST completed with 0 native-market hits (ID/PH iphone 15).
+    // Do not label that api_error — catalog FTS failed but REST independently
+    // answered no_match. Keep degraded only when REST itself failed to return.
+    const restAnsweredEmpty = restHits !== null && restHits.products.length === 0;
     return buildSearchResponse(
       [], 0, limit, offset, Date.now() - t0, false,
-      true, undefined, country || null,
+      restAnsweredEmpty ? false : true, undefined, country || null,
       deriveEmptiness({
         regionHasAnyData: regionHasAnyDataProbe,
         categoryHasAnyData: categoryHasAnyDataProbe,
-        apiError: degradedKind === 'upstream_exception',
+        apiError: restAnsweredEmpty ? false : degradedKind === 'upstream_exception',
         rateLimited: false,
         regionSupported: !country || (SUPPORTED_REGIONS as readonly string[]).includes(country.toUpperCase()),
         categoryRequested: !!category,
@@ -1470,8 +1477,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         deliverToPresent,
         unfilteredHasAnyData,
         queryAmbiguous: null,
-        degradedKind,
-        timedOutStage: 'catalog_search',
+        degradedKind: restAnsweredEmpty ? undefined : degradedKind,
+        timedOutStage: restAnsweredEmpty ? undefined : 'catalog_search',
       }),
     );
   } finally {
