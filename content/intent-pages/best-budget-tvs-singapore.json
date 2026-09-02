@@ -10,16 +10,21 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "television",
+  "searchQuery": "QLED",
   "backupQueries": [
-    "Hisense television",
-    "Smart television",
-    "UHD TV"
+    "QLED TV",
+    "Smart TV",
+    "LED TV",
+    "LCD TV",
+    "Samsung television"
   ],
   "minPrice": 200,
   "requiredProductTerms": [
     "tv",
     "television",
+    "qled",
+    "led",
+    "lcd",
     "inch"
   ],
   "excludeAccessories": true,

@@ -10,16 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "LG C5 OLED TV",
+  "searchQuery": "LG",
   "backupQueries": [
-    "LG OLED C5",
-    "LG C5 TV",
-    "LG C5 65 OLED"
+    "LG TV",
+    "LG OLED",
+    "LG television",
+    "LG 65",
+    "LG 55"
   ],
+  "minPrice": 500,
   "requiredProductTerms": [
-    "lg",
-    "c5",
-    "oled"
+    "lg"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",

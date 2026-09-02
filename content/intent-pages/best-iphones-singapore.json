@@ -10,17 +10,16 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "iPhone",
+  "searchQuery": "iPhone 17",
   "backupQueries": [
     "Apple iPhone",
-    "iPhone Singapore",
-    "iPhone 256GB"
+    "iPhone",
+    "iPhone Air"
   ],
   "minPrice": 600,
   "requiredProductTerms": [
     "iphone",
-    "apple",
-    "smartphone"
+    "apple"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
