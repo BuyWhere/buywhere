@@ -181,12 +181,14 @@ async function searchProductsViaRestFallback(opts: {
       headers['x-api-key'] = incomingKey.replace(/^Bearer\s+/i, '');
       headers['authorization'] = incomingKey.startsWith('Bearer ') ? incomingKey : `Bearer ${incomingKey}`;
     }
+    // BUY-79631: public REST first. Internal hosts hang ~2.5s on miss and
+    // abort the country= retry that actually returns SGD shirts.
     const bases = [
+      'https://api.buywhere.ai',
       (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
       'http://buywhere-api.railway.internal:8080',
       'http://buywhere-api.railway.internal:3000',
       `http://127.0.0.1:${PORT}`,
-      'https://api.buywhere.ai',
     ].filter(Boolean);
 
     const fetchRows = async (mode: 'market' | 'country'): Promise<Record<string, unknown>[] | null> => {
@@ -200,7 +202,10 @@ async function searchProductsViaRestFallback(opts: {
       let lastErr: unknown = null;
       for (const base of bases) {
         const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+        const perAttemptMs = base.includes('railway.internal') || base.includes('127.0.0.1')
+          ? 400
+          : REST_SEARCH_FALLBACK_MS;
+        const timer = setTimeout(() => ac.abort(), perAttemptMs);
         try {
           const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
             method: 'GET',
@@ -231,9 +236,12 @@ async function searchProductsViaRestFallback(opts: {
       return null;
     };
 
-    // Prefer market aliases for recall, then country= if isolation empties the page
-    // (shirt SG: market= returns USD-labelled SG Shopify; country= returns SGD).
-    for (const mode of ['market', 'country'] as const) {
+    // BUY-79631: country= first (SGD shirts). market= is high-recall but
+    // isolation-empty for shirt SG (USD Shopify) and used to burn the timeout.
+    const modes: Array<'market' | 'country'> = opts.country
+      ? ['country', 'market']
+      : ['market'];
+    for (const mode of modes) {
       const rows = await fetchRows(mode);
       if (!rows || rows.length === 0) continue;
       const isolated = isolateRestSearchHits(rows, {
