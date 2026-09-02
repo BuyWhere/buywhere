@@ -418,18 +418,18 @@ async function tryTierSearch(
   // strong demotion (0.15x) for titles containing phone-accessory keywords.
   const phoneHandsetBoost = `
     CASE
-      WHEN lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
-        OR lower(sp.category) ~* '\\m(smartphone|phone|android)\\M'
-      THEN 2.0 ELSE 1.0
+      WHEN lower(sp.title) ~* '\\m(iphone|ipad|airpods|galaxy s|galaxy a|galaxy z|galaxy tab|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+        OR lower(sp.category) ~* '\\m(smartphone|smartphones|tablet|tablets|headphones|audio)\\M'
+      THEN 4.0 ELSE 1.0
     END`;
-  // BUY-69753: phone accessory penalty mirrors the laptop accessory penalty above.
-  // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
+  // BUY-69753 + BUY-80220: demote phone/tablet/audio accessories so cases/mounts/ponchos
+  // cannot outrank primary devices after unordered FTS LIMIT.
   const phoneAccessoryPenalty = `
     CASE
-      WHEN lower(sp.title) ~* '\\m(phone|iphone)\\M'
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|tempered|glass|screen)\\M'
+      WHEN lower(sp.title) ~* '\\m(phone|iphone|ipad|airpods)\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|poncho|magnetic|golf|lens|camera|folio|tempered|glass|otterbox|quadlock|rokform)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
-      THEN 0.15 ELSE 1.0
+      THEN 0.08 ELSE 1.0
     END`;
 
   const laptopBoost = `
@@ -447,15 +447,19 @@ async function tryTierSearch(
   const rankCols = `title, category, source, price, updated_at`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
-      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
-      -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
-      -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
-      -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
-      -- below ranks the bounded candidate set.
-      -- BUY-67275-bitmap: 5000 -> 1000. The top CTE keeps only 200 rows, so 5000 was a 10x
-      -- over-fetch that inflated the bitmap into lossy territory for head terms.
-      LIMIT 200
+      (
+        SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
+        WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+        LIMIT 160
+      )
+      UNION ALL
+      (
+        SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
+        WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+          AND lower(sp.title) ~* '\\m(iphone [0-9]|ipad (air|pro|mini)|airpods|macbook|galaxy s[0-9]|galaxy tab|pixel [0-9])\\M'
+          AND NOT (lower(sp.title) ~* '\\m(case|cover|mount|holder|poncho|wallet|protector|folio|tempered|glass|charger|cable|adapter|kit)\\M')
+        LIMIT 80
+      )
     ), top AS (
       -- BUY-54980/BUY-77644: rank columns are now in cand, so no join needed here.
       -- The CASE expressions reference the cand alias (c.*) directly.
