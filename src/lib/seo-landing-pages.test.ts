@@ -1909,3 +1909,27 @@ test("BUY-79844: answer block text has no Prices checked sentence", () => {
   assert.equal((block!.text.match(/Prices checked/g) || []).length, 0);
   assert.equal(matches.length, 1);
 });
+
+test("BUY-80150: schema ItemList uses ≥6 unique snapshot cards", () => {
+  const config = seoLandingPages["air-purifier-singapore"];
+  const products: LandingProduct[] = Array.from({ length: 6 }, (_, i) => ({
+    id: String(1000 + i),
+    name: `Levoit Core ${i + 1} Air Purifier`,
+    price: 99 + i * 10,
+    currency: "SGD",
+    merchant: i % 2 === 0 ? "Sterra" : "Challenger",
+    brand: "Levoit",
+    category: "Air Purifiers",
+    imageUrl: `https://images.example/ap-${i}.jpg`,
+    href: `/r/direct/${1000 + i}`,
+    productUrl: `/r/direct/${1000 + i}`,
+  }));
+  const schema = buildSeoLandingSchema(config, products, "2026-09-02T16:00:00.000Z");
+  const graph = (schema as { "@graph": Array<Record<string, unknown>> })["@graph"];
+  const collection = graph.find((n) => n["@type"] === "CollectionPage") as Record<string, any>;
+  const itemList = collection.mainEntity;
+  assert.equal(itemList["@type"], "ItemList");
+  assert.ok(itemList.itemListElement.length >= 6);
+  const urls = itemList.itemListElement.map((el: { url: string }) => el.url);
+  assert.equal(new Set(urls).size, urls.length);
+});

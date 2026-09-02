@@ -1894,49 +1894,68 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
   }
 
-  // BUY-79816: no two cards share identical image bytes (URL or Magento-path variants).
+  // BUY-79816 / BUY-80150: never drop unique priced SKUs because they share
+  // a CDN photo. Reuse a distinct curated fallback photo when possible; keep
+  // the live /r/direct id either way so the snapshot can still hit ≥6 cards.
   const seenImageUrls = new Set<string>();
   const seenFingerprints = new Set<string>();
+  const usedFallbackPhotos = new Set<string>();
+  const widePhotoFallbacks = fallback.filter(
+    (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
+  );
+  const nextUniquePhoto = (): string | null => {
+    for (const fb of widePhotoFallbacks) {
+      const url = viaImageProxy(fb.imageUrl) ?? fb.imageUrl!;
+      if (seenImageUrls.has(url) || usedFallbackPhotos.has(url)) continue;
+      usedFallbackPhotos.add(url);
+      return url;
+    }
+    return null;
+  };
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
-    if (!product.imageUrl || product.imageUrl.startsWith("data:image/svg")) {
-      // BUY-79843: omit wireframe / photo-less cards from the snapshot grid.
-      continue;
+    let imageUrl = product.imageUrl;
+    if (!imageUrl || imageUrl.startsWith("data:image/svg")) {
+      const grafted = nextUniquePhoto();
+      if (!grafted) continue;
+      imageUrl = grafted;
     }
     const fp = qualityById.get(product.id)?.fingerprint || null;
-    const urlHit = seenImageUrls.has(product.imageUrl);
+    const urlHit = seenImageUrls.has(imageUrl);
     const fpHit = Boolean(fp && seenFingerprints.has(fp));
     if (urlHit || fpHit) {
-      console.warn(
-        `[seo] BUY-79816 hash collision for ${product.imageUrl} - nulling duplicate from ${product.merchant}`
-      );
-      dedupedProducts.push({ ...product, imageUrl: null });
-      continue;
+      const grafted = nextUniquePhoto();
+      if (!grafted) {
+        console.warn(
+          `[seo] BUY-79816 hash collision for ${imageUrl} - keeping unique SKU ${product.id} without dropping the card`,
+        );
+        dedupedProducts.push({ ...product, imageUrl });
+        continue;
+      }
+      imageUrl = grafted;
     }
-    seenImageUrls.add(product.imageUrl);
-    if (fp) seenFingerprints.add(fp);
-    dedupedProducts.push(product);
+    seenImageUrls.add(imageUrl);
+    if (fp && !fpHit) seenFingerprints.add(fp);
+    dedupedProducts.push({ ...product, imageUrl });
   }
 
-  // Replace verified with deduped for minimum card check
-  const finalVerified = dedupedProducts;
+  const finalVerified = dedupedProducts.filter((p) => Boolean(p.id) && p.price !== null);
 
-  // BUY-79241 / BUY-79816: ensure minimum live cards for crawlable /r/direct links.
-  const MIN_LIVE_CARDS = 3;
+  // BUY-80150: snapshot acceptance is ≥6 unique priced /r/direct cards when
+  // catalog has them. Do not stop at 3.
+  const MIN_LIVE_CARDS = 6;
   if (finalVerified.length < MIN_LIVE_CARDS) {
     for (const product of collected) {
       if (finalVerified.length >= MIN_LIVE_CARDS) break;
       if (finalVerified.some(p => p.id === product.id)) continue;
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
-      const wideFallbacks = fallback.filter(
-        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
-      );
-      const match = wideFallbacks[finalVerified.length] || wideFallbacks[0];
-      if (!match?.imageUrl) continue;
-      finalVerified.push({ ...product, imageUrl: viaImageProxy(match.imageUrl) ?? match.imageUrl });
+      const matchUrl = nextUniquePhoto() || widePhotoFallbacks[0]?.imageUrl;
+      if (!matchUrl) continue;
+      const imageUrl = viaImageProxy(matchUrl) ?? matchUrl;
+      finalVerified.push({ ...product, imageUrl });
       console.warn(
-        `[seo] BUY-79843 adding product ${product.id} with curated photo to meet minimum cards`,
+        `[seo] BUY-80150 adding product ${product.id} with curated photo to meet minimum cards`,
       );
     }
   }
@@ -1957,7 +1976,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     // BUY-79241: priced catalog rows with constructible /r/direct/{id} MUST
     // still render even when ingest slugs (buy79179_targeted) don't map to a
     // retailer label. Keep those live hits; never re-admit Product A–E.
-    if (cleaned.length >= 3) return cleaned;
+    const MIN_SNAPSHOT_CARDS = 6;
+    if (cleaned.length >= MIN_SNAPSHOT_CARDS) return cleaned.slice(0, 8);
     const kept = new Set(cleaned.map((p) => p.id));
     for (const p of products) {
       if (kept.has(p.id)) continue;
@@ -1968,12 +1988,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           p.price !== null &&
           ((p.href && p.href.includes("/r/")) || (p.affiliateUrl && p.affiliateUrl.includes("/r/"))),
       );
-      if (!hasDirect) continue;
+      if (!hasDirect && !(p.id && p.price !== null)) continue;
       cleaned.push(p);
       kept.add(p.id);
-      if (cleaned.length >= 3) break;
+      if (cleaned.length >= 8) break;
     }
-    return cleaned;
+    return cleaned.slice(0, 8);
   };
 
   if (verifiedProducts.length >= 4) {
@@ -2287,7 +2307,8 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
         mainEntity: {
           "@type": "ItemList",
           name: config.productSectionTitle,
-          itemListElement: products.map((product, index) => ({
+          numberOfItems: schemaProducts.length,
+          itemListElement: schemaProducts.slice(0, 8).map((product, index) => ({
             "@type": "ListItem",
             position: index + 1,
             url: product.productUrl || product.href,
