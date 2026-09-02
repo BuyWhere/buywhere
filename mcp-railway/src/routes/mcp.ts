@@ -190,42 +190,23 @@ async function searchProductsViaRestFallback(opts: {
       // capture rowCurrency while the original row is still accessible.
       return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
     }).filter((item) => {
-      // BUY-79631: drop only *contradictory country*. REST market=SG for broad
-      // tokens (shirt) often returns USD-labelled Shopify rows that still ship
-      // to SG. Currency-filtering those to empty left MCP on api_error even
-      // though REST had hits. Prefer expected country when present; keep
-      // missing country_code; never drop the whole page on currency mismatch.
+      // BUY-79642: explicit country/currency isolation wins over fallback recall.
       const p = item.product;
       if (expectedCc) {
         const cc = String(p.country_code || '').toUpperCase();
         if (cc && cc !== expectedCc) return false;
       }
-      void expectedCur;
+      if (expectedCur) {
+        const fromProduct = String((p.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+        const cur = item.rowCurrency || fromProduct;
+        if (cur && cur !== expectedCur) return false;
+      }
       return true;
     }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
     if (products.length === 0 && rows.length > 0) {
-      // BUY-79631: prefer rows whose country_code matches the request when REST
-      // mixed US/SG hits. Fall back to the raw page so we never return api_error
-      // after a 200 REST body with products.
-      const preferCc = expectedCc
-        ? rows.filter((r) => String(r.country_code || '').toUpperCase() === expectedCc)
-        : [];
-      const keep = (preferCc.length > 0 ? preferCc : rows).slice(0, Math.max(opts.limit, 1));
-      return {
-        products: keep.map((r) => {
-          const price = r.price;
-          const flattened: Record<string, unknown> = { ...r };
-          if (price && typeof price === 'object' && !Array.isArray(price)) {
-            const p = price as { amount?: unknown; currency?: unknown };
-            flattened.price = p.amount;
-            if (p.currency) flattened.currency = p.currency;
-          }
-          if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
-          return buildProduct(flattened, opts.currency, opts.compact);
-        }),
-        total: Number(body.meta?.total ?? body.total ?? rows.length) || rows.length,
-      };
+      // BUY-79642: explicit country/currency isolation wins over fallback recall.
+      return null;
     }
     return { products, total };
   } catch (err) {
@@ -1201,11 +1182,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         let candidates = wantCur
           ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
           : native;
-        // BUY-79598: do not 08P01-retry with extra bind params on this connection.
-        // If SGD filter empties a USD-dominated GIN page, keep country-scoped native
-        // rows (child table already is SG) so we never throw into api_error.
+        // BUY-79642: do not substitute wrong-currency rows when market filtering empties the page.
         if (wantCur && candidates.length === 0) {
-          candidates = native;
+          candidates = [];
         }
         rows = candidates.slice(offset, offset + Math.max(limit, 1));
         total = candidates.length + offset;
@@ -1264,7 +1243,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
-      // BUY-79598: REST served hits — return them directly.
+      // BUY-79598: REST served isolated hits — return them directly.
       console.warn(`[search_products] BUY-79598: catalog error — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }

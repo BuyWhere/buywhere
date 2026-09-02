@@ -160,24 +160,10 @@ async function searchProductsViaRestFallback(opts) {
         }).map((item) => item.product);
         const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
         if (products.length === 0 && rows.length > 0) {
-            // BUY-79598: REST market=macbook returns MDL/USD rows with no country_code.
-            // Dropping them left MCP with api_error while REST had hits.
-            return {
-                products: rows.slice(0, Math.max(opts.limit, 1)).map((r) => {
-                    const price = r.price;
-                    const flattened = { ...r };
-                    if (price && typeof price === 'object' && !Array.isArray(price)) {
-                        const p = price;
-                        flattened.price = p.amount;
-                        if (p.currency)
-                            flattened.currency = p.currency;
-                    }
-                    if (!flattened.domain && r.merchant)
-                        flattened.domain = r.merchant;
-                    return (0, response_1.buildProduct)(flattened, opts.currency, opts.compact);
-                }),
-                total: Number(body.meta?.total ?? body.total ?? rows.length) || rows.length,
-            };
+            // BUY-79642: explicit country/currency isolation wins over fallback recall.
+            // Returning SG/USD rows for MY/SG searches is worse than a no-match/degraded
+            // envelope, and Cart treats country/currency leaks as SEV regressions.
+            return null;
         }
         return { products, total };
     }
@@ -1320,8 +1306,9 @@ async function handleSearchProducts(args, caller) {
             }
             return true;
         });
-        // BUY-79598: keep native-currency overfetch if SGD filter emptied a USD-labelled SG page.
-        rows = (filtered.length > 0 ? filtered : native).slice(0, limit);
+        // BUY-79642: never fall back to currency/country leaks. If overfetch did not
+        // find native-market rows, return empty/degraded rather than SG/USD or MY/SG.
+        rows = filtered.slice(0, limit);
     }
     const merchantMapForMcpSearch = await (0, merchantLookup_1.lookupMerchantMap)(config_1.db, rows.map((row) => row.merchant_id ?? null));
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact, merchantMapForMcpSearch, caller));
