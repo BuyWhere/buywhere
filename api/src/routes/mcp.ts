@@ -12,6 +12,7 @@ import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { applyFbpGeoAndHighOutlierGuard } from '../lib/fbpGeoGuard';
 import { detectIdentifier, identifierMatchPredicate } from '../lib/identifierDetector';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
@@ -100,6 +101,9 @@ const MCP_TOOL_WALL_MS: Record<string, number> = {
   find_best_price: 20000,
   find_best_price_v2: 20000,
 };
+// BUY-80177: SEA REST is empty/slow (MY ~4.7s n=0, ID/PH 500). Do not wait 8-9s
+// for a fill that does not come. Fail-fast 3.5s catalog wall. Durable recall: BUY-77118.
+const MCP_SEARCH_SEA_WALL_MS = parseInt(process.env.MCP_SEARCH_SEA_WALL_MS || '3500', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -144,6 +148,10 @@ async function showStatementTimeout(client: any): Promise<string | null> {
 // hits from REST instead of returning an empty circuit_open envelope so Cart
 // probes and agent callers keep working while sakura conn ceiling recovers.
 const REST_SEARCH_FALLBACK_MS = parseInt(process.env.MCP_REST_FALLBACK_TIMEOUT_MS || '2500', 10);
+// BUY-80177: SEA REST is empty-slow, so an 8s abort parks the client. Named SEA
+// budget defaults to 2.5s (same as SG/US); raise env if REST starts returning hits.
+const REST_SEARCH_FALLBACK_SEA_MS = parseInt(process.env.MCP_REST_FALLBACK_SEA_TIMEOUT_MS || '2500', 10);
+const SEA_REST_FALLBACK_COUNTRIES = new Set(['MY', 'TH', 'VN', 'ID', 'PH']);
 
 function restSearchQueryParams(opts: {
   q: string;
@@ -204,6 +212,9 @@ function isolateRestSearchHits(
       const cur = item.rowCurrency || fromProduct;
       if (cur && cur !== expectedCur) return false;
     }
+    // BUY-80191: REST can still serialize {amount:null} for bad rows.
+    const amt = extractNumericPrice(p.price);
+    if (amt == null || !(amt > 0)) return false;
     return true;
   }).map((item) => item.product);
   return { products, dropped: rows.length - products.length };
@@ -220,7 +231,10 @@ async function searchProductsViaRestFallback(opts: {
 }): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
   if (!opts.q) return null;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
+  const restBudgetMs = SEA_REST_FALLBACK_COUNTRIES.has((opts.country || '').toUpperCase())
+    ? REST_SEARCH_FALLBACK_SEA_MS
+    : REST_SEARCH_FALLBACK_MS;
+  const timer = setTimeout(() => ac.abort(), restBudgetMs);
   try {
     const headers: Record<string, string> = { accept: 'application/json' };
     const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
@@ -461,7 +475,8 @@ function buildMcpDegradedBestPriceResponse(opts: {
   deliverToPresent: boolean;
 }) {
   const country = opts.country || 'SG';
-  const emptinessReason = opts.kind === 'partial_timeout' ? 'partial_timeout' : (opts.kind === 'timeout' ? 'timeout' : opts.kind === 'auth_failure' ? 'auth_failure' : 'api_error');
+  // BUY-79931: emptiness_reason stays on the locked P2.6 enum; timeout is degraded_kind only.
+  const emptinessReason = 'api_error';
   return {
     best_price: null,
     alternatives: [],
@@ -542,8 +557,8 @@ async function filterVectorCandidatesByMarket(
       `SELECT id FROM products WHERE ${conditions.join(' AND ')}`,
       params
     );
-    const allowed = new Set(result.rows.map((r: { id: string }) => r.id));
-    return candidateIds.filter(id => allowed.has(id));
+    const allowed = new Set(result.rows.map((r: { id: string }) => String(r.id)));
+    return candidateIds.map(String).filter(id => allowed.has(id));
   } catch (err) {
     console.warn('[search] vector candidate market filter failed, using global set:', (err as Error).message);
     // Roll back to the vector-stage savepoint so a filter failure cannot poison the
@@ -585,7 +600,7 @@ function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''):
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Treat deliver_to as REQUIRED for buyer-facing use (ISO-3166 country of the end user); it takes precedence over country_code/country and prevents all-market scans. Returns product records with title, description, image, price, and merchant information. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields. BUY-74597 degraded contract: when the catalog query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` naming the failed stage (catalog_search / offer_aggregation / merchant_join). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Agents should branch on `meta.degraded === true` (or `meta.status === "degraded"`) instead of treating empty `data` as no_match.',
+    description: 'Search the BuyWhere product catalog by keyword. Treat deliver_to as REQUIRED for buyer-facing use (ISO-3166 country of the end user); it takes precedence over country_code/country and prevents all-market scans. Returns product records with title, description, image, price, and merchant information. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields. BUY-74597 degraded contract: when the catalog query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` naming the failed stage (catalog_search / offer_aggregation / merchant_join). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Agents should branch on `meta.degraded === true` (or `meta.status === "degraded"`) instead of treating empty `data` as no_match.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -643,7 +658,7 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
+    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -674,7 +689,7 @@ const TOOLS = [
   },
   {
     name: 'find_best_price',
-    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. BUY-74597 degraded contract: when the candidates query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.degraded=true`, `meta.status="degraded"`, `meta.emptiness_reason="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage="catalog_search"`, with `best_price=null` and `alternatives=[]`. It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
+    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants. BUY-74597 degraded contract: when the candidates query cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.degraded=true`, `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage="catalog_search"`, with `best_price=null` and `alternatives=[]`. It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -945,7 +960,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v12:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -986,7 +1001,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     try {
       const idIdx = 1;
       const idParams: unknown[] = [identifier.normalized];
-      const idConds: string[] = ['is_active = true'];
+      const idConds: string[] = ['is_active = true', 'price > 0'];
       idConds.push(identifierMatchPredicate(identifier, idIdx).sql);
       if (country) {
         idParams.push(country.toUpperCase());
@@ -1027,7 +1042,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     }
   }
 
-  const conditions: string[] = ['is_active = true'];
+  // BUY-80191: REST archive already requires `price > 0`. MCP FTS/identifier
+  // paths omitted it, so US child-table hits (Shopify/Woo null-price stubs from
+  // ingest batches like BUY-80080) filled the default page of 20 with
+  // `price.amount=null`. Freshness gate for agent-DX: unpriced rows are not
+  // sellable catalog.
+  const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
   if (q) {
@@ -1065,7 +1085,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // Drops is_active (tier only contains active products) and category ILIKE
   // (tier category is a slug, not free-text). Uses sp.* prefix to avoid
   // ambiguity when the tier query joins back to products for full columns.
-  const tierConditions: string[] = [];
+  const tierConditions: string[] = ['sp.price > 0'];
   const tierParams: unknown[] = [];
   if (q) {
     tierParams.push(q);
@@ -1095,7 +1115,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     tierParams.push(country.toUpperCase());
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
-  if (country && COUNTRY_CURRENCY[country] && !useChildTable) {
+  if (country && COUNTRY_CURRENCY[country] && useChildTable) {
+    // BUY-80024: FAST child tables (products_partitioned_sg) GIN-rank USD Shopify
+    // rows first. Isolation then drops them and MCP returns total=24 data=[].
+    // Push native currency into FTS so overfetch is SGD/USD-native, not leaks.
+    // BUY-79945: do NOT bind currency on the parent search_products SEA path.
+    // The extra equality fights the GIN bitmap (2.5s empty / no_match) while
+    // post-filter isolation still drops foreign currencies.
     tierParams.push(COUNTRY_CURRENCY[country]);
     tierConditions.push(`sp.currency = $${tierParams.length}`);
   }
@@ -1205,7 +1231,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               // BUY-74181: re-scope global vector candidates to the requested market
@@ -1231,7 +1257,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecResult = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               vecRows = vecResult.rows;
@@ -1284,7 +1310,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const detailParams: unknown[] = [...pageIds];
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailConditions = [`id IN (${ph})`, 'is_active = true'];
+            const detailConditions = [`id IN (${ph})`, 'is_active = true', 'price > 0'];
             if (country) {
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
@@ -1330,7 +1356,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM products WHERE id IN (${ph}) AND is_active = true AND price > 0`,
               tierIds
             );
             // Preserve tier ranking order
@@ -1345,25 +1371,29 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         const wantCurForFetch = (country && COUNTRY_CURRENCY[country] && useChildTable)
           ? COUNTRY_CURRENCY[country]
           : '';
-        const pageLimit = Math.min((limit + offset) * (wantCurForFetch ? 8 : 1), 200);
+        // BUY-80321: LIMIT before ORDER BY rank took the first GIN bitmap page
+        // (USD Shopify leaks for "shirt"), then isolation emptied offset=0 while
+        // offset=10 walked into native SGD. Rank first, then LIMIT/OFFSET.
+        // Native currency is already in tierWhere for child tables — no 8× overfetch.
+        const pageLimit = Math.min(limit + offset, 200);
+        const sqlOffset = Math.min(offset, 200);
+        const sqlLimit = Math.min(limit, Math.max(0, 200 - sqlOffset));
+        const rankExpr = `ts_rank(sp.search_vector, plainto_tsquery('english', $1))`;
         const tierFts = await searchClient.query<Record<string, unknown>>(
-          `WITH cand AS (
-             SELECT sp.id, sp.sku, sp.source, sp.url, sp.title, sp.price, sp.currency,
-                    sp.image_url, sp.metadata, sp.updated_at, sp.region, sp.country_code,
-                    sp.category, sp.category_path, sp.url_last_checked_at, sp.url_status,
-                    sp.merchant_id,
-                    ts_rank(sp.search_vector, plainto_tsquery('english', $1)) AS rank
-             FROM ${ftsTable} sp ${tierWhere}
-             LIMIT ${pageLimit}
-           )
-           SELECT id, sku AS source, merchant_id AS domain, url, title, price, currency,
-                  image_url, metadata, updated_at, region, country_code, category,
-                  category_path, url_last_checked_at, url_status, rank
-           FROM cand ORDER BY rank DESC LIMIT ${pageLimit}`,
+          `SELECT sp.id, sp.sku AS source, sp.merchant_id AS domain, sp.url, sp.title,
+                  sp.price, sp.currency, sp.image_url, sp.metadata, sp.updated_at,
+                  sp.region, sp.country_code, sp.category, sp.category_path,
+                  sp.url_last_checked_at, sp.url_status,
+                  ${rankExpr} AS rank
+           FROM ${ftsTable} sp ${tierWhere}
+           ORDER BY ${rankExpr} DESC
+           LIMIT ${sqlLimit} OFFSET ${sqlOffset}`,
           tierParams
         );
-        rows = (tierFts.rows as Record<string, unknown>[]).slice(offset, offset + limit);
-        total = tierFts.rows.length + offset;
+        rows = tierFts.rows as Record<string, unknown>[];
+        // Approximate total from this window so emptiness isn't no_match on a
+        // lying empty first page; isolation may still drop a few leaks.
+        total = Math.max(tierFts.rows.length + offset, pageLimit);
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -1547,11 +1577,18 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         const cur = String(r.currency || '').toUpperCase();
         if (cur && cur !== wantCur) return false;
       }
+      // BUY-80191: drop unpriced rows even if SQL missed them (REST fallback /
+      // cached pages / child-table nulls).
+      const amt = extractNumericPrice(r.price);
+      if (amt == null || !(amt > 0)) return false;
       return true;
     });
-    // BUY-79642: never fall back to currency/country leaks. If overfetch did not
-    // find native-market rows, return empty/degraded rather than SG/USD or MY/SG.
-    rows = filtered.slice(0, limit);
+    // BUY-79642: never fall back to currency/country leaks.
+    // BUY-80321: child-table FTS already LIMIT/OFFSET after rank + native currency
+    // in SQL. Re-slicing offset here emptied page 0 (filtered.length < offset)
+    // while offset=10 still had native rows in the overfetch window.
+    const alreadyPaged = !!(q && useChildTable);
+    rows = alreadyPaged ? filtered.slice(0, limit) : filtered.slice(offset, offset + limit);
   }
 
   // BUY-79642: SEA markets (MY/TH/VN/ID/PH) have no FAST child table; FTS on
@@ -1573,7 +1610,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   );
   const products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact, merchantMapForMcpSearch, caller)
-  );
+  ).filter((p) => {
+    const amt = extractNumericPrice(p.price);
+    return amt != null && amt > 0;
+  });
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
   // the response is genuinely empty (products.length === 0) — non-empty responses
@@ -1746,21 +1786,17 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     `discount_pct >= $1`,
   ];
   const params: unknown[] = [minDiscount];
-  // BUY-80255: when a specific country is requested, use country_code in SQL so the
-  // planner can use idx_sp_cc_price (country_code, price) instead of seq-scanning on
-  // currency (no index). SGD currency rows are mostly cc=US (Shopify contamination), so
-  // currency=SGD returns many US rows that are then filtered to 0 in-memory. Using
-  // country_code=SG directly in SQL also avoids that double-filter overhead.
-  if (effectiveCountry) {
-    params.push(effectiveCountry);
-    conditions.push(`country_code = $${params.length}`);
-  } else if (currency) {
+  if (currency) {
     params.push(currency);
     conditions.push(`currency = $${params.length}`);
   }
   if (region) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
+  }
+  if (effectiveCountry) {
+    params.push(effectiveCountry);
+    conditions.push(`country_code = $${params.length}`);
   }
 
   // BUY-77178: category filter — BUY-77834 fix
@@ -2277,6 +2313,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       tierParams.push(requestedCountry);
       tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    if (country && COUNTRY_CURRENCY[country]) {
+      // BUY-80156: FBP tier query was missing the native-currency predicate
+      // BUY-80024 added for search_products. Without it, SG shopper sees
+      // USD 1895 for nike shirt (titan22.com / shopify_titan22_com) when
+      // SG's native is SGD; same root cause for MY shirt returning USD 289
+      // from savageworldwide.com.my. Symmetric fix.
+      tierParams.push(COUNTRY_CURRENCY[country]);
+      tierConditions.push(`sp.currency = $${tierParams.length}`);
+    }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
     // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
@@ -2463,6 +2508,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${allRows.length - filtered.length}/${allRows.length} candidates. median_usd=${(medianUsd as number).toFixed(2)}, min_allowed_usd=${(minAllowedUsd as number).toFixed(2)}, product="${productName}", country=${country}`);
       }
     }
+  }
+
+  // BUY-79892: drop foreign-TLD merchants (iplanet.one/IN, mac-center.com COP)
+  // and high-side currency-mislabelled outliers the floor guard cannot catch.
+  {
+    const geo = applyFbpGeoAndHighOutlierGuard({
+      rows: finalRows,
+      requestedCountry: country,
+      rowToUsd,
+      deviceType: deviceFilter.type,
+    });
+    if (geo.geoDropped > 0 || geo.highDropped > 0) {
+      guardApplied = true;
+      console.log(`[find_best_price] BUY-79892 geo/high guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} max_allowed_usd=${geo.maxAllowedUsd} product="${productName}" country=${country}`);
+    }
+    finalRows = geo.rows;
   }
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
@@ -2857,9 +2918,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
+      `SELECT product_id, ((embedding_v2::halfvec(1024)) <=> $1::halfvec(1024))::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`,
+       ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT $3`,
       [refEmbedding, productId, limit]
     );
   } catch {
@@ -3011,19 +3072,31 @@ function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, sta
   });
 }
 
+function mcpToolWallMs(name: string, args: Record<string, unknown>): number {
+  const base = MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS;
+  if (name === 'search_products' || name === 'search_products_v2') {
+    const cc = String(
+      args.deliver_to || args.country_code || args.country || args.market || '',
+    ).trim().toUpperCase();
+    if (SEA_REST_FALLBACK_COUNTRIES.has(cc)) return Math.max(base, MCP_SEARCH_SEA_WALL_MS);
+  }
+  return base;
+}
+
 async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
   const startedAt = Date.now();
+  const wallMs = mcpToolWallMs(name, args);
   let timer: NodeJS.Timeout | undefined;
   const wall = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), (MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS));
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), wallMs);
   });
   try {
     return await Promise.race([work(), wall]);
   } catch (err) {
     const message = String((err as { message?: string })?.message || '');
     if (message.includes('mcp_catalog_wall_timeout')) {
-      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${(MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS)}ms catalog wall — flushing degraded envelope`);
+      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${wallMs}ms catalog wall — flushing degraded envelope`);
       return mcpCatalogWallEnvelope(name, args, startedAt) as T;
     }
     throw err;
@@ -3635,6 +3708,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
   if (method === 'tools/list') {
     return res.json(jsonrpcOk(id, { tools: TOOLS_ALL }));
+  }
+  // BWEXT-F4FAFBA7: an unknown METHOD must be a JSON-RPC -32601, per spec,
+  // regardless of auth. Only tools/call proceeds to the authenticated handler —
+  // previously unknown methods fell through to requireApiKey and surfaced as
+  // an HTTP 401, which strict clients cannot distinguish from an auth problem.
+  if (method !== 'tools/call') {
+    return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
   }
   return next();
 });
