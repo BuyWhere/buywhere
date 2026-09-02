@@ -107,7 +107,7 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
-      fix: 'BUY-79598-v2',
+      fix: 'BUY-80177-sea-failfast',
     });
   });
 
