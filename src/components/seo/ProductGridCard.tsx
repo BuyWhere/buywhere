@@ -170,13 +170,13 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
                 onClick={handleAffiliateClick}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 Buy at {product.merchant}
               </a>
             ) : (
               <span
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full whitespace-nowrap min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 Compare prices
               </span>
@@ -185,7 +185,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
               <Link
                 href={product.productUrl}
                 prefetch={false}
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full whitespace-nowrap min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 View details
               </Link>
