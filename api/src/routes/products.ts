@@ -670,11 +670,16 @@ async function tryTierSearch(
 
 async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
   try {
-    const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+    // v2 (2026-09-02): when FLOWAI_EMBED_API_KEY is set, embed via Flow (flow-embed-1,
+    // 1024-dim) to match embedding_v2 — the same contract the MCP path already uses.
+    // Distinct cache prefix so 512-dim gemini vectors are never mixed with 1024-dim.
+    const flowKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+    const ver = flowKey ? 'v2' : 'v1';
+    const embedKey = `qembed:${ver}:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
     if (cached) return cached;
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
-    const vector = await embedQuery(query, geminiKey);
+    const vector = await embedQuery(query, flowKey || geminiKey);
     await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
     return vector;
   } catch (err) {
@@ -1112,7 +1117,7 @@ router.get(
         const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
         let semVec: string | null = null;
         const semGk = process.env.GEMINI_API_KEY ?? '';
-        if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
+        if (semGk || process.env.FLOWAI_EMBED_API_KEY) semVec = await getCachedQueryEmbedding(q, semGk);
         const semHit = await semLookup(redis, semScope, qNorm, semVec);
         res.locals.semScope = semScope;
         res.locals.semQNorm = qNorm;
@@ -1745,7 +1750,8 @@ router.get(
         return r;
       };
       const geminiKey = process.env.GEMINI_API_KEY ?? '';
-      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
+      const flowEmbedKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && (flowEmbedKey !== '' || geminiKey !== '')
         ? vectorDb
         : null;
 
@@ -1765,13 +1771,23 @@ router.get(
             // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
             // to FTS silently — that would make semantic = keyword (the original bug). Instead,
             // we return 0 results, which at least makes semantic DIFFERENT from keyword.
-            const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
-               ORDER BY embedding <=> $1::vector
-               LIMIT $2`,
-              [queryVector, candidateCap]
-            );
+            // v2 path orders by the same halfvec expression the HNSW index is built on;
+            // anything else falls back to a sequential scan.
+            const semanticCandidates = flowEmbedKey !== ''
+              ? await activeVectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'flow-embed-1@1024'
+                   ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)
+                   LIMIT $2`,
+                  [queryVector, candidateCap]
+                )
+              : await activeVectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'gemini-embedding-001@512'
+                   ORDER BY embedding <=> $1::vector
+                   LIMIT $2`,
+                  [queryVector, candidateCap]
+                );
 
             const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
             let filteredSemanticIds: string[] = [];
