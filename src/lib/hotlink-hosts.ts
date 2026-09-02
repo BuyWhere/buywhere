@@ -34,7 +34,7 @@ export function isHotlinkBlockedHostname(hostname?: string | null): boolean {
   if (!hostname) return false;
   const host = hostname.toLowerCase();
   if (HOTLINK_BLOCKED_HOSTS.has(host)) return true;
-  for (const blocked of HOTLINK_BLOCKED_HOSTS) {
+  for (const blocked of Array.from(HOTLINK_BLOCKED_HOSTS)) {
     if (host.endsWith(`.${blocked}`)) return true;
   }
   return false;
