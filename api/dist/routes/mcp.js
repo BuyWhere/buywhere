@@ -66,7 +66,17 @@ const MCP_CATALOG_WALL_TOOLS = new Set([
     'get_deals_v2',
     'find_best_price',
     'find_best_price_v2',
+    'list_categories',
 ]);
+const MCP_TOOL_WALL_MS = {
+    get_deals: 4000,
+    get_deals_v2: 4000,
+    search_products: 3500,
+    search_products_v2: 3500,
+    list_categories: 3500,
+    find_best_price: 20000,
+    find_best_price_v2: 20000,
+};
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -84,6 +94,25 @@ async function acquireMcpClient() {
     finally {
         if (timer)
             clearTimeout(timer);
+    }
+}
+// BUY-67598: separate pool-acquire wait from SQL so sweep RCA can tell starvation vs query.
+async function acquireMcpClientTimed(tool) {
+    const t0 = Date.now();
+    const client = await acquireMcpClient();
+    const poolWaitMs = Date.now() - t0;
+    if (poolWaitMs >= 200) {
+        console.warn(`[mcp] BUY-67598 ${tool} pool_wait_ms=${poolWaitMs}`);
+    }
+    return { client, poolWaitMs };
+}
+async function showStatementTimeout(client) {
+    try {
+        const res = await client.query('SHOW statement_timeout');
+        return String(res.rows?.[0]?.statement_timeout ?? '');
+    }
+    catch (_) {
+        return null;
     }
 }
 // BUY-79260: when the catalog_search circuit is open (or pool acquire fails),
@@ -1317,13 +1346,18 @@ async function handleSearchProducts(args, caller) {
         const restHits = await restFallbackPromise;
         if (restHits && restHits.products.length > 0) {
             console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
-            return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+            // BUY-79642/BUY-74597: FTS threw but REST filled the gap. Mark degraded
+            // so agents can distinguish these partial-fail results from a clean cache hit.
+            const filled = (0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false, true);
+            filled.meta.status = 'degraded';
+            return aliasSearchEnvelope(filled);
         }
         // BUY-79642: REST completed with 0 native-market hits (ID/PH iphone 15).
         // Do not label that api_error — catalog FTS failed but REST independently
-        // answered no_match. Keep degraded only when REST itself failed to return.
+        // answered no_match. degraded=true still applies (catalog threw); only the
+        // api_error label and degradedKind are suppressed when REST answered empty.
         const restAnsweredEmpty = restHits !== null && restHits.products.length === 0;
-        return (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - t0, false, restAnsweredEmpty ? false : true, undefined, country || null, (0, response_1.deriveEmptiness)({
+        return (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - t0, false, true, undefined, country || null, (0, response_1.deriveEmptiness)({
             regionHasAnyData: regionHasAnyDataProbe,
             categoryHasAnyData: categoryHasAnyDataProbe,
             apiError: restAnsweredEmpty ? false : degradedKind === 'upstream_exception',
@@ -1544,17 +1578,22 @@ async function handleGetDeals(args, caller) {
         `discount_pct >= $1`,
     ];
     const params = [minDiscount];
-    if (currency) {
+    // BUY-80255: when a specific country is requested, use country_code in SQL so the
+    // planner can use idx_sp_cc_price (country_code, price) instead of seq-scanning on
+    // currency (no index). SGD currency rows are mostly cc=US (Shopify contamination), so
+    // currency=SGD returns many US rows that are then filtered to 0 in-memory. Using
+    // country_code=SG directly in SQL also avoids that double-filter overhead.
+    if (effectiveCountry) {
+        params.push(effectiveCountry);
+        conditions.push(`country_code = $${params.length}`);
+    }
+    else if (currency) {
         params.push(currency);
         conditions.push(`currency = $${params.length}`);
     }
     if (region) {
         params.push(region);
         conditions.push(`region = $${params.length}`);
-    }
-    if (effectiveCountry) {
-        params.push(effectiveCountry);
-        conditions.push(`country_code = $${params.length}`);
     }
     // BUY-77178: category filter — BUY-77834 fix
     // The prior `LOWER(category) = $N` exact-match against the single text column
@@ -1732,10 +1771,11 @@ async function handleListCategories(args) {
     // BUY-69823: wrap the whole queryPromise in a hard wall-clock timeout so pool
     // contention + slow queries never exceed ~6s. If timeout fires, return hardcoded
     // categories rather than a hard 5xx.
-    const MAT_VIEW_TIMEOUT_MS = 8000;
-    const LIVE_TIMEOUT_MS = 1800;
+    const MAT_VIEW_TIMEOUT_MS = 4000;
+    const LIVE_TIMEOUT_MS = 1500;
     const HARD_TIMEOUT_MS = 6000;
     const queryPromise = (async () => {
+        const tAcquire = Date.now();
         const client = await (0, readReplica_1.servingReadDbConnect)().catch((err) => {
             if (err instanceof readReplica_1.ReplicaUnavailableError) {
                 console.warn('[list_categories] replica unavailable, falling back to primary:', err.message);
@@ -1744,8 +1784,14 @@ async function handleListCategories(args) {
             console.warn('[list_categories] db.connect failed:', err?.message);
             throw { code: -32603, message: 'Database connection timeout' };
         });
+        const catPoolWaitMs = Date.now() - tAcquire;
+        const skipColdScan = catPoolWaitMs >= 500;
         try {
-            await client.query('SET statement_timeout = 8000');
+            await client.query('SET statement_timeout = 4000');
+            {
+                const stCat = await showStatementTimeout(client);
+                console.warn(`[mcp] BUY-67598 list_categories pool_wait_ms=${catPoolWaitMs} statement_timeout=${stCat} sql_start`);
+            }
             // BUY-69472: set lock_timeout so concurrent matview refresh / long-held
             // ACCESS EXCLUSIVE locks degrade to fallback instead of hard -32603.
             await client.query('SET lock_timeout = 5000');
@@ -1763,7 +1809,7 @@ async function handleListCategories(args) {
                 }
                 // BUY-69823: if matview empty, try a bounded live GROUP BY with a tighter
                 // per-query timeout — prevents a 50K-row scan from burning the full 8s.
-                if (rows.length === 0) {
+                if (rows.length === 0 && !skipColdScan) {
                     try {
                         await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
                         await client.query(`SET work_mem = '256MB'`);
@@ -1790,7 +1836,7 @@ async function handleListCategories(args) {
                         await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
                     }
                 }
-                if (rows.length === 0) {
+                if (rows.length === 0 && !skipColdScan) {
                     // BUY-60056: materialized view is empty/stale in production. Instead of
                     // returning unavailable or running a full-table GROUP BY, sample recent
                     // products through the updated_at path and derive a bounded category list.
@@ -1833,7 +1879,7 @@ async function handleListCategories(args) {
                     throw dbErr;
                 }
             }
-            if (rows.length === 0) {
+            if (rows.length === 0 && !skipColdScan) {
                 let estimate = 0;
                 try {
                     const rel = FAST_CHILD_TABLE_COUNTRIES.has(country.toUpperCase())
@@ -2016,7 +2062,6 @@ async function handleFindBestPrice(args) {
             tierParams.push(minPrice);
             tierConditions.push(`sp.price >= $${tierParams.length}`);
         }
-        const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
         // BUY-76909: route candidates AND hydration to the country child table when one
         // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
         // joins even with indexes, and search_products ids do not overlap child-table ids
@@ -2033,6 +2078,7 @@ async function handleFindBestPrice(args) {
             tierParams.push(requestedCountry);
             tierConditions.push(`sp.country_code = $${tierParams.length}`);
         }
+        const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
         // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
         // model query every accessory title contains all the query terms, so the ten
         // highest-ranked rows for "sony wh-1000xm5" were ear pads, headband assemblies and
@@ -2713,7 +2759,7 @@ async function withMcpCatalogWall(name, args, work) {
     const startedAt = Date.now();
     let timer;
     const wall = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+        timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), (MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS));
     });
     try {
         return await Promise.race([work(), wall]);
@@ -2721,7 +2767,7 @@ async function withMcpCatalogWall(name, args, work) {
     catch (err) {
         const message = String(err?.message || '');
         if (message.includes('mcp_catalog_wall_timeout')) {
-            console.warn(`[mcp] BUY-78735: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+            console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${(MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS)}ms catalog wall — flushing degraded envelope`);
             return mcpCatalogWallEnvelope(name, args, startedAt);
         }
         throw err;
@@ -3231,6 +3277,46 @@ router.get('/health/regions', async (_req, res) => {
     }
 });
 // GET /mcp/health/authenticated — deeper probe requiring API key
+router.get('/diagnostics', apiKey_1.requireApiKey, async (_req, res) => {
+    let statementTimeout = null;
+    let poolWaitMs = null;
+    try {
+        const acquired = await acquireMcpClientTimed('diagnostics');
+        poolWaitMs = acquired.poolWaitMs;
+        try {
+            statementTimeout = await showStatementTimeout(acquired.client);
+        }
+        finally {
+            releaseClientSafely(acquired.client);
+        }
+    }
+    catch (err) {
+        return res.status(503).json({
+            issue: 'BUY-67598',
+            error: err.message || String(err),
+            tool_wall_ms: MCP_TOOL_WALL_MS,
+            catalog_wall_ms: MCP_CATALOG_WALL_MS,
+            catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+            db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+        });
+    }
+    res.json({
+        issue: 'BUY-67598',
+        tool_wall_ms: MCP_TOOL_WALL_MS,
+        catalog_wall_ms: MCP_CATALOG_WALL_MS,
+        catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+        db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+        session_statement_timeout: statementTimeout,
+        pool_wait_ms: poolWaitMs,
+        list_categories: {
+            mat_view_timeout_ms: 4000,
+            live_timeout_ms: 1500,
+            skip_cold_scan_if_pool_wait_ms: 500,
+            cached_ttl_s: 600,
+        },
+        ts: new Date().toISOString(),
+    });
+});
 router.get('/health/authenticated', apiKey_1.requireApiKey, async (_req, res) => {
     try {
         const [countResult, pong] = await Promise.all([
