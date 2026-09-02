@@ -2252,8 +2252,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       tierParams.push(minPrice);
       tierConditions.push(`sp.price >= $${tierParams.length}`);
     }
-    const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
-
     // BUY-76909: route candidates AND hydration to the country child table when one
     // exists. The products parent (373M rows / 297GB, 11M dead tuples) times out PK
     // joins even with indexes, and search_products ids do not overlap child-table ids
@@ -2270,6 +2268,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       tierParams.push(requestedCountry);
       tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
     // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
     // model query every accessory title contains all the query terms, so the ten
