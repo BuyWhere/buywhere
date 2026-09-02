@@ -2282,6 +2282,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       tierParams.push(requestedCountry);
       tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    if (country && COUNTRY_CURRENCY[country]) {
+      // BUY-80156: FBP tier query was missing the native-currency predicate
+      // BUY-80024 added for search_products. Without it, SG shopper sees
+      // USD 1895 for nike shirt (titan22.com / shopify_titan22_com) when
+      // SG's native is SGD; same root cause for MY shirt returning USD 289
+      // from savageworldwide.com.my. Symmetric fix.
+      tierParams.push(COUNTRY_CURRENCY[country]);
+      tierConditions.push(`sp.currency = $${tierParams.length}`);
+    }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
     // 2026-08-29: the page window was `limit` (10) ordered by ts_rank alone. For an exact
