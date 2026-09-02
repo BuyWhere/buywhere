@@ -175,6 +175,7 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   // catalog source for /best-robot-vacuums-singapore (H15/H16 wet-dry SKUs).
   // Domain first-label is "megadiscountstore".
   "megadiscountstore",
+  "megadiscountstore.com.sg",
   "megadiscountstore_sg",
   "mega_discount_store",
   "sim_lim_square_sg",
@@ -532,6 +533,7 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "harveynorman",
   "gaincity",
   "megadiscountstore",
+  "megadiscountstore.com.sg",
   "mega discount store",
   "apple",
   "samsung",

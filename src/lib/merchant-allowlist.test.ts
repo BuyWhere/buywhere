@@ -139,6 +139,20 @@ test("BUY-77121: candidateAllowlistSlugs returns variants in priority order", ()
   assert.equal(candidates[0], "challenger.com.sg");
 });
 
+test("BUY-79778: megadiscountstore.com.sg passes SG allowlist (slug + label)", () => {
+  // Live catalog slug for Mega Discount Store SG
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "megadiscountstore.com.sg" }, "SG"),
+    true,
+    "megadiscountstore.com.sg must match SG slug allowlist",
+  );
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "megadiscountstore" }, "SG"),
+    true,
+    "bare megadiscountstore must match SG slug allowlist",
+  );
+});
+
 test("BUY-77121: ingest suffix (apple_sg_buy_xml) strips _buy_xml to apple_sg", () => {
   const candidates = candidateAllowlistSlugs("apple_sg_buy_xml");
   assert.ok(candidates.includes("apple_sg_buy_xml"));
