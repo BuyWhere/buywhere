@@ -1219,12 +1219,18 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
-      // BUY-79598: REST served hits — do not open the SG catalog_search circuit.
+      // BUY-79598: REST served hits. Do not open the circuit — upstream_exception
+      // means the catalog is healthy, not exhausted. Only timeout opens the circuit.
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
-      recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
-    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    // BUY-79598: only open circuit for genuine pool exhaustion (timeout). An
+    // upstream_exception is a transient catalog error; REST fills it and the next
+    // query will succeed — opening the circuit for 120s would block macbook/nike
+    // entirely while the catalog is already healthy.
+    if (degradedKind === 'timeout') {
+      recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
