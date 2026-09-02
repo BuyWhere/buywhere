@@ -600,6 +600,17 @@ function isUsableProductImage(imageUrl?: string | null) {
   }
 }
 
+/** BUY-79816: Magento cache placeholder filenames (Best Denki 29181xx-1.jpg). */
+export function looksLikeRetailerPlaceholderUrl(imageUrl: string | null | undefined): boolean {
+  if (!imageUrl) return false;
+  const u = imageUrl.toLowerCase();
+  if (u.includes("placeholder") || u.includes("/no_selection") || u.includes("noimage")) return true;
+  if (/cdn\.bestdenki\.com\.sg\/media\/catalog\/product\/cache\/[^/]+\/2\/9\/29181\d{2}-1(?:_\d+)?\.jpe?g/.test(u)) {
+    return true;
+  }
+  return false;
+}
+
 function schemaProductImage(imageUrl?: string | null): string | undefined {
   const cleaned = sanitizeProductImageUrl(imageUrl);
   if (!cleaned) return undefined;
@@ -758,7 +769,7 @@ function brandedProductPlaceholderSvg(
  * landing page would SSR with an <img> that fails to load and lands on the
  * Placeholder (BUY-64729).
  */
-const MIN_PRODUCT_PHOTO_BYTES = 20_000; // BUY-79812: logos / watermarks (Bestdenki 9136)
+const MIN_PRODUCT_PHOTO_BYTES = 15_000; // BUY-79816 / BUY-79802: retailer placeholders (Bestdenki 9136)
 
 /** BUY-79812: Content-Length on a Range GET is the slice size (often 1). Prefer Content-Range total. */
 function rasterByteLength(headers: Headers): number {
@@ -978,25 +989,20 @@ async function verifyUsableImageContent(
         buf.set(c, offset);
         offset += c.byteLength;
       }
+      const headerLen = rasterByteLength(res.headers);
+      // BUY-79816: CDNs often omit Content-Length. If the stream ended before
+      // LIMIT, `total` is the full file — Best Denki placeholders are 9136 bytes.
+      const knownFullSize =
+        headerLen > 0 ? headerLen : total < LIMIT ? total : 0;
+      if (knownFullSize > 0 && knownFullSize < MIN_PRODUCT_PHOTO_BYTES) {
+        return false;
+      }
       const dims = parseImageDimensions(buf);
-      if (!dims) return true; // unknown format — pass through, the existing onError fallback handles failures
-      if (!isSquareAspect(dims)) return true; // non-square → safe to keep
-      // Square: keep only when the file is rich enough that the subject likely
-      // fills the frame. Small square JPEGs are the high-risk "blank/white"
-      // case (BUY-63507: 1500x1500 @ 127KB Gigabyte A16, 1200x1200 @ 120KB
-      // Zephyrus G16). Large square JPEGs (e.g. 1200x1200 @ 968KB ProArt P16)
-      // have enough detail to render correctly.
-      const contentLength = Number(res.headers.get("content-length") || "0");
-      // BUY-79812: tiny raster (logo / watermark) regardless of aspect.
-      if (contentLength > 0 && contentLength < MIN_PRODUCT_PHOTO_BYTES) {
+      if (!dims) return true; // unknown format — pass through
+      if (!isSquareAspect(dims)) return true; // non-square → keep (size already gated)
+      if (knownFullSize > 0 && knownFullSize < SQUARE_FILE_SIZE_THRESHOLD) {
         return false;
       }
-      if (contentLength > 0 && contentLength < SQUARE_FILE_SIZE_THRESHOLD) {
-        return false;
-      }
-      // No content-length header — we can't tell how big the full file is,
-      // so be conservative and keep the image. The reachable check already
-      // gates truly dead URLs.
       return true;
     } finally {
       clearTimeout(timer);
@@ -1714,6 +1720,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     collected.map(async (product) => {
       if (!product.imageUrl) return { passed: false, reason: "no_url" };
       if (!sanitizeProductImageUrl(product.imageUrl)) return { passed: false, reason: "invalid_url" };
+      if (looksLikeRetailerPlaceholderUrl(product.imageUrl)) {
+        return { passed: false, reason: "placeholder_url" };
+      }
       // First check: reachable
       const reachable = await verifyReachableImage(product.imageUrl);
       if (!reachable) return { passed: false, reason: "unreachable" };
@@ -1800,10 +1809,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
     const imageKey = product.imageUrl;
     if (seenImageUrls.has(imageKey)) {
-      // Collision detected - skip this product (keep the first one encountered)
+      // Collision: keep the card, empty the image (never two cards, same bytes).
       console.warn(
-        `[seo] BUY-79816 hash collision for ${imageKey} - skipping duplicate from ${product.merchant}`
+        `[seo] BUY-79816 hash collision for ${imageKey} - nulling duplicate from ${product.merchant}`
       );
+      dedupedProducts.push({ ...product, imageUrl: null });
       continue;
     }
     seenImageUrls.add(imageKey);

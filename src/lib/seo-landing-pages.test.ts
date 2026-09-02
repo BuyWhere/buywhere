@@ -15,6 +15,7 @@ import {
   stripCountryTokens,
   verifyReachableImage,
   sanitizeProductImageUrl,
+  looksLikeRetailerPlaceholderUrl,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
 
@@ -1838,4 +1839,24 @@ test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps J
     merged.fallbackProducts && merged.fallbackProducts.length === 6,
     "merged fallbackProducts must come from JSON when JSON ships a non-empty array"
   );
+});
+
+test("BUY-79816: Best Denki Magento placeholders fail URL heuristic", () => {
+  assert.equal(
+    looksLikeRetailerPlaceholderUrl(
+      "https://cdn.bestdenki.com.sg/media/catalog/product/cache/7eb369f27775f2db92648609527c34e5/2/9/2918110-1.jpg",
+    ),
+    true,
+  );
+  assert.equal(
+    looksLikeRetailerPlaceholderUrl(
+      "https://cdn.bestdenki.com.sg/media/catalog/product/cache/7eb369f27775f2db92648609527c34e5/2/9/2918115-1.jpg",
+    ),
+    true,
+  );
+  assert.equal(
+    looksLikeRetailerPlaceholderUrl("https://cdn.bestdenki.com.sg/media/catalog/product/real-laptop.jpg"),
+    false,
+  );
+  assert.equal(looksLikeRetailerPlaceholderUrl("https://example.com/placeholder/logo.png"), true);
 });
