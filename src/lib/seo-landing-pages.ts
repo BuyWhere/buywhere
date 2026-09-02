@@ -2346,8 +2346,12 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "air purifier Singapore",
-    backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
+    // BUY-80149: broad "air purifier Singapore" FTS can return a stale USD
+    // respirator cache. Start with live SG brand queries that currently return
+    // priced levoit.sg / sterra.sg / challenger.sg rows, then keep broad terms
+    // only as last-resort fallbacks.
+    searchQuery: "levoit air purifier",
+    backupQueries: ["sterra air purifier", "Coway air purifier", "Xiaomi air purifier", "air purifier", "air purifier Singapore"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
