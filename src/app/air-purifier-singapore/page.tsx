@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/seo/SeoLandingPage";
 import { buildSeoLandingMetadata, seoLandingPages } from "@/lib/seo-landing-pages";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const config = seoLandingPages["air-purifier-singapore"];
 
 export async function generateMetadata(): Promise<Metadata> {
