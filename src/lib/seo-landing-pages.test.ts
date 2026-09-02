@@ -1581,6 +1581,29 @@ test("BUY-79812: verifyReachableImage rejects tiny retailer logos", async () => 
   }
 });
 
+test("BUY-79812: Range GET uses Content-Range total, not slice length", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if ((init?.method || "GET").toUpperCase() === "HEAD") {
+      return new Response("", { status: 405, headers: { allow: "GET" } });
+    }
+    return new Response("x", {
+      status: 206,
+      headers: {
+        "content-type": "image/jpeg",
+        "content-length": "1",
+        "content-range": "bytes 0-0/9136",
+      },
+    });
+  }) as typeof globalThis.fetch;
+  try {
+    const reachable = await verifyReachableImage("https://cdn.bestdenki.com/media/catalog/product/1/5/1503498-1.jpg");
+    assert.equal(reachable, false, "Range GET of a 9136-byte JPEG must still fail the 20KB floor");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("BUY-79277: accessory demotion ranks earpads below primary headphones", () => {
   const earpad = {
     id: "1",

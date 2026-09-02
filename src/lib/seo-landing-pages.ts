@@ -744,6 +744,21 @@ function brandedProductPlaceholderSvg(
  */
 const MIN_PRODUCT_PHOTO_BYTES = 20_000; // BUY-79812: logos / watermarks (Bestdenki 9136)
 
+/** BUY-79812: Content-Length on a Range GET is the slice size (often 1). Prefer Content-Range total. */
+function rasterByteLength(headers: Headers): number {
+  const range = headers.get("content-range") || "";
+  const totalMatch = /\/(\d+)\s*$/.exec(range);
+  if (totalMatch) return Number(totalMatch[1]);
+  return Number(headers.get("content-length") || "0");
+}
+
+function isTinyRetailerRaster(headers: Headers): boolean {
+  const contentType = (headers.get("content-type") || "").toLowerCase();
+  if (!contentType.startsWith("image/") || contentType.includes("svg")) return true;
+  const len = rasterByteLength(headers);
+  return len > 0 && len < MIN_PRODUCT_PHOTO_BYTES;
+}
+
 // BUY-69736: exported so the regression test can probe it directly.
 export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
   if (!sanitizeProductImageUrl(imageUrl)) return false;
@@ -783,11 +798,7 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
       // so text/html error pages are treated as unreachable and the branded
       // SVG placeholder path takes over.
       if (res.ok) {
-        const contentType = (res.headers.get("content-type") || "").toLowerCase();
-        if (!contentType.startsWith("image/") || contentType.includes("svg")) return false;
-        const len = Number(res.headers.get("content-length") || "0");
-        // BUY-79812: retailer watermark logos are typically < 20KB (Bestdenki 9136).
-        if (len > 0 && len < MIN_PRODUCT_PHOTO_BYTES) return false;
+        if (isTinyRetailerRaster(res.headers)) return false;
         return true;
       }
       if (res.status === 405 || res.status === 403) {
@@ -801,10 +812,7 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
             headers: { Range: "bytes=0-0" },
           });
           if (!(get.ok || get.status === 206)) return false;
-          const getContentType = (get.headers.get("content-type") || "").toLowerCase();
-          if (!getContentType.startsWith("image/") || getContentType.includes("svg")) return false;
-          const getLen = Number(get.headers.get("content-length") || "0");
-          if (getLen > 0 && getLen < MIN_PRODUCT_PHOTO_BYTES) return false;
+          if (isTinyRetailerRaster(get.headers)) return false;
           return true;
         }
         return false;
@@ -1934,7 +1942,9 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           }
         : undefined,
       category: reference.category || undefined,
-      image: schemaProductImage(reference.imageUrl),
+      ...(schemaProductImage(reference.imageUrl)
+        ? { image: schemaProductImage(reference.imageUrl) }
+        : {}),
       description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
@@ -2050,7 +2060,9 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                     name: product.brand,
                   }
                 : undefined,
-              image: schemaProductImage(product.imageUrl),
+              ...(schemaProductImage(product.imageUrl)
+                ? { image: schemaProductImage(product.imageUrl) }
+                : {}),
               category: product.category || undefined,
               offers:
                 product.price !== null
