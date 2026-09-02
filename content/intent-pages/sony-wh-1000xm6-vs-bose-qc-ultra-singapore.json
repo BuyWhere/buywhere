@@ -119,7 +119,56 @@
       "answer": "Yes. Both pair as standard Bluetooth headphones with any iPhone, and Bose supports Apple's find-my style tracking via SimpleSync ecosystems, but Sony's LDAC hi-res codec is Android-only. iPhone owners lose nothing important on either; Android owners get a small audio edge with the Sony."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "56707911",
+      "name": "Comply Foam Ear Tips For Bose QuietComfort Ultra & QuietComfort II Medium 3 pair pack",
+      "price": 36.9,
+      "currency": "SGD",
+      "merchant": "shopify_stereo_sg",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0703/4830/8515/files/comply_bose.png?v=1726771962",
+      "href": "/r/direct/56707911",
+      "affiliateUrl": "/r/direct/56707911",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57648337",
+      "name": "Bose QuietComfort Ultra Earbuds",
+      "price": 328,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/BoseQuietComfortUltraEarbuds.jpg?v=1775580989",
+      "href": "/r/direct/57648337",
+      "affiliateUrl": "/r/direct/57648337",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56951484",
+      "name": "Bose QuietComfort Ultra Headphones",
+      "price": 449,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/BOSEQuietComfortUltraHeadphones.jpg?v=1775581002",
+      "href": "/r/direct/56951484",
+      "affiliateUrl": "/r/direct/56951484",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "65877215",
+      "name": "Bose QuietComfort Ultra Headphones - Black",
+      "price": 369,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90250570_XL1_20260422214029_e0d100b4539b7f7b473e106311ae820c.jpg",
+      "href": "/r/direct/65877215",
+      "affiliateUrl": "/r/direct/65877215",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-noise-cancelling-headphones-singapore",

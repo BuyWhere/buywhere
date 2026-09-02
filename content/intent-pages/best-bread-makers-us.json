@@ -1,10 +1,10 @@
 {
   "slug": "best-bread-makers-us",
-  "title": "Best Bread Makers in the US (2026) \u2014 Live Prices Compared",
+  "title": "Best Bread Makers in the US (2026) — Live Prices Compared",
   "description": "The best bread makers in the US for 2026: live prices from Amazon, Walmart, Target and major retailers, with a side-by-side on loaf size, cycle count, gluten-free settings and what separates a good bread maker from a countertop ornament.",
   "heroEyebrow": "US bread maker buying guide",
-  "heroTitle": "Best Bread Makers in the US (2026) \u2014 which one actually bakes well",
-  "heroTitleTemplate": "Best bread makers in the US (2026) \u2014 from {floorPrice}",
+  "heroTitle": "Best Bread Makers in the US (2026) — which one actually bakes well",
+  "heroTitleTemplate": "Best bread makers in the US (2026) — from {floorPrice}",
   "heroBody": "A good bread maker turns flour, water and yeast into a fresh loaf while you sleep, but the market is littered with machines that produce dense, gummy loaves or break down after a year of weekend baking. The difference comes down to kneading power, crust control, the shape of the baking pan and whether the machine handles gluten-free and whole-wheat doughs without turning them into bricks. This page compares live US prices from Amazon, Walmart and Target so you can see what each model actually costs right now, and the guide below explains what to look for and what to avoid when choosing a bread maker in 2026.",
   "canonicalPath": "/best-bread-makers-us",
   "country": "US",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live bread maker prices in the US",
-  "comparisonSectionTitle": "Best bread makers in the US \u2014 at a glance",
+  "comparisonSectionTitle": "Best bread makers in the US — at a glance",
   "comparisonColumns": [
     "Brand / model",
     "Loaf size",
@@ -111,11 +111,11 @@
     "Start with how often you bake and how many people you feed. A 2-lb loaf feeds a family of four for a day; a 1.5-lb loaf suits couples. If you bake for one, a smaller machine saves counter space and energy.",
     "Dual kneading blades produce better bread than single-paddle machines, especially for whole-wheat and gluten-free recipes. The quality difference is immediately visible in the crumb structure.",
     "Check whether the paddle is removable before baking. Some machines have a collapsible paddle (Breville) that leaves a smaller hole in the finished loaf. Others require you to remove it manually mid-cycle, which is easy to forget.",
-    "Gluten-free bakers should look for machines with a dedicated GF cycle and verified GF recipes in the manual. Not all 'GF' settings are equally effective \u2014 read reviews from GF bakers before committing.",
+    "Gluten-free bakers should look for machines with a dedicated GF cycle and verified GF recipes in the manual. Not all 'GF' settings are equally effective — read reviews from GF bakers before committing.",
     "If counter space is limited, consider the machine's dimensions and whether the lid opens upward or sideways. Upward-opening lids need more clearance; sideways-opening lids work under cabinets.",
     "Timing your purchase to Amazon Prime Day, Black Friday or holiday sales can save significantly on premium models. The live prices on this page show current pricing across retailers."
   ],
-  "faqSectionTitle": "Bread makers in the US \u2014 common questions",
+  "faqSectionTitle": "Bread makers in the US — common questions",
   "faqs": [
     {
       "question": "What is the best bread maker for beginners in the US?",
@@ -138,7 +138,56 @@
       "answer": "Premium bread makers (Zojirushi, Breville) deliver better kneading, more consistent results and longer lifespans than budget models. If you bake more than once a week, the investment pays for itself in better bread and fewer replacements. For occasional bakers, budget models produce perfectly good loaves."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "132680094",
+      "name": "Bread maker Paddle Kitchen Bread Maker Blade Non stick Kneading Blade Replacement for Bread maker Machine",
+      "price": 8.27,
+      "currency": "USD",
+      "merchant": "shopify_buy30620_crate",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/1902/1605/products/41ZUgO-Up5L.jpg?v=1705542802",
+      "href": "/r/direct/132680094",
+      "affiliateUrl": "/r/direct/132680094",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908433951242",
+      "name": "Universal Bread Maker Blade Portable Bread Maker Mixing Paddle Stainless Steel Non-stick Lightweight Breadmaker Machine Replacement Part",
+      "price": 6.99,
+      "currency": "USD",
+      "merchant": "amazon_us",
+      "imageUrl": "https://m.media-amazon.com/images/I/615AXKE4chL.jpg",
+      "href": "/r/direct/9222976908433951242",
+      "affiliateUrl": "/r/direct/9222976908433951242",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "132680079",
+      "name": "Bread Maker Paddle, kitchen Bread Maker Kneading Blade Part Mixing Paddle Replacement for Breadmaker Machine Black Bakery Kitchen Helper Accessory",
+      "price": 10.87,
+      "currency": "USD",
+      "merchant": "shopify_buy30620_crate",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/1902/1605/products/41iFvhgbVZL.jpg?v=1705543115",
+      "href": "/r/direct/132680079",
+      "affiliateUrl": "/r/direct/132680079",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "71275261",
+      "name": "Kenwood Electric Arabian 36cm Bread Maker - Pizza Maker | Roti and Crepe Maker",
+      "price": 15999,
+      "currency": "USD",
+      "merchant": "shopify",
+      "imageUrl": null,
+      "href": "/r/direct/71275261",
+      "affiliateUrl": "/r/direct/71275261",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-bread-makers-singapore"
   },
@@ -148,7 +197,7 @@
   ],
   "categoryIntro": {
     "heading": "Why bread makers are worth the counter space",
-    "body": "A bread maker is the rare kitchen appliance that saves money while improving what you eat. A loaf of quality bread from a bakery costs several dollars; the same ingredients from the grocery store cost a fraction of that. Over a year of weekly baking, a bread maker pays for itself while giving you control over ingredients, no preservatives and the smell of fresh bread filling your kitchen every morning. The machines below range from budget picks to premium models \u2014 the right one depends on how often you bake and what kind of bread you prefer."
+    "body": "A bread maker is the rare kitchen appliance that saves money while improving what you eat. A loaf of quality bread from a bakery costs several dollars; the same ingredients from the grocery store cost a fraction of that. Over a year of weekly baking, a bread maker pays for itself while giving you control over ingredients, no preservatives and the smell of fresh bread filling your kitchen every morning. The machines below range from budget picks to premium models — the right one depends on how often you bake and what kind of bread you prefer."
   },
   "owner": "Buzz",
   "reviewer": "Hue",

@@ -119,7 +119,56 @@
       "answer": "Only if you need always-on connectivity without phone tethering. Cellular Android tablet SKUs are scarce in Singapore and command a meaningful premium; most people do better buying the Wi-Fi model and tethering from their phone when needed."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "54446552",
+      "name": "Trace, Magnesium Effervescent Tablets, Raspberry, 8 Tubes, 10 Tablets Each",
+      "price": 50.99,
+      "currency": "SGD",
+      "merchant": "iherb",
+      "imageUrl": "https://s3.images-iherb.com/iherb/137498/400.jpg",
+      "href": "/r/direct/54446552",
+      "affiliateUrl": "/r/direct/54446552",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54446492",
+      "name": "Nature's Bounty, Apple Cider Vinegar, 200 Tablets (240 mg per Tablet)",
+      "price": 19.07,
+      "currency": "SGD",
+      "merchant": "iherb",
+      "imageUrl": "https://s3.images-iherb.com/iherb/81687/400.jpg",
+      "href": "/r/direct/54446492",
+      "affiliateUrl": "/r/direct/54446492",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54444661",
+      "name": "BYANDBY Tablet 7 inch Android 15.0 Tablet, 6GB+32GB ROM （1TB Expand）, Quad-Core, WiFi, GMS, Dual Camera, Educational, Games （Black）",
+      "price": 56.82,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71ODlkKD2VL._AC_UL320_.jpg",
+      "href": "/r/direct/54444661",
+      "affiliateUrl": "/r/direct/54444661",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54444597",
+      "name": "BOOX Tablet Go 10.3 ePaper E Ink Tablet 4G 64G 300 PPI B/W",
+      "price": 661.65,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/61-E3vQaa9L._AC_UL320_.jpg",
+      "href": "/r/direct/54444597",
+      "affiliateUrl": "/r/direct/54444597",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-android-tablets-us"
   },

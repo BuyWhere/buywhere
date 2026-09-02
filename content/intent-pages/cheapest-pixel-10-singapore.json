@@ -121,7 +121,56 @@
       "answer": "Yes for network — Singapore carriers are SIM-free and unlocked by default. The catch is warranty: parallel imports are not serviceable by Google Singapore and you cannot add Preferred Care locally."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "57643708",
+      "name": "Spigen Google Pixel 10 Pro / Pixel 10 Case Ultra Hybrid MagFit Clear",
+      "price": 39.99,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/Google-Pixel-10-Pro-Pixel-10-Case-Ultra-Hybrid-MagFit-Clear-_value_Product-ven-254888086.jpg?v=1760030102",
+      "href": "/r/direct/57643708",
+      "affiliateUrl": "/r/direct/57643708",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57643707",
+      "name": "Spigen Google Pixel 10 Pro / Pixel 10 Case Ultra Hybrid MagFit Neo One",
+      "price": 49.99,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/Google-Pixel-10-Pro-Pixel-10-Case-Ultra-Hybrid-MagFit-Neo-One-_value_Product-ven-254887196.jpg?v=1760030115",
+      "href": "/r/direct/57643707",
+      "affiliateUrl": "/r/direct/57643707",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57643706",
+      "name": "Spigen Google Pixel 10 Pro / Pixel 10 Case Ultra Hybrid MagFit Frost Matte Back",
+      "price": 49.99,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/Google-Pixel-10-Pro-Pixel-10-Case-Ultra-Hybrid-MagFit-Frost-Matte-Back-_value_Product-ven-254886251.jpg?v=1760030123",
+      "href": "/r/direct/57643706",
+      "affiliateUrl": "/r/direct/57643706",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57643705",
+      "name": "Spigen Google Pixel 10 Pro / Pixel 10 Case Ultra Hybrid",
+      "price": 29.99,
+      "currency": "SGD",
+      "merchant": "shopify_techhouse",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0737/0021/2770/files/Google-Pixel-10-Pro-Pixel-10-Case-Ultra-Hybrid-_value_Product-ven-254885354.jpg?v=1760030134",
+      "href": "/r/direct/57643705",
+      "affiliateUrl": "/r/direct/57643705",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-pixel-10-us"
   },

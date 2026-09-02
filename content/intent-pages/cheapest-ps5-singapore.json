@@ -110,7 +110,44 @@
       "answer": "Buy the bundle only if it includes an item you actually want, such as an extra DualSense controller or a game on your list. Otherwise, use the console-only live price as the comparison point."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "53137058",
+      "name": "Sony Playstation PS5 Console/ Slim Console - Ready Stock",
+      "price": 763.9,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/99d5d763d7bfc0c573f69649ede668dd",
+      "href": "/r/direct/53137058",
+      "affiliateUrl": "/r/direct/53137058",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56321138",
+      "name": "SONY PlayStation 5 Pro PS5 Pro 2TB | PlayStation 5 PS5 Slim Console | PS5 NBA 2K26 | Export/SG Set",
+      "price": 748.9,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7rdyo-mbvbmm8n25ph8a",
+      "href": "/r/direct/56321138",
+      "affiliateUrl": "/r/direct/56321138",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "53116846",
+      "name": "SONY PlayStation 5 Pro PS5 Pro 2TB | PlayStation 5 PS5 Slim Console | PS5 NBA 2K26 | Export/SG Set",
+      "price": 729.9,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7rdyo-mbvbmm8n25ph8a",
+      "href": "/r/direct/53116846",
+      "affiliateUrl": "/r/direct/53116846",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-ps5-us"
   },

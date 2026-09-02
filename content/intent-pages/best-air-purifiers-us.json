@@ -1,10 +1,10 @@
 {
   "slug": "best-air-purifiers-us",
-  "title": "Best Air Purifiers in the US (2026) \u2014 Live Prices Compared",
+  "title": "Best Air Purifiers in the US (2026) — Live Prices Compared",
   "description": "Which air purifier actually buys you cleaner air in a US home: live prices from Amazon, Best Buy, Walmart and Target compared daily, with guidance on CADR, room size, HEPA standards, smart features and what changed this year.",
   "heroEyebrow": "US air purifier guide 2026",
-  "heroTitle": "Best air purifiers in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best air purifiers in the US (2026) \u2014 from {floorPrice} today",
+  "heroTitle": "Best air purifiers in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best air purifiers in the US (2026) — from {floorPrice} today",
   "heroBody": "Air purifier value in 2026 is not about the biggest CADR sticker: it is about whether the unit is independently certified for the room you actually live in, how often the filters force you back to the store, and whether the smart features are usable or just a checkbox. This page pulls live US listings from BuyWhere's catalog every few minutes, so the floor price, current sale prices and stock at Amazon, Best Buy, Walmart and Target are always current. We focus on whole-room purifiers with verified AHAM CADR ratings, true HEPA filtration and a sensible total cost of ownership over the first three years.",
   "canonicalPath": "/best-air-purifiers-us",
   "country": "US",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live air purifier prices in the US",
-  "comparisonSectionTitle": "Which air purifier type fits your home \u2014 at a glance",
+  "comparisonSectionTitle": "Which air purifier type fits your home — at a glance",
   "comparisonColumns": [
     "Type",
     "Typical room coverage",
@@ -46,7 +46,7 @@
     {
       "label": "Mid-size room with AHAM CADR",
       "values": [
-        "300\u2013600 sq ft",
+        "300–600 sq ft",
         "Medium",
         "Living rooms, open-plan spaces"
       ]
@@ -80,7 +80,7 @@
     },
     {
       "title": "Filter cost quietly doubles the price",
-      "body": "A unit at a discount is meaningless if replacement filters are 80\u2013120 USD and last six months. Over three years, filters typically add 40\u201380% to the purchase price. Always price the filter subscription before you click buy."
+      "body": "A unit at a discount is meaningless if replacement filters are 80–120 USD and last six months. Over three years, filters typically add 40–80% to the purchase price. Always price the filter subscription before you click buy."
     }
   ],
   "adviceSectionTitle": "How to pick the right air purifier without overpaying",
@@ -88,16 +88,16 @@
     "Match CADR to room size: multiply room square footage by 0.5 to get a minimum smoke CADR. Anything below that runs constantly and never catches up.",
     "Buy for the room you use most, not the whole house. A correctly sized purifier in the bedroom does more for sleep and allergy than an undersized unit for the living room.",
     "True HEPA + activated carbon is the default for wildfire smoke, pet dander and cooking odors. Carbon matters more than most review sites admit.",
-    "Skip the 'ionizer' and 'UV-C' add-ons unless you have a specific reason \u2014 independent testing shows little extra benefit and ionizers can produce ozone.",
+    "Skip the 'ionizer' and 'UV-C' add-ons unless you have a specific reason — independent testing shows little extra benefit and ionizers can produce ozone.",
     "If you want smart features, prioritize auto-mode based on a real PM2.5 sensor over app gimmicks. Auto-mode is what saves electricity and extends filter life.",
-    "Watch for filter bundles at Amazon, Best Buy and the manufacturer's store \u2014 they often beat third-party filters on price during Prime Day and Black Friday.",
+    "Watch for filter bundles at Amazon, Best Buy and the manufacturer's store — they often beat third-party filters on price during Prime Day and Black Friday.",
     "If you have an HVAC system, a properly sized room purifier is usually a better dollar-per-CADR bet than an in-duct filter unless you already need new ductwork."
   ],
-  "faqSectionTitle": "Air purifiers in the US \u2014 common questions",
+  "faqSectionTitle": "Air purifiers in the US — common questions",
   "faqs": [
     {
       "question": "What CADR do I need for my room in the US?",
-      "answer": "A simple rule: smoke CADR of at least half your room's square footage, with a 7\u20138 ft ceiling. A 300 sq ft bedroom needs ~150 CADR; a 500 sq ft living room needs ~250. Bigger is fine, but oversized units are noisier and waste filter life if run on low."
+      "answer": "A simple rule: smoke CADR of at least half your room's square footage, with a 7–8 ft ceiling. A 300 sq ft bedroom needs ~150 CADR; a 500 sq ft living room needs ~250. Bigger is fine, but oversized units are noisier and waste filter life if run on low."
     },
     {
       "question": "Are air purifiers worth it for wildfire smoke in the US?",
@@ -105,18 +105,67 @@
     },
     {
       "question": "How often do I need to replace the filter?",
-      "answer": "Most HEPA filters last 6\u201312 months with daily use; carbon pre-filters last 3 months. Auto-mode units extend filter life. Budget 80\u2013120 USD per year for a mid-size True HEPA unit; whole-home units can run higher."
+      "answer": "Most HEPA filters last 6–12 months with daily use; carbon pre-filters last 3 months. Auto-mode units extend filter life. Budget 80–120 USD per year for a mid-size True HEPA unit; whole-home units can run higher."
     },
     {
       "question": "Do air purifiers help with allergies and asthma?",
-      "answer": "For dust, pollen and pet dander, a True HEPA unit in the bedroom makes a measurable difference. For asthma, pair the purifier with mattress and pillow encasements \u2014 the purifier alone will not eliminate exposure while you sleep."
+      "answer": "For dust, pollen and pet dander, a True HEPA unit in the bedroom makes a measurable difference. For asthma, pair the purifier with mattress and pillow encasements — the purifier alone will not eliminate exposure while you sleep."
     },
     {
       "question": "Where is the cheapest place to buy an air purifier in the US?",
       "answer": "Amazon typically has the broadest selection and lowest baseline price, but Best Buy and Target price-match during major sales, and Walmart is competitive on bundle pricing. The live listings on this page show today's floor across all four."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908550994769",
+      "name": "Instant Pot® Air Purifier, Small with Night Mode, Pearl",
+      "price": 139.99,
+      "currency": "USD",
+      "merchant": "instantpot.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0850/1690/3989/products/Instant_Brands_Week2_C1_AirPurifierWhite100_onwhite_edit-LIGHTS-ON-500x500.jpg?v=1707410855",
+      "href": "/r/direct/9222976908550994769",
+      "affiliateUrl": "/r/direct/9222976908550994769",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550994768",
+      "name": "Instant Pot® Air Purifier, Large with Night Mode, Pearl",
+      "price": 249.95,
+      "currency": "USD",
+      "merchant": "instantpot.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0850/1690/3989/products/1_AP300_pearl_product.jpg?v=1707410864",
+      "href": "/r/direct/9222976908550994768",
+      "affiliateUrl": "/r/direct/9222976908550994768",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550994771",
+      "name": "Instant Pot® Air Purifier, Large with Night Mode, Charcoal",
+      "price": 249.95,
+      "currency": "USD",
+      "merchant": "instantpot.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0850/1690/3989/products/NEW_Instant_Brands_Week2_C1_AirPurifierBlack_00880-16imageStep-LIGHTS-ON-500x500.jpg?v=1707410813",
+      "href": "/r/direct/9222976908550994771",
+      "affiliateUrl": "/r/direct/9222976908550994771",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550994772",
+      "name": "Instant Pot® Air Purifier, Medium with Night Mode, Charcoal",
+      "price": 189.99,
+      "currency": "USD",
+      "merchant": "instantpot.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0850/1690/3989/products/IB_AP200_150-0003-01_Charcoal_PDP_Square_NoText_1_r1.jpg?v=1707410803",
+      "href": "/r/direct/9222976908550994772",
+      "affiliateUrl": "/r/direct/9222976908550994772",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/search?q=air%20purifier&country=US",
@@ -124,7 +173,7 @@
   ],
   "categoryIntro": {
     "heading": "Why US air purifier prices vary so much",
-    "body": "The same model sells at Amazon, Walmart, Target, Best Buy and Costco at meaningfully different prices, often with different bundle contents and filter subscriptions. Manufacturer MSRP is mostly fiction outside the first month of release \u2014 the actual market price moves with Prime Day, Black Friday, and the brands' own subscription discounts. A static 'best price' round-up goes stale within days, so this page reads live listings instead."
+    "body": "The same model sells at Amazon, Walmart, Target, Best Buy and Costco at meaningfully different prices, often with different bundle contents and filter subscriptions. Manufacturer MSRP is mostly fiction outside the first month of release — the actual market price moves with Prime Day, Black Friday, and the brands' own subscription discounts. A static 'best price' round-up goes stale within days, so this page reads live listings instead."
   },
   "owner": "Surf",
   "reviewer": "Hue",

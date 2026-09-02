@@ -116,7 +116,56 @@
       "answer": "A used desktop wins on frames per dollar. A gaming laptop wins if you need to take the machine to campus or NS, or you only have a desk in a HDB room. This page assumes you need the portable."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "54475069",
+      "name": "Elestoria 10-Slot Vertical Laptop Stand & Holder – Adjustable Aluminum Laptop Stand Vertical for Desk Fits 6 Devices, MacBook & Gaming Laptops (Up to 17.3”) – Space Saving Laptop Storage Rack - Grey",
+      "price": 145.11,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71n4yG4Q5AL._AC_UL320_.jpg",
+      "href": "/r/direct/54475069",
+      "affiliateUrl": "/r/direct/54475069",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57496897",
+      "name": "Gaming Laptop i5, 16 inch Laptop Computer Up to 3.60GHz, 2026 Laptop Computers with 16GB RAM 512GB SSD, FHD 1920x1200, 180° Angle Open, Backlit Keyboard, HDMI, Lap top for Student Business Work",
+      "price": 496.44,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71AqHpBduPL._AC_UL320_.jpg",
+      "href": "/r/direct/57496897",
+      "affiliateUrl": "/r/direct/57496897",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57496942",
+      "name": "Laptop Cooling Pad, Laptop Cooler with 6 Quiet Led Fans for 15.6-17 Inch Laptop Cooling Fan Stand, Portable Ultra Slim USB Powered Gaming Laptop Cooling Pad, Switch Control Fan Speed Function",
+      "price": 38.05,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/81Te2luhQuL._AC_UL320_.jpg",
+      "href": "/r/direct/57496942",
+      "affiliateUrl": "/r/direct/57496942",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57496904",
+      "name": "Gaming Laptop, Laptops, 16GB DDR4 512GB SSD, Windows 11 with N100 Processor (up to 3.4GHz, 4C/4T), 15.6\" FHD 1920x1080p, Full Metal Housing, WiFi, BT5.0",
+      "price": 356.38,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71GWnWHvGqL._AC_UL320_.jpg",
+      "href": "/r/direct/57496904",
+      "affiliateUrl": "/r/direct/57496904",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-gaming-laptops-us"
   },

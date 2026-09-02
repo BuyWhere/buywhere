@@ -118,7 +118,56 @@
       "answer": "Buy the bundle only if the included game or Pro Controller is something you would have bought anyway. The console-only live price is the right comparison point for an honest deal check."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "36981739",
+      "name": "Set de 2 volants pour Nintendo Switch 2",
+      "price": 9.99,
+      "currency": "USD",
+      "merchant": "shop-justforgames.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0753/9458/0813/files/set-de-2-volants-pour-nintendo-switch-2-blade-9155508.jpg?v=1752823209",
+      "href": "/r/direct/36981739",
+      "affiliateUrl": "/r/direct/36981739",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37001692",
+      "name": "Maxx Tech Housse Premium pour Switch 1 & 2  + Jeu Hyper Sentinel Nintendo Switch (Code de Téléchargement Uniquement)",
+      "price": 19.99,
+      "currency": "USD",
+      "merchant": "shop-justforgames.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0753/9458/0813/files/HoussePremiumpourSwitch1_2_JeuHyperSentinel_3D-box_Stickers.png?v=1745419990",
+      "href": "/r/direct/37001692",
+      "affiliateUrl": "/r/direct/37001692",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36954447",
+      "name": "YS X Proud Nordics Deluxe Edition Nintendo Switch 2",
+      "price": 69.99,
+      "currency": "USD",
+      "merchant": "shop-justforgames.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0753/9458/0813/files/ys-x-proud-nordics-deluxe-edition-nintendo-switch-2-nis-america-8558431.png?v=1758110698",
+      "href": "/r/direct/36954447",
+      "affiliateUrl": "/r/direct/36954447",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36958871",
+      "name": "The Legend Of Heroes: Trails Beyond The Horizon Deluxe Edition Nintendo Switch 2",
+      "price": 64.99,
+      "currency": "USD",
+      "merchant": "shop-justforgames.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0753/9458/0813/files/the-legend-of-heroes-trails-beyond-the-horizon-deluxe-edition-nintendo-switch-2-nis-america-6750802.png?v=1758023575",
+      "href": "/r/direct/36958871",
+      "affiliateUrl": "/r/direct/36958871",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-nintendo-switch-2-singapore"
   },

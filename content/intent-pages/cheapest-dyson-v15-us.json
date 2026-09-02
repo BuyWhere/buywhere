@@ -109,7 +109,56 @@
       "answer": "The V15s Detect adds a Submarine wet roller head for hard-floor washing, turning it into a hybrid vacuum-mop. If you do not want the wet function, the standard V15 Detect is the cheaper pick."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513109",
+      "name": "Dyson V15 Detect Cordless Vacuum Cleaner - Yellow/Iron",
+      "price": 749.99,
+      "currency": "USD",
+      "merchant": "dyson.com",
+      "imageUrl": "https://dyson-h.assetsadobe2.net/v15-detect.jpg",
+      "href": "/r/direct/9222976908546513109",
+      "affiliateUrl": "/r/direct/9222976908546513109",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513112",
+      "name": "Dyson V12 Detect Slim Cordless Vacuum - Yellow/Iron",
+      "price": 649.99,
+      "currency": "USD",
+      "merchant": "dyson.com",
+      "imageUrl": "https://dyson-h.assetsadobe2.net/v12-slim.jpg",
+      "href": "/r/direct/9222976908546513112",
+      "affiliateUrl": "/r/direct/9222976908546513112",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513111",
+      "name": "Dyson V15 Detect Absolute Cordless Vacuum - Gold",
+      "price": 799.99,
+      "currency": "USD",
+      "merchant": "dyson.com",
+      "imageUrl": "https://dyson-h.assetsadobe2.net/v15-abs.jpg",
+      "href": "/r/direct/9222976908546513111",
+      "affiliateUrl": "/r/direct/9222976908546513111",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513114",
+      "name": "Dyson V12 Detect Slim Absolute Cordless Vacuum - Gold",
+      "price": 719.99,
+      "currency": "USD",
+      "merchant": "dyson.com",
+      "imageUrl": "https://dyson-h.assetsadobe2.net/v12-slim-abs.jpg",
+      "href": "/r/direct/9222976908546513114",
+      "affiliateUrl": "/r/direct/9222976908546513114",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-dyson-v15-singapore"
   },

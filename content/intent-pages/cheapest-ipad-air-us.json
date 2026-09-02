@@ -110,7 +110,56 @@
       "answer": "For most US buyers, yes. The Pro is worth it for artists who need the best display, editors with demanding media workflows and people who know they need ProMotion. Everyone else gets the core iPad experience from the Air for less."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37377405",
+      "name": "Adhesive Tablet & Slim Laptop Wall Mount Holder for iPad, Android, Macbook, Surface, iPad Air, Mini & Pro, Galaxy Tab Note eBooks, Kindle & More",
+      "price": 16.14,
+      "currency": "USD",
+      "merchant": "brainwavzaudio.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/products/BWAVZ-TAB-MNT-V2-BK-05.jpg?v=1672754574",
+      "href": "/r/direct/37377405",
+      "affiliateUrl": "/r/direct/37377405",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37089065",
+      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
+      "price": 9.03,
+      "currency": "USD",
+      "merchant": "ebony-usa.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
+      "href": "/r/direct/37089065",
+      "affiliateUrl": "/r/direct/37089065",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37089062",
+      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
+      "price": 9.06,
+      "currency": "USD",
+      "merchant": "ebony-usa.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
+      "href": "/r/direct/37089062",
+      "affiliateUrl": "/r/direct/37089062",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37089063",
+      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
+      "price": 9,
+      "currency": "USD",
+      "merchant": "ebony-usa.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
+      "href": "/r/direct/37089063",
+      "affiliateUrl": "/r/direct/37089063",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-ipads-singapore"
   },

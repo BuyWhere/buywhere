@@ -110,7 +110,56 @@
       "answer": "Historically around Prime Day, Black Friday, Samsung launch-window promotions and carrier upgrade cycles. Outside those windows, the live listings here show whether there is a meaningful discount right now."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "35795396",
+      "name": "Galaxy S25+ and Galaxy S24+ Defender Series Holster",
+      "price": 13.99,
+      "currency": "USD",
+      "merchant": "otterbox.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0681/4321/8875/files/2-h-fr-1_c1d57044-33e1-477d-adf7-62137c3a9a73.png?v=1778167129",
+      "href": "/r/direct/35795396",
+      "affiliateUrl": "/r/direct/35795396",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35795394",
+      "name": "Galaxy S25+ and Galaxy S24+ Premium Glass Screen Protector",
+      "price": 49.99,
+      "currency": "USD",
+      "merchant": "otterbox.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0681/4321/8875/files/premium-glass-gphb25-clear-1.png?v=1778167190",
+      "href": "/r/direct/35795394",
+      "affiliateUrl": "/r/direct/35795394",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35795432",
+      "name": "Galaxy S25+ Defender Series XT Holster",
+      "price": 13.99,
+      "currency": "USD",
+      "merchant": "otterbox.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0681/4321/8875/files/2-h-fr-1_ad3e640c-856c-4fa3-b309-186e6bdb701c.png?v=1778014155",
+      "href": "/r/direct/35795432",
+      "affiliateUrl": "/r/direct/35795432",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36645261",
+      "name": "IntelliSkin® for Samsung Galaxy S25 Ultra",
+      "price": 76.99,
+      "currency": "USD",
+      "merchant": "rammount.com",
+      "imageUrl": null,
+      "href": "/r/direct/36645261",
+      "affiliateUrl": "/r/direct/36645261",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-samsung-galaxy-s25-singapore"
   },

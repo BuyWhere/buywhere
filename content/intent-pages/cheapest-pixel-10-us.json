@@ -105,7 +105,44 @@
       "answer": "Typically no, or only a limited refurbisher warranty. Pre-owned listings from getorchard.com and similar US-based marketplaces carry their own warranty terms rather than Google's one-year US manufacturer warranty. Google Store new unlocked phones still carry the standard Google US warranty."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37143686",
+      "name": "Quad Lock (Mag Case) - Google Pixel 7",
+      "price": 34.99,
+      "currency": "USD",
+      "merchant": "off-road-world.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0950/2231/7943/files/560134-1.jpg?v=1775156889",
+      "href": "/r/direct/37143686",
+      "affiliateUrl": "/r/direct/37143686",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37149018",
+      "name": "Quad Lock (Mag Case) - Google Pixel 8 Pro",
+      "price": 34.99,
+      "currency": "USD",
+      "merchant": "off-road-world.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0950/2231/7943/files/1733490681-55223400.jpg?v=1775152670",
+      "href": "/r/direct/37149018",
+      "affiliateUrl": "/r/direct/37149018",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36311934",
+      "name": "Google Pixel 10 and 10 Pro Pixelsnap Phone Case - Frost",
+      "price": 29.95,
+      "currency": "USD",
+      "merchant": "thegamecollection.net",
+      "imageUrl": null,
+      "href": "/r/direct/36311934",
+      "affiliateUrl": "/r/direct/36311934",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-pixel-10-singapore"
   },

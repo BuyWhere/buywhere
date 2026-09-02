@@ -110,7 +110,56 @@
       "answer": "During Shopee 9.9, 10.10, 11.11, 12.12 and Lazada campaigns. Outside sale windows, the live listings here show today's floor price."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513281",
+      "name": "Samsung Galaxy S25 256GB - Mint (Challenger)",
+      "price": 1198,
+      "currency": "SGD",
+      "merchant": "challenger.com.sg",
+      "imageUrl": "https://online.challenger.sg/images/galaxy-s25-mint.jpg",
+      "href": "/r/direct/9222976908546513281",
+      "affiliateUrl": "/r/direct/9222976908546513281",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513278",
+      "name": "Samsung Galaxy S25 256GB - Mint",
+      "price": 1248,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": "https://image.samsung.com/sg/galaxy-s25-mint.jpg",
+      "href": "/r/direct/9222976908546513278",
+      "affiliateUrl": "/r/direct/9222976908546513278",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513279",
+      "name": "Samsung Galaxy S25 512GB - Navy",
+      "price": 1398,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": "https://image.samsung.com/sg/galaxy-s25-navy.jpg",
+      "href": "/r/direct/9222976908546513279",
+      "affiliateUrl": "/r/direct/9222976908546513279",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513280",
+      "name": "Samsung Galaxy S25 Ultra 256GB - Titanium Silver",
+      "price": 1648,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": "https://image.samsung.com/sg/galaxy-s25-ultra.jpg",
+      "href": "/r/direct/9222976908546513280",
+      "affiliateUrl": "/r/direct/9222976908546513280",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-samsung-galaxy-s25-us"
   },

@@ -1,10 +1,10 @@
 {
   "slug": "rtx-5070-vs-rtx-5080-us",
-  "title": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 which graphics card to buy",
+  "title": "RTX 5070 vs RTX 5080 in the US (2026) — which graphics card to buy",
   "description": "RTX 5070 vs RTX 5080 desktop graphics cards compared in the United States for 2026: how Blackwell architecture, 12GB vs 16GB VRAM, TBP and DLSS 4 Multi Frame Generation change the upgrade math for Newegg, Best Buy, B&H, Amazon and Micro Center shoppers, with live USD prices from MSI, ASUS, ZOTAC, Gigabyte and PNY.",
   "heroEyebrow": "US RTX 5070 vs RTX 5080 desktop GPU comparison",
-  "heroTitle": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 which should you buy",
-  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US (2026) \u2014 5070 from {floorPrice} today",
+  "heroTitle": "RTX 5070 vs RTX 5080 in the US (2026) — which should you buy",
+  "heroTitleTemplate": "RTX 5070 vs RTX 5080 in the US (2026) — 5070 from {floorPrice} today",
   "heroBody": "NVIDIA's RTX 5070 and RTX 5080 desktop graphics cards sit one tier apart in the Blackwell 50-series lineup, and in the US in 2026 that gap decides whether you are spending close to the entry sticker for a strong 1440p card with 12GB of VRAM or stepping up to a meaningful premium for the same games at native 4K with frame generation on. The 5070 ships with 12GB of GDDR7 and is the sensible pick for 1080p and 1440p gaming with ray tracing; the 5080 doubles the VRAM to 16GB, opens up native 4K at high refresh, and pushes the ray-tracing budget meaningfully further. Both ship on MSI Gaming, MSI Ventus, MSI Shadow, ZOTAC Twin Edge, ASUS TUF and PNY boards at Newegg, Best Buy, B&H and Micro Center, but the price gap between a 5070 SKU and the equivalent 5080 SKU at the same retailer can be the difference between a value buy and a flagship buy. This page pulls the live US listings so you can see both floor prices side by side, and the comparison below lays out the meaningful differences so you can decide whether the 5080 premium is worth the money to you.",
   "inboundLinks": [
     "/best-gaming-laptops-us",
@@ -33,7 +33,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-09-01",
   "productSectionTitle": "Live RTX 5070 prices in the US",
-  "comparisonSectionTitle": "RTX 5070 vs RTX 5080 desktop \u2014 at a glance",
+  "comparisonSectionTitle": "RTX 5070 vs RTX 5080 desktop — at a glance",
   "comparisonColumns": [
     "Spec / feature",
     "RTX 5070 (12GB)",
@@ -105,11 +105,11 @@
     },
     {
       "title": "CUDA cores and raster frame rate",
-      "body": "The 5080 has 10,752 CUDA cores versus 6,144 on the 5070 \u2014 roughly 75% more cores \u2014 and the gap shows up as a meaningful uplift in raster frame rate, especially at 1440p and 4K. If you play competitive esports at 1080p 240Hz you are CPU-bound on most titles and the difference is smaller; if you play modern AAA at native panel resolution, the 5080 pulls clearly ahead."
+      "body": "The 5080 has 10,752 CUDA cores versus 6,144 on the 5070 — roughly 75% more cores — and the gap shows up as a meaningful uplift in raster frame rate, especially at 1440p and 4K. If you play competitive esports at 1080p 240Hz you are CPU-bound on most titles and the difference is smaller; if you play modern AAA at native panel resolution, the 5080 pulls clearly ahead."
     },
     {
       "title": "TBP and case cooling",
-      "body": "The 5070 reference TBP is 250W and most custom boards ship between 220W and 300W. The 5080 reference TBP is 320W and most custom boards ship between 320W and 360W, with flagship AIO and triple-fan SKUs at the top end. The 5080 needs a quality 850W+ PSU and good case airflow; the 5070 is comfortable on a quality 650W unit. Always check the spec sheet on the product page \u2014 Newegg lists TBP clearly, marketplace listings often do not."
+      "body": "The 5070 reference TBP is 250W and most custom boards ship between 220W and 300W. The 5080 reference TBP is 320W and most custom boards ship between 320W and 360W, with flagship AIO and triple-fan SKUs at the top end. The 5080 needs a quality 850W+ PSU and good case airflow; the 5070 is comfortable on a quality 650W unit. Always check the spec sheet on the product page — Newegg lists TBP clearly, marketplace listings often do not."
     },
     {
       "title": "Ray tracing and DLSS 4 headroom",
@@ -127,14 +127,14 @@
     "Always check the TBP in the spec sheet, not just the model name. A '5070' at 220W is meaningfully slower than the same name at 300W; Newegg, B&H and Micro Center list TBP clearly, marketplace listings often do not.",
     "Match the GPU to your monitor: a 1080p 240Hz screen pairs well with a 5070; a 1440p 240Hz or 4K 120Hz screen benefits from a 5080. Buying a 5080 to drive a 1080p 165Hz panel leaves performance on the table; buying a 5070 to drive a 4K 120Hz screen starves the display.",
     "Time your buy around Amazon Prime Day (July), Labor Day hangover sales into early September 2026, Black Friday (late November), and Micro Center's in-store-only GPU drops. Outside those windows, Newegg and B&H typically hold the lowest everyday price on base board configurations.",
-    "Watch the Newegg Shuffle and Micro Center in-store only deals for high-end 5080 SKUs at meaningful discounts \u2014 they sell out within hours, so set a stock alert before the next drop. Online-only retailers rarely match these.",
-    "Avoid listings well below the market floor on eBay or unknown Amazon sellers \u2014 they are usually used, refurbished or mining cards dressed up as new. Buy from Newegg, B&H, Best Buy, Micro Center or Amazon-sold-by-NVIDIA to keep the manufacturer's US warranty intact."
+    "Watch the Newegg Shuffle and Micro Center in-store only deals for high-end 5080 SKUs at meaningful discounts — they sell out within hours, so set a stock alert before the next drop. Online-only retailers rarely match these.",
+    "Avoid listings well below the market floor on eBay or unknown Amazon sellers — they are usually used, refurbished or mining cards dressed up as new. Buy from Newegg, B&H, Best Buy, Micro Center or Amazon-sold-by-NVIDIA to keep the manufacturer's US warranty intact."
   ],
-  "faqSectionTitle": "RTX 5070 vs RTX 5080 in the US \u2014 common questions",
+  "faqSectionTitle": "RTX 5070 vs RTX 5080 in the US — common questions",
   "faqs": [
     {
       "question": "Is the RTX 5080 worth the premium over the RTX 5070 in the US?",
-      "answer": "If you have a 1440p or 4K panel, want full path tracing, or plan to keep the GPU four or more years, yes \u2014 the 16GB VRAM and 75% more CUDA cores pay back over the useful life of the card. If you game at 1080p or 1440p without path tracing and plan to upgrade in three years, the 5070 is the smarter US buy and the floor price on the live cards above is well below the 5080's typical premium."
+      "answer": "If you have a 1440p or 4K panel, want full path tracing, or plan to keep the GPU four or more years, yes — the 16GB VRAM and 75% more CUDA cores pay back over the useful life of the card. If you game at 1080p or 1440p without path tracing and plan to upgrade in three years, the 5070 is the smarter US buy and the floor price on the live cards above is well below the 5080's typical premium."
     },
     {
       "question": "How much more expensive is the RTX 5080 than the 5070 in the US?",
@@ -142,7 +142,7 @@
     },
     {
       "question": "Does the RTX 5080 support 4K gaming in the US?",
-      "answer": "Yes \u2014 the 5080 with 16GB VRAM and DLSS 4 Multi Frame Generation is comfortable at 4K high/ultra in most 2026 releases. The 5070 can also drive a 4K panel with DLSS, but you will see dips in path-traced scenes. If your monitor is 4K 120Hz or higher, the 5080 is the card that actually drives it well."
+      "answer": "Yes — the 5080 with 16GB VRAM and DLSS 4 Multi Frame Generation is comfortable at 4K high/ultra in most 2026 releases. The 5070 can also drive a 4K panel with DLSS, but you will see dips in path-traced scenes. If your monitor is 4K 120Hz or higher, the 5080 is the card that actually drives it well."
     },
     {
       "question": "Should I wait for an RTX 5070 Ti or RTX 5080 Ti in the US?",
@@ -154,16 +154,65 @@
     },
     {
       "question": "Do RTX 5070 and 5080 graphics cards bought in the US come with manufacturer warranty?",
-      "answer": "Boards bought from Newegg, B&H, Best Buy, Micro Center and Amazon-sold-by-NVIDIA carry the manufacturer's US warranty \u2014 typically three years for MSI, ASUS, ZOTAC, Gigabyte and PNY boards. eBay or unknown Amazon Marketplace sellers often ship with no US warranty or only a 30-day store return; check the listing language carefully before you click buy."
+      "answer": "Boards bought from Newegg, B&H, Best Buy, Micro Center and Amazon-sold-by-NVIDIA carry the manufacturer's US warranty — typically three years for MSI, ASUS, ZOTAC, Gigabyte and PNY boards. eBay or unknown Amazon Marketplace sellers often ship with no US warranty or only a 30-day store return; check the listing language carefully before you click buy."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513117",
+      "name": "MSI Ventus 3X GeForce RTX 5070 12GB GDDR7 OC Graphics Card",
+      "price": 569.99,
+      "currency": "USD",
+      "merchant": "newegg.com",
+      "imageUrl": "https://c1.neweggimages.com/msi-5070-ventus.jpg",
+      "href": "/r/direct/9222976908546513117",
+      "affiliateUrl": "/r/direct/9222976908546513117",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513115",
+      "name": "NVIDIA GeForce RTX 5070 Founders Edition 12GB GDDR7 Graphics Card",
+      "price": 549,
+      "currency": "USD",
+      "merchant": "nvidia.com",
+      "imageUrl": "https://www.nvidia.com/rtx-5070-fe.jpg",
+      "href": "/r/direct/9222976908546513115",
+      "affiliateUrl": "/r/direct/9222976908546513115",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36995346",
+      "name": "MSI GeForce RTX 5070 SHADOW 2X OC 12GB GDDR7 Graphics Card- 007 First Light GeForce RTX 50 Series Bundle",
+      "price": 38000,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/MSI-GeForce-RTX-5070-SHADOW-2X-OC-12GB-GDDR7-Graphics-Card_01.jpg?v=1779282438",
+      "href": "/r/direct/36995346",
+      "affiliateUrl": "/r/direct/36995346",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36994490",
+      "name": "ASUS ProArt GeForce RTX 5070 Ti OC Edition 16GB GDDR7 Graphics Card PCIe 5.0 - 007 First Light GeForce RTX 50 Series Bundle",
+      "price": 75000,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/ASUS-ProArt-GeForce-RTX-5070-Ti_01.jpg?v=1779321070",
+      "href": "/r/direct/36994490",
+      "affiliateUrl": "/r/direct/36994490",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/rtx-5070-vs-rtx-5080-singapore"
   },
   "categoryIntro": {
     "heading": "Why RTX 5070 and 5080 prices vary so much in the US",
-    "body": "The US 50-series desktop market is dominated by Newegg, Best Buy, B&H, Micro Center and Amazon, with MSI, ASUS, ZOTAC, Gigabyte and PNY shipping dozens of board variants at different TBP and cooler tiers. Most boards hold list price most of the year; the real discounts come from Amazon Prime Day, Black Friday, and Micro Center's in-store GPU drops. The same GPU can therefore carry very different price tags depending on the channel and the board, which is why the live cards on this page read straight from the catalog \u2014 a static 'cheapest RTX 5080' article goes stale within a week."
+    "body": "The US 50-series desktop market is dominated by Newegg, Best Buy, B&H, Micro Center and Amazon, with MSI, ASUS, ZOTAC, Gigabyte and PNY shipping dozens of board variants at different TBP and cooler tiers. Most boards hold list price most of the year; the real discounts come from Amazon Prime Day, Black Friday, and Micro Center's in-store GPU drops. The same GPU can therefore carry very different price tags depending on the channel and the board, which is why the live cards on this page read straight from the catalog — a static 'cheapest RTX 5080' article goes stale within a week."
   },
   "owner": "Venture",
   "reviewer": "Hue",

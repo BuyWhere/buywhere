@@ -121,7 +121,56 @@
       "answer": "The Plus adds a notably bigger display and meaningfully better battery life for a moderate premium. If you watch a lot of video or hate mid-day charging, the Plus is worth it; otherwise the standard 16 is easier to handle and cheaper at every retailer."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "56321692",
+      "name": "For Casing Iphone 【66 Colors available】For iPhone 16 Pro Max Case / 15 Pro Max  / 15 16 Plus / 13 14 Pro Max / 12 Pro Max / 11 Pro Max / XR/ XS/ SE/ 8/ 7 Plus Iphone Liquld Silcone Phone Cover",
+      "price": 4.52,
+      "currency": "SGD",
+      "merchant": "shopee_sg",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/79661c88c962c39ebee2eea5f570a16d",
+      "href": "/r/direct/56321692",
+      "affiliateUrl": "/r/direct/56321692",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56309179",
+      "name": "[Apple MFi Certified] USB C Headphones for iPhone 17 16 15, 2 Pack Wired Headphones USB C with Built-in Remote to Control Music, Phone Calls, and Volume for iPhone 17 16 15 Pro Max, Galaxy, Pixel",
+      "price": 24.9,
+      "currency": "SGD",
+      "merchant": "amazon_sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/61bO-54v9oL._AC_UL320_.jpg",
+      "href": "/r/direct/56309179",
+      "affiliateUrl": "/r/direct/56309179",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54576219",
+      "name": "Belkin SoundForm Wired Earbuds with USB-C Connector, in-Ear Earphones w/Microphone - USB-C Headphones for iPhone 16, iPhone 15, iPad mini, Galaxy S25, Google Pixel 9, Android, and More - Blue",
+      "price": 27.47,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/51WDWeVvuzL._AC_UL320_.jpg",
+      "href": "/r/direct/54576219",
+      "affiliateUrl": "/r/direct/54576219",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56647493",
+      "name": "Dual nano sims hong kong official apple iphone 16 pro max n all 16 series models",
+      "price": 1550,
+      "currency": "SGD",
+      "merchant": "shopify_mobilehardware",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/rn-image_picker_lib_temp_3b841ccd-11b2-4d65-9d4a-a1be2557e139.png?v=1726247910",
+      "href": "/r/direct/56647493",
+      "affiliateUrl": "/r/direct/56647493",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/iphone-16-price-singapore",

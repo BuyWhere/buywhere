@@ -1,10 +1,10 @@
 {
   "slug": "ipad-air-vs-ipad-pro-singapore",
-  "title": "iPad Air vs iPad Pro in Singapore (2026) \u2014 which should you buy",
+  "title": "iPad Air vs iPad Pro in Singapore (2026) — which should you buy",
   "description": "iPad Air vs iPad Pro compared for Singapore buyers: live prices on Amazon.sg, Shopee, Lazada and Apple authorised resellers, plus a side-by-side on performance, display, Apple Pencil support and who each tablet is really for.",
   "heroEyebrow": "Singapore iPad comparison",
-  "heroTitle": "iPad Air vs iPad Pro in Singapore (2026) \u2014 live prices and which to buy",
-  "heroTitleTemplate": "iPad Air vs iPad Pro in Singapore (2026) \u2014 from {floorPrice} today",
+  "heroTitle": "iPad Air vs iPad Pro in Singapore (2026) — live prices and which to buy",
+  "heroTitleTemplate": "iPad Air vs iPad Pro in Singapore (2026) — from {floorPrice} today",
   "heroBody": "The iPad Air and iPad Pro have never been closer in performance, but in Singapore in 2026 the gap in price is still large enough to matter. The Air now runs the same M-series chip family as the base Pro and supports the same Pencil and keyboard accessories, while the Pro keeps the brighter ProMotion display, faster storage options and the cameras that creative pros actually use. For most Singapore shoppers the decision comes down to whether you will notice the 120 Hz screen, need more than 256 GB of storage, or want the larger 13-inch canvas. This page pulls live listings from Amazon.sg, Shopee, Lazada and Apple authorised resellers so you can compare current iPad Air and iPad Pro prices in S$ side by side.",
   "inboundLinks": [
     "/best-ipads-singapore",
@@ -32,7 +32,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPad Air and iPad Pro prices in Singapore",
-  "comparisonSectionTitle": "iPad Air vs iPad Pro \u2014 at a glance",
+  "comparisonSectionTitle": "iPad Air vs iPad Pro — at a glance",
   "comparisonColumns": [
     "Spec / feature",
     "iPad Air",
@@ -117,7 +117,7 @@
     "Time the purchase around Shopee and Lazada sale events if you are not in a hurry. Air discounts tend to be deeper than Pro discounts during 9.9, 11.11, 12.12 and payday campaigns.",
     "Factor the Pencil and keyboard into the total price. A cheaper tablet with a costly accessory generation is not necessarily the better deal."
   ],
-  "faqSectionTitle": "iPad Air vs iPad Pro in Singapore \u2014 common questions",
+  "faqSectionTitle": "iPad Air vs iPad Pro in Singapore — common questions",
   "faqs": [
     {
       "question": "Is the iPad Pro worth the extra money over the iPad Air in Singapore?",
@@ -140,7 +140,56 @@
       "answer": "Shopee, Lazada and Amazon.sg discount deepest during 9.9, 10.10, 11.11, 12.12 and mid-month payday campaigns. Apple education pricing and trade-in can also beat retailer cash discounts for students."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55869896",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024nillkinflip3.jpg?v=1734092569",
+      "href": "/r/direct/55869896",
+      "affiliateUrl": "/r/direct/55869896",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55869879",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Camshield Pad Case Series Camera Protective Magnetic Kickstand Stylus Holder Rugged Back Case",
+      "price": 58,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipadair112024camshield1.jpg?v=1734093824",
+      "href": "/r/direct/55869879",
+      "affiliateUrl": "/r/direct/55869879",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55864104",
+      "name": "Apple iPad Air 11\" (2025) / (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / (2021) / (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0761/5529/files/ipad11_10.9nillkin6.jpg?v=1776857179",
+      "href": "/r/direct/55864104",
+      "affiliateUrl": "/r/direct/55864104",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54517975",
+      "name": "TORRII TORERO for iPad Air 11\" (M3/M2) Compatible for iPad Pro 11\" (4/3/2/1) / iPad Air 6/5/4 - Black",
+      "price": 59.9,
+      "currency": "SGD",
+      "merchant": "robinsons_sg",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/2956/6186/files/294072120_318d9a14-eab5-44d9-8119-847f342efef9.png?v=1777403078",
+      "href": "/r/direct/54517975",
+      "affiliateUrl": "/r/direct/54517975",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "categoryIntro": {
     "heading": "Why iPad Air and iPad Pro prices move differently in Singapore",

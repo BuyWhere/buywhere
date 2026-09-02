@@ -114,7 +114,56 @@
       "answer": "Only if you play competitive esports. For story games and creation work, a 165 Hz IPS or a dimmer mini-LED is the better spend. High-refresh panels also drain battery faster on flights."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "36995929",
+      "name": "Gigabyte Gaming A16 16.0\" 165Hz 1TB 16GB DDR5 RTX 5050 Windows 11 Home Gaming Laptop",
+      "price": 915.83,
+      "currency": "USD",
+      "merchant": "computerorbit.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/3761149-l-a.jpg?v=1778513127",
+      "href": "/r/direct/36995929",
+      "affiliateUrl": "/r/direct/36995929",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36995928",
+      "name": "Gigabyte Gaming A18 Pro 18.0\" 165Hz 1TB 32GB DDR5 RTX 5070 Ti Windows 11 Home Gaming Laptop",
+      "price": 1499.17,
+      "currency": "USD",
+      "merchant": "computerorbit.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/71ago8q4KjL._AC_SL1500.jpg?v=1778513634",
+      "href": "/r/direct/36995928",
+      "affiliateUrl": "/r/direct/36995928",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36995927",
+      "name": "Gigabyte Gaming A16 Pro 16.0\" 165Hz 1TB 32GB DDR5 RTX 5070 Ti Windows 11 Home Gaming Laptop",
+      "price": 1374.17,
+      "currency": "USD",
+      "merchant": "computerorbit.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/71v1QaoJC4L._AC_SL1500.jpg?v=1778514739",
+      "href": "/r/direct/36995927",
+      "affiliateUrl": "/r/direct/36995927",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36996649",
+      "name": "ASUS ROG Strix G18 G815LP-S9005W Intel Core Ultra 9 275HX 16GB RAM 1TB SSD RTX 5070 Windows 11 Home Gaming Laptop",
+      "price": 1632.5,
+      "currency": "USD",
+      "merchant": "computerorbit.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/089ece15230a2791d1793456a1359dc34b196111.jpg?v=1769079867",
+      "href": "/r/direct/36996649",
+      "affiliateUrl": "/r/direct/36996649",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-gaming-laptops-under-2000-singapore"
   },

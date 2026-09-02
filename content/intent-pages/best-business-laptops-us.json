@@ -1,10 +1,10 @@
 {
   "slug": "best-business-laptops-us",
-  "title": "Best Business Laptops in the US (2026) \u2014 Live Prices Compared",
+  "title": "Best Business Laptops in the US (2026) — Live Prices Compared",
   "description": "Which business laptop actually lasts a five-year deployment in a US workplace: live prices from Amazon, Best Buy, the manufacturer stores and authorised resellers compared daily, with guidance on warranty, repairability, security and what changed this year.",
   "heroEyebrow": "US business laptop guide 2026",
-  "heroTitle": "Best business laptops in the US \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best business laptops in the US (2026) \u2014 from {floorPrice} today",
+  "heroTitle": "Best business laptops in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best business laptops in the US (2026) — from {floorPrice} today",
   "heroBody": "In 2026 the business laptop market in the US has split into three lanes: enterprise fleets on Lenovo ThinkPad and HP EliteBook, small-business buyers on Asus ExpertBook and Dell Pro, and a growing 'consumer-with-pro-support' lane where a high-end consumer machine is paired with accidental-damage cover. This page pulls live US listings from BuyWhere's catalog every few minutes so you can see the current floor price across Amazon, Best Buy, the manufacturer stores and authorised resellers, and decide which lane gives you the most durable machine per dollar over a typical five-year lifecycle.",
   "canonicalPath": "/best-business-laptops-us",
   "country": "US",
@@ -28,7 +28,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live business laptop prices in the US",
-  "comparisonSectionTitle": "Which business laptop lane fits your team \u2014 at a glance",
+  "comparisonSectionTitle": "Which business laptop lane fits your team — at a glance",
   "comparisonColumns": [
     "Lane",
     "Typical spec",
@@ -47,7 +47,7 @@
     {
       "label": "Small-business (ExpertBook, Dell Pro)",
       "values": [
-        "16 GB RAM, 512 GB SSD, 13\u201314\"",
+        "16 GB RAM, 512 GB SSD, 13–14\"",
         "Mid",
         "Owners and small teams who want pro support without enterprise tier"
       ]
@@ -55,7 +55,7 @@
     {
       "label": "Premium ultrabook (ThinkPad X1, EliteBook Ultra)",
       "values": [
-        "16\u201332 GB RAM, 512 GB\u20131 TB SSD, 13\u201314\"",
+        "16–32 GB RAM, 512 GB–1 TB SSD, 13–14\"",
         "High",
         "C-suite, frequent travellers, design-and-meeting heavy roles"
       ]
@@ -63,7 +63,7 @@
     {
       "label": "Workstation (ThinkPad P, ZBook)",
       "values": [
-        "32 GB+ RAM, dedicated GPU, 15\u201316\"",
+        "32 GB+ RAM, dedicated GPU, 15–16\"",
         "Top",
         "Engineers, data analysts, anyone running CAD or local AI"
       ]
@@ -81,7 +81,7 @@
     },
     {
       "title": "Repairability has quietly improved",
-      "body": "Most 2026 business laptops have user-replaceable SSDs, batteries and keyboards. Lenovo, HP and Framework publish official service manuals with part numbers. Consumer laptops increasingly do not \u2014 the chassis is glued and the SSD is soldered. For a five-year lifecycle, repairability is not optional."
+      "body": "Most 2026 business laptops have user-replaceable SSDs, batteries and keyboards. Lenovo, HP and Framework publish official service manuals with part numbers. Consumer laptops increasingly do not — the chassis is glued and the SSD is soldered. For a five-year lifecycle, repairability is not optional."
     }
   ],
   "adviceSectionTitle": "How to buy a business laptop in the US without overpaying",
@@ -89,12 +89,12 @@
     "Buy the warranty, not the laptop. A three-year on-site warranty roughly doubles the unit price but is the cheapest insurance against downtime in a five-year deployment.",
     "Stick to one fleet family per team. Mixing ThinkPad, EliteBook and consumer machines doubles your IT support burden; one family means one set of docks, chargers and spare parts.",
     "Prefer 16 GB RAM and a 512 GB SSD over thinner-and-lighter designs. Both are the minimum to survive four years of Windows updates without slowing down.",
-    "Buy last year's model for the same specs at 20\u201330% less, unless you specifically need the new AI features or the new port layout.",
+    "Buy last year's model for the same specs at 20–30% less, unless you specifically need the new AI features or the new port layout.",
     "Configure from the manufacturer store if you can. Amazon and Best Buy undercut on price but the manufacturer store is where you add warranty, custom imaging and asset tags without extra fees.",
     "If you travel, weight and battery matter more than performance. A 1.2 kg 14-inch with a real 14-hour battery beats a 1.6 kg machine with the same CPU for the road-warrior set.",
     "Track the total cost of ownership, not the sticker. A laptop at a slightly higher price with five years of support is cheaper than two budget laptops bought three years apart."
   ],
-  "faqSectionTitle": "Business laptops in the US \u2014 common questions",
+  "faqSectionTitle": "Business laptops in the US — common questions",
   "faqs": [
     {
       "question": "What is the best business laptop for a small team in the US?",
@@ -110,14 +110,63 @@
     },
     {
       "question": "Is a ThinkPad still worth it in 2026?",
-      "answer": "Yes. The ThinkPad T and X1 lines remain the most widely-deployed business laptops in the US for good reason \u2014 strong keyboards, repairable designs, mature docks and the easiest parts supply. The brand has lost some of its old magic but is still the safest fleet choice."
+      "answer": "Yes. The ThinkPad T and X1 lines remain the most widely-deployed business laptops in the US for good reason — strong keyboards, repairable designs, mature docks and the easiest parts supply. The brand has lost some of its old magic but is still the safest fleet choice."
     },
     {
       "question": "When is the cheapest time to buy a business laptop in the US?",
       "answer": "Outside of Black Friday, the best prices are on the manufacturer store (Lenovo, HP, Dell) where the configurable base price plus a current coupon typically beats Amazon and Best Buy. The live listings on this page show today's floor across all four."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513010",
+      "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" Premium Business Laptop - Intel Core Ultra 7 155H, 16GB RAM, 512GB SSD",
+      "price": 1999,
+      "currency": "USD",
+      "merchant": "lenovo.com",
+      "imageUrl": "https://p1-ofp.static.pub/lenovo-x1c12.jpg",
+      "href": "/r/direct/9222976908546513010",
+      "affiliateUrl": "/r/direct/9222976908546513010",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513019",
+      "name": "Dell Latitude 5550 15.6\" Business Laptop - Intel Core Ultra 7 155U, 16GB RAM, 512GB SSD",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-5550.jpg",
+      "href": "/r/direct/9222976908546513019",
+      "affiliateUrl": "/r/direct/9222976908546513019",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513021",
+      "name": "Dell Latitude 7350 Detachable 13.3\" Business Laptop - Intel Core Ultra 7 164U, 16GB RAM, 512GB SSD",
+      "price": 1899,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-7350.jpg",
+      "href": "/r/direct/9222976908546513021",
+      "affiliateUrl": "/r/direct/9222976908546513021",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513007",
+      "name": "Lenovo ThinkPad T14 Gen 5 14\" Business Laptop - Intel Core Ultra 7 155U, 32GB RAM, 1TB SSD",
+      "price": 1899,
+      "currency": "USD",
+      "merchant": "lenovo.com",
+      "imageUrl": "https://p1-ofp.static.pub/lenovo-t14g5-1tb.jpg",
+      "href": "/r/direct/9222976908546513007",
+      "affiliateUrl": "/r/direct/9222976908546513007",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/search?q=business%20laptop&country=US",
@@ -125,7 +174,7 @@
   ],
   "categoryIntro": {
     "heading": "Why US business laptop prices vary so much",
-    "body": "Manufacturer MSRPs on business laptops are mostly fiction: Lenovo, HP and Dell all run persistent coupon stacks on their own stores that take 20\u201340% off the list price on any given week. Amazon and Best Buy price-match some of the time, but never on the higher-spec configurations. A static 'best ThinkPad' round-up goes stale within days, which is why this page reads live listings instead."
+    "body": "Manufacturer MSRPs on business laptops are mostly fiction: Lenovo, HP and Dell all run persistent coupon stacks on their own stores that take 20–40% off the list price on any given week. Amazon and Best Buy price-match some of the time, but never on the higher-spec configurations. A static 'best ThinkPad' round-up goes stale within days, which is why this page reads live listings instead."
   },
   "owner": "Surf",
   "reviewer": "Hue",

@@ -116,7 +116,56 @@
       "answer": "Platform sales (6.6, 7.7, 9.9, 11.11, 12.12) reliably drop prices 15–25% on Shopee and Lazada official stores, and back-to-school bundles in late July / August often include free Microsoft 365. Outside those windows, the live listings on this page show the current floor."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "56007809",
+      "name": "ASUS Laptops & Computers",
+      "price": 1799,
+      "currency": "SGD",
+      "merchant": "carousell",
+      "imageUrl": null,
+      "href": "/r/direct/56007809",
+      "affiliateUrl": "/r/direct/56007809",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55047177",
+      "name": "Asus ROG Zephyrus G16 Laptop (GU605CP-QR086W)",
+      "price": 3399,
+      "currency": "SGD",
+      "merchant": "fairprice_sg",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90236700_XL1_20260410001333_940d05efb9fcef95a805d33fdc2d4408.jpg",
+      "href": "/r/direct/55047177",
+      "affiliateUrl": "/r/direct/55047177",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57775623",
+      "name": "Asus Vivobook 14-inch (Intel Core I7/16GB/512GB SSD) Laptop - Indie Black (X1405VA-LY634W)",
+      "price": 1099,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/165/Slide1_aoee-z5.JPG",
+      "href": "/r/direct/57775623",
+      "affiliateUrl": "/r/direct/57775623",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57775582",
+      "name": "Asus Vivobook 14-inch (Intel Core I7/16GB/512GB SSD) Laptop - Indie Black (X1405VA-LY634W)",
+      "price": 1099,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/165/Slide1_aoee-z5.JPG",
+      "href": "/r/direct/57775582",
+      "affiliateUrl": "/r/direct/57775582",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-budget-laptops-us"
   },

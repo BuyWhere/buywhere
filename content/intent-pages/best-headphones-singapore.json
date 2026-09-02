@@ -144,7 +144,56 @@
       "answer": "No. AirPods rely on Apple's H1/H2 chip for seamless pairing, Find My and the spatial audio head-tracking; on Android you lose all three and the sound quality is no better than a third-party pair at half the price. Buy Sony, Bose or Sennheiser instead if your phone runs Android."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "62297839",
+      "name": "PHILIPS TAH7508BK/97 OVER-EAR WIRELESS HEADPHONES ANC PRO",
+      "price": 89,
+      "currency": "SGD",
+      "merchant": "courts_sg",
+      "imageUrl": "https://www.courts.com.sg/media/catalog/product/i/p/ip195621_00.jpg?quality=80&bg-color=255,255,255&fit=bounds&height=&width=",
+      "href": "/r/direct/62297839",
+      "affiliateUrl": "/r/direct/62297839",
+      "brand": "",
+      "category": "headphones"
+    },
+    {
+      "id": "61342684",
+      "name": "Sony WH-ULT900N Ultimate ANC Headphones Black",
+      "price": 219,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90244221_XL1_20260412153230_6b9223de699e763a4277b87adb820d24.jpg",
+      "href": "/r/direct/61342684",
+      "affiliateUrl": "/r/direct/61342684",
+      "brand": "",
+      "category": "headphones"
+    },
+    {
+      "id": "61270029",
+      "name": "Sony WH-1000XM6 ANC Headphones - Pink",
+      "price": 519,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90248406_XL1_20260412153227_ca533adbab91202fd91185abc8c16075.jpg",
+      "href": "/r/direct/61270029",
+      "affiliateUrl": "/r/direct/61270029",
+      "brand": "",
+      "category": "headphones"
+    },
+    {
+      "id": "59502928",
+      "name": "Buddyphones Cosmos Fun Hybrid Anc Headphone - Deep Blue",
+      "price": 169.9,
+      "currency": "SGD",
+      "merchant": "fairprice_sg",
+      "imageUrl": "https://media.nedigital.sg/fairprice/90215334_XL1_20260406110343_f2de75712eb5f64ce21dfef1f2cab7e7.jpg",
+      "href": "/r/direct/59502928",
+      "affiliateUrl": "/r/direct/59502928",
+      "brand": "",
+      "category": "headphones"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-headphones-us"
   },

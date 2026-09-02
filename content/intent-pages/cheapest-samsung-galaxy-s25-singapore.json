@@ -114,7 +114,56 @@
       "answer": "The S25 brings the Snapdragon 8 Elite for Galaxy chipset, 12GB RAM across all storage tiers (the S24 had 8GB on the base 128GB), and Galaxy AI features that depend on-device. If you have an S23 or older the upgrade is meaningful; from an S24 the difference is mostly AI features and longer software support."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908550881752",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881752",
+      "affiliateUrl": "/r/direct/9222976908550881752",
+      "brand": "",
+      "category": "smartphones"
+    },
+    {
+      "id": "9222976908550881753",
+      "name": "Samsung Galaxy S25+ 256GB - Titanium",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881753",
+      "affiliateUrl": "/r/direct/9222976908550881753",
+      "brand": "",
+      "category": "smartphones"
+    },
+    {
+      "id": "9222976908550881754",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881754",
+      "affiliateUrl": "/r/direct/9222976908550881754",
+      "brand": "",
+      "category": "smartphones"
+    },
+    {
+      "id": "9222976908550881756",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1658,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "imageUrl": null,
+      "href": "/r/direct/9222976908550881756",
+      "affiliateUrl": "/r/direct/9222976908550881756",
+      "brand": "",
+      "category": "smartphones"
+    }
+  ],
   "hreflangAlternates": [
     "/cheapest-samsung-galaxy-s25-us",
     "/galaxy-s25-price-singapore"

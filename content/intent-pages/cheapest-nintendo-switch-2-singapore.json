@@ -111,7 +111,56 @@
       "answer": "Buy the bundle only if the included game or Pro Controller is something you would have bought anyway. The console-only live price is the right comparison point for an honest deal check."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "56316329",
+      "name": "[Nintendo Official Store] Nintendo Switch 2 Pro Controller - for Nintendo Switch 2",
+      "price": 108.14,
+      "currency": "SGD",
+      "merchant": "shopee_sg",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7rfie-m9pjozc3zhxt40",
+      "href": "/r/direct/56316329",
+      "affiliateUrl": "/r/direct/56316329",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54973446",
+      "name": "JOY-2 Joypad for Nintendo Switch 2 Joy Con for Switch 2 Joystick PC Dual Vibration Controller Joycon Gift Kids",
+      "price": 44.71,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-825zk-mlsy9h7z8p3641",
+      "href": "/r/direct/54973446",
+      "affiliateUrl": "/r/direct/54973446",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57786572",
+      "name": "Nintendo Switch 2 Joy-Con 2 Wheel (set of 2)",
+      "price": 26.9,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/165/Slide1_9wyb-no.JPG",
+      "href": "/r/direct/57786572",
+      "affiliateUrl": "/r/direct/57786572",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "57786571",
+      "name": "Nintendo Switch 2 Joy-Con 2 Wheel (set of 2)",
+      "price": 26.9,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/165/Slide1_9wyb-no.JPG",
+      "href": "/r/direct/57786571",
+      "affiliateUrl": "/r/direct/57786571",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-nintendo-switch-2-us"
   },

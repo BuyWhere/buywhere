@@ -114,7 +114,56 @@
       "answer": "Mid-year (June to July) and year-end (November to December) sales at Courts, Harvey Norman and Best Denki typically drop gaming monitor prices by 15-25 percent. Shopee Mall and LazMall official stores match within a day or two and stack platform vouchers on top."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55875752",
+      "name": "AOC Gaming Q27G41ZE QHD IPS Gaming Monitor 27\" 2560x1440 240Hz 0.3ms, Game Console Ready, 3 Sides, Frameless, 1 HDMI 2.0, 1 Display Port, 3 Year Zero Glow Spot",
+      "price": 283.44,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71svBc2TCpL._AC_UL320_.jpg",
+      "href": "/r/direct/55875752",
+      "affiliateUrl": "/r/direct/55875752",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56309308",
+      "name": "UPERFECT Portable Monitor, 15.6\" 125% sRGB 1080P Ultra-Slim Travel Monitor USB C HDMI Plug & Play IPS Gaming Monitor Built-in Stand Dual Speakers External Screen for Laptop Phone Game Console",
+      "price": 179.99,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71RXqjA6O5L._AC_UL320_.jpg",
+      "href": "/r/direct/56309308",
+      "affiliateUrl": "/r/direct/56309308",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56325460",
+      "name": "PRISM+ W250 | 25\" IPS 144Hz Productivity Monitor Gaming Monitor [1920 x 1080]",
+      "price": 118.9,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-81zts-mmjtod1401kz0c",
+      "href": "/r/direct/56325460",
+      "affiliateUrl": "/r/direct/56325460",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56325453",
+      "name": "PRISM+ W250 | 25\" IPS 144Hz Productivity Monitor Gaming Monitor [1920 x 1080]",
+      "price": 127.9,
+      "currency": "SGD",
+      "merchant": "shopee_sg",
+      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-81zts-mmjtod1401kz0c",
+      "href": "/r/direct/56325453",
+      "affiliateUrl": "/r/direct/56325453",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-gaming-monitors-us"
   },

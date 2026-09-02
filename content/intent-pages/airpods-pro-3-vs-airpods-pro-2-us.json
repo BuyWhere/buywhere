@@ -110,7 +110,56 @@
       "answer": "Yes — the AirPods Pro 2 remain a strong pair of ANC earbuds and Apple's software updates have kept them feeling current. For desk use, commuting a few times a week or a backup pair, they are the value pick."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "36339724",
+      "name": "TEKNE Hybrid  shockproof case for Airpods-Black-Airpod Pro 2nd Gen",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "imagineonline.store",
+      "imageUrl": null,
+      "href": "/r/direct/36339724",
+      "affiliateUrl": "/r/direct/36339724",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36339725",
+      "name": "TEKNE Hybrid  shockproof case for Airpods-Blue-Airpod Pro 2nd Gen",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "imagineonline.store",
+      "imageUrl": null,
+      "href": "/r/direct/36339725",
+      "affiliateUrl": "/r/direct/36339725",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36339729",
+      "name": "Tekne Vegan Leather case for Airpods-Black-Airpod Pro 2nd Gen",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "imagineonline.store",
+      "imageUrl": null,
+      "href": "/r/direct/36339729",
+      "affiliateUrl": "/r/direct/36339729",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36339974",
+      "name": "TEKNE Silicone Airpod Case for Airpods Pro-Classic BLK",
+      "price": 799,
+      "currency": "USD",
+      "merchant": "imagineonline.store",
+      "imageUrl": null,
+      "href": "/r/direct/36339974",
+      "affiliateUrl": "/r/direct/36339974",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/airpods-pro-3-vs-airpods-pro-2-singapore"
   },

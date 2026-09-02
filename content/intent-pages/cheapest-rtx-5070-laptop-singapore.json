@@ -123,7 +123,56 @@
       "answer": "Prioritise a good cooling system, enough RAM for your workload, a fast NVMe SSD, a display that matches your games and a warranty path you trust. A balanced RTX 5070 laptop with a clear local service route usually beats a cheaper mystery listing with vague specs."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "38168762",
+      "name": "Acer Swift X 14 14.5-inch AMD Ryzen AI 9-365/32GB/2TB SSD NVIDIA GeForce RTX 5070 AI Laptop - Titanium Gray (SFX14-61G-R7XG)",
+      "price": 4099,
+      "currency": "SGD",
+      "merchant": "harveynorman.com.sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/181/Acer_Swift_X_14_AMD_Ryzen_AI_9-365_AI_Laptop_-_Titanium_Gray(SFX14-61G-R7XG)_01.JPG?fit=fill&bg=0FFF&w=785&h=460&auto=format,compress",
+      "href": "/r/direct/38168762",
+      "affiliateUrl": "/r/direct/38168762",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "38168476",
+      "name": "Lenovo Legion Pro 5 16IRX10 16-inch Intel Core i9-14900HX/32GB/1TB SSD NVIDIA GeForce RTX 5070 Gaming Laptop - Eclipse Black (83NN003FSB)",
+      "price": 2899,
+      "currency": "SGD",
+      "merchant": "harveynorman.com.sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/176/Lenovo_Intel_Core_i9-14900HX-32GB-1TB_SSD_Laptop_-_(83NN003FSB)_01.JPG?fit=fill&bg=0FFF&w=785&h=460&auto=format,compress",
+      "href": "/r/direct/38168476",
+      "affiliateUrl": "/r/direct/38168476",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "38166311",
+      "name": "MSI Stealth A16 AI+ 16-inch AMD Ryzen AI 9 HX 370 Processor 12GB/2TB SSD GeForce RTX 5070 Ti Gaming Laptop - Core Black (A3XWHG-065SG)",
+      "price": 4499,
+      "currency": "SGD",
+      "merchant": "harveynorman.com.sg",
+      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/160/Slide1_kuxg-2t.JPG?fit=fill&bg=0FFF&w=785&h=460&auto=format,compress",
+      "href": "/r/direct/38166311",
+      "affiliateUrl": "/r/direct/38166311",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "56310639",
+      "name": "ASUS ROG Strix G16 (2025) Gaming Laptop, 16” ROG Nebula Display 16:10 2.5K 240Hz/3ms, NVIDIA® GeForce RTX™ 5070 Laptop GPU, Intel® Core™ Ultra 9 275HX, 32GB DDR5, 2TB Gen 4 SSD, Wi-Fi 7, Win 11 Pro",
+      "price": 3509.64,
+      "currency": "SGD",
+      "merchant": "amazon_sg",
+      "imageUrl": "https://m.media-amazon.com/images/I/71WH7jtyWpL._AC_UL320_.jpg",
+      "href": "/r/direct/56310639",
+      "affiliateUrl": "/r/direct/56310639",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-rtx-5070-laptop-us"
   },

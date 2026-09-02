@@ -122,7 +122,56 @@
       "answer": "Yes for Bluetooth — these are wireless headphones, not network-locked. The catch is warranty: parallel imports are not serviceable by Sony Singapore and you cannot add Sony's local extended cover."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513283",
+      "name": "Sony WH-1000XM6 Wireless Noise Cancelling Headphones - Silver",
+      "price": 549,
+      "currency": "SGD",
+      "merchant": "sony.com.sg",
+      "imageUrl": "https://www.sony.com.sg/images/wh-1000xm6-silver.jpg",
+      "href": "/r/direct/9222976908546513283",
+      "affiliateUrl": "/r/direct/9222976908546513283",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513282",
+      "name": "Sony WH-1000XM6 Wireless Noise Cancelling Headphones - Black",
+      "price": 549,
+      "currency": "SGD",
+      "merchant": "sony.com.sg",
+      "imageUrl": "https://www.sony.com.sg/images/wh-1000xm6-black.jpg",
+      "href": "/r/direct/9222976908546513282",
+      "affiliateUrl": "/r/direct/9222976908546513282",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513284",
+      "name": "Sony WH-1000XM6 Wireless Noise Cancelling Headphones (Challenger)",
+      "price": 529,
+      "currency": "SGD",
+      "merchant": "challenger.com.sg",
+      "imageUrl": "https://online.challenger.sg/images/wh-1000xm6.jpg",
+      "href": "/r/direct/9222976908546513284",
+      "affiliateUrl": "/r/direct/9222976908546513284",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513285",
+      "name": "Sony WH-1000XM6 Wireless Noise Cancelling Headphones (Courts)",
+      "price": 529,
+      "currency": "SGD",
+      "merchant": "courts.com.sg",
+      "imageUrl": "https://www.courts.com.sg/images/wh-1000xm6.jpg",
+      "href": "/r/direct/9222976908546513285",
+      "affiliateUrl": "/r/direct/9222976908546513285",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-sony-wh-1000xm6-us"
   },

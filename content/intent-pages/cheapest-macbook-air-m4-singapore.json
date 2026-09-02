@@ -109,7 +109,56 @@
       "answer": "13‑inch for portability and most shoppers; 15‑inch only if you regularly edit video, want a larger canvas for split‑screen work, or do not want to plug into a monitor at home. The chip and battery are the same on both."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "58030543",
+      "name": "Apple 15-inch MacBook Air: Apple M5 chip with 10‑core CPU and 10‑core GPU, 16GB, 512GB SSD - Midnight (MDVH4ZP/A)",
+      "price": 1899,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58030543",
+      "affiliateUrl": "/r/direct/58030543",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "58030542",
+      "name": "Apple 15-inch MacBook Air: Apple M5 chip with 10‑core CPU and 10‑core GPU, 24GB, 1TB SSD - Starlight (MDVF4ZP/A)",
+      "price": 2499,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58030542",
+      "affiliateUrl": "/r/direct/58030542",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "58030541",
+      "name": "Apple 15-inch MacBook Air: Apple M5 chip with 10‑core CPU and 10‑core GPU, 16GB, 1TB SSD - Starlight (MDVE4ZP/A)",
+      "price": 2199,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58030541",
+      "affiliateUrl": "/r/direct/58030541",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "58030540",
+      "name": "Apple 15-inch MacBook Air: Apple M5 chip with 10‑core CPU and 10‑core GPU, 24GB, 1TB SSD - Silver (MDVC4ZP/A)",
+      "price": 2499,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "imageUrl": null,
+      "href": "/r/direct/58030540",
+      "affiliateUrl": "/r/direct/58030540",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/cheapest-macbook-air-m4-us"
   },
