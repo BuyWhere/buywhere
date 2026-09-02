@@ -10,17 +10,20 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "android tablets",
+  "searchQuery": "samsung galaxy tab s9",
   "backupQueries": [
+    "galaxy tab s10",
     "Samsung Galaxy Tab",
-    "android tablet",
-    "galaxy tablet"
+    "android tablets"
   ],
-  "minPrice": 50,
+  "minPrice": 200,
   "requiredProductTerms": [
-    "android",
-    "tablet",
-    "galaxy"
+    "galaxy tab",
+    "galaxy tab s",
+    "amazon fire",
+    "fire hd",
+    "tab s9",
+    "tab s10"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
