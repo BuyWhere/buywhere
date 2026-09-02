@@ -270,6 +270,7 @@ async function tryIdentifierLookup(
       const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
+      emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
       redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Identifier-Lookup', p.id.kind);
@@ -286,6 +287,7 @@ async function tryIdentifierLookup(
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
+    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
     res.set('X-Identifier-Lookup', p.id.kind);
@@ -613,6 +615,7 @@ async function tryTierSearch(
         if (res.headersSent) return true;
         const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
+        emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
         res.set('X-Search-Tier', '1');
@@ -650,6 +653,7 @@ async function tryTierSearch(
     const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
+    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
@@ -986,11 +990,15 @@ router.get(
     // `SET LOCAL statement_timeout` races with the pool's on-connect
     // `SET statement_timeout = 30000`, the response will fire at 5s and the
     // socket will close. Mirrors the BUY-33985 deals fix.
+    const modeExec: { requested_mode: string | null; executed_mode: string; fallback_reason: string | null } = {
+      requested_mode: null, executed_mode: 'keyword', fallback_reason: null,
+    };
     res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
         const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, restEchoDest(countryCode, deliverTo), buildRestApiErrorEmptiness(countryCode, deliverTo));
+        (degradedBody as unknown as Record<string, unknown>).search_mode = { ...modeExec, fallback_reason: modeExec.fallback_reason ?? 'handler_timeout' };
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -1044,12 +1052,10 @@ router.get(
     // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
     // correct. Keyword archive path honors buildSortOrder end-to-end.
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
-    // BWEXT-69EEE94E mode honesty: report what engine actually ran and why any fallback happened.
-    const modeExec: { requested_mode: string | null; executed_mode: string; fallback_reason: string | null } = {
-      requested_mode: rawMode ?? null,
-      executed_mode: 'keyword',
-      fallback_reason: sortRequested && rawMode && rawMode !== 'keyword' ? 'sort_forces_keyword' : null,
-    };
+    // BWEXT-69EEE94E mode honesty (declared before the parse so the 10s watchdog
+    // closure can reference it): what engine actually ran + why any fallback.
+    modeExec.requested_mode = rawMode ?? null;
+    if (sortRequested && rawMode && rawMode !== 'keyword') modeExec.fallback_reason = 'sort_forces_keyword';
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
