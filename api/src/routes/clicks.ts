@@ -32,6 +32,8 @@ const DEFAULT_ALLOWED_DOMAINS = [
   'fairprice.com.sg',
   'guardian.com.sg',
   'watsons.com.sg',
+  // BUY-80402: keep /api/click in lockstep with redirect.ts allow-list.
+  'megadiscountstore.com.sg',
 ];
 
 const allowedDomains: Set<string> = new Set(

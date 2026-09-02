@@ -117,6 +117,10 @@ const DEFAULT_ALLOWED_DOMAINS = [
   'polypet.com.sg',
   'pupsik.sg',
   'robinsons.com.sg',
+  // BUY-80402: Mega Discount Store — live SG robot-vacuum catalog merchant.
+  // /r/direct/{id} must 302 to megadiscountstore.com.sg, not the homepage
+  // fallback, when AFFILIATE_STRICT_ALLOWLIST=1 is set in prod.
+  'megadiscountstore.com.sg',
   // Global / US retailers (country=us revenue path — BUY-60383/BUY-60606)
   'amazon.com',
   'amazon.co.uk',
@@ -372,6 +376,33 @@ const redirectHandler = async (req: Request, res: Response) => {
       }
     } catch (err) {
       console.warn('[redirect] products lookup failed:', (err as Error).message);
+    }
+  }
+
+  // BUY-80402: SG (and other fast-country) catalog rows live on
+  // products_partitioned_{cc}, not the 413GB parent `products` table.
+  // Intent-page /r/direct/{id} for megadiscountstore.com.sg therefore missed
+  // the parent lookup and 302'd to FALLBACK_URL. One UNION ALL of PK probes
+  // (planner uses each child's id index; never scans the parent).
+  if (!destinationUrl && /^\d+$/.test(String(productId))) {
+    const CHILD_CCS = ['sg', 'us', 'my', 'th', 'ph', 'id', 'vn', 'au', 'gb', 'ca', 'jp', 'de', 'tw', 'kr'];
+    const urlStatusSelect = probeEnabled ? 'url_status' : 'NULL::text AS url_status';
+    const unionSql = CHILD_CCS
+      .map((cc) => `SELECT url, merchant_id, ${urlStatusSelect} FROM products_partitioned_${cc} WHERE id = $1`)
+      .join('\nUNION ALL\n');
+    try {
+      const childResult = await withTimeout(
+        db.query(`${unionSql}\nLIMIT 1`, [productId]),
+        LOOKUP_TIMEOUT_MS,
+        'products_partitioned union lookup'
+      );
+      if (childResult.rows.length > 0) {
+        destinationUrl = childResult.rows[0].url;
+        merchantId = childResult.rows[0].merchant_id || 'unknown';
+        urlStatus = childResult.rows[0].url_status || null;
+      }
+    } catch (err) {
+      console.warn('[redirect] products_partitioned lookup failed:', (err as Error).message);
     }
   }
 

@@ -85,7 +85,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     // affiliate_links lookup returns no rows; products lookup returns the merchant url.
     queryHandler = (text) => {
       if (text.includes('FROM affiliate_links')) return { rows: [] };
-      if (text.includes('FROM products')) {
+      if (text.includes('FROM products WHERE')) {
         return {
           rows: [{ url: 'https://www.amazon.sg/dp/B0D1VY9GH3', merchant_id: 'amazon_sg' }],
         };
@@ -111,7 +111,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     const brokenUrl = 'https://compumarts.com/products/asus-rog-strix-g16-g614pw-ts161w-ryzen-9-8940hx-rtx-5080-16gb-gddr7-1tb-pcie-4-0-nvme-ssd-16-inch-2-5k-300hz-gaming-laptop';
     queryHandler = (text) => {
       if (text.includes('FROM affiliate_links')) return { rows: [] };
-      if (text.includes('FROM products')) {
+      if (text.includes('FROM products WHERE')) {
         return { rows: [{ url: brokenUrl, merchant_id: 'shopify_scrape' }] };
       }
       return { rows: [] };
@@ -165,7 +165,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
       if (text.includes('FROM affiliate_links')) {
         throw new Error('column "platform" does not exist');
       }
-      if (text.includes('FROM products')) {
+      if (text.includes('FROM products WHERE')) {
         return {
           rows: [{ url: 'https://shopee.sg/product/xyz', merchant_id: 'shopee_sg' }],
         };
@@ -203,6 +203,26 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
 
     assert.equal(res.statusCode, 302);
     assert.equal(res.redirectedTo, 'https://lazada.sg/aff?id=123');
+  });
+
+  it('BUY-80402: resolves megadiscountstore.com.sg from products_partitioned_sg when parent products misses', async () => {
+    const dest = 'https://www.megadiscountstore.com.sg/products/h15-pro-heat-wet-dry-cordless-vacuum';
+    queryHandler = (text) => {
+      if (text.includes('FROM affiliate_links')) return { rows: [] };
+      if (text.includes('FROM products WHERE')) return { rows: [] };
+      if (text.includes('products_partitioned_')) {
+        return { rows: [{ url: dest, merchant_id: 'megadiscountstore.com.sg' }] };
+      }
+      return { rows: [] };
+    };
+
+    const req = makeReq({ slug: 'direct', productId: '9222976908550994946', query: { source: 'product_card' } });
+    const res = makeRes();
+    await dispatch(req, res);
+
+    assert.equal(res.statusCode, 302);
+    assert.equal(res.redirectedTo, dest);
+    assert.notEqual(res.redirectedTo, 'https://buywhere.ai');
   });
 
   it('redirects to FALLBACK_URL only when neither link nor product exists', async () => {
