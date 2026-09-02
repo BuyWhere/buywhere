@@ -315,8 +315,12 @@ type McpDegradedKind = 'timeout' | 'auth_failure' | 'upstream_exception' | 'circ
 
 // BUY-76535: threshold 3 was too low — 15 concurrent MCP probes exhaust the 50-conn pool
 // in seconds, causing rapid circuit trips that keep all markets permanently degraded.
-// Raised to 10 (enough to absorb a full concurrent probe wave) and cooldown to 120s
-// (enough for pool to drain before re-admitting traffic).
+// Raised to 10 and cooldown to 120s (enough for pool to drain).
+// BUY-79598: upstream_exception (e.g. 08P01 from prepared-statement param mismatch) is not
+// pool exhaustion — the catalog is healthy but a query fails. Opening the circuit for 120s
+// on every such failure keeps SG permanently degraded. The circuit should only open for
+// genuine pool-exhaustion (timeouts) so the pool can drain. upstream_exception always
+// proceeds to REST fallback so the user gets results anyway.
 const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 10);
 const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 120_000);
 const mcpDegradedCircuitState = new Map<string, { failures: number; openedUntil: number }>();
@@ -1132,16 +1136,22 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           ? COUNTRY_CURRENCY[country].toUpperCase()
           : '';
         const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
-        const tierFts = await spQuery<Record<string, unknown>>(
-          `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
-                  sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
-                  sp.category_path, sp.url_last_checked_at, sp.url_status
-           FROM ${ftsTable} sp ${tierWhere}
-           LIMIT ${pageLimit}`,
-          tierParams,
-          `kwfts_${tierParams.length}_${pageLimit}`,
-        );
-        const native = (tierFts.rows as Record<string, unknown>[]);
+        let native: Record<string, unknown>[] = [];
+        try {
+          const tierFts = await spQuery<Record<string, unknown>>(
+            `SELECT sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+                    sp.image_url, sp.updated_at, sp.region, sp.country_code, sp.category,
+                    sp.category_path, sp.url_last_checked_at, sp.url_status
+             FROM ${ftsTable} sp ${tierWhere}
+             LIMIT ${pageLimit}`,
+            tierParams,
+            `kwfts_${tierParams.length}_${pageLimit}`,
+          );
+          native = tierFts.rows as Record<string, unknown>[];
+        } catch (stepErr) {
+          console.warn(`[search_products] BUY-79598: kwfts FAILED q=${q} country=${country} err=${(stepErr as any)?.message || stepErr}`);
+          throw stepErr;
+        }
         let candidates = wantCur
           ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
           : native;
