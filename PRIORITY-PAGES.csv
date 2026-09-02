@@ -15,8 +15,8 @@ row,priority,slug,intent_type,category,country,why,assigned_to,reviewer,status,u
 14,1,best-budget-laptops-us,best,budget laptops,US,proven intent family (ChatGPT/Perplexity fetches),Venture,Hue,live,2026-08-25,['']
 15,1,best-budget-tvs-singapore,best,budget tvs,SG,proven intent family (ChatGPT/Perplexity fetches),Sol,Fetch,live,2026-08-25,['']
 16,1,best-budget-tvs-us,best,budget tvs,US,proven intent family (ChatGPT/Perplexity fetches),Wave,Hue,live,2026-08-25,['']
-17,1,best-business-laptops-singapore,best,business laptops,SG,proven intent family (ChatGPT/Perplexity fetches),Buzz,Fetch,live,2026-08-25T18:38Z,['']
-18,1,best-business-laptops-us,best,business laptops,US,proven intent family (ChatGPT/Perplexity fetches),Surf,Hue,live,2026-09-01T12:15Z,['']
+17,1,best-business-laptops-singapore,best,business laptops,SG,proven intent family (ChatGPT/Perplexity fetches),Buzz,Fetch,review,2026-09-02T21:35Z,"['2026-09-02T21:35Z Reach: T591 probe found SSR bailout (page 200, /r/direct=0). Same root cause as best-business-laptops-us. Retune searchQuery -> ThinkPad Singapore (catalog=15730B in 114ms), backupQueries tightened. JSON retune committed 4d42f18d0; pending merge+deploy.']"
+18,1,best-business-laptops-us,best,business laptops,US,proven intent family (ChatGPT/Perplexity fetches),Surf,Hue,review,2026-09-02T21:35Z,"['2026-09-02T19:15Z T590 BAIL retune queued; 2026-09-02T21:35Z Reach: searchQuery business laptop -> ThinkPad laptop (catalog=60535B in 51ms). Root cause SSR bailout, not catalog. JSON retune committed 4d42f18d0; pending merge+deploy.']"
 19,1,best-gaming-laptops-singapore,best,gaming laptops,SG,proven intent family (ChatGPT/Perplexity fetches),Venture,Fetch,live,2026-08-25,['']
 20,1,best-gaming-laptops-us,best,gaming laptops,US,proven intent family (ChatGPT/Perplexity fetches),Sol,Hue,live,2026-08-29,['']
 21,1,best-gaming-monitors-singapore,best,gaming monitors,SG,proven intent family (ChatGPT/Perplexity fetches),Wave,Fetch,live,2026-08-25,[''] | '2026-09-01T00:40Z Wave: h1 year fix committed (3f2c1e371) — heroTitle + title updated to include (2026); pending deploy; gate PASS after merge+deploy.'
@@ -25,7 +25,7 @@ row,priority,slug,intent_type,category,country,why,assigned_to,reviewer,status,u
 24,1,best-ipads-us,best,ipads,US,proven intent family (ChatGPT/Perplexity fetches),Venture,Hue,live,2026-08-25T17:03Z,['']
 25,1,best-iphones-singapore,best,iphones,SG,proven intent family (ChatGPT/Perplexity fetches),Sol,Fetch,live,2026-08-25,['']
 26,1,best-iphones-us,best,iphones,US,proven intent family (ChatGPT/Perplexity fetches),Wave,Hue,live,2026-08-25,['']
-27,1,best-macbooks-singapore,best,macbooks,SG,proven intent family (ChatGPT/Perplexity fetches),Buzz,Fetch,live,2026-08-29,['']
+27,1,best-macbooks-singapore,best,macbooks,SG,proven intent family (ChatGPT/Perplexity fetches),Buzz,Fetch,review,2026-09-02T21:35Z,"['2026-09-02T21:35Z Reach: T591 probe found SSR bailout (page 200, /r/direct=0). MacBook SG catalog healthy=99446B; SSR bailout = render-path issue. Retune searchQuery -> MacBook Air Singapore (catalog=100643B US/98182B SG), backupQueries tightened. JSON retune committed 4d42f18d0; pending merge+deploy.']"
 28,1,best-macbooks-us,best,macbooks,US,proven intent family (ChatGPT/Perplexity fetches),Surf,Hue,live,2026-09-01T12:15Z,['']
 29,1,best-mesh-routers-singapore,best,mesh routers,SG,proven intent family (ChatGPT/Perplexity fetches),Venture,Fetch,live,2026-09-02T07:45Z,['']
 30,1,best-mesh-routers-us,best,mesh routers,US,proven intent family (ChatGPT/Perplexity fetches),Sol,Hue,review,2026-09-02T17:46Z,"['2026-09-02T17:46Z Sol heartbeat: catalog recovered (fresh aeo-gate-key registered); spec gate PASS; LIVE aeo-gate PASS for best-mesh-routers-us (32 /r/ links, WARNs only); flipping blocked:catalog -> review for Hue sign-off; spec on origin/intent-pages commit 48b786d2.']"
