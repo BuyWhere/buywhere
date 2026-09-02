@@ -10,6 +10,9 @@ const CC_TLD: Record<string, string> = {
   de: 'DE', fr: 'FR', it: 'IT', es: 'ES', nl: 'NL', br: 'BR', mx: 'MX',
   ca: 'CA', ae: 'AE', sa: 'SA', tw: 'TW', hk: 'HK', cn: 'CN', ch: 'CH',
   tr: 'TR', se: 'SE', no: 'NO', dk: 'DK', pl: 'PL', cz: 'CZ', at: 'AT',
+  ie: 'IE', me: 'ME', pt: 'PT', be: 'BE', fi: 'FI', gr: 'GR', hu: 'HU',
+  ro: 'RO', bg: 'BG', hr: 'HR', sk: 'SK', si: 'SI', lt: 'LT', lv: 'LV',
+  ee: 'EE', lu: 'LU',
 };
 
 const GENERIC_TLDS = new Set([
