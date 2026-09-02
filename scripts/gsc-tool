@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GSC ops tool for Lyra — ongoing index-health ownership of buywhere.ai.
 Usage:
-  gsc-tool submit-sitemaps          # resubmit all sitemaps (do after any page fix)
+  gsc-tool submit-sitemaps          # resubmit live 2xx sitemap children (plus index)
   gsc-tool sitemaps                 # list sitemaps + submitted/indexed/error counts
   gsc-tool inspect <url>            # index status + coverageState + why-not-indexed
   gsc-tool coverage <url> [url...]  # bucketed coverage summary for many URLs
@@ -19,53 +19,57 @@ from googleapiclient.discovery import build
 
 SITE = os.environ.get("GSC_SITE_URL", "sc-domain:buywhere.ai")
 KEY = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/home/paperclip/.secrets/gsc-reader.json")
-
-def _discover_sitemaps():
-    """Fetch the root sitemap index and return all child loc URLs."""
-    root_url = "https://buywhere.ai/sitemap.xml"
-    try:
-        req = urllib.request.Request(root_url, headers={"User-Agent": "gsc-tool/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            body = resp.read()
-        tree = ET.fromstring(body)
-        ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-        locs = [loc.text for loc in tree.findall(".//sm:sitemap/sm:loc", ns) if loc.text]
-        if not locs:
-            # no namespace fallback
-            locs = [loc.text for loc in tree.findall(".//sitemap/loc") if loc.text]
-        live = []
-        for loc in locs:
-            try:
-                req2 = urllib.request.Request(loc, method="HEAD", headers={"User-Agent": "gsc-tool/1.0"})
-                with urllib.request.urlopen(req2, timeout=15) as r:
-                    code = r.status
-            except urllib.error.HTTPError as e:
-                code = e.code
-            except Exception:
-                code = None
-            if code and 200 <= int(code) < 300:
-                live.append(loc)
-            else:
-                print(f"skip non-2xx child {loc} status={code}", file=sys.stderr)
-        return [root_url] + (live if live else [])
-    except Exception as e:
-        print(f"Warning: failed to discover sitemaps from root ({e}); using fallback list", file=sys.stderr)
-        return [root_url,
-                "https://buywhere.ai/sitemap-products.xml",
-                "https://buywhere.ai/sitemap-pages.xml",
-                "https://buywhere.ai/sitemap-categories.xml",
-                "https://buywhere.ai/sitemap-merchants.xml"]
+INDEX_URL = os.environ.get("SITEMAP_INDEX_URL", "https://buywhere.ai/sitemap.xml")
+UA = "BuyWhere-gsc-tool/1.0"
 
 def sc(scope="https://www.googleapis.com/auth/webmasters"):
     c=service_account.Credentials.from_service_account_file(KEY,scopes=[scope]); return build("searchconsole","v1",credentials=c)
 def idxapi():
     c=service_account.Credentials.from_service_account_file(KEY,scopes=["https://www.googleapis.com/auth/indexing"]); return build("indexing","v3",credentials=c)
 
+def _http_status(url):
+    req=urllib.request.Request(url, method="HEAD", headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
+        req=urllib.request.Request(url, method="GET", headers={"User-Agent": UA})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+def discover_live_sitemaps():
+    req=urllib.request.Request(INDEX_URL, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        body=r.read()
+        index_status=r.status
+    urls=[INDEX_URL]
+    if index_status != 200:
+        print(f"WARN index {INDEX_URL} HTTP {index_status}", file=sys.stderr)
+        return urls
+    root=ET.fromstring(body)
+    ns={"sm":"http://www.sitemaps.org/schemas/sitemap/0.9"}
+    children=[el.text.strip() for el in root.findall(".//sm:loc", ns) if el.text]
+    if not children:
+        children=[el.text.strip() for el in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc") if el.text]
+    live=[]
+    for u in children:
+        st=_http_status(u)
+        if 200 <= st < 300:
+            live.append(u)
+        else:
+            print(f"skip non-2xx {u} HTTP {st}", file=sys.stderr)
+    return urls + live
+
 def main():
     cmd=sys.argv[1] if len(sys.argv)>1 else "sitemaps"
     if cmd=="submit-sitemaps":
         s=sc()
-        for sm in _discover_sitemaps():
+        for sm in discover_live_sitemaps():
             try: s.sitemaps().submit(siteUrl=SITE,feedpath=sm).execute(); print(f"submitted {sm}")
             except Exception as e: print(f"skip {sm}: {e}")
     elif cmd=="sitemaps":
