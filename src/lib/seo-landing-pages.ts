@@ -606,10 +606,31 @@ export function looksLikeRetailerPlaceholderUrl(imageUrl: string | null | undefi
   if (!imageUrl) return false;
   const u = imageUrl.toLowerCase();
   if (u.includes("placeholder") || u.includes("/no_selection") || u.includes("noimage")) return true;
-  if (/cdn\.bestdenki\.com\.sg\/media\/catalog\/product\/cache\/[^/]+\/2\/9\/2918\d{3}-1(?:_\d+)?\.jpe?g/.test(u)) {
+  if (u.includes("/watermark") || u.includes("image_coming_soon") || u.includes("/nophoto")) return true;
+  // Magento catalog cache: /media/catalog/product/cache/{hash}/{digit}/{digit}/{sku}-1.jpg
+  // Best Denki serves the same near-solid JPEG at 2918110 / 2918115 / 2918218.
+  if (/\/media\/catalog\/product\/cache\/[0-9a-f]+\/\d\/\d\/2918\d{3}-1(?:_\d+)?\.jpe?g/.test(u)) {
     return true;
   }
   return false;
+}
+
+/** BUY-79816: unique-color proxy without a JPEG decoder.
+ * Real product photos have high byte diversity; near-solid #f8f8f8 Magento
+ * placeholders (10 unique colors @40x40) compress to a tiny unique-byte set.
+ * Spec: reject when size <15KiB AND unique-colors@40x40 <40. */
+export function uniqueByteDiversity(buf: Uint8Array): number {
+  const seen = new Uint8Array(256);
+  let n = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i];
+    if (!seen[b]) {
+      seen[b] = 1;
+      n++;
+      if (n >= 40) return n;
+    }
+  }
+  return n;
 }
 
 function schemaProductImage(imageUrl?: string | null): string | undefined {
@@ -996,6 +1017,11 @@ async function verifyUsableImageContent(
       const knownFullSize =
         headerLen > 0 ? headerLen : total < LIMIT ? total : 0;
       if (knownFullSize > 0 && knownFullSize < MIN_PRODUCT_PHOTO_BYTES) {
+        return false;
+      }
+      // BUY-79816 unique-color proxy: full tiny rasters with <40 distinct bytes
+      // are near-solid placeholders even when Content-Length is omitted.
+      if (total < LIMIT && uniqueByteDiversity(buf) < 40) {
         return false;
       }
       const dims = parseImageDimensions(buf);
@@ -1757,6 +1783,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     })
   );
 
+  const qualityById = new Map(collected.map((p, i) => [p.id, imageQualityResults[i]]));
+
   for (let i = 0; i < collected.length; i++) {
     const product = collected[i];
     const result = imageQualityResults[i];
@@ -1778,7 +1806,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       for (const otherProduct of skuProducts) {
         if (otherProduct.id === product.id) continue; // skip self
         // Check if other product's image passes quality
-        if (otherProduct.imageUrl && sanitizeProductImageUrl(otherProduct.imageUrl)) {
+        if (
+          otherProduct.imageUrl &&
+          sanitizeProductImageUrl(otherProduct.imageUrl) &&
+          !looksLikeRetailerPlaceholderUrl(otherProduct.imageUrl)
+        ) {
           const otherQuality = await verifyUsableImageContent(otherProduct.imageUrl);
           if (otherQuality) {
             fallbackImage = otherProduct.imageUrl;
@@ -1804,7 +1836,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
 
     if (fallbackImage) {
+      const fallbackFp = await fingerprintRemoteImage(fallbackImage);
       verified.push({ ...product, imageUrl: fallbackImage });
+      qualityById.set(product.id, { passed: true, reason: "fallback", fingerprint: fallbackFp });
     } else {
       // No fallback available - check if we should keep the card anyway
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
@@ -1825,7 +1859,6 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // BUY-79816: no two cards share identical image bytes (URL or Magento-path variants).
   const seenImageUrls = new Set<string>();
   const seenFingerprints = new Set<string>();
-  const qualityById = new Map(collected.map((p, i) => [p.id, imageQualityResults[i]]));
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
     if (!product.imageUrl) {

@@ -132,6 +132,16 @@ describe('buildProduct', () => {
     assert.equal(product.image_url, 'https://images.example.com/products/laptop.jpg');
   });
 
+  it('BUY-79816: nulls Best Denki Magento placeholder JPEGs', () => {
+    const row = {
+      ...baseRow,
+      image_url:
+        'https://cdn.bestdenki.com.sg/media/catalog/product/cache/7eb369f27775f2db92648609527c34e5/2/9/2918110-1.jpg',
+    };
+    const product = buildProduct(row, 'SGD', false);
+    assert.equal(product.image_url, null);
+  });
+
   it('removes ASIN-derived Amazon media URLs', () => {
     const row = { ...baseRow, image_url: 'https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg' };
     const product = buildProduct(row, 'USD', false);

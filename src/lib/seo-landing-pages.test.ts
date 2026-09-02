@@ -16,6 +16,7 @@ import {
   verifyReachableImage,
   sanitizeProductImageUrl,
   looksLikeRetailerPlaceholderUrl,
+  uniqueByteDiversity,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
 
@@ -1865,4 +1866,15 @@ test("BUY-79816: Best Denki Magento placeholders fail URL heuristic", () => {
     false,
   );
   assert.equal(looksLikeRetailerPlaceholderUrl("https://example.com/placeholder/logo.png"), true);
+});
+
+test("BUY-79816: uniqueByteDiversity rejects near-solid rasters", () => {
+  const solid = new Uint8Array(9136).fill(0xf8);
+  solid[0] = 0xff;
+  solid[1] = 0xd8;
+  for (let i = 2; i < 12; i++) solid[i] = i;
+  assert.ok(uniqueByteDiversity(solid) < 40, "near-solid JPEG must be <40 unique bytes");
+  const photo = new Uint8Array(4096);
+  for (let i = 0; i < photo.length; i++) photo[i] = i & 0xff;
+  assert.ok(uniqueByteDiversity(photo) >= 40, "real photo entropy must pass");
 });

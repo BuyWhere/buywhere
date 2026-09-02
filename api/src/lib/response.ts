@@ -56,6 +56,23 @@ function normalizeImageUrl(imageUrl: unknown): string | null {
 
     if (hostname === 'source.unsplash.com') return null;
 
+    // BUY-79816: Magento catalog placeholders (Best Denki 2918xxx-1.jpg) and
+    // explicit placeholder path tokens. Gate at API projection so REST/MCP/SSR
+    // share the same image_url (never a retailer watermark).
+    if (
+      pathname.includes('placeholder') ||
+      pathname.includes('/no_selection') ||
+      pathname.includes('noimage') ||
+      pathname.includes('image_coming_soon') ||
+      pathname.includes('/nophoto') ||
+      pathname.includes('/watermark')
+    ) {
+      return null;
+    }
+    if (/\/media\/catalog\/product\/cache\/[0-9a-f]+\/\d\/\d\/2918\d{3}-1(?:_\d+)?\.jpe?g/.test(pathname)) {
+      return null;
+    }
+
     // BUY-72693: fail-closed on Amazon ASIN-derived media keys.
     if (hostname === 'm.media-amazon.com' || hostname.endsWith('.media-amazon.com')) {
       const imgMatch = pathname.match(/^\/images\/i\/([^/.]+)\./);
