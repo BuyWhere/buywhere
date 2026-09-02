@@ -161,6 +161,22 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "lg",
   "best_denki_sg",
   "best_denki",
+  // BUY-79777 / BUY-79778: live catalog returns concatenated domain first-labels
+  // (harveynorman.com.sg → "harveynorman", not "harvey_norman"). Without these
+  // the cheapest-iphone-17-singapore ItemList drops Harvey Norman / Gain City /
+  // Best Denki even though the underscore forms are already allowlisted.
+  "harveynorman",
+  "harveynorman_sg",
+  "gaincity",
+  "gaincity_sg",
+  "bestdenki",
+  "bestdenki_sg",
+  // BUY-79777: Mega Discount Store (megadiscountstore.com.sg) is the live SG
+  // catalog source for /best-robot-vacuums-singapore (H15/H16 wet-dry SKUs).
+  // Domain first-label is "megadiscountstore".
+  "megadiscountstore",
+  "megadiscountstore_sg",
+  "mega_discount_store",
   "sim_lim_square_sg",
   "funan_sg",
   "mustafa_sg",
@@ -513,6 +529,10 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "gain city",
   "best denki",
   "bestdenki",
+  "harveynorman",
+  "gaincity",
+  "megadiscountstore",
+  "mega discount store",
   "apple",
   "samsung",
   "sony",
@@ -620,6 +640,14 @@ function labelMatchesCountry(label: string, country: CountryCode): boolean {
   if (!normalized) return false;
   const set = MERCHANT_LABEL_ALLOWLISTS[country];
   if (set.has(normalized)) return true;
+  // BUY-79777: stripMerchantTenantSuffix leaves domain-style labels
+  // ("Harveynorman.Com.Sg", "Megadiscountstore.Com.Sg"). Strip the TLD chain
+  // so the first label can match concatenated allowlist entries.
+  const hostish = normalized.replace(/^www\./, "");
+  if (hostish.includes(".")) {
+    const firstLabel = hostish.split(".")[0];
+    if (firstLabel && set.has(firstLabel)) return true;
+  }
   // Soft match: drop trailing region/business-type suffixes so compound labels
   // like "Apple Store", "ASUS Singapore", "Dyson Singapore", "Best Buy US"
   // normalize to the bare retailer name that lives in the allowlist.

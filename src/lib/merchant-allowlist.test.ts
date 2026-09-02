@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   candidateAllowlistSlugs,
+  filterProductsForCountry,
   isMerchantAllowedForCountry,
 } from "@/lib/merchant-allowlist";
 
@@ -77,6 +78,49 @@ test("BUY-79032: US allowlist accepts shopify tenants (live US catalog is Shopif
     isMerchantAllowedForCountry({ merchant: "shopify_acemagic_de" }, "US"),
     true,
     "shopify_* tenants must match via candidateAllowlistSlugs",
+  );
+});
+
+test("BUY-79777: megadiscountstore.com.sg is allowlisted for SG", () => {
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "megadiscountstore.com.sg" }, "SG"),
+    true,
+    "live robot-vacuum SG catalog merchant must survive the country gate",
+  );
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "megadiscountstore" }, "SG"),
+    true,
+  );
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "megadiscountstore.com.sg" }, "US"),
+    false,
+    "SG-only storefront must not leak onto US pages",
+  );
+});
+
+test("BUY-79777: concatenated .com.sg first-labels match underscore allowlist forms", () => {
+  assert.equal(
+    isMerchantAllowedForCountry({ merchant: "harveynorman.com.sg" }, "SG"),
+    true,
+    "harveynorman.com.sg first-label must match SG (live cheapest-iphone-17)",
+  );
+  assert.equal(isMerchantAllowedForCountry({ merchant: "gaincity.com.sg" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "bestdenki.com.sg" }, "SG"), true);
+});
+
+test("BUY-79777: domain-style rendered labels survive filterProductsForCountry", () => {
+  const kept = filterProductsForCountry(
+    [
+      { merchant: "Megadiscountstore.Com.Sg" },
+      { merchant: "Harveynorman.Com.Sg" },
+      { merchant: "Apple.Com.Sg" },
+      { merchant: "CompuMarts" },
+    ],
+    "SG",
+  );
+  assert.deepEqual(
+    kept.map((p) => p.merchant),
+    ["Megadiscountstore.Com.Sg", "Harveynorman.Com.Sg", "Apple.Com.Sg"],
   );
 });
 
