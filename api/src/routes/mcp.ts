@@ -1485,15 +1485,20 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
-      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+      // BUY-79642/BUY-74597: FTS threw but REST filled the gap. Mark degraded
+      // so agents can distinguish these partial-fail results from a clean cache hit.
+      const filled = buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false, true);
+      filled.meta!.status = 'degraded';
+      return aliasSearchEnvelope(filled);
     }
     // BUY-79642: REST completed with 0 native-market hits (ID/PH iphone 15).
     // Do not label that api_error — catalog FTS failed but REST independently
-    // answered no_match. Keep degraded only when REST itself failed to return.
+    // answered no_match. degraded=true still applies (catalog threw); only the
+    // api_error label and degradedKind are suppressed when REST answered empty.
     const restAnsweredEmpty = restHits !== null && restHits.products.length === 0;
     return buildSearchResponse(
       [], 0, limit, offset, Date.now() - t0, false,
-      restAnsweredEmpty ? false : true, undefined, country || null,
+      true, undefined, country || null,
       deriveEmptiness({
         regionHasAnyData: regionHasAnyDataProbe,
         categoryHasAnyData: categoryHasAnyDataProbe,
