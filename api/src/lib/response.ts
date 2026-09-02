@@ -342,6 +342,9 @@ export function buildSearchResponse(
         degraded_kind: emptiness.degraded_kind,
         ...(emptiness.degraded_kind && { degraded_reason: emptiness.diagnostic.timed_out_stage ?? 'catalog_search' }),
       }),
+      // BUY-79690: echo normalized dest whenever the caller passed one, including
+      // empty 200s via country=/country_code= (not only deliver_to=).
+      ...(expectedCountryCode && { deliver_to: String(expectedCountryCode).toUpperCase() }),
     },
   };
 }
@@ -512,6 +515,21 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         indexed_for_region: false,
         category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
+        invalid_deliver_to: true,
+        ...baseDiag,
+      },
+    };
+  }
+  // BUY-79690: empty + no dest at all is deliver_to_missing (no unfiltered probe required).
+  if (!signals.deliverToPresent) {
+    return {
+      emptiness_reason: 'deliver_to_missing',
+      confidence: 'high',
+      diagnostic: {
+        engine_status: 'ok',
+        indexed_for_region: signals.regionSupported,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
         ...baseDiag,
       },
     };
@@ -524,27 +542,6 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         engine_status: 'ok',
         indexed_for_region: true,
         category_recognized: false,
-        rate_limit_remaining: signals.rateLimitRemaining ?? null,
-        ...baseDiag,
-      },
-    };
-  }
-  // BUY-72044 / P2.6A: deliver_to_missing branch sits AFTER region/category gates
-  // so that genuine catalog gaps (no_data, region_unsupported, category_unsupported)
-  // are not blamed on the missing buyer market. Fires only when the unfiltered probe
-  // confirmed at least one row would have matched globally.
-  if (
-    !signals.deliverToPresent &&
-    signals.unfilteredHasAnyData === true
-  ) {
-    return {
-      emptiness_reason: 'deliver_to_missing',
-      // confidence=low override per spec: ambiguous query + thin catalog.
-      confidence: signals.queryAmbiguous ? 'low' : 'high',
-      diagnostic: {
-        engine_status: 'ok',
-        indexed_for_region: signals.regionSupported,
-        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
         rate_limit_remaining: signals.rateLimitRemaining ?? null,
         ...baseDiag,
       },

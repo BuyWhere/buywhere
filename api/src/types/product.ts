@@ -119,6 +119,8 @@ export interface EmptinessDiagnostic {
   /** BUY-74597: when emptiness_reason is timeout/partial_timeout, the stage that timed out
    *  (e.g. catalog_search, offer_aggregation, merchant_join). No internal DSNs here. */
   timed_out_stage?: string | null;
+  /** BUY-79690: true when the destination was present but not a supported ISO market. */
+  invalid_deliver_to?: boolean;
 }
 
 export type SearchConfidence = 'high' | 'low';
@@ -165,6 +167,8 @@ export interface SearchMeta {
   mode_used?: 'keyword' | 'semantic' | 'hybrid';
   /** BUY-76440: human-readable engine that served the mode, e.g. 'keyword (fts)' | 'semantic (pgvector hnsw)' | 'hybrid (rrf + pgvector hnsw)'. */
   mode_used_engine?: string;
+  /** BUY-79690: normalized destination echoed when any of deliver_to|country|country_code was present. */
+  deliver_to?: string;
 }
 
 export interface SearchResponse {

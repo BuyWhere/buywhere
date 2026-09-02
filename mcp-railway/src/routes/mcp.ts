@@ -747,8 +747,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // schema contract. Without this, MCP clients passing deliver_to="US" get SG
   // results because the country filter was never applied.
   const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
-  const country = rawCountry || (q && !region ? 'SG' : '');
+  // BUY-79690: do not silently default dest — empty+no dest is deliver_to_missing.
+  const country = rawCountry;
   // BUY-79598: clear stale circuit state so SG queries are never blocked by old failures.
   resetSearchProductsCircuit();
   const category = (args.category as string) || '';
@@ -1296,10 +1296,31 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     products, total!, limit, offset, Date.now() - t0, false
   );
   if (q && products.length === 0) {
-    // BUY-73908: stamp emptiness_reason onto the canonical envelope so v2
-    // callers see the same diagnostic the REST path emits. Use any cast
-    // to bypass the missing-index-signature error on SearchResponse.
-    (result as any).meta = { ...(result as any).meta, emptiness_reason: 'no_match' };
+    const dest = deliverToPresent ? (country || '').toUpperCase() : '';
+    const regionSupported = !dest || (SUPPORTED_REGIONS as readonly string[]).includes(dest);
+    const emptinessReason = !deliverToPresent
+      ? 'deliver_to_missing'
+      : (regionSupported ? 'no_match' : 'region_unsupported');
+    const diagnostic = {
+      engine_status: 'ok' as const,
+      indexed_for_region: regionSupported,
+      category_recognized: true,
+      rate_limit_remaining: null,
+      deliver_to_present: deliverToPresent,
+      ...(!deliverToPresent || regionSupported ? {} : { invalid_deliver_to: true }),
+    };
+    (result as any).emptiness_reason = emptinessReason;
+    (result as any).confidence = deliverToPresent && !regionSupported ? 'low' : 'high';
+    (result as any).diagnostic = diagnostic;
+    (result as any).meta = {
+      ...(result as any).meta,
+      emptiness_reason: emptinessReason,
+      confidence: deliverToPresent && !regionSupported ? 'low' : 'high',
+      diagnostic,
+      ...(deliverToPresent && dest ? { deliver_to: dest } : {}),
+    };
+  } else if (deliverToPresent && country) {
+    (result as any).meta = { ...(result as any).meta, deliver_to: country.toUpperCase() };
   }
 
   try {
@@ -2623,6 +2644,12 @@ async function handleSearchProductsV2(args: Record<string, unknown>) {
   args.country_code = deliverTo;
   const result = await handleSearchProducts(args);
   applyNoMatchMeta(result);
+  if (result && typeof result === 'object') {
+    const meta = ((result as any).meta && typeof (result as any).meta === 'object')
+      ? (result as any).meta as Record<string, unknown>
+      : ((result as any).meta = {});
+    meta.deliver_to = deliverTo;
+  }
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
   if (inferred && result && typeof result === 'object' && (result as any).meta && typeof (result as any).meta === 'object') {
     ((result as any).meta as Record<string, unknown>).deliver_to_inferred = true;
@@ -2635,7 +2662,7 @@ function applyNoMatchMeta(response: any): void {
   const meta = response.meta && typeof response.meta === 'object'
     ? response.meta as Record<string, unknown>
     : (response.meta = {});
-  if (meta.emptiness_reason) return;
+  if (meta.emptiness_reason || response.emptiness_reason) return;
 
   const dataCount = Array.isArray(response.data) ? response.data.length : null;
   const productsCount = Array.isArray(response.products) ? response.products.length : null;

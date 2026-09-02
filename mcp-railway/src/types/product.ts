@@ -69,6 +69,7 @@ export interface EmptinessDiagnostic {
   rate_limit_remaining: number | null;
   deliver_to_present: boolean;
   timed_out_stage?: string | null;
+  invalid_deliver_to?: boolean;
 }
 
 export type DegradedKind =
@@ -94,4 +95,5 @@ export interface SearchResponse {
   confidence?: SearchConfidence;
   diagnostic?: EmptinessDiagnostic;
   degraded_kind?: DegradedKind;
+  meta?: Record<string, unknown>;
 }

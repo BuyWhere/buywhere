@@ -395,6 +395,8 @@ describe('NL search queries — response correctness', () => {
     assert.equal(emptyBody.meta.diagnostic.engine_status, 'ok');
     assert.equal(emptyBody.meta.diagnostic.indexed_for_region, true);
     assert.equal(emptyBody.meta.diagnostic.category_recognized, true);
+    assert.equal(emptyBody.meta.diagnostic.deliver_to_present, true);
+    assert.equal(emptyBody.meta.deliver_to, 'SG');
 
     setupDefaultMocks();
     const hitRes = await fetch(`http://localhost:${port}/v1/products/search?q=coffee&country=SG`, {
@@ -433,6 +435,8 @@ describe('NL search queries — response correctness', () => {
     const omittedBody = await omittedRes.json();
     assert.equal(omittedRes.status, 200);
     assert.equal(omittedBody.meta.diagnostic.deliver_to_present, false);
+    assert.equal(omittedBody.meta.emptiness_reason, 'deliver_to_missing');
+    assert.equal(omittedBody.meta.confidence, 'high');
 
     const invalidRes = await fetch(`http://localhost:${port}/v1/products/search?q=zzzznonexistentsku999xyz&deliver_to=XX`, {
       headers: { Authorization: 'Bearer test-key' },
@@ -441,6 +445,7 @@ describe('NL search queries — response correctness', () => {
     assert.equal(invalidRes.status, 200);
     assert.equal(invalidBody.meta.diagnostic.deliver_to_present, true);
     assert.equal(invalidBody.meta.emptiness_reason, 'region_unsupported');
+    assert.equal(invalidBody.meta.diagnostic.invalid_deliver_to, true);
   });
 
   it('supports pagination via limit and offset', async () => {

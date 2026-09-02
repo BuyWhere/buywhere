@@ -285,15 +285,16 @@ describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
     queryAmbiguous: null,
   };
 
-  it('returns deliver_to_missing when caller omitted buyer market and global match exists', () => {
+  it('returns deliver_to_missing when caller omitted buyer market', () => {
     const derived = deriveEmptiness({
       ...baseSignals,
       deliverToPresent: false,
-      unfilteredHasAnyData: true,
+      unfilteredHasAnyData: null,
     });
 
     assert.equal(derived.emptiness_reason, 'deliver_to_missing');
     assert.equal(derived.diagnostic.deliver_to_present, false);
+    assert.equal(derived.confidence, 'high');
   });
 
   it('returns no_match for supported empty searches with no global match', () => {
@@ -312,6 +313,7 @@ describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
 
     assert.equal(derived.emptiness_reason, 'region_unsupported');
     assert.equal(derived.confidence, 'low');
+    assert.equal(derived.diagnostic.invalid_deliver_to, true);
   });
 
   it('attaches emptiness metadata only to empty buildSearchResponse envelopes', () => {
@@ -320,6 +322,7 @@ describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
 
     assert.equal(empty.meta.emptiness_reason, 'no_match');
     assert.equal(empty.meta.diagnostic.deliver_to_present, true);
+    assert.equal(empty.meta.deliver_to, 'SG');
 
     const sampleProduct = {
       id: 'p1', title: 'P1', price: { amount: 10, currency: 'SGD' },

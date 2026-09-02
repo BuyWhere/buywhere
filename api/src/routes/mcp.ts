@@ -782,8 +782,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // schema contract. Without this, MCP clients passing deliver_to="US" get SG
   // results because the country filter was never applied.
   const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
-  const country = rawCountry || (q && !region ? 'SG' : '');
+  // BUY-79690: do not silently default dest — empty+no dest is deliver_to_missing.
+  const country = rawCountry;
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -1475,12 +1475,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
 
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false,
-    undefined, undefined, country || null,
+    undefined, undefined, deliverToPresent ? (country || null) : null,
     emptiness,
   );
-  if (q && products.length === 0) {
-    (result.meta as unknown as Record<string, unknown>).emptiness_reason = 'no_match';
-  }
+  // BUY-79690: do not clobber deriveEmptiness (deliver_to_missing / region_unsupported).
 
   try {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', MCP_FTS_CACHE_TTL_SECONDS);
@@ -3005,6 +3003,9 @@ async function handleSearchProductsV2(args: Record<string, unknown>) {
   }
   const result = await handleSearchProducts(args);
   applyNoMatchMeta(result);
+  if (result && typeof result === 'object' && (result as any).meta && typeof (result as any).meta === 'object') {
+    ((result as any).meta as Record<string, unknown>).deliver_to = deliverTo;
+  }
   // BUY-73952: stamp meta.deliver_to_inferred when defaulting happened.
   if (inferred && result && typeof result === 'object' && (result as any).meta && typeof (result as any).meta === 'object') {
     ((result as any).meta as Record<string, unknown>).deliver_to_inferred = true;

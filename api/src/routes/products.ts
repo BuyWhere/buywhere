@@ -125,8 +125,26 @@ function restRegionCode(countryCode?: string | null, deliverTo?: string | null):
   return cc || dt;
 }
 
+function restEchoDest(countryCode?: string | null, deliverTo?: string | null): string | null {
+  return restRegionCode(countryCode, deliverTo);
+}
+
 function buildRestNoMatchEmptiness(countryCode?: string | null, deliverTo?: string | null) {
   const regionCode = restRegionCode(countryCode, deliverTo);
+  const present = restDestinationPresent(countryCode, deliverTo);
+  if (!present) {
+    return {
+      emptiness_reason: 'deliver_to_missing' as const,
+      confidence: 'high' as const,
+      diagnostic: {
+        engine_status: 'ok' as const,
+        indexed_for_region: true,
+        category_recognized: true,
+        rate_limit_remaining: null,
+        deliver_to_present: false,
+      },
+    };
+  }
   const regionSupported = !regionCode || SUPPORTED_REGIONS.has(regionCode);
   return {
     emptiness_reason: regionSupported ? 'no_match' as const : 'region_unsupported' as const,
@@ -136,7 +154,8 @@ function buildRestNoMatchEmptiness(countryCode?: string | null, deliverTo?: stri
       indexed_for_region: regionSupported,
       category_recognized: true,
       rate_limit_remaining: null,
-      deliver_to_present: restDestinationPresent(countryCode, deliverTo),
+      deliver_to_present: true,
+      ...(!regionSupported ? { invalid_deliver_to: true } : {}),
     },
   };
 }
@@ -248,7 +267,7 @@ async function tryIdentifierLookup(
     client.release();
 
     if (rows.length === 0) {
-      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
+      const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -592,7 +611,7 @@ async function tryTierSearch(
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
       if (useChildTable) {
         if (res.headersSent) return true;
-        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, p.countryCode || null, buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
+        const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
@@ -697,7 +716,7 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
       if (meta) meta.total = kept.length;
     }
     if (meta) meta.deliver_to = deliverTo;
-  } else if (meta) {
+  } else if (meta && !meta.deliver_to) {
     // F24 (2026-08-22): hint fires on EVERY deliver_to-less response (was q-only).
     meta.hint = "IMPORTANT — treat deliver_to as REQUIRED for buyer-facing use: pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank deliverable products first (adds an availability label per product). Without it, results are not shipping-ranked and may be undeliverable to your user. Add include_unshippable=false to return only same-country products.";
   }
@@ -958,7 +977,7 @@ router.get(
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
-        const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode, deliverTo));
+        const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, restEchoDest(countryCode, deliverTo), buildRestApiErrorEmptiness(countryCode, deliverTo));
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -1882,7 +1901,7 @@ router.get(
         }
         client.release();
         if (!res.headersSent) {
-          res.status(200).json(buildSearchResponse([], 0, limit, offset, 0, false, true, false, countryCode || null, buildRestApiErrorEmptiness(countryCode, deliverTo)));
+          res.status(200).json(buildSearchResponse([], 0, limit, offset, 0, false, true, false, restEchoDest(countryCode, deliverTo), buildRestApiErrorEmptiness(countryCode, deliverTo)));
         }
         return;
       }
@@ -1982,7 +2001,7 @@ router.get(
       false,
       undefined,
       hasMore ?? false,
-      countryCode || null,
+      restEchoDest(countryCode, deliverTo),
       filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null,
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
