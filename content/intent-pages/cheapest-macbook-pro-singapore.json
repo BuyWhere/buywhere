@@ -20,13 +20,12 @@
     "Apple MacBook Pro M3",
     "Apple MacBook Pro M2"
   ],
-  "minPrice": 1500,
+  "minPrice": 300,
   "requiredProductTerms": [
     "macbook pro",
     "apple",
     "macbook"
   ],
-  "minPrice": 50,
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
   "datePublished": "2026-08-25",
@@ -118,7 +117,6 @@
       "price": 2599,
       "currency": "SGD",
       "merchant": "Harvey Norman",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+14+M4+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -129,7 +127,6 @@
       "price": 3299,
       "currency": "SGD",
       "merchant": "Apple Store",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+16+M4+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -140,7 +137,6 @@
       "price": 2199,
       "currency": "SGD",
       "merchant": "Challenger",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+14+M4&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -151,7 +147,6 @@
       "price": 4799,
       "currency": "SGD",
       "merchant": "iStudio",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+16+M4+Max&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -162,7 +157,6 @@
       "price": 2299,
       "currency": "SGD",
       "merchant": "Amazon.sg",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+14+M3+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -173,7 +167,6 @@
       "price": 2999,
       "currency": "SGD",
       "merchant": "Lazada Mall",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+16+M3+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -192,6 +185,5 @@
   },
   "owner": "Venture",
   "reviewer": "Fetch",
-  "queueRow": 59,
-  "minPrice": 300
+  "queueRow": 59
 }
