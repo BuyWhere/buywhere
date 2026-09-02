@@ -54,10 +54,10 @@
   },
   "dependencies": {
     "@buywhere/sdk": "file:../buywhere-sdk",
-    "zod": "^3.22.0"
+    "@langchain/core": "^0.3.80",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@langchain/core": "^0.3.80",
     "@types/node": "^20.0.0",
     "eslint": "^8.0.0",
     "tsup": "^8.5.1",
