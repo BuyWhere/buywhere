@@ -20,9 +20,10 @@ export async function GET(): Promise<Response> {
     // byte-identical clone of sitemap-compare.xml and /comparisons is 404.
     // Index entries that reference the legacy name will 404.
     { url: `${SITEMAP_BASE_URL}/sitemap-products.xml`, lastModified: now },
-    // BUY-65280: do not advertise sitemap-products-sg.xml. The child
-    // currently 503s when empty and previously 410'd, which GSC treats as
-    // "Sitemap could not be read". Keep the route itself; just omit it here.
+    // BUY-73905 restored sitemap-products-sg.xml as a live 2xx child.
+    // BUY-65280 still omits it from submit tooling when non-2xx, but the
+    // production index keeps every currently healthy child including merchants.
+    { url: `${SITEMAP_BASE_URL}/sitemap-products-sg.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-brands.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-stores.xml`, lastModified: now },
