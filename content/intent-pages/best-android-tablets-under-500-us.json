@@ -1,11 +1,11 @@
 {
   "slug": "best-android-tablets-under-500-us",
-  "title": "Best Android Tablets Under $500 in the US (2026) \u2014 Live Prices Compared",
+  "title": "Best Android Tablets Under $500 in the US (2026) — Live Prices Compared",
   "description": "The best Android tablets you can buy in the United States under five hundred dollars: live prices from Amazon, Best Buy, Walmart and Samsung.com, with screen-size and stylus advice so you do not spend the cap on a case instead of a tablet.",
   "heroEyebrow": "US Android tablets under five hundred dollars",
-  "heroTitle": "Best Android tablets under $500 in the US (2026) \u2014 live comparison",
-  "heroTitleTemplate": "Best Android tablets under $500 in the US (2026) \u2014 from {floorPrice}",
-  "heroBody": "In the United States, five hundred dollars is the line between a media tablet and a work tablet. Under that cap you are looking at Samsung Galaxy Tab A and last-gen Tab S FE Wi-Fi models, Amazon Fire HD 10 for video-only households, and the occasional Galaxy Tab S9 Wi-Fi open-box that dips into this band. These are US-dollar prices sold into the United States. This page pulls live listings from BuyWhere's catalog so you can see what Amazon, Best Buy, Walmart and Samsung's own store are charging today \u2014 and skip the flood of screen protectors and cases that share the same search terms.",
+  "heroTitle": "Best Android tablets under $500 in the US (2026) — live comparison",
+  "heroTitleTemplate": "Best Android tablets under $500 in the US (2026) — from {floorPrice}",
+  "heroBody": "In the United States, five hundred dollars is the line between a media tablet and a work tablet. Under that cap you are looking at Samsung Galaxy Tab A and last-gen Tab S FE Wi-Fi models, Amazon Fire HD 10 for video-only households, and the occasional Galaxy Tab S9 Wi-Fi open-box that dips into this band. These are US-dollar prices sold into the United States. This page pulls live listings from BuyWhere's catalog so you can see what Amazon, Best Buy, Walmart and Samsung's own store are charging today — and skip the flood of screen protectors and cases that share the same search terms.",
   "canonicalPath": "/best-android-tablets-under-500-us",
   "country": "US",
   "currency": "USD",
@@ -47,7 +47,7 @@
       "label": "Everyday Android",
       "values": [
         "Galaxy Tab A9 / A11 class",
-        "Full Play Store, 8\u201311 inch, LTE optional",
+        "Full Play Store, 8–11 inch, LTE optional",
         "Email, browser, notes without an iPad"
       ]
     },
@@ -64,7 +64,7 @@
       "values": [
         "Ultra / Plus cellular flagships",
         "Keyboard-folio bundles that blow the cap",
-        "Buyers who need iPad app parity \u2014 look at /best-ipads-us"
+        "Buyers who need iPad app parity — look at /best-ipads-us"
       ]
     }
   ],
@@ -72,7 +72,7 @@
   "highlights": [
     {
       "title": "Search results are drowning in cases",
-      "body": "US catalog search for Galaxy Tab S9 still surfaces privacy films and book-style cases priced in the same band as real tablets. If a listing is a screen protector or folio, ignore it \u2014 this page's product cards are meant to be the tablets. When in doubt, required terms and a floor price are how we filter."
+      "body": "US catalog search for Galaxy Tab S9 still surfaces privacy films and book-style cases priced in the same band as real tablets. If a listing is a screen protector or folio, ignore it — this page's product cards are meant to be the tablets. When in doubt, required terms and a floor price are how we filter."
     },
     {
       "title": "Wi-Fi vs cellular is the real money decision",
@@ -95,7 +95,7 @@
     "If you want DeX or a stylus, start on Tab S FE Wi-Fi rather than adding a keyboard to a Tab A.",
     "Kids' tablets: Fire HD with a case and a parental profile is still the US default. Do not buy a Galaxy Tab S for a seven-year-old unless you want to replace a cracked OLED."
   ],
-  "faqSectionTitle": "Android tablets under five hundred dollars in the US \u2014 questions shoppers actually ask",
+  "faqSectionTitle": "Android tablets under five hundred dollars in the US — questions shoppers actually ask",
   "faqs": [
     {
       "question": "Can I get a Galaxy Tab S9 in the US for under $500 in 2026?",
@@ -114,7 +114,52 @@
       "answer": "Usually no. Phone hotspot covers travel. LTE adds cost and often a worse Wi-Fi configuration at this budget."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37399200",
+      "name": "SAMSUNG Galaxy Tab S9 平板防窺保護膜",
+      "price": 299,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "href": "/r/direct/37399200",
+      "affiliateUrl": "/r/direct/37399200",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399151",
+      "name": "SAMSUNG Galaxy Tab S9 Ultra 多角度書本式皮套",
+      "price": 569,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "href": "/r/direct/37399151",
+      "affiliateUrl": "/r/direct/37399151",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399152",
+      "name": "SAMSUNG Galaxy Tab S9 Ultra 多角度書本式皮套",
+      "price": 569,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "href": "/r/direct/37399152",
+      "affiliateUrl": "/r/direct/37399152",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37399168",
+      "name": "SAMSUNG Galaxy Tab S9+ 防眩光螢幕保護貼",
+      "price": 169,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "href": "/r/direct/37399168",
+      "affiliateUrl": "/r/direct/37399168",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/best-android-tablets-under-500-singapore"
   },

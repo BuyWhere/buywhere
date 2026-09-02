@@ -1,9 +1,9 @@
 {
   "slug": "galaxy-s25-vs-iphone-17-singapore",
-  "title": "Galaxy S25 vs iPhone 17 in Singapore (2026) \u2014 which should you buy",
+  "title": "Galaxy S25 vs iPhone 17 in Singapore (2026) — which should you buy",
   "description": "Galaxy S25 and iPhone 17 compared for Singapore shoppers: live S$ prices, warranty notes, retailer patterns and practical buying advice for Android switchers, iPhone owners and camera-heavy users.",
   "heroEyebrow": "Singapore phone comparison",
-  "heroTitle": "Galaxy S25 vs iPhone 17 in Singapore (2026) \u2014 2026 live price comparison",
+  "heroTitle": "Galaxy S25 vs iPhone 17 in Singapore (2026) — 2026 live price comparison",
   "heroBody": "The Galaxy S25 and iPhone 17 are the two mainstream flagships most Singapore shoppers cross-shop in 2026. The Samsung side leans into a lighter body, flexible Android customisation, strong zoom options on the wider S25 family and aggressive Shopee, Lazada and telco promotions. The iPhone 17 leans into longer software support, iMessage and FaceTime lock-in, a smoother Apple ecosystem and resale value that still matters when you upgrade every two or three years. In Singapore the decision is not just Android versus iOS: it is also whether you want a local set with Samsung or Apple Singapore warranty, whether your telco bundle beats the unlocked price, and whether marketplace vouchers make one side suddenly much cheaper. This page pulls live Singapore listings from BuyWhere's catalog so you can compare current Galaxy S25 and iPhone 17 prices in S$ side by side.",
   "canonicalPath": "/galaxy-s25-vs-iphone-17-singapore",
   "country": "SG",
@@ -26,7 +26,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-29",
   "productSectionTitle": "Live Galaxy S25 and iPhone 17 prices in Singapore",
-  "comparisonSectionTitle": "Galaxy S25 vs iPhone 17 \u2014 at a glance",
+  "comparisonSectionTitle": "Galaxy S25 vs iPhone 17 — at a glance",
   "comparisonColumns": [
     "Spec / feature",
     "Galaxy S25",
@@ -104,7 +104,7 @@
     "If you shoot a lot of video for work, lean iPhone unless you have tested Samsung footage in your editing workflow. If you mainly shoot photos and want more controls, the S25 may be more fun.",
     "Time the purchase around Singapore sale events if you can wait. Samsung discounts tend to be more aggressive during platform campaigns, while iPhone savings often come through trade-in or telco offers."
   ],
-  "faqSectionTitle": "Galaxy S25 vs iPhone 17 in Singapore \u2014 common questions",
+  "faqSectionTitle": "Galaxy S25 vs iPhone 17 in Singapore — common questions",
   "faqs": [
     {
       "question": "Is the Galaxy S25 cheaper than the iPhone 17 in Singapore?",
@@ -123,7 +123,52 @@
       "answer": "The iPhone 17 is the safer default for video consistency, skin tones and social clips. The Galaxy S25 gives more manual control, punchier processing and strong AI editing. For casual photos either is excellent; choose based on the editing style you prefer."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "9222976908550881752",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "href": "/r/direct/9222976908550881752",
+      "affiliateUrl": "/r/direct/9222976908550881752",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881753",
+      "name": "Samsung Galaxy S25+ 256GB - Titanium",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "href": "/r/direct/9222976908550881753",
+      "affiliateUrl": "/r/direct/9222976908550881753",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881754",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1478,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "href": "/r/direct/9222976908550881754",
+      "affiliateUrl": "/r/direct/9222976908550881754",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908550881756",
+      "name": "Samsung Galaxy S25+ 256GB - Blue",
+      "price": 1658,
+      "currency": "SGD",
+      "merchant": "samsung.com.sg",
+      "href": "/r/direct/9222976908550881756",
+      "affiliateUrl": "/r/direct/9222976908550881756",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/galaxy-s25-vs-iphone-17-us"
   },

@@ -1,10 +1,10 @@
 {
   "slug": "dyson-v15-vs-dyson-v12-singapore",
-  "title": "Dyson V15 vs V12 in Singapore (2026) \u2014 Which should you buy?",
+  "title": "Dyson V15 vs V12 in Singapore (2026) — Which should you buy?",
   "description": "Dyson V15 Detect vs Dyson V12 Detect Slim for Singapore homes: compare live prices, suction class, weight, bin size, warranty, retailer risk and which cordless vacuum makes more sense for HDB flats, condos and pet households.",
   "heroEyebrow": "Singapore Dyson cordless comparison",
-  "heroTitle": "Dyson V15 vs V12 in Singapore \u2014 which cordless vacuum to buy in 2026",
-  "heroTitleTemplate": "Dyson V15 vs V12 in Singapore (2026) \u2014 from {floorPrice} today",
+  "heroTitle": "Dyson V15 vs V12 in Singapore — which cordless vacuum to buy in 2026",
+  "heroTitleTemplate": "Dyson V15 vs V12 in Singapore (2026) — from {floorPrice} today",
   "heroBody": "The Dyson V15 Detect and Dyson V12 Detect Slim look similar in a product card, but they solve different Singapore cleaning problems. The V15 is the stronger full-size option for larger condos, pets, rugs and weekend deep cleans. The V12 is the lighter daily-clean option for HDB flats, tight storerooms and anyone who wants a cordless vacuum they can grab with one hand after dinner. Singapore shoppers also need to check warranty source carefully: Dyson Singapore, authorised retailers and official marketplace stores are safer for local support, while parallel-import listings can look attractive until a battery, charger or motorised head needs servicing. This page pulls live Singapore listings from BuyWhere's catalog so you can compare the current floor across V15 and V12 listings, then use the guide below to decide whether power, weight or warranty should lead your decision.",
   "canonicalPath": "/dyson-v15-vs-dyson-v12-singapore",
   "country": "SG",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-30",
   "dateModified": "2026-08-31",
   "productSectionTitle": "Live Dyson V15 and V12 prices in Singapore",
-  "comparisonSectionTitle": "Dyson V15 vs V12 \u2014 side by side for Singapore homes",
+  "comparisonSectionTitle": "Dyson V15 vs V12 — side by side for Singapore homes",
   "comparisonColumns": [
     "Buying factor",
     "Dyson V15 Detect",
@@ -105,7 +105,7 @@
     "Avoid accessory floods in marketplace search results. Filters, batteries, stands and replacement heads can look like Dyson bargains but are not vacuum listings; use the live cards here to stay on full-unit products.",
     "If you already own a working V11 or recent V12, upgrade only if you specifically need the laser dust head, lighter handling or better pet-hair performance. Otherwise, wait for a campaign bundle."
   ],
-  "faqSectionTitle": "Dyson V15 vs V12 in Singapore \u2014 common questions",
+  "faqSectionTitle": "Dyson V15 vs V12 in Singapore — common questions",
   "faqs": [
     {
       "question": "Is the Dyson V15 worth it over the V12 in Singapore?",
@@ -128,7 +128,52 @@
       "answer": "Many modern Dyson stick-vacuum tools are cross-compatible, but bundle contents vary by SKU and region. Check the exact floor head, charger, stand and small tools in the seller listing before assuming two similarly named products include the same kit."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55978388",
+      "name": "Dyson Airstrait Hair Straightener - Ceramic Pink/Rose Gold (HT01 CEPK)",
+      "price": 499.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "href": "/r/direct/55978388",
+      "affiliateUrl": "/r/direct/55978388",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55927330",
+      "name": "Dyson HD16 Supersonic Hair Dryer - Ambersilk/Ceramic Topaz",
+      "price": 549.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "href": "/r/direct/55927330",
+      "affiliateUrl": "/r/direct/55927330",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55802693",
+      "name": "Dyson Supersonic HD17 Ceramic Pink - 113335-01",
+      "price": 709.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "href": "/r/direct/55802693",
+      "affiliateUrl": "/r/direct/55802693",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55781514",
+      "name": "Dyson HS02 Airwrap Origin Multi-Styler - Nickel/Copper",
+      "price": 319.0,
+      "currency": "SGD",
+      "merchant": "harvey_norman_sg",
+      "href": "/r/direct/55781514",
+      "affiliateUrl": "/r/direct/55781514",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/dyson-v15-vs-dyson-v12-us"
   },

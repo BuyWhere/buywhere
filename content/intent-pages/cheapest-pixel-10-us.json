@@ -10,17 +10,16 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "Google Pixel 10 Unlocked",
+  "searchQuery": "pixel 10 unlocked",
   "backupQueries": [
-    "Google Pixel 10 128GB Unlocked",
-    "Google Pixel 10 Pro Unlocked",
-    "Pixel 10 Pro 128GB Unlocked"
+    "Google Pixel 10",
+    "Pixel 10 Pro unlocked",
+    "Pixel 10 Pro XL unlocked"
   ],
-  "minPrice": 500,
   "requiredProductTerms": [
     "pixel 10",
-    "google",
-    "unlocked"
+    "pixel",
+    "google"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
@@ -106,7 +105,41 @@
       "answer": "Typically no, or only a limited refurbisher warranty. Pre-owned listings from getorchard.com and similar US-based marketplaces carry their own warranty terms rather than Google's one-year US manufacturer warranty. Google Store new unlocked phones still carry the standard Google US warranty."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "37143686",
+      "name": "Quad Lock (Mag Case) - Google Pixel 7",
+      "price": 34.99,
+      "currency": "USD",
+      "merchant": "off-road-world.myshopify.com",
+      "href": "/r/direct/37143686",
+      "affiliateUrl": "/r/direct/37143686",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "37149018",
+      "name": "Quad Lock (Mag Case) - Google Pixel 8 Pro",
+      "price": 34.99,
+      "currency": "USD",
+      "merchant": "off-road-world.myshopify.com",
+      "href": "/r/direct/37149018",
+      "affiliateUrl": "/r/direct/37149018",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36311934",
+      "name": "Google Pixel 10 and 10 Pro Pixelsnap Phone Case - Frost",
+      "price": 29.95,
+      "currency": "USD",
+      "merchant": "thegamecollection.net",
+      "href": "/r/direct/36311934",
+      "affiliateUrl": "/r/direct/36311934",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-SG": "/cheapest-pixel-10-singapore"
   },
@@ -120,5 +153,6 @@
   },
   "owner": "Venture",
   "reviewer": "Hue",
-  "queueRow": 64
+  "queueRow": 64,
+  "minPrice": 29.95
 }

@@ -1,10 +1,10 @@
 {
   "slug": "best-ipads-singapore",
-  "title": "Best iPads in Singapore (2026) \u2014 Live Prices Compared",
+  "title": "Best iPads in Singapore (2026) — Live Prices Compared",
   "description": "Which iPad actually earns its slot in a Singapore household in 2026: live prices from Apple Singapore, Amazon.sg, Shopee Mall, Lazada LazMall and authorised resellers compared daily, with guidance on Pencil, cellular, education pricing and what changed this year.",
   "heroEyebrow": "Singapore iPad guide 2026",
-  "heroTitle": "Best iPads in Singapore \u2014 2026 live price comparison",
-  "heroTitleTemplate": "Best iPads in Singapore (2026) \u2014 from {floorPrice} today",
+  "heroTitle": "Best iPads in Singapore — 2026 live price comparison",
+  "heroTitleTemplate": "Best iPads in Singapore (2026) — from {floorPrice} today",
   "heroBody": "The Singapore iPad market in 2026 is dominated by Apple Singapore's own pricing, with Amazon.sg, Shopee Mall, Lazada LazMall and authorised resellers like Challenger and Courts undercutting on certain SKUs but rarely across the board. This page pulls live Singapore listings from BuyWhere's catalog every few minutes so you can see the current floor price across Apple, Amazon.sg, Shopee, Lazada and the local chains, and decide whether the cheapest listing is a Singapore set with local Apple warranty or a parallel import you should treat with caution.",
   "canonicalPath": "/best-ipads-singapore",
   "country": "SG",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPad prices in Singapore",
-  "comparisonSectionTitle": "Which iPad fits your household \u2014 at a glance",
+  "comparisonSectionTitle": "Which iPad fits your household — at a glance",
   "comparisonColumns": [
     "Model",
     "Typical use",
@@ -89,11 +89,11 @@
     "Cellular is worth it only if you regularly use the iPad away from Wi-Fi and tethering is awkward. For most people Wi-Fi + phone hotspot is enough.",
     "Buy from Apple Singapore or an authorised reseller if you want Apple Singapore warranty; parallel imports are cheaper but Apple Singapore stores will not service them under warranty.",
     "Watch the platform sale calendar: 9.9, 11.11 and 12.12 reliably drop Shopee Mall and LazMall iPad prices, with Amazon.sg matching within days. Apple Singapore itself rarely discounts.",
-    "If you are a student or teacher, the Apple education store via the local universities gives a meaningful discount on iPad Air and Pro \u2014 check eligibility before paying retail.",
+    "If you are a student or teacher, the Apple education store via the local universities gives a meaningful discount on iPad Air and Pro — check eligibility before paying retail.",
     "Trade-in your old iPad via Apple's trade-in programme at the same time as buying; it usually beats selling privately once you account for your time.",
     "Skip the expensive storage upgrade if you primarily stream and use cloud storage; double it if you shoot 4K video or work with large creative files."
   ],
-  "faqSectionTitle": "iPads in Singapore \u2014 common questions",
+  "faqSectionTitle": "iPads in Singapore — common questions",
   "faqs": [
     {
       "question": "Which iPad is best for a student in Singapore?",
@@ -105,7 +105,7 @@
     },
     {
       "question": "Should I buy cellular on an iPad in Singapore?",
-      "answer": "Yes if you regularly use the iPad away from Wi-Fi and your phone plan does not include free hotspot. No if you mostly use the iPad at home, school or the office \u2014 Wi-Fi is enough."
+      "answer": "Yes if you regularly use the iPad away from Wi-Fi and your phone plan does not include free hotspot. No if you mostly use the iPad at home, school or the office — Wi-Fi is enough."
     },
     {
       "question": "Where is the cheapest place to buy an iPad in Singapore?",
@@ -116,7 +116,52 @@
       "answer": "They are usually cheaper, but they do not carry Apple Singapore warranty. If something fails, service has to go back to the seller, not the Apple Store. For an iPad meant to last four years, the warranty gap usually costs more than it saves."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "55869896",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "href": "/r/direct/55869896",
+      "affiliateUrl": "/r/direct/55869896",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55869879",
+      "name": "Apple iPad Air 11\" (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / iPad Pro 11\" (2021) / iPad Pro 11\" (2022) - Nillkin Camshield Pad Case Series Camera Protective Magnetic Kickstand Stylus Holder Rugged Back Case",
+      "price": 58,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "href": "/r/direct/55869879",
+      "affiliateUrl": "/r/direct/55869879",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "55864104",
+      "name": "Apple iPad Air 11\" (2025) / (2024) / iPad (10th Gen) / iPad Air (4th Gen) / (5th Gen) 10.9\" / iPad Pro 11\" (2020) / (2021) / (2022) - Nillkin Bumper Leather Case Pro Camera Protective Multi Angle Standing Stylus Holder Rugged Case",
+      "price": 45,
+      "currency": "SGD",
+      "merchant": "shopify",
+      "href": "/r/direct/55864104",
+      "affiliateUrl": "/r/direct/55864104",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "54517975",
+      "name": "TORRII TORERO for iPad Air 11\" (M3/M2) Compatible for iPad Pro 11\" (4/3/2/1) / iPad Air 6/5/4 - Black",
+      "price": 59.9,
+      "currency": "SGD",
+      "merchant": "robinsons_sg",
+      "href": "/r/direct/54517975",
+      "affiliateUrl": "/r/direct/54517975",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-ipads-us"
   },

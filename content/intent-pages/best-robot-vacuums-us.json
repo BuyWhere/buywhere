@@ -92,7 +92,7 @@
     "Avoid accessory bundles that dominate search results. The live catalog should show complete robot vacuums, not replacement bags, filters or mop pads.",
     "If privacy matters, compare camera-free LiDAR models with camera-based obstacle-avoidance models and review the manufacturer's data controls before connecting the app."
   ],
-  "faqSectionTitle": "Best robot vacuums in the US \u2014 common questions",
+  "faqSectionTitle": "Best robot vacuums in the US — common questions",
   "faqs": [
     {
       "question": "What is the best robot vacuum for pet hair in the US?",
@@ -111,7 +111,52 @@
       "answer": "Prices move with dock type, mapping hardware, obstacle recognition, mopping automation and included accessories. A discounted premium robot may be better value than a new midrange model, but only if replacement parts and app support are still easy to get."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "35771335",
+      "name": "Wyze Robot Vacuum",
+      "price": 99.98,
+      "currency": "USD",
+      "merchant": "wyzecam.com",
+      "href": "/r/direct/35771335",
+      "affiliateUrl": "/r/direct/35771335",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35771044",
+      "name": "Wyze Robot Vacuum - Pad",
+      "price": 4.99,
+      "currency": "USD",
+      "merchant": "wyzecam.com",
+      "href": "/r/direct/35771044",
+      "affiliateUrl": "/r/direct/35771044",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35771046",
+      "name": "Wyze Robot Vacuum - Dustbin",
+      "price": 9.99,
+      "currency": "USD",
+      "merchant": "wyzecam.com",
+      "href": "/r/direct/35771046",
+      "affiliateUrl": "/r/direct/35771046",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35771047",
+      "name": "Wyze Robot Vacuum - Main Rolling Brush",
+      "price": 9.99,
+      "currency": "USD",
+      "merchant": "wyzecam.com",
+      "href": "/r/direct/35771047",
+      "affiliateUrl": "/r/direct/35771047",
+      "brand": "",
+      "category": ""
+    }
+  ],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-air-purifiers-us",

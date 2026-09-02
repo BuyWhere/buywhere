@@ -10,27 +10,31 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "ASUS Vivobook 15",
+  "searchQuery": "laptop Singapore",
   "backupQueries": [
-    "MacBook Air",
-    "ASUS ROG Strix",
-    "ASUS Vivobook Go",
-    "cheap laptop Singapore"
+    "best laptop Singapore",
+    "cheap laptop Singapore",
+    "MacBook Singapore",
+    "Windows laptop Singapore"
   ],
   "searchCategory": "laptop",
-  "minPrice": 300,
+  "minPrice": 400,
   "requiredProductTerms": [
     "laptop",
-    "macbook",
-    "vivobook",
     "notebook",
-    "rog strix",
-    "zenbook"
+    "macbook",
+    "zenbook",
+    "yoga",
+    "thinkpad",
+    "swift",
+    "vivobook",
+    "ideapad",
+    "surface"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated September 2, 2026",
+  "refreshedLabel": "Prices checked September 1, 2026",
   "datePublished": "2026-09-01",
-  "dateModified": "2026-09-02",
+  "dateModified": "2026-09-01",
   "productSectionTitle": "Live laptop prices in Singapore",
   "comparisonSectionTitle": "Which laptop should you actually buy in Singapore?",
   "comparisonColumns": [
@@ -138,7 +142,52 @@
       "answer": "No, unless you only browse Safari or Edge with a handful of tabs and never edit photos or videos. macOS on-device AI, Xcode, Adobe Creative Cloud and Windows 11 24H2 all assume 16 GB minimum now. 8 GB laptops still ship in Singapore and look cheap, but they bottleneck within two years of typical use."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "id": "54614597",
+      "name": "[Laptop] Microsoft Surface Laptop 13-inch Copilot+PC 256GB/512GB C8 16GB Platinum",
+      "price": 1348.9,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "href": "/r/direct/54614597",
+      "affiliateUrl": "/r/direct/54614597",
+      "brand": "",
+      "category": "laptop"
+    },
+    {
+      "id": "54614585",
+      "name": "Brand New XPro Biz 15.6 Inch Laptop / Intel i7 Laptop / SG Seller",
+      "price": 348.8,
+      "currency": "SGD",
+      "merchant": "shopee",
+      "href": "/r/direct/54614585",
+      "affiliateUrl": "/r/direct/54614585",
+      "brand": "",
+      "category": "laptop"
+    },
+    {
+      "id": "57456078",
+      "name": "Laptop Screen Extender, Portable Triple Monitor 15.6 inch FHD 1080P, Compatible with Windows, Mac, Chrome, for Laptop 13\" - 17.3\"",
+      "price": 373.61,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "href": "/r/direct/57456078",
+      "affiliateUrl": "/r/direct/57456078",
+      "brand": "",
+      "category": "laptop"
+    },
+    {
+      "id": "57496904",
+      "name": "Gaming Laptop, Laptops, 16GB DDR4 512GB SSD, Windows 11 with N100 Processor (up to 3.4GHz, 4C/4T), 15.6\" FHD 1920x1080p, Full Metal Housing, WiFi, BT5.0",
+      "price": 356.38,
+      "currency": "SGD",
+      "merchant": "amazon.sg",
+      "href": "/r/direct/57496904",
+      "affiliateUrl": "/r/direct/57496904",
+      "brand": "",
+      "category": "laptop"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-laptops-us"
   },
