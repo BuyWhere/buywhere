@@ -12,6 +12,7 @@ import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { applyFbpGeoAndHighOutlierGuard } from '../lib/fbpGeoGuard';
 import { detectIdentifier, identifierMatchPredicate } from '../lib/identifierDetector';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
@@ -772,7 +773,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
-      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+      // BUY-79642/BUY-74597: Mark degraded so agents can distinguish from cache hits
+      const filled = buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false, true);
+      filled.meta!.status = 'degraded';
+      return aliasSearchEnvelope(filled);
     }
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
@@ -2221,6 +2225,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${allRows.length - filtered.length}/${allRows.length} candidates. median_usd=${(medianUsd as number).toFixed(2)}, min_allowed_usd=${(minAllowedUsd as number).toFixed(2)}, product="${productName}", country=${country}`);
       }
     }
+  }
+
+  // BUY-79892: drop foreign-TLD merchants (iplanet.one/IN, mac-center.com COP)
+  // and high-side currency-mislabelled outliers the floor guard cannot catch.
+  {
+    const geo = applyFbpGeoAndHighOutlierGuard({
+      rows: finalRows,
+      requestedCountry: country,
+      rowToUsd,
+      deviceType: deviceFilter.type,
+    });
+    if (geo.geoDropped > 0 || geo.highDropped > 0) {
+      guardApplied = true;
+      console.log(`[find_best_price] BUY-79892 geo/high guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} max_allowed_usd=${geo.maxAllowedUsd} product="${productName}" country=${country}`);
+    }
+    finalRows = geo.rows;
   }
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
