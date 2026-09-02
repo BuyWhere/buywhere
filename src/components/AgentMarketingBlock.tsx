@@ -16,7 +16,7 @@ export interface AgentMarketingBlockProps {
 }
 
 function buildKeylessExample(query: string, country: string): string {
-  return `curl "https://api.buywhere.ai/v1/products/search?q=${encodeURIComponent(query)}&deliver_to=${encodeURIComponent(country)}&limit=3"`;
+  return `curl "https://api.buywhere.ai/v1/products/search?q=${encodeURIComponent(query)}&country_code=${encodeURIComponent(country)}&limit=3"`;
 }
 
 export default function AgentMarketingBlock({
