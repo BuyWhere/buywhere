@@ -214,6 +214,62 @@ test("best-gaming-laptops-us searchQuery is brand-diverse and does not pin gamin
   }
 });
 
+test("BUY-80261: CompuMarts affiliate rows do not fill the 8-slot collector", async () => {
+  const originalFetch = globalThis.fetch;
+  const gpuName = (brand: string, id: string) =>
+    `${brand} Gaming Laptop RTX 5070 16GB DDR5 1TB SSD`;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (!url.includes("/api/products/search") && !url.includes("/v1/products/search")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
+    const junk = Array.from({ length: 8 }, (_, i) => ({
+      id: `junk-${i}`,
+      title: gpuName("CompuMarts filler", `junk-${i}`),
+      price: { amount: 1499, currency: "USD" },
+      merchant: "compumarts.com",
+      merchant_name: "CompuMarts",
+      affiliate_redirect_url: `https://buywhere.ai/r/direct/junk-${i}`,
+      image_url: `https://images.example/junk-${i}.jpg`,
+      region: "us",
+    }));
+    const keepers = [
+      "ASUS ROG",
+      "Lenovo Legion",
+      "HP OMEN",
+      "Alienware",
+      "MSI Katana",
+      "Acer Predator",
+      "ASUS TUF",
+      "Gigabyte Aorus",
+    ].map((brand, i) => ({
+      id: `keep-${i}`,
+      title: gpuName(brand, `keep-${i}`),
+      price: { amount: 1299 + i, currency: "USD" },
+      merchant: "computerorbit.com",
+      merchant_name: "Computer Orbit",
+      affiliate_redirect_url: `https://buywhere.ai/r/direct/keep-${i}`,
+      image_url: `https://images.example/keep-${i}.jpg`,
+      region: "us",
+    }));
+    return new Response(JSON.stringify({ data: [...junk, ...keepers], meta: { total: 16 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    const ids = products.map((p) => p.id);
+    assert.ok(new Set(ids).size >= 8, `expected >=8 unique cards, got ${ids.join(",")}`);
+    assert.equal(ids.filter((id) => String(id).startsWith("junk-")).length, 0);
+    for (const p of products) {
+      assert.doesNotMatch(p.merchant ?? "", /compumart/i, p.merchant);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("SEO landing products consume live API products payloads", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {

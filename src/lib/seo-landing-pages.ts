@@ -1732,6 +1732,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
+        // BUY-80261: BUY-78306 lets affiliate /r/ rows skip the US allowlist, so
+        // CompuMarts fills the 8-slot collector; applyFinalCountryGate then
+        // denylists those labels and uniqueness collapses to the 3 remaining
+        // Computer Orbit Gigabyte SKUs. Drop disallowed merchants HERE so
+        // backupQueries still have room to collect 8 unique cards.
+        if (containsDisallowedMerchantText(product.merchant) || containsDisallowedMerchantText(product.merchantSlug)) continue;
         // BUY-72906: defense-in-depth against backend/filter drift — if the
         // upstream row declares a country that differs from this landing page,
         // don't render it in a country-specific retailer snapshot.
@@ -14264,6 +14270,16 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = (() => {
       merged[slug] = { ...merged[slug], fallbackProducts: tsFallback };
     } else if (!jsonHasItems) {
       merged[slug] = { ...merged[slug], fallbackProducts: [] };
+    }
+    // BUY-80261: JSON overlays used to drop requiredGpuTokens / brand backups
+    // from the TS registry, re-collapsing uniqueness. Inherit GPU tokens when
+    // the JSON file omits them.
+    if (
+      Array.isArray(tsConfig.requiredGpuTokens) &&
+      tsConfig.requiredGpuTokens.length > 0 &&
+      (!Array.isArray(jsonConfig.requiredGpuTokens) || jsonConfig.requiredGpuTokens.length === 0)
+    ) {
+      merged[slug] = { ...merged[slug], requiredGpuTokens: tsConfig.requiredGpuTokens };
     }
   }
   return merged;
