@@ -101,6 +101,26 @@ describe('BUY-77001 /r?u=<url> legacy redirect', () => {
     assert.equal(res.redirectedTo, 'https://buywhere.ai');
   });
 
+  it('BUY-79696: /r/?q=<query> 302s to /search?q= not homepage', async () => {
+    const req = makeReq({ query: { q: 'asus rog' } });
+    const res = makeRes();
+
+    await dispatch(req, res);
+
+    assert.equal(res.statusCode, 302);
+    assert.equal(res.redirectedTo, 'https://buywhere.ai/search?q=asus%20rog');
+  });
+
+  it('BUY-79696: hyphenated q= is normalized to spaces', async () => {
+    const req = makeReq({ query: { q: 'asus-rog' } });
+    const res = makeRes();
+
+    await dispatch(req, res);
+
+    assert.equal(res.statusCode, 302);
+    assert.equal(res.redirectedTo, 'https://buywhere.ai/search?q=asus%20rog');
+  });
+
   it('falls back to homepage for non-http(s) destinations', async () => {
     const req = makeReq({ query: { u: 'javascript:alert(1)' } });
     const res = makeRes();

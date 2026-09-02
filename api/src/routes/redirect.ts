@@ -220,7 +220,23 @@ const legacyUrlRedirectHandler = async (req: Request, res: Response) => {
   const destinationUrl = firstQueryValue(req.query.u);
   const source = firstQueryValue(req.query.source) || 'legacy_url';
 
-  if (!destinationUrl || !isAllowedDestination(destinationUrl)) {
+  // BUY-79696: /r/?q=<query> used to fall through this handler (no `u=`) and
+  // 302 to the homepage. Query-based shortcuts should land on search, never /.
+  // /r/direct/<id> is a different route and is unchanged.
+  if (!destinationUrl) {
+    const q = firstQueryValue(req.query.q);
+    if (q) {
+      const query = normalizeQuerySlug(q);
+      if (query) {
+        res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
+        return;
+      }
+    }
+    res.redirect(302, FALLBACK_URL);
+    return;
+  }
+
+  if (!isAllowedDestination(destinationUrl)) {
     res.redirect(302, FALLBACK_URL);
     return;
   }
