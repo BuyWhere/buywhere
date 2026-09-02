@@ -21,6 +21,7 @@ import type { DataFreshness } from "@/lib/freshness";
 import { buildCompareIndexMetadata } from "@/lib/seo-category-metadata";
 import { toSiteUrl } from "@/lib/site-url";
 import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-category-filter";
+import { compareHeroFreshnessCopy, pickCatalogWatermark } from "@/lib/catalog-watermark";
 
 
 export const metadata = buildCompareIndexMetadata();
@@ -712,6 +713,8 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
       : "Enter a product name or paste product IDs to compare prices, availability, imagery, and affiliate destinations.";
 
   const compareProducts: CompareProduct[] = offers.map(offerToCompareProduct);
+  const catalogWatermarkMs = pickCatalogWatermark(offers.map((o) => o.lastUpdated));
+  const heroFreshnessCopy = compareHeroFreshnessCopy(catalogWatermarkMs);
 
   // BUY-74926: per-Offer JSON-LD so AI crawlers get the same retailer/price/currency
   // data the visible table shows. Mirrors each row of ComparisonTable exactly.
@@ -775,7 +778,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.
             </p>
             <p className="hero-metadata mt-4 text-xs uppercase tracking-[0.22em] text-[#CBD5E1]">
-              Last refreshed: June 18, 2026 · live data cached for 5 minutes
+              {heroFreshnessCopy}
             </p>
           </div>
           <div className="mt-10">
@@ -853,7 +856,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
             Editorial refreshes for high-intent categories
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-            Each guide below pulls live retailer pricing through BuyWhere&apos;s catalog and was last refreshed on June 18, 2026 to give GSC a fresh recrawl signal.
+            Each guide below pulls live retailer pricing through BuyWhere&apos;s catalog.
           </p>
           <ul className="mt-6 grid gap-3 text-sm text-indigo-700 sm:grid-cols-3">
             <li>

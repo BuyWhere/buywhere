@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
+import { homeTopDealFreshnessCopy, pickCatalogWatermark } from "@/lib/catalog-watermark";
 
 export const metadata: Metadata = {
   alternates: {
@@ -262,6 +263,8 @@ const jsonLd = {
     },
   ],
 };
+
+const homeTopDealCopy = homeTopDealFreshnessCopy(pickCatalogWatermark([]));
 
 export default function HomePage() {
   return (
@@ -549,7 +552,7 @@ export default function HomePage() {
               Compare prices across merchants for the most searched products in Singapore, the US, and Southeast Asia.
             </p>
             <p className="mt-3 text-xs uppercase tracking-[0.22em] text-indigo-600">
-              Top-deal module refreshed June 18, 2026
+              {homeTopDealCopy}
             </p>
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
