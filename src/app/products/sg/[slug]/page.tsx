@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveSGProductRoute } from "@/lib/sg-product-route";
+import { buildAffiliateRedirectUrl, buildAffiliateRedirectFromMerchantUrl } from "@/lib/click-attribution";
 
 interface PageProps {
   params: { slug: string };
@@ -216,11 +217,17 @@ export default async function SGProductSlugPage({ params }: PageProps) {
                         <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Price</th>
                         <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Currency</th>
                         <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Availability</th>
+                        <th scope="col" className="px-4 py-3 font-semibold text-gray-700">Buy</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {availablePrices.map((p) => {
                         const numericPrice = (p.price || "").replace(/[^0-9.]/g, "");
+                        const buyHref =
+                          buildAffiliateRedirectUrl(
+                            resolvedProduct.id,
+                            `/products/sg/${resolvedProduct.slug}`,
+                          ) || buildAffiliateRedirectFromMerchantUrl(p.url) || "#";
                         return (
                           <tr key={p.merchant}>
                             <th scope="row" className="px-4 py-3 font-medium text-gray-900">{p.merchant}</th>
@@ -229,21 +236,49 @@ export default async function SGProductSlugPage({ params }: PageProps) {
                             </td>
                             <td className="px-4 py-3 text-gray-700">{p.currency}</td>
                             <td className="px-4 py-3 text-gray-700">{p.inStock ? "In Stock" : "Out of Stock"}</td>
+                            <td className="px-4 py-3">
+                              <a
+                                href={buyHref}
+                                target="_blank"
+                                rel="nofollow sponsored noopener noreferrer"
+                                data-affiliate-redirect="sg-product-table"
+                                className="text-indigo-600 font-semibold hover:text-indigo-800"
+                              >
+                                View at {p.merchant}
+                              </a>
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                    {availablePrices.map((p) => (
+                    {availablePrices.map((p) => {
+                      const buyHref =
+                        buildAffiliateRedirectUrl(
+                          resolvedProduct.id,
+                          `/products/sg/${resolvedProduct.slug}`,
+                        ) || buildAffiliateRedirectFromMerchantUrl(p.url) || "#";
+                      return (
                       <div key={p.merchant} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                         <div className="font-semibold text-gray-800 mb-1">{p.merchant}</div>
                         <div className="text-2xl font-bold text-indigo-600 mb-2">{p.price}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 mb-3">
                           {p.inStock ? "In stock" : "Check availability"}
                         </div>
+                        <a
+                          href={buyHref}
+                          target="_blank"
+                          rel="nofollow sponsored noopener noreferrer"
+                          data-affiliate-redirect="sg-product-card"
+                          className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                        >
+                          View at {p.merchant}
+                          <span aria-hidden="true" className="ml-1">→</span>
+                        </a>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               ) : (
