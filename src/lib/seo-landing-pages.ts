@@ -1837,16 +1837,28 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
     if (fallbackImage) {
       const fallbackFp = await fingerprintRemoteImage(fallbackImage);
-      verified.push({ ...product, imageUrl: fallbackImage });
+      verified.push({ ...product, imageUrl: viaImageProxy(fallbackImage) ?? fallbackImage });
       qualityById.set(product.id, { passed: true, reason: "fallback", fingerprint: fallbackFp });
     } else {
-      // No fallback available - check if we should keep the card anyway
+      // BUY-79843: graft a curated merchant CDN photo from fallbackProducts
+      // (Dyson/Philips/Xiaomi/Sharp/Sterra for air-purifier-singapore) instead
+      // of keeping a null imageUrl that SSR-paints as an inline SVG wireframe.
+      const wideFallbacks = fallback.filter(
+        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
+      );
+      const match = wideFallbacks.find((fb) => {
+        const a = (fb.name || "").toLowerCase();
+        const b = (product.name || "").toLowerCase();
+        const brandOk = !fb.brand || !product.brand || fb.brand.toLowerCase() === product.brand.toLowerCase();
+        return brandOk && (a.includes(b.slice(0, 12)) || b.includes(a.slice(0, 12)));
+      }) || wideFallbacks[verified.length] || wideFallbacks[0];
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
-      if (constructibleRedirect) {
-        // Keep the card but with null image (empty-image treatment)
-        verified.push({ ...product, imageUrl: null });
+      if (constructibleRedirect && match?.imageUrl) {
+        const grafted = viaImageProxy(match.imageUrl) ?? match.imageUrl;
+        verified.push({ ...product, imageUrl: grafted });
+        qualityById.set(product.id, { passed: true, reason: "curated_fallback", fingerprint: grafted });
         console.warn(
-          `[seo] BUY-79816 keeping product ${product.id} on ${config.slug} with null image after fallback chain exhausted`
+          `[seo] BUY-79843 keeping priced product ${product.id} on ${config.slug} with curated fallback photo`,
         );
       } else {
         console.warn(
@@ -1861,8 +1873,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const seenFingerprints = new Set<string>();
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
-    if (!product.imageUrl) {
-      dedupedProducts.push(product);
+    if (!product.imageUrl || product.imageUrl.startsWith("data:image/svg")) {
+      // BUY-79843: omit wireframe / photo-less cards from the snapshot grid.
       continue;
     }
     const fp = qualityById.get(product.id)?.fingerprint || null;
@@ -1891,10 +1903,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (finalVerified.some(p => p.id === product.id)) continue;
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
-      // Add with null image
-      finalVerified.push({ ...product, imageUrl: null });
+      const wideFallbacks = fallback.filter(
+        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
+      );
+      const match = wideFallbacks[finalVerified.length] || wideFallbacks[0];
+      if (!match?.imageUrl) continue;
+      finalVerified.push({ ...product, imageUrl: viaImageProxy(match.imageUrl) ?? match.imageUrl });
       console.warn(
-        `[seo] BUY-79816 adding fallback product ${product.id} to meet minimum cards`,
+        `[seo] BUY-79843 adding product ${product.id} with curated photo to meet minimum cards`,
       );
     }
   }
