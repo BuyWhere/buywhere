@@ -15,11 +15,8 @@ import type { AnswerBlock } from "@/lib/seo-landing-pages";
  * checklist (binding; full text in /home/paperclip/ops-canon/INTENT-PAGES-CHARTER.md).
  */
 export function SeoAnswerBlock({ block, intent }: { block: AnswerBlock; intent: string }) {
-  // Split the answer text into a verdict sentence and the "Prices checked …"
-  // trailing clause so the answer block sits in DOM order before the price
-  // table (4seen checklist item 1), then the verdict, then FAQs.
-  const [verdict, ...rest] = block.text.split(". ");
-  const trailing = rest.length > 0 ? `. ${rest.join(". ")}` : "";
+  // BUY-79844 R4: verdict is block.text only (no "Prices checked").
+  const verdict = block.text.replace(/\s*Prices checked[^.]*\./gi, "").trim();
 
   return (
     <section
@@ -35,7 +32,6 @@ export function SeoAnswerBlock({ block, intent }: { block: AnswerBlock; intent: 
         </p>
         <p className="answer-block-verdict mt-3 text-2xl font-semibold leading-9 text-slate-900 sm:text-3xl">
           {verdict}
-          {trailing}
         </p>
         <p className="answer-block-checked mt-3 text-sm text-slate-700">
           Prices checked{" "}

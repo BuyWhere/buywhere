@@ -143,8 +143,13 @@ export async function getOrUpdatePageLastmod(
   const map = await loadStore();
   const hash = computeCanonicalHash(normalizedBody);
   const existing = map.get(canonicalPath);
+  // BUY-79844: a first write that seeded from 2026-06-29 froze the stamp.
+  // Treat placeholder / future lastmods as missing so we re-bind to now.
   if (existing && existing.hash === hash) {
-    return { hash, lastmod: existing.lastmod, changed: false };
+    const lastmod = clampLastmodToNow(existing.lastmod);
+    if (!isPlaceholderLastmod(existing.lastmod) && lastmod === existing.lastmod) {
+      return { hash, lastmod, changed: false };
+    }
   }
 
   // Serialize the write so two concurrent calls don't both observe "changed"
@@ -155,7 +160,8 @@ export async function getOrUpdatePageLastmod(
     const afterWait = readStoreFromDisk();
     const current = afterWait.get(canonicalPath);
     cachedStore = { map: afterWait, fetchedAt: Date.now() };
-    if (current && current.hash === hash) {
+    if (current && current.hash === hash && !isPlaceholderLastmod(current.lastmod)
+        && clampLastmodToNow(current.lastmod) === current.lastmod) {
       return { hash, lastmod: current.lastmod, changed: false };
     }
   }
@@ -164,7 +170,8 @@ export async function getOrUpdatePageLastmod(
   writeInflight = (async () => {
     const fresh = readStoreFromDisk();
     const current = fresh.get(canonicalPath);
-    if (current && current.hash === hash) {
+    if (current && current.hash === hash && !isPlaceholderLastmod(current.lastmod)
+        && clampLastmodToNow(current.lastmod) === current.lastmod) {
       cachedStore = { map: fresh, fetchedAt: Date.now() };
       return current;
     }
@@ -175,7 +182,11 @@ export async function getOrUpdatePageLastmod(
     // way the visible stamp and the sitemap <lastmod> agree: both show
     // "this is when the content actually last changed". Date moves only
     // when content changes — the directive's exact contract.
-    const next = { hash, lastmod: fallbackLastmod ?? new Date().toISOString() };
+    const seed =
+      fallbackLastmod && !isPlaceholderLastmod(fallbackLastmod)
+        ? clampLastmodToNow(fallbackLastmod)
+        : new Date().toISOString();
+    const next = { hash, lastmod: seed };
     fresh.set(canonicalPath, next);
     try {
       await persistStore(fresh);
@@ -190,7 +201,13 @@ export async function getOrUpdatePageLastmod(
       console.warn(
         `[page-content-hash] failed to persist ${canonicalPath}: ${(err as Error)?.message ?? err}`,
       );
-      return current ?? { hash, lastmod: fallbackLastmod ?? next.lastmod };
+      const fallback =
+        fallbackLastmod && !isPlaceholderLastmod(fallbackLastmod)
+          ? clampLastmodToNow(fallbackLastmod)
+          : next.lastmod;
+      return current && !isPlaceholderLastmod(current.lastmod)
+        ? { hash: current.hash, lastmod: clampLastmodToNow(current.lastmod) }
+        : { hash, lastmod: fallback };
     }
   })().finally(() => {
     writeInflight = null;
@@ -231,12 +248,27 @@ async function persistStore(map: Map<string, PageHashRecord>): Promise<void> {
  * JSON-LD `dateModified` — directive §5 requires the visible text and the
  * machine date to be the same value.
  */
+/** Editorial seed dates that froze first-write lastmod (BUY-79844). */
+const PLACEHOLDER_LASTMOD_PREFIXES = ["2026-06-29", "2026-07-25", "2026-06-18"];
+
+export function isPlaceholderLastmod(iso: string | undefined | null): boolean {
+  if (!iso) return true;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return true;
+  const day = date.toISOString().slice(0, 10);
+  return PLACEHOLDER_LASTMOD_PREFIXES.includes(day);
+}
+
+/** R2: lastmod must never render in the future (UTC). */
+export function clampLastmodToNow(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return now.toISOString();
+  return date.getTime() > now.getTime() ? now.toISOString() : date.toISOString();
+}
+
 export function formatCheckedStamp(stamp: PageStamp): { iso: string; text: string } {
-  const date = new Date(stamp.lastmod);
-  if (Number.isNaN(date.getTime())) {
-    const fallback = new Date().toISOString();
-    return { iso: fallback, text: fallback.slice(0, 10) };
-  }
+  const clampedIso = clampLastmodToNow(stamp.lastmod);
+  const date = new Date(clampedIso);
   const iso = date.toISOString();
   const text = date.toLocaleDateString("en-US", {
     month: "long",

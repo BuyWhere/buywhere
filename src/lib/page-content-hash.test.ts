@@ -102,3 +102,43 @@ test("getOrUpdatePageLastmod falls back to caller-supplied date when persist fai
     }
   }
 });
+
+test("formatCheckedStamp clamps future lastmod to now (BUY-79844 R2)", () => {
+  const formatted = formatCheckedStamp({
+    hash: "abc",
+    lastmod: "2099-12-31T00:00:00.000Z",
+    changed: false,
+  });
+  assert.ok(Date.parse(formatted.iso) <= Date.now());
+  assert.doesNotMatch(formatted.text, /December 31, 2099/);
+});
+
+test("getOrUpdatePageLastmod ignores 2026-06-29 placeholder seed (BUY-79844)", async () => {
+  await withStore(async () => {
+    const url = "https://buywhere.ai/air-purifier-singapore";
+    const stamp = await getOrUpdatePageLastmod(
+      url,
+      serializeHashable({ body: "live" }),
+      "2026-06-29T00:00:00.000Z",
+    );
+    assert.notEqual(stamp.lastmod.slice(0, 10), "2026-06-29");
+    assert.ok(Date.parse(stamp.lastmod) <= Date.now());
+  });
+});
+
+test("getOrUpdatePageLastmod rewrites frozen placeholder lastmod even when hash matches", async () => {
+  await withStore(async (storePath) => {
+    const url = "https://buywhere.ai/air-purifier-singapore";
+    const body = serializeHashable({ body: "frozen" });
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        [url]: { hash: computeCanonicalHash(body), lastmod: "2026-06-29T00:00:00.000Z" },
+      }),
+    );
+    __resetPageHashStoreForTests();
+    const stamp = await getOrUpdatePageLastmod(url, body, "2026-06-29T00:00:00.000Z");
+    assert.notEqual(stamp.lastmod.slice(0, 10), "2026-06-29");
+  });
+});

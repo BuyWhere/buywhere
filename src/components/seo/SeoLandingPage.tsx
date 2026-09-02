@@ -16,7 +16,7 @@ import {
 import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
 import AgentMarketingBlock from "@/components/AgentMarketingBlock";
-import { formatCheckedStamp, getOrUpdatePageLastmod, serializeHashable } from "@/lib/page-content-hash";
+import { formatCheckedStamp, getOrUpdatePageLastmod, isPlaceholderLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -187,10 +187,13 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         category: p.category,
       })),
   });
+  const editorialIso = config.dateModified ?? config.datePublished;
   const stamp = await getOrUpdatePageLastmod(
     toSiteUrl(config.canonicalPath),
     hashInputBody,
-    new Date(config.dateModified ?? config.datePublished ?? "2026-06-29").toISOString(),
+    editorialIso && !isPlaceholderLastmod(editorialIso)
+      ? new Date(editorialIso).toISOString()
+      : undefined,
   );
   const checked = formatCheckedStamp(stamp);
   // BUY-74905: thread the hash-stable ISO through the JSON-LD builder so the

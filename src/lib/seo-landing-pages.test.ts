@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
+  buildAnswerBlock,
   buildSeoLandingMetadata,
+  buildSeoLandingSchema,
   compareLandingCardOrder,
   findFloorPriceProductId,
   getSeoLandingProducts,
@@ -1877,4 +1879,33 @@ test("BUY-79816: uniqueByteDiversity rejects near-solid rasters", () => {
   const photo = new Uint8Array(4096);
   for (let i = 0; i < photo.length; i++) photo[i] = i & 0xff;
   assert.ok(uniqueByteDiversity(photo) >= 40, "real photo entropy must pass");
+});
+
+test("BUY-79844: schema never emits 2026-06-29 placeholder lastmod", () => {
+  const config = seoLandingPages["air-purifier-singapore"];
+  assert.doesNotMatch(config.heroEyebrow, /Updated Daily/i);
+  const products: LandingProduct[] = [
+    { id: "1", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", brand: "Xiaomi", category: "Air Purifiers", imageUrl: "https://images.example/1.jpg", href: "/r/direct?sku=1" },
+    { id: "2", name: "Dyson Purifier Cool", price: 699, currency: "SGD", merchant: "Lazada", brand: "Dyson", category: "Air Purifiers", imageUrl: "https://images.example/2.jpg", href: "/r/direct?sku=2" },
+  ];
+  const schema = buildSeoLandingSchema(config, products, "2026-09-02T12:00:00.000Z");
+  const text = JSON.stringify(schema);
+  assert.doesNotMatch(text, /2026-06-29/);
+  assert.doesNotMatch(text, /2026-07-25/);
+  assert.match(text, /2026-09-02T12:00:00.000Z/);
+});
+
+test("BUY-79844: answer block text has no Prices checked sentence", () => {
+  const block = buildAnswerBlock(
+    { searchQuery: "air purifier Singapore", country: "SG", currency: "SGD" },
+    [
+      { id: "1", name: "Xiaomi", price: 249, currency: "SGD", merchant: "Shopee", brand: "Xiaomi", category: "Air", imageUrl: "https://x/1.jpg", href: "/r/1" },
+      { id: "2", name: "Dyson", price: 699, currency: "SGD", merchant: "Lazada", brand: "Dyson", category: "Air", imageUrl: "https://x/2.jpg", href: "/r/2" },
+    ],
+    { iso: "2026-09-02T00:00:00.000Z", text: "September 2, 2026" },
+  );
+  assert.ok(block);
+  const matches = (block!.text + " Prices checked September 2, 2026 across 2 retailers.").match(/Prices checked/g) || [];
+  assert.equal((block!.text.match(/Prices checked/g) || []).length, 0);
+  assert.equal(matches.length, 1);
 });

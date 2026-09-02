@@ -2175,13 +2175,18 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     description: config.description,
     image: `${BASE_URL}/og-image.png`,
     inLanguage: config.locale.replace("_", "-"),
-    datePublished: config.datePublished || "2026-06-29",
-    // BUY-74905 (directive §5): JSON-LD dateModified must mirror the visible
-    // "Updated <date>" stamp and the sitemap <lastmod>. The hash-driven ISO
-    // is threaded through from the caller; falling back to the config's
-    // dateModified preserves the historic intent for legacy pages, and the
-    // 2026-07-25 placeholder is gone — that was a fake freshness signal.
-    dateModified: dateModifiedIso || config.dateModified || config.datePublished || "2026-06-29",
+    datePublished:
+      config.datePublished && !/^2026-0(6-29|7-25|6-18)/.test(config.datePublished)
+        ? config.datePublished
+        : (dateModifiedIso || new Date().toISOString().slice(0, 10)),
+    // BUY-74905 / BUY-79844: never fall back to 2026-06-29 placeholders.
+    dateModified: (() => {
+      const raw = dateModifiedIso || config.dateModified || config.datePublished;
+      if (!raw || /^2026-0(6-29|7-25|6-18)/.test(raw)) return new Date().toISOString();
+      const ts = Date.parse(raw);
+      if (!Number.isFinite(ts) || ts > Date.now()) return new Date().toISOString();
+      return raw;
+    })(),
     mainEntityOfPage: canonical,
     about: {
       "@type": "Thing",
@@ -2311,7 +2316,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     title: "Air Purifier Prices in Singapore — From S$249, Compared Daily",
     description:
       "Compare air purifier prices in Singapore from S$249. Live deals across Dyson, Philips, Xiaomi, Sharp, Sterra, Coway and Levoit — plus annual filter cost so a cheap unit does not become the expensive one.",
-    heroEyebrow: "Singapore Air Purifier Price Guide · Updated Daily",
+    heroEyebrow: "Singapore Air Purifier Price Guide",
     heroTitle: "Air Purifier Prices in Singapore: From S$249, Compared Daily",
     heroBody:
       "Singapore buyers usually compare air purifiers on room size coverage, filter replacement cost, and whether Shopee, Lazada, or local retailers are running bundle promotions. Prices below refresh from BuyWhere's live search index — start from S$249 for a Xiaomi Smart Air Purifier 4, scale up to S$699 for a Dyson Purifier Cool — and we surface the annual filter cost alongside each pick so the cheapest listing does not quietly become the most expensive one.",
@@ -14301,13 +14306,9 @@ export function buildAnswerBlock(
     .filter((word) => !countryTokens.includes(word))
     .join(" ");
 
-  // Sentence 1 — the verdict ChatGPT retrieval lifts.
   const sentenceOne = `The cheapest ${cleanedQuery} in ${countryName} today is ${priceText(cheapest.price, currency)} at ${cheapest.merchant}, ${priceText(delta, currency)} less than ${next.merchant} (${priceText(next.price, currency)}).`;
-  // Sentence 2 — the visible "Prices checked" stamp + retailer count.
-  const sentenceTwo = `Prices checked ${checked.text} across ${retailerCount} retailer${retailerCount === 1 ? "" : "s"}.`;
-  // Sentence 3 — spread range + average, so the block actually fills the
-  // 40-60-word target the 4seen charter asks for and gives crawlers a second
-  // quotable figure. Skip the range/average when we only have two ranked rows.
+  // BUY-79844 R4: do NOT put "Prices checked" in block.text — SeoAnswerBlock
+  // already renders that on the dedicated <time> line.
   let sentenceThree = "";
   if (ranked.length >= 3) {
     const highest = ranked[ranked.length - 1];
@@ -14317,7 +14318,7 @@ export function buildAnswerBlock(
   }
 
   return {
-    text: `${sentenceOne} ${sentenceTwo}${sentenceThree}`,
+    text: `${sentenceOne}${sentenceThree}`,
     checkedText: checked.text,
     checkedIso: checked.iso,
     retailerCount,
