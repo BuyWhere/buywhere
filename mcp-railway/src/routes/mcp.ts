@@ -9,6 +9,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { applyFbpGeoAndHighOutlierGuard } from '../lib/fbpGeoGuard';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
   recordToolCall,
@@ -1535,7 +1536,27 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // rather than returning empty. The SQL found products; returning nothing is
   // worse than returning accessories (the user can refine the query).
   const filteredAccessories = result.rows.filter(r => !isAccessory(r));
-  const candidates = filteredAccessories.length > 0 ? filteredAccessories : result.rows;
+  let candidates = filteredAccessories.length > 0 ? filteredAccessories : result.rows;
+
+  // BUY-79892: drop foreign-TLD merchants and high-side outliers
+  const rowToUsd = (r: Record<string, unknown>) => {
+    const price = r.price != null ? parseFloat(String(r.price)) : 0;
+    const curr = ((r.currency as string) || currency).toUpperCase();
+    const rate = CURRENCY_RATES[curr] ?? 1;
+    return price * rate;
+  };
+  {
+    const geo = applyFbpGeoAndHighOutlierGuard({
+      rows: candidates,
+      requestedCountry: country,
+      rowToUsd,
+      deviceType: deviceFilter.type,
+    });
+    if (geo.geoDropped > 0 || geo.highDropped > 0) {
+      console.log(`[find_best_price] BUY-79892 geo/high guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} max_allowed_usd=${geo.maxAllowedUsd} product="${productName}" country=${country}`);
+    }
+    candidates = geo.rows;
+  }
 
   const data = candidates.map((r: Record<string, unknown>) => ({
     id: r.id,
