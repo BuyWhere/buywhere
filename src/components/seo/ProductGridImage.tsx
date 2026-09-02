@@ -144,8 +144,9 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
           </text>
         </svg>
       </div>
+      <span className="mt-1 text-xs font-medium text-slate-500">Photo unavailable</span>
       {(brand || cleanedMerchant) && (
-        <span className="mt-1 text-xs text-slate-400">{brand || cleanedMerchant}</span>
+        <span className="text-[11px] text-slate-400">{brand || cleanedMerchant}</span>
       )}
     </div>
   );

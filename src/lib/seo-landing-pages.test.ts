@@ -14,6 +14,7 @@ import {
   seoLandingPages,
   stripCountryTokens,
   verifyReachableImage,
+  sanitizeProductImageUrl,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
 
@@ -152,16 +153,23 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
   globalThis.fetch = async (input) => {
-    requestedUrls.push(String(input));
+    const url = String(input);
+    if (!url.includes("/api/products/search")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
+    requestedUrls.push(url);
     return new Response(
       JSON.stringify({
         data: [
           makeSearchItem("battery", "Roborock MC1808 Vacuum Replacement Battery", 54),
           makeSearchItem("accessories", "Eufy Accessories Package For Eufy Robot Vacuum Omni E28", 60),
           makeSearchItem("stick", "Roborock H60 Cordless Stick Vacuum", 2499),
-          makeSearchItem("robot", "Lefant Robot Vacuum and Mop, M501-A Robotic Vacuums Cleaner", 148),
+          makeSearchItem("robot", "Shark Navigator Robot Vacuum + Self-Empty Base", 559),
+          makeSearchItem("roomba", "iRobot Roomba Combo j9+", 999),
+          makeSearchItem("q5", "Roborock Q5 Pro+ Robot Vacuum", 499),
+          makeSearchItem("x10", "eufy X10 Pro Omni Robot Vacuum", 799),
         ],
-        meta: { total: 4, degraded: false },
+        meta: { total: 7, degraded: false },
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
@@ -170,12 +178,19 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   try {
     const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
     assert.ok(requestedUrls.length > 0);
-    assert.ok(requestedUrls.every((url) => url.includes("category=robot_vacuums")));
     assert.ok(requestedUrls.every((url) => url.includes("limit=24")));
-    assert.equal(products.length, 4);
-    assert.equal(products[0].name, "Lefant Robot Vacuum and Mop, M501-A Robotic Vacuums Cleaner");
-    products.forEach((product) => assert.equal(isCompleteRobotVacuum(product), true, product.name));
-    assert.doesNotMatch(products.map((product) => product.name).join(" "), /replacement|accessories|stick vacuum/i);
+    // BUY-79810: US robot vacuum SSR uses region=US (not country=us) so recall
+    // matches v1 named-brand rows. Do not send category= (planner timeout).
+    assert.ok(requestedUrls.every((url) => url.includes("region=US")));
+    assert.ok(requestedUrls.every((url) => !url.includes("category=")));
+    assert.ok(products.length >= 4);
+    const names = products.map((product) => product.name).join(" ");
+    assert.match(names, /Roomba|iRobot|Roborock|Shark|eufy/i);
+    products.slice(0, 4).forEach((product) => {
+      assert.equal(isCompleteRobotVacuum(product), true, product.name);
+      assert.ok((product.price ?? 0) >= 199, product.name);
+    });
+    assert.doesNotMatch(names, /replacement|accessories|stick vacuum|pad|filter|brush|dustbin/i);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -283,8 +298,8 @@ test("BUY-72906: US SEO landing search passes deliver_to + include_unshippable=f
 
   try {
     await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
-    assert.match(requestedUrl, /[?&]country=US/);
-    assert.match(requestedUrl, /[?&]deliver_to=US/);
+    assert.match(requestedUrl, /[?&]country=us/);
+    assert.match(requestedUrl, /[?&]deliver_to=us/);
     assert.match(requestedUrl, /[?&]include_unshippable=false/);
   } finally {
     globalThis.fetch = originalFetch;
@@ -906,10 +921,16 @@ test("BUY-67622: best-robot-vacuums-2026 config raises minPrice to >=199 so clea
   // Roomba/Roborock/Eufy fallbacks.
   const terms = config.requiredProductTerms ?? [];
   const flat = terms.join(" ").toLowerCase();
-  for (const required of ["roomba", "roborock", "eufy"]) {
+  for (const required of ["roomba", "roborock", "eufy", "shark"]) {
     assert.ok(
       flat.includes(required),
       `requiredProductTerms must include "${required}" so named brands anchor the live cards; got: ${JSON.stringify(terms)}`,
+    );
+  }
+  for (const retailer of ["amazon", "walmart", "best buy", "costco"]) {
+    assert.ok(
+      !flat.includes(retailer),
+      `requiredProductTerms must not OR-gate retailer tokens ("${retailer}"); got: ${JSON.stringify(terms)}`,
     );
   }
   assert.match(
@@ -1191,8 +1212,8 @@ test("buildSeoLandingMetadata falls back to static config.title when live catalo
   const meta = buildSeoLandingMetadata(config, []);
   assert.equal(
     String(meta.title),
-    "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
-    "empty live catalog must fall back to static config.title, not the floor-derived $560",
+    "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    "empty live catalog must fall back to static heroTitle, not a floor-derived price",
   );
 });
 
@@ -1258,7 +1279,7 @@ test("verifyReachableImage rejects 200-OK HTML error pages (BUY-69736)", async (
 
   // Positive control: a genuine image content type must pass.
   globalThis.fetch = (async () =>
-    new Response("", { status: 200, headers: { "content-type": "image/jpeg" } })
+    new Response("", { status: 200, headers: { "content-type": "image/jpeg", "content-length": "48000" } })
   ) as typeof globalThis.fetch;
   try {
     const reachable = await verifyReachableImage("https://cdn.example.com/files/real.jpg");
@@ -1282,21 +1303,8 @@ test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded 
   try {
     const product = await getSeoLandingFallbackProduct("us", "g6");
     assert.ok(product, "g6 fallback row must resolve");
-    // The dead URL must NOT reach the browser as-is…
-    assert.ok(
-      !(product!.imageUrl ?? "").startsWith("http"),
-      `dead curated URL must be replaced, got: ${product!.imageUrl}`,
-    );
-    // …and must be replaced by the branded SVG placeholder.
-    assert.ok(
-      (product!.imageUrl ?? "").startsWith("data:image/svg+xml;"),
-      `expected branded SVG placeholder, got: ${product!.imageUrl}`,
-    );
-    // The branded SVG must name the right brand — the g6 QA bug was an
-    // Acer Nitro photo on the ASUS TUF PDP.
-    const decoded = decodeURIComponent(product!.imageUrl ?? "");
-    assert.match(decoded, /ASUS/);
-    assert.match(decoded, /TUF/);
+    // BUY-79812: dead URL must not reach the browser; schema cannot use data: SVG.
+    assert.equal(product!.imageUrl, null, `dead curated URL must be omitted, got: ${product!.imageUrl}`);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1541,10 +1549,35 @@ test("BUY-79133: robot-vacuums/headphones/oled-tvs US queries are catalog-aligne
   assert.equal(headphones.backupQueries?.[0]?.toLowerCase(), "noise cancelling headphones");
   assert.match(oled.searchQuery.toLowerCase(), /oled/);
   const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
-  assert.ok(source.includes("BUY-79241 keeping priced product"), "image-probe fail must keep priced /r/direct cards with SVG");
+  assert.ok(source.includes("BUY-79241 keeping priced product"), "image-probe fail must keep priced /r/direct cards");
   const synthetic = /\bProduct [A-E]\b/;
   for (const p of robot.fallbackProducts ?? []) {
     assert.equal(synthetic.test(p.name), false, `robot fallback still synthetic: ${p.name}`);
+  }
+});
+
+test("BUY-79812: sanitizeProductImageUrl rejects price strings and data URIs", () => {
+  assert.equal(sanitizeProductImageUrl("$22"), null);
+  assert.equal(sanitizeProductImageUrl("SGD 199"), null);
+  assert.equal(sanitizeProductImageUrl("data:image/svg+xml;charset=utf-8,<svg/>"), null);
+  assert.equal(
+    sanitizeProductImageUrl("https://cdn.bestdenki.com/media/catalog/product/1/5/1503339-1.jpg"),
+    "https://cdn.bestdenki.com/media/catalog/product/1/5/1503339-1.jpg",
+  );
+});
+
+test("BUY-79812: verifyReachableImage rejects tiny retailer logos", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response("", {
+      status: 200,
+      headers: { "content-type": "image/jpeg", "content-length": "9136" },
+    })) as typeof globalThis.fetch;
+  try {
+    const reachable = await verifyReachableImage("https://cdn.bestdenki.com/media/catalog/product/1/5/1503339-1.jpg");
+    assert.equal(reachable, false, "9136-byte JPEG must not count as a product photo");
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 

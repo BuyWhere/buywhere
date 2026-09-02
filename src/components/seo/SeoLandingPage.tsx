@@ -242,11 +242,11 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 Empty live fetch → honest empty state. Non-production may still show
                 curated fallbacks for local preview. */}
             {products.length === 0 && (process.env.NODE_ENV === "production" || !config.fallbackProducts?.length) ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
-                <p className="text-slate-600">
-                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
-                </p>
-              </div>
+              // BUY-79810: never advertise catalog unavailability above the fold.
+              // When the live fetch is empty, collapse the snapshot (editorial
+              // comparison table + categoryIntro still render below). Production
+              // still must not render fallbackProducts (BUY-79133).
+              null
             ) : (
               <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
                 {(products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).map((product) => (

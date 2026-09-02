@@ -473,7 +473,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     return null;
   }
 
-  const imageUrl = item.image_url || item.image || null;
+  const imageUrl = sanitizeProductImageUrl(item.image_url || item.image || null);
   const rawMerchantSlug = item.merchant || item.source || null;
   const productId = String(item.id);
   const merchantLabel =
@@ -523,13 +523,10 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     //   - upstream URL is on the hotlink-blocked host denylist
     // BUY-70187: hotlink-blocked host images go through /api/image-proxy
     // instead of the branded SVG placeholder.
-    imageUrl: isUsableProductImage(imageUrl)
-      ? viaImageProxy(imageUrl)
-      : brandedProductPlaceholderSvg(
-          item.brand || null,
-          item.name || null,
-          item.category || null,
-        ),
+    // BUY-79812: never write a price string or SVG data: URI into imageUrl.
+    // Unusable photos stay null so the card can be dropped or show
+    // "Photo unavailable" — schema.org Product.image must stay http(s).
+    imageUrl: isUsableProductImage(imageUrl) ? viaImageProxy(imageUrl) : null,
     href,
     // BUY-76340 / BUY-79241: ProductGridCard prefers affiliateUrl for /r/direct.
     affiliateUrl,
@@ -550,13 +547,36 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 // ProductGridImage's onError handler still lands on the branded SVG.
 // (images.unsplash.com / unsplash.com were added to the blocklist upstream
 // and are preserved in the shared module.)
+const PRICE_OR_SKU_IMAGE_RE =
+  /^\$\s?\d|^[A-Z]{3}\s?\d|^\d+(\.\d{1,2})?\s?(USD|SGD|MYR|AUD|GBP|EUR)?$/i;
+
+/** BUY-79812: imageUrl must be an absolute http(s) raster URL, never a price/SKU. */
+export function sanitizeProductImageUrl(raw?: string | null): string | null {
+  if (raw == null) return null;
+  const value = String(raw).trim();
+  if (!value) return null;
+  if (PRICE_OR_SKU_IMAGE_RE.test(value)) return null;
+  if (value.startsWith("data:")) return null;
+  if (value.startsWith("/api/image-proxy")) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!/\.(jpe?g|png|webp|gif|avif)(\?|$)/i.test(url.pathname) && !url.hostname) {
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
 function isUsableProductImage(imageUrl?: string | null) {
-  if (!imageUrl) return false;
-  if (imageUrl.startsWith("data:image/svg+xml")) return true;
-  if (imageUrl.startsWith("/api/image-proxy")) return true;
+  const cleaned = sanitizeProductImageUrl(imageUrl);
+  if (!cleaned) return false;
+  if (cleaned.startsWith("/api/image-proxy")) return true;
 
   try {
-    const url = new URL(imageUrl);
+    const url = new URL(cleaned);
     // BUY-70187: blocked hosts are usable VIA the proxy — the caller rewrites
     // them with viaImageProxy before rendering.
     if (isHotlinkBlockedHostname(url.hostname)) return true;
@@ -564,6 +584,13 @@ function isUsableProductImage(imageUrl?: string | null) {
   } catch {
     return false;
   }
+}
+
+function schemaProductImage(imageUrl?: string | null): string | undefined {
+  const cleaned = sanitizeProductImageUrl(imageUrl);
+  if (!cleaned) return undefined;
+  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) return cleaned;
+  return undefined;
 }
 
 /**
@@ -715,10 +742,13 @@ function brandedProductPlaceholderSvg(
  * landing page would SSR with an <img> that fails to load and lands on the
  * Placeholder (BUY-64729).
  */
+const MIN_PRODUCT_PHOTO_BYTES = 20_000; // BUY-79812: logos / watermarks (Bestdenki 9136)
+
 // BUY-69736: exported so the regression test can probe it directly.
 export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+  if (!sanitizeProductImageUrl(imageUrl)) return false;
   if (!imageUrl) return false;
-  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  // BUY-79812: data: SVG is not a product photograph — never treat as reachable.
   // BUY-70187: proxy URLs are trusted at SSR — the actual reachability is
   // enforced per-request by /api/image-proxy (which 502s and triggers the
   // client onError SVG fallback when the upstream is truly dead).
@@ -754,7 +784,11 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
       // SVG placeholder path takes over.
       if (res.ok) {
         const contentType = (res.headers.get("content-type") || "").toLowerCase();
-        return contentType.startsWith("image/");
+        if (!contentType.startsWith("image/") || contentType.includes("svg")) return false;
+        const len = Number(res.headers.get("content-length") || "0");
+        // BUY-79812: retailer watermark logos are typically < 20KB (Bestdenki 9136).
+        if (len > 0 && len < MIN_PRODUCT_PHOTO_BYTES) return false;
+        return true;
       }
       if (res.status === 405 || res.status === 403) {
         // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
@@ -863,7 +897,7 @@ async function verifyUsableImageContent(
     // BUY-63954: data: URIs (our deterministic branded SVG card) bypass the
     // JPEG/PNG shape probe — there are no SOF/IHDR markers to parse and the
     // SVG already renders identically in every browser/headless environment.
-    if (imageUrl.startsWith("data:")) return true;
+    if (imageUrl.startsWith("data:")) return false;
     // BUY-70187: relative proxy URLs are trusted (and can't be parsed by
     // `new URL` anyway). Real bytes are enforced by /api/image-proxy.
     if (imageUrl.startsWith("/api/image-proxy")) return true;
@@ -926,6 +960,10 @@ async function verifyUsableImageContent(
       // Zephyrus G16). Large square JPEGs (e.g. 1200x1200 @ 968KB ProArt P16)
       // have enough detail to render correctly.
       const contentLength = Number(res.headers.get("content-length") || "0");
+      // BUY-79812: tiny raster (logo / watermark) regardless of aspect.
+      if (contentLength > 0 && contentLength < MIN_PRODUCT_PHOTO_BYTES) {
+        return false;
+      }
       if (contentLength > 0 && contentLength < SQUARE_FILE_SIZE_THRESHOLD) {
         return false;
       }
@@ -1377,20 +1415,17 @@ export async function getSeoLandingFallbackProduct(
       // fallback entries intentionally omit a CDN URL because every known
       // CDN URL is dead; without this the PDP Image consumer would receive
       // a null src and Next.js Image would throw).
-      let imageUrl = product.imageUrl;
+      let imageUrl = sanitizeProductImageUrl(product.imageUrl);
       if (imageUrl) {
         const reachable = await verifyReachableImage(imageUrl);
         if (!reachable) {
           console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+            `[seo] dropping unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
           );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+          imageUrl = null;
         } else {
-          // BUY-70187: render blocked-host images through /api/image-proxy.
           imageUrl = viaImageProxy(imageUrl)!;
         }
-      } else {
-        imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
       }
 
       return {
@@ -1420,20 +1455,17 @@ export async function getSeoLandingFallbackProductBySlug(
 
       // BUY-72390: null imageUrl now resolves to the branded SVG (same
       // reasoning as getSeoLandingFallbackProduct above).
-      let imageUrl = product.imageUrl;
+      let imageUrl = sanitizeProductImageUrl(product.imageUrl);
       if (imageUrl) {
         const reachable = await verifyReachableImage(imageUrl);
         if (!reachable) {
           console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+            `[seo] dropping unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
           );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+          imageUrl = null;
         } else {
-          // BUY-70187: render blocked-host images through /api/image-proxy.
           imageUrl = viaImageProxy(imageUrl)!;
         }
-      } else {
-        imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
       }
 
       return {
@@ -1462,16 +1494,17 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     : [];
   const fallback = await Promise.all(
     trustedFallback.map(async (fb) => {
-      if (!fb.imageUrl) {
-        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+      const cleaned = sanitizeProductImageUrl(fb.imageUrl);
+      if (!cleaned) {
+        return { ...fb, imageUrl: null };
       }
-      const reachable = await verifyReachableImage(fb.imageUrl);
+      const reachable = await verifyReachableImage(cleaned);
       // BUY-70187: blocked-host fallback images render through the proxy.
-      if (reachable) return { ...fb, imageUrl: viaImageProxy(fb.imageUrl) ?? fb.imageUrl };
+      if (reachable) return { ...fb, imageUrl: viaImageProxy(cleaned) ?? cleaned };
       console.warn(
-        `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
+        `[seo] dropping unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
       );
-      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+      return { ...fb, imageUrl: null };
     }),
   );
 
@@ -1491,17 +1524,24 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         q: query,
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
-        country: config.country.toLowerCase(),
-        // BUY-72906: filter country-specific SEO snapshots to merchants/products
-        // in the page's target market. Without this, USD-priced foreign retailers
-        // (e.g. COMPUMARTS) can leak into the US retailers section.
-        deliver_to: config.country.toLowerCase(),
-        include_unshippable: "false",
         // BUY-79277: always over-fetch so accessory demotion can still fill
         // 8 primary SKUs after earpads/cases are ranked below the fold.
         limit: "24",
-        region: config.country.toLowerCase(),
       });
+      // BUY-79810: US robot-vacuum FTS on country_code=US collapses to a 9-row
+      // Wyze accessory cluster. Live named brands (Shark Best Buy, Roomba,
+      // Roborock Costco) are indexed under region=US. Use the region filter
+      // (exact-case "US") and skip country/deliver_to for this page so SSR
+      // recall matches v1 `query=robot+vacuum&region=US`. Other landings keep
+      // the BUY-78769 lowercase country + deliver_to hard filter.
+      if (config.slug === "best-robot-vacuums-2026" && config.country === "US") {
+        params.set("region", "US");
+      } else {
+        params.set("country", config.country.toLowerCase());
+        params.set("deliver_to", config.country.toLowerCase());
+        params.set("include_unshippable", "false");
+        params.set("region", config.country.toLowerCase());
+      }
       // BUY-77791 / BUY-79032: do NOT send searchCategory as the API `category=`
       // filter. `category=laptops` and `category=gaming_laptops` planner-timeout
       // (10s degraded, total=0) on US/SG partitions and force the page onto
@@ -1611,7 +1651,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const probeResults = await Promise.all(
     collected.map(async (product) => {
       if (!product.imageUrl) return false;
-      if (product.imageUrl.startsWith("data:image/svg+xml")) return true;
+      if (!sanitizeProductImageUrl(product.imageUrl)) return false;
       // BUY-63507: chain the reachable probe with a content-shape probe. A 200
       // OK on a 1:1 product photo with heavy white margins renders as a
       // "blank/white" card under our aspect-[4/3] + object-cover layout. The
@@ -1643,12 +1683,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const product = collected[i];
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
+      // BUY-79812: omit the photo rather than a retailer watermark or data: SVG.
+      // ProductGridImage already renders an explicit unavailable state for null src.
       verified.push({
         ...product,
-        imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
+        imageUrl: null,
       });
       console.warn(
-        `[seo] BUY-79241 keeping priced product ${product.id} on ${config.slug} with SVG after image-probe fail`,
+        `[seo] BUY-79241 keeping priced product ${product.id} on ${config.slug} without photo after image-probe fail`,
       );
     }
   }
@@ -1889,7 +1931,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           }
         : undefined,
       category: reference.category || undefined,
-      image: reference.imageUrl || undefined,
+      image: schemaProductImage(reference.imageUrl),
       description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
@@ -2005,7 +2047,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                     name: product.brand,
                   }
                 : undefined,
-              image: product.imageUrl || undefined,
+              image: schemaProductImage(product.imageUrl),
               category: product.category || undefined,
               offers:
                 product.price !== null
@@ -2519,23 +2561,26 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     searchCategory: "robot_vacuums",
     excludeAccessories: true,
     compactCatalogCards: true,
-    backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
-    // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
-    // the editorial Roomba i3 EVO sale price ($199–$249). v2: raise the floor
-    // from $130 to $199 — the original $130 floor let Tecbot S1 at $119.99 and
-    // Tecbot S3 Pro at $129.99 displace honest fallback products. Hero
-    // explicitly names the $199 anchor; the floor must match it.
+    backupQueries: [
+      "Shark robot vacuum",
+      "iRobot Roomba vacuum",
+      "Roborock robot vacuum",
+      "eufy robot vacuum",
+    ],
+    // BUY-79810: keep a named-brand floor. $199 zeroed the live Wyze unit when
+    // recall was stuck on Wyze; region=US recall now includes Shark $559 and
+    // Roomba/Roborock backups. Floor stays 199 so clearance/STEM kits cannot
+    // occupy the first fold; heroTitleTemplate still binds H1 to the live min.
     minPrice: 199,
-    // v2: hero names "Roomba", "Roborock", and retailers "Amazon, Best Buy,
-    // Walmart, Costco". Tighten requiredProductTerms so the live card set
-    // actually reflects those named brands/retailers rather than Tecbot /
-    // iMass A3 / Xiaomi off-brand rows.
+    // BUY-79810: OR-gate on PRODUCT brands only. Retailer tokens (amazon /
+    // walmart / best buy / costco) matched merchant text the wrong way and
+    // still dropped Wyze while never matching Best Buy Shark titles. Keep
+    // Roomba/iRobot/Roborock/eufy/Shark as the hero-named set.
     requiredProductTerms: [
       "roomba", "irobot",
       "roborock",
       "eufy",
       "shark",
-      "best buy", "walmart", "amazon", "costco",
     ],
     // BUY-67622 v3: hero specifically promises "Roomba & Roborock Deals"
     // (Roomba/Roborock/iRobot literally named in heroTitle). QA at 2026-08-14T02:15Z
