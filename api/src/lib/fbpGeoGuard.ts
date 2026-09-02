@@ -99,7 +99,10 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
   const { rows, requestedCountry, rowToUsd, deviceType } = opts;
   const geoKept = rows.filter((r) => hostMatchesRequestedCountry(r.url ?? r.product_url, requestedCountry));
   const geoDropped = rows.length - geoKept.length;
-  const working = geoKept.length > 0 ? geoKept : rows;
+  // Prefer an empty in-country set over restoring foreign winners (euronics.ie /
+  // jbhifi.com.au / fonezone.me labelled country_code=US). Callers already have
+  // emptiness_reason handling for zero rows.
+  const working = geoKept;
 
   let highDropped = 0;
   let maxAllowedUsd: number | null = null;
