@@ -781,7 +781,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const rawRegionArg = String(args.region || '').trim().toLowerCase();
-  const countryHint = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const countryHint = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || (args.market as string)) || '').toUpperCase();
   const region = (rawRegionArg === 'sea' && countryHint) ? '' : (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
@@ -790,7 +790,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-73666: deliver_to takes precedence over country_code/country per tool
   // schema contract. Without this, MCP clients passing deliver_to="US" get SG
   // results because the country filter was never applied.
-  const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || (args.market as string)) || '').toUpperCase();
   // BUY-79690: do not silently default dest — empty+no dest is deliver_to_missing.
   const country = rawCountry;
   // BUY-79598: clear stale circuit state so SG queries are never blocked by old failures.
@@ -805,7 +805,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const deliverToPresent = Boolean(
     (typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
     (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
-    (typeof args.country === 'string' && args.country.trim() !== '')
+    (typeof args.country === 'string' && args.country.trim() !== '') ||
+    (typeof args.market === 'string' && args.market.trim() !== '')
   );
 
   const restFallbackOpts = {
@@ -1224,7 +1225,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
         }
         let candidates = wantCur
-          ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
+          ? native.filter(r => {
+              const cur = String(r.currency || '').toUpperCase();
+              // BUY-79631: missing currency is not SGD — USD Shopify often has
+              // empty currency + country_code=SG.
+              return cur === wantCur;
+            })
           : native;
         // BUY-79642: do not substitute wrong-currency rows when market filtering empties the page.
         if (wantCur && candidates.length === 0) {
@@ -1326,7 +1332,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       if (cc && cc !== want) return false;
       if (wantCur) {
         const cur = String(r.currency || '').toUpperCase();
-        if (cur && cur !== wantCur) return false;
+        if (cur !== wantCur) return false;
       }
       return true;
     });
