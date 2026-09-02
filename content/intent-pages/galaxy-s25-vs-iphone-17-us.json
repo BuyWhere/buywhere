@@ -1,10 +1,10 @@
 {
   "slug": "galaxy-s25-vs-iphone-17-us",
-  "title": "Galaxy S25 vs iPhone 17 in the US (2026) — Live Prices & Full Comparison",
+  "title": "Galaxy S25 vs iPhone 17 in the US (2026) \u2014 Live Prices & Full Comparison",
   "description": "Samsung Galaxy S25 vs Apple iPhone 17 in the US: live prices from Amazon, Best Buy, Samsung.com and Apple, compared daily, with specs, camera, battery and buying advice for 2026.",
   "heroEyebrow": "US flagship phone comparison",
-  "heroTitle": "Galaxy S25 vs iPhone 17 (2026) — 2026 live price and spec comparison",
-  "heroTitleTemplate": "Galaxy S25 vs iPhone 17 — from {floorPrice} today",
+  "heroTitle": "Galaxy S25 vs iPhone 17 (2026) \u2014 2026 live price and spec comparison",
+  "heroTitleTemplate": "Galaxy S25 vs iPhone 17 \u2014 from {floorPrice} today",
   "heroBody": "The Samsung Galaxy S25 and Apple iPhone 17 are the two flagship phones most US buyers cross-shop in 2026. The Galaxy S25 brings Samsung's Snapdragon 8 Elite processor, a 6.2-inch AMOLED display and a triple camera system with a 50MP main sensor. The iPhone 17 runs Apple's A19 chip, a 6.1-inch OLED with ProMotion and a 48MP main camera with a new 2x telephoto. This page pulls live US listings from BuyWhere's catalog so you can see the current floor price for each, who is offering it, and whether the cheapest listing is a carrier deal, unlocked or refurbished.",
   "canonicalPath": "/galaxy-s25-vs-iphone-17-us",
   "country": "US",
@@ -29,7 +29,7 @@
   "datePublished": "2026-08-28",
   "dateModified": "2026-08-29",
   "productSectionTitle": "Live Galaxy S25 and iPhone 17 prices in the US",
-  "comparisonSectionTitle": "Galaxy S25 vs iPhone 17 — at a glance",
+  "comparisonSectionTitle": "Galaxy S25 vs iPhone 17 \u2014 at a glance",
   "comparisonColumns": [
     "Feature",
     "Samsung Galaxy S25",
@@ -103,21 +103,21 @@
   ],
   "adviceSectionTitle": "How to choose between the Galaxy S25 and iPhone 17",
   "advicePoints": [
-    "If you already own an Apple Watch, AirPods or Mac, the iPhone 17 is the obvious choice — ecosystem lock-in is real and switching costs are high.",
+    "If you already own an Apple Watch, AirPods or Mac, the iPhone 17 is the obvious choice \u2014 ecosystem lock-in is real and switching costs are high.",
     "If you want the most camera flexibility (3x telephoto, 50MP sensor, manual controls), the Galaxy S25 edges ahead.",
-    "Carrier deals often make one phone significantly cheaper than the other — check this page for the current floor price before deciding.",
+    "Carrier deals often make one phone significantly cheaper than the other \u2014 check this page for the current floor price before deciding.",
     "Both phones start at the same unlocked price, but trade-in values differ: Apple typically offers more for older iPhones, Samsung offers more for older Galaxies.",
     "If you plan to keep the phone 4+ years, Samsung's 7-year update promise is longer than Apple's typical 5-6 year support window.",
-    "Consider the Galaxy S25 if you want USB-C with full DisplayPort alt mode (external monitor support) — the iPhone 17 still limits USB-C to charging and data."
+    "Consider the Galaxy S25 if you want USB-C with full DisplayPort alt mode (external monitor support) \u2014 the iPhone 17 still limits USB-C to charging and data."
   ],
-  "faqSectionTitle": "Galaxy S25 vs iPhone 17 — common questions",
+  "faqSectionTitle": "Galaxy S25 vs iPhone 17 \u2014 common questions",
   "faqs": [
     {
       "question": "Is the Galaxy S25 or iPhone 17 better for photography in 2026?",
       "answer": "Both are excellent. The Galaxy S25 has a 3x telephoto and 50MP sensor for more detail and reach; the iPhone 17 has better video (ProRes, Action mode) and more natural skin tones. For social media photos, either is more than enough."
     },
     {
-      "question": "Which phone lasts longer on a single charge — Galaxy S25 or iPhone 17?",
+      "question": "Which phone lasts longer on a single charge \u2014 Galaxy S25 or iPhone 17?",
       "answer": "The Galaxy S25's 4,000 mAh battery gives it a slight edge in screen-on time (8-9 hours vs 7-8 hours for the iPhone 17). Both last a full day with moderate use; heavy 5G or gaming drains either by evening."
     },
     {
@@ -133,56 +133,7 @@
       "answer": "Samsung promises 7 years of OS and security updates for the Galaxy S25; Apple typically supports iPhones for 5-6 years. In practice, both phones will be current through 2030-2031."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "36308108",
-      "name": "iPhone 17 256GB Sage",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308108",
-      "affiliateUrl": "/r/direct/36308108",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36308118",
-      "name": "iPhone 17 256GB Lavender",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308118",
-      "affiliateUrl": "/r/direct/36308118",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36308786",
-      "name": "iPhone 17 256GB White",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308786",
-      "affiliateUrl": "/r/direct/36308786",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36309346",
-      "name": "iPhone 17 512GB Sage",
-      "price": 99813,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36309346",
-      "affiliateUrl": "/r/direct/36309346",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-gaming-laptops-us",

@@ -1,10 +1,10 @@
 {
   "slug": "cheapest-macbook-air-m4-us",
-  "title": "Cheapest MacBook Air M4 in the US (2026) — Live Prices Compared",
+  "title": "Cheapest MacBook Air M4 in the US (2026) \u2014 Live Prices Compared",
   "description": "Where the MacBook Air M4 is cheapest in the United States right now: live prices from Apple.com, Amazon, Best Buy, B&H, Adorama and Costco, compared daily, with buying advice on AppleCare, education pricing, RAM/storage upgrades and whether the M3 Air is now the smarter buy.",
   "heroEyebrow": "US MacBook Air M4 price guide",
-  "heroTitle": "Cheapest MacBook Air M4 in the US — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest MacBook Air M4 in the US (2026) — from {floorPrice} today",
+  "heroTitle": "Cheapest MacBook Air M4 in the US \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Cheapest MacBook Air M4 in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "The MacBook Air M4 launched in early 2025 with a meaningfully faster CPU, dual external display support and a lower starting price than the M3 Air, and US pricing has been stable at Apple.com while Amazon, Best Buy and B&H trade meaningful discounts. This page pulls the live US listings from BuyWhere's catalog every few minutes so you can see the current floor price, which retailer is undercutting, and whether the cheapest listing is a sealed Apple warranty unit or an 'Open Box' deal that trades return terms for a real discount.",
   "canonicalPath": "/cheapest-macbook-air-m4-us",
   "country": "US",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live MacBook Air M4 prices in the US",
-  "comparisonSectionTitle": "Where the MacBook Air M4 is cheapest — at a glance",
+  "comparisonSectionTitle": "Where the MacBook Air M4 is cheapest \u2014 at a glance",
   "comparisonColumns": [
     "Seller type",
     "Typical price vs list",
@@ -71,12 +71,12 @@
   "highlightSectionTitle": "What to know before you buy a MacBook Air M4",
   "highlights": [
     {
-      "title": "M3 vs M4 — when the M3 is the smarter buy",
-      "body": "Refurbished and clearance M3 MacBook Air units are still widely available in the US, often at a meaningful discount to the M4 list price. For browsing, schoolwork, coding and photo editing, the M3 is still excellent — the M4 only earns its premium for sustained video editing, large codebases and multi-display setups."
+      "title": "M3 vs M4 \u2014 when the M3 is the smarter buy",
+      "body": "Refurbished and clearance M3 MacBook Air units are still widely available in the US, often at a meaningful discount to the M4 list price. For browsing, schoolwork, coding and photo editing, the M3 is still excellent \u2014 the M4 only earns its premium for sustained video editing, large codebases and multi-display setups."
     },
     {
       "title": "Configure RAM at checkout, not later",
-      "body": "Apple charges a steep premium for RAM upgrades after the fact, and you cannot upgrade later on any modern MacBook. If you plan to keep the machine past four years or run more than a dozen browser tabs, the 16GB RAM option is the safer pick — the 8GB base is a real bottleneck under macOS today."
+      "body": "Apple charges a steep premium for RAM upgrades after the fact, and you cannot upgrade later on any modern MacBook. If you plan to keep the machine past four years or run more than a dozen browser tabs, the 16GB RAM option is the safer pick \u2014 the 8GB base is a real bottleneck under macOS today."
     },
     {
       "title": "Education and business pricing",
@@ -86,16 +86,16 @@
   "adviceSectionTitle": "How to pay the least without getting burned",
   "advicePoints": [
     "Time it: Amazon and Best Buy undercut most during Prime Day (July) and Black Friday (late November). Outside those windows, B&H and Adorama typically hold the lowest everyday price on base configurations.",
-    "Check the Apple Education Store first if you qualify — verified students, parents and faculty usually beat every third-party retailer on a base config, and AppleCare is fully supported.",
+    "Check the Apple Education Store first if you qualify \u2014 verified students, parents and faculty usually beat every third-party retailer on a base config, and AppleCare is fully supported.",
     "Configure your RAM and SSD deliberately at checkout: you cannot upgrade later, and skipping the 16GB upgrade to save a little now is the most common Mac regret.",
     "Prefer 'Apple Authorized Reseller' listings over third-party 'renewed' boxes. B&H, Adorama, Best Buy and Amazon-sold-by-Apple ship with the full Apple warranty; random marketplace sellers do not.",
-    "Avoid 'Open Box' or 'Used – Like New' listings with no Apple coverage: they look cheaper but you lose Apple's return window and the warranty clock has already started."
+    "Avoid 'Open Box' or 'Used \u2013 Like New' listings with no Apple coverage: they look cheaper but you lose Apple's return window and the warranty clock has already started."
   ],
-  "faqSectionTitle": "MacBook Air M4 in the US — common questions",
+  "faqSectionTitle": "MacBook Air M4 in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the MacBook Air M4 worth it over the M3 in the US?",
-      "answer": "If you want dual external displays, a meaningfully faster CPU/GPU or longer support runway, yes. For most everyday tasks — schoolwork, browsing, light photo and video editing — the M3 Air on sale remains the smarter buy."
+      "answer": "If you want dual external displays, a meaningfully faster CPU/GPU or longer support runway, yes. For most everyday tasks \u2014 schoolwork, browsing, light photo and video editing \u2014 the M3 Air on sale remains the smarter buy."
     },
     {
       "question": "When is the MacBook Air M4 cheapest in the US?",
@@ -107,47 +107,10 @@
     },
     {
       "question": "Does the MacBook Air M4 come with AppleCare in the US?",
-      "answer": "AppleCare+ is sold separately — Apple includes a 1-year limited warranty. You can add AppleCare+ within 60 days of purchase, with cheaper monthly pricing available in some configurations."
+      "answer": "AppleCare+ is sold separately \u2014 Apple includes a 1-year limited warranty. You can add AppleCare+ within 60 days of purchase, with cheaper monthly pricing available in some configurations."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "934726797848479707",
-      "name": "Apple MacBook Air M4 13-inch 16GB/256GB Midnight",
-      "price": 1099,
-      "currency": "USD",
-      "merchant": "Apple",
-      "imageUrl": null,
-      "href": "/r/direct/934726797848479707",
-      "affiliateUrl": "/r/direct/934726797848479707",
-      "brand": "Apple",
-      "category": "Laptop"
-    },
-    {
-      "id": "1119149163095490268",
-      "name": "Apple MacBook Air M4 15.3-inch 16GB/512GB Silver",
-      "price": 1729.99,
-      "currency": "USD",
-      "merchant": "Apple",
-      "imageUrl": null,
-      "href": "/r/direct/1119149163095490268",
-      "affiliateUrl": "/r/direct/1119149163095490268",
-      "brand": "Apple",
-      "category": "Laptop"
-    },
-    {
-      "id": "1068569491012625896",
-      "name": "Apple MacBook Air M4 15.3-inch 16GB/512GB Midnight",
-      "price": 1729.99,
-      "currency": "USD",
-      "merchant": "Apple",
-      "imageUrl": null,
-      "href": "/r/direct/1068569491012625896",
-      "affiliateUrl": "/r/direct/1068569491012625896",
-      "brand": "Apple",
-      "category": "Laptop"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/cheapest-macbook-air-m4-singapore"
   },
@@ -157,7 +120,7 @@
   ],
   "categoryIntro": {
     "heading": "Why US MacBook prices barely move off MSRP",
-    "body": "Apple controls MacBook distribution tightly in the US: the official MSRP holds most of the year, and the real discounts come from a small set of places — Apple's own Education and Business Stores, Costco's near-permanent undercut on certain SKUs, and Amazon/Best Buy during Prime Day and Black Friday. A static 'best price' article goes stale within weeks, so this page reads live listings instead."
+    "body": "Apple controls MacBook distribution tightly in the US: the official MSRP holds most of the year, and the real discounts come from a small set of places \u2014 Apple's own Education and Business Stores, Costco's near-permanent undercut on certain SKUs, and Amazon/Best Buy during Prime Day and Black Friday. A static 'best price' article goes stale within weeks, so this page reads live listings instead."
   },
   "owner": "Surf",
   "reviewer": "Hue",

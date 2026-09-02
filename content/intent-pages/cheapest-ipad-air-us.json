@@ -1,10 +1,10 @@
 {
   "slug": "cheapest-ipad-air-us",
-  "title": "Cheapest iPad Air in the US (2026) — Live Prices Compared",
+  "title": "Cheapest iPad Air in the US (2026) \u2014 Live Prices Compared",
   "description": "Where the iPad Air is cheapest in the United States right now: live prices from Apple, Amazon, Best Buy, B&H, Walmart and Target compared daily, with buying advice on storage, Pencil support, education pricing and open-box deals.",
   "heroEyebrow": "US iPad Air price guide",
-  "heroTitle": "Cheapest iPad Air in the US — 2026 live price comparison",
-  "heroTitleTemplate": "Cheapest iPad Air in the US (2026) — from {floorPrice} today",
+  "heroTitle": "Cheapest iPad Air in the US \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Cheapest iPad Air in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "The iPad Air remains the safest Apple tablet recommendation in the United States in 2026 because it gives students, families and mobile workers the modern iPad experience without forcing them into iPad Pro pricing. In USD, the real buying decision is rarely Apple Store versus everyone else: Apple holds a predictable list price, while Amazon, Best Buy, B&H, Walmart and Target rotate discounts by color, storage size and whether the listing is new, open-box or renewed. This page pulls live US iPad Air listings from BuyWhere's catalog every few minutes so you can see the current floor price, which retailer is undercutting today, and whether the cheapest option is a sealed Apple-warranty unit or a condition-specific deal that needs extra scrutiny.",
   "canonicalPath": "/cheapest-ipad-air-us",
   "country": "US",
@@ -26,7 +26,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPad Air prices in the US",
-  "comparisonSectionTitle": "Where iPad Air is cheapest — at a glance",
+  "comparisonSectionTitle": "Where iPad Air is cheapest \u2014 at a glance",
   "comparisonColumns": [
     "Seller type",
     "Typical discount pattern",
@@ -91,7 +91,7 @@
     "Do not overbuy the iPad Pro if your real use is notes, streaming, browser work and light editing. Put the savings into a keyboard case or Pencil instead.",
     "Watch Prime Day, back-to-school and Black Friday periods. US retailers often discount iPad Air by model and color rather than across every configuration at once."
   ],
-  "faqSectionTitle": "iPad Air in the US — common questions",
+  "faqSectionTitle": "iPad Air in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Where is the cheapest place to buy an iPad Air in the US?",
@@ -110,56 +110,7 @@
       "answer": "For most US buyers, yes. The Pro is worth it for artists who need the best display, editors with demanding media workflows and people who know they need ProMotion. Everyone else gets the core iPad experience from the Air for less."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "37377405",
-      "name": "Adhesive Tablet & Slim Laptop Wall Mount Holder for iPad, Android, Macbook, Surface, iPad Air, Mini & Pro, Galaxy Tab Note eBooks, Kindle & More",
-      "price": 16.14,
-      "currency": "USD",
-      "merchant": "brainwavzaudio.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0953/2124/products/BWAVZ-TAB-MNT-V2-BK-05.jpg?v=1672754574",
-      "href": "/r/direct/37377405",
-      "affiliateUrl": "/r/direct/37377405",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089065",
-      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
-      "price": 9.03,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
-      "href": "/r/direct/37089065",
-      "affiliateUrl": "/r/direct/37089065",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089062",
-      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
-      "price": 9.06,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
-      "href": "/r/direct/37089062",
-      "affiliateUrl": "/r/direct/37089062",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089063",
-      "name": "Bluetooth-compatible Mouse Wireless Mouse Silent Computer Mice Portable Working Gaming Mouse for Laptop iPad Air Pro Tablet PC",
-      "price": 9,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0986/2355/3829/files/Seb0167af4ac54ca39698c240c06f2d19I.webp?v=1775228179",
-      "href": "/r/direct/37089063",
-      "affiliateUrl": "/r/direct/37089063",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/best-ipads-singapore"
   },

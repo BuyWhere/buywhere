@@ -1,10 +1,10 @@
 {
   "slug": "ipad-air-vs-ipad-pro-us",
-  "title": "iPad Air vs iPad Pro in the US (2026) — which should you buy",
+  "title": "iPad Air vs iPad Pro in the US (2026) \u2014 which should you buy",
   "description": "iPad Air vs iPad Pro compared for US buyers: live prices from Apple, Amazon, Best Buy, B&H, Micro Center and major carriers, plus a side-by-side on performance, display, Apple Pencil support and who each tablet is really for.",
   "heroEyebrow": "US iPad comparison",
-  "heroTitle": "iPad Air vs iPad Pro in the US (2026) — live prices and which to buy",
-  "heroTitleTemplate": "iPad Air vs iPad Pro in the US (2026) — from {floorPrice} today",
+  "heroTitle": "iPad Air vs iPad Pro in the US (2026) \u2014 live prices and which to buy",
+  "heroTitleTemplate": "iPad Air vs iPad Pro in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "In the United States in 2026, the iPad Air and iPad Pro are closer than they have ever been on chip performance, but the Pro still earns its premium with a brighter ProMotion 120 Hz display, faster SSD storage on the larger capacities, more RAM and the quad-speaker audio that creative workflows actually use. For most US shoppers the choice comes down to whether you will use those differences daily or whether a discounted Air with the same Apple silicon and Pencil Pro support is the smarter money. This page pulls live iPad Air and iPad Pro listings from BuyWhere's catalog every few minutes so you can see the current US floor price, which merchants are shipping in stock, and where the deepest discounts are sitting today in US$.",
   "inboundLinks": [
     "/best-4k-monitors-us",
@@ -32,7 +32,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPad Air and iPad Pro prices in the US",
-  "comparisonSectionTitle": "iPad Air vs iPad Pro — at a glance",
+  "comparisonSectionTitle": "iPad Air vs iPad Pro \u2014 at a glance",
   "comparisonColumns": [
     "Spec / feature",
     "iPad Air",
@@ -124,7 +124,7 @@
     "Buy from Apple, an authorised US reseller or a trusted major retailer if you want normal Apple warranty and returns. Marketplace resellers can be cheaper, but verify the unit is a US-spec, sealed Apple warranty device before paying.",
     "Factor the Pencil and keyboard into the total price. A cheaper tablet with a costly accessory generation is not necessarily the better deal, and Pencil Pro support makes that gap irrelevant between Air and Pro."
   ],
-  "faqSectionTitle": "iPad Air vs iPad Pro in the US — common questions",
+  "faqSectionTitle": "iPad Air vs iPad Pro in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the iPad Pro worth the extra money over the iPad Air in the US?",
@@ -144,59 +144,10 @@
     },
     {
       "question": "Does the iPad Pro have a longer software support window than the iPad Air?",
-      "answer": "Apple supports current iPad Air and iPad Pro models for the same length of time — both receive iPadOS updates for around five to six years from release. Choosing the Pro for software longevity alone is not necessary in 2026."
+      "answer": "Apple supports current iPad Air and iPad Pro models for the same length of time \u2014 both receive iPadOS updates for around five to six years from release. Choosing the Pro for software longevity alone is not necessary in 2026."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "35785420",
-      "name": "Apple AppleCare+ for iPad Air 13-inch (M3) - Protect your Apple product.",
-      "price": 149,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/applecare_plus_icon__cqfj0er7b3o2_large_05adf5bb-9477-42fc-9af0-c56a6fa4abeb.png?v=1711123626",
-      "href": "/r/direct/35785420",
-      "affiliateUrl": "/r/direct/35785420",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785421",
-      "name": "Apple AppleCare+ for iPad Air 11-inch (M3) - Protect your Apple product.",
-      "price": 119,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/applecare_plus_icon__cqfj0er7b3o2_large_05adf5bb-9477-42fc-9af0-c56a6fa4abeb.png?v=1711123626",
-      "href": "/r/direct/35785421",
-      "affiliateUrl": "/r/direct/35785421",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785409",
-      "name": "Apple AppleCare+ for iPad Air 13-inch (M2)",
-      "price": 149,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/applecare_plus_icon__cqfj0er7b3o2_large_5d8b0a17-f412-4c5f-99c0-185a51a498da.png?v=1715137225",
-      "href": "/r/direct/35785409",
-      "affiliateUrl": "/r/direct/35785409",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785422",
-      "name": "Apple AppleCare+ for iPad Air 11-inch (M2)",
-      "price": 119,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/applecare_plus_icon__cqfj0er7b3o2_large_5260cecd-2c25-4b11-94a4-4d290e128dcc.png?v=1715139015",
-      "href": "/r/direct/35785422",
-      "affiliateUrl": "/r/direct/35785422",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/ipad-air-vs-ipad-pro-singapore"
   },

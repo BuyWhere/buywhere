@@ -1,10 +1,10 @@
 {
   "slug": "iphone-17-vs-iphone-16-us",
-  "title": "iPhone 17 vs iPhone 16 in the US (2026) — which should you buy",
+  "title": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 which should you buy",
   "description": "iPhone 17 vs iPhone 16 compared for US buyers: live prices from Apple, Amazon, Best Buy, Walmart and major carriers, plus a side-by-side on display, chip, camera, battery and whether iPhone 16 owners should upgrade.",
   "heroEyebrow": "US iPhone comparison",
-  "heroTitle": "iPhone 17 vs iPhone 16 in the US (2026) — live prices and which to buy",
-  "heroTitleTemplate": "iPhone 17 vs iPhone 16 in the US (2026) — from {floorPrice} today",
+  "heroTitle": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 live prices and which to buy",
+  "heroTitleTemplate": "iPhone 17 vs iPhone 16 in the US (2026) \u2014 from {floorPrice} today",
   "heroBody": "The iPhone 17 arrived in late 2025 with a redesigned camera bar, the A19 Pro chip, a brighter 120 Hz ProMotion display across the line-up and meaningful battery gains. In the United States the iPhone 16 is still widely sold at carrier and retailer discounts, so the choice is less about which phone is newer and more about whether the 17's upgrades justify the price gap for how you actually use a phone. This page pulls live US listings from Apple, Amazon, Best Buy, Walmart and carrier stores so you can compare current iPhone 17 and iPhone 16 prices in US$ side by side.",
   "inboundLinks": [
     "/best-iphones-us",
@@ -32,7 +32,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live iPhone 17 and iPhone 16 prices in the US",
-  "comparisonSectionTitle": "iPhone 17 vs iPhone 16 — at a glance",
+  "comparisonSectionTitle": "iPhone 17 vs iPhone 16 \u2014 at a glance",
   "comparisonColumns": [
     "Spec / feature",
     "iPhone 17",
@@ -49,8 +49,8 @@
     {
       "label": "Chip",
       "values": [
-        "A19 Pro — faster GPU and improved ray tracing",
-        "A18 — still fast for everyday apps and most games"
+        "A19 Pro \u2014 faster GPU and improved ray tracing",
+        "A18 \u2014 still fast for everyday apps and most games"
       ]
     },
     {
@@ -63,7 +63,7 @@
     {
       "label": "Battery life",
       "values": [
-        "Larger battery and more efficient modem — longest iPhone battery yet",
+        "Larger battery and more efficient modem \u2014 longest iPhone battery yet",
         "All-day battery for most users; heavy travel days need a top-up"
       ]
     },
@@ -110,7 +110,7 @@
     "If you already own an iPhone 16, the 17 is a noticeable but not essential upgrade. Wait for the 18 if your current phone is in good condition and the 120 Hz display alone does not justify the switch.",
     "Check storage before checking colour. The entry storage tier fills quickly with 4K video and large apps; a 256 GB or 512 GB model usually ages better than the base capacity."
   ],
-  "faqSectionTitle": "iPhone 17 vs iPhone 16 in the US — common questions",
+  "faqSectionTitle": "iPhone 17 vs iPhone 16 in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the iPhone 17 worth it over the iPhone 16 in the US?",
@@ -122,7 +122,7 @@
     },
     {
       "question": "Should I upgrade from iPhone 16 to iPhone 17?",
-      "answer": "Only if one of the 17 upgrades — ProMotion display, camera low-light improvement or battery life — solves a real pain point for you. For most iPhone 16 owners the difference is nice-to-have, not must-have."
+      "answer": "Only if one of the 17 upgrades \u2014 ProMotion display, camera low-light improvement or battery life \u2014 solves a real pain point for you. For most iPhone 16 owners the difference is nice-to-have, not must-have."
     },
     {
       "question": "Do US iPhone 17 models work worldwide?",
@@ -133,56 +133,7 @@
       "answer": "It is safe if the seller clearly states new, US model, unopened and offers a normal return window. Avoid listings well below the market floor, open-box units sold as new, or sellers with no return policy."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "36308108",
-      "name": "iPhone 17 256GB Sage",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308108",
-      "affiliateUrl": "/r/direct/36308108",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36308118",
-      "name": "iPhone 17 256GB Lavender",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308118",
-      "affiliateUrl": "/r/direct/36308118",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36308786",
-      "name": "iPhone 17 256GB White",
-      "price": 81242,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36308786",
-      "affiliateUrl": "/r/direct/36308786",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36309346",
-      "name": "iPhone 17 512GB Sage",
-      "price": 99813,
-      "currency": "USD",
-      "merchant": "iplanet.one",
-      "imageUrl": null,
-      "href": "/r/direct/36309346",
-      "affiliateUrl": "/r/direct/36309346",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {},
   "categoryIntro": {
     "heading": "Why US iPhone prices shift with carrier deals",

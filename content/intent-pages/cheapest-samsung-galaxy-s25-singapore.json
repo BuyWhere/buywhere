@@ -4,8 +4,8 @@
   "description": "Find the cheapest Samsung Galaxy S25 in Singapore across Shopee, Lazada, Amazon.sg and authorised retailers. Live prices, GST-inclusive, refreshed weekly.",
   "heroEyebrow": "Cheapest in Singapore",
   "heroTitle": "Cheapest Samsung Galaxy S25 in Singapore (August 2026)",
-  "heroTitleTemplate": "Samsung Galaxy S25 in Singapore (2026) — from {floorPrice} today",
-  "heroBody": "The Samsung Galaxy S25 family — S25, S25+, S25 Ultra and S25 Edge — is sold across authorised SG retailers (Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki) and parallel-import channels on Shopee, Lazada and Amazon.sg. This page lists every SKU we can verify, ranked cheapest first, with each merchant link going through BuyWhere's price-tracked redirect so the S$ amount you see matches what the merchant charges at checkout.",
+  "heroTitleTemplate": "Samsung Galaxy S25 in Singapore (2026) \u2014 from {floorPrice} today",
+  "heroBody": "The Samsung Galaxy S25 family \u2014 S25, S25+, S25 Ultra and S25 Edge \u2014 is sold across authorised SG retailers (Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki) and parallel-import channels on Shopee, Lazada and Amazon.sg. This page lists every SKU we can verify, ranked cheapest first, with each merchant link going through BuyWhere's price-tracked redirect so the S$ amount you see matches what the merchant charges at checkout.",
   "canonicalPath": "/cheapest-samsung-galaxy-s25-singapore",
   "country": "SG",
   "currency": "SGD",
@@ -73,7 +73,7 @@
   "highlights": [
     {
       "title": "Authorised vs parallel imports",
-      "body": "Authorised Samsung SG retailers (Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki) carry local warranty. Parallel imports from Shopee/Lazada sellers typically ship from Hong Kong or Korea with distributor warranty only — usually 6 months, not the full 24 months Samsung Singapore provides."
+      "body": "Authorised Samsung SG retailers (Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki) carry local warranty. Parallel imports from Shopee/Lazada sellers typically ship from Hong Kong or Korea with distributor warranty only \u2014 usually 6 months, not the full 24 months Samsung Singapore provides."
     },
     {
       "title": "256GB is the SG floor",
@@ -86,12 +86,12 @@
   ],
   "adviceSectionTitle": "How to choose the right S25 in Singapore",
   "advicePoints": [
-    "If you want the cheapest path into the S25 family: get the S25 256GB in a colour Samsung is currently promoting (often Navy or Mint carry an extra voucher). Avoid the 512GB SKU unless you actually shoot 4K120 video — the storage premium in SG is substantial.",
+    "If you want the cheapest path into the S25 family: get the S25 256GB in a colour Samsung is currently promoting (often Navy or Mint carry an extra voucher). Avoid the 512GB SKU unless you actually shoot 4K120 video \u2014 the storage premium in SG is substantial.",
     "If you want battery life: the S25+ and S25 Ultra both have noticeably better endurance than the base S25 thanks to bigger cells and a more efficient modem. The S25 Ultra is the only one with the S Pen and a 200MP main camera.",
     "If you want a lighter phone: the base S25 at 162 g is the lightest of the four. The S25 Edge at 5.8 mm is the thinnest, but battery life is shorter.",
     "If you want the best SG warranty: buy from Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki, or an authorised telco plan. Marketplace sellers on Shopee/Lazada/Amazon.sg are usually not authorised Samsung partners."
   ],
-  "faqSectionTitle": "Samsung Galaxy S25 SG — frequently asked",
+  "faqSectionTitle": "Samsung Galaxy S25 SG \u2014 frequently asked",
   "faqs": [
     {
       "question": "What is the cheapest Samsung Galaxy S25 in Singapore right now?",
@@ -107,59 +107,14 @@
     },
     {
       "question": "Where can I buy the S25 with SG warranty?",
-      "answer": "Authorised SG warranty channels are Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki, and the three telcos (Singtel, StarHub, M1) on a contract plan. All other retailers — Shopee, Lazada, Amazon.sg — typically ship parallel-import units with distributor warranty, not the full Samsung Singapore 24-month warranty."
+      "answer": "Authorised SG warranty channels are Samsung.com/sg, Challenger, Courts, Harvey Norman, Best Denki, and the three telcos (Singtel, StarHub, M1) on a contract plan. All other retailers \u2014 Shopee, Lazada, Amazon.sg \u2014 typically ship parallel-import units with distributor warranty, not the full Samsung Singapore 24-month warranty."
     },
     {
       "question": "Is the S25 worth it over the S24?",
       "answer": "The S25 brings the Snapdragon 8 Elite for Galaxy chipset, 12GB RAM across all storage tiers (the S24 had 8GB on the base 128GB), and Galaxy AI features that depend on-device. If you have an S23 or older the upgrade is meaningful; from an S24 the difference is mostly AI features and longer software support."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "9222976908550881752",
-      "name": "Samsung Galaxy S25+ 256GB - Blue",
-      "price": 1478,
-      "currency": "SGD",
-      "merchant": "samsung.com.sg",
-      "href": "/r/direct/9222976908550881752",
-      "affiliateUrl": "/r/direct/9222976908550881752",
-      "brand": "",
-      "category": "smartphones"
-    },
-    {
-      "id": "9222976908550881753",
-      "name": "Samsung Galaxy S25+ 256GB - Titanium",
-      "price": 1478,
-      "currency": "SGD",
-      "merchant": "samsung.com.sg",
-      "href": "/r/direct/9222976908550881753",
-      "affiliateUrl": "/r/direct/9222976908550881753",
-      "brand": "",
-      "category": "smartphones"
-    },
-    {
-      "id": "9222976908550881754",
-      "name": "Samsung Galaxy S25+ 256GB - Blue",
-      "price": 1478,
-      "currency": "SGD",
-      "merchant": "samsung.com.sg",
-      "href": "/r/direct/9222976908550881754",
-      "affiliateUrl": "/r/direct/9222976908550881754",
-      "brand": "",
-      "category": "smartphones"
-    },
-    {
-      "id": "9222976908550881756",
-      "name": "Samsung Galaxy S25+ 256GB - Blue",
-      "price": 1658,
-      "currency": "SGD",
-      "merchant": "samsung.com.sg",
-      "href": "/r/direct/9222976908550881756",
-      "affiliateUrl": "/r/direct/9222976908550881756",
-      "brand": "",
-      "category": "smartphones"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": [
     "/cheapest-samsung-galaxy-s25-us",
     "/galaxy-s25-price-singapore"

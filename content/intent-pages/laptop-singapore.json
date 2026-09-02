@@ -1,10 +1,10 @@
 {
   "slug": "laptop-singapore",
-  "title": "Best Laptops in Singapore (2026) — Live SG Prices Compared",
+  "title": "Best Laptops in Singapore (2026) \u2014 Live SG Prices Compared",
   "description": "The best laptops to buy in Singapore right now: live local listings for MacBook, Windows ultrabooks, student laptops, business notebooks and gaming machines, with practical advice on warranty, RAM, storage, weight and where Singapore shoppers usually save.",
   "heroEyebrow": "Singapore laptop buying guide",
-  "heroTitle": "Best laptops in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Best laptops in Singapore (2026) — from {floorPrice} today",
+  "heroTitle": "Best laptops in Singapore \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Best laptops in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "In Singapore, a laptop purchase is rarely just a spec-sheet decision: the same MacBook, Lenovo Yoga, ASUS Zenbook, HP OmniBook, Acer Swift or Dell XPS can appear at Apple Singapore, Challenger, Harvey Norman, Courts, Best Denki, Amazon.sg, Shopee Mall, LazMall and parallel importers at the same time, each with different warranty language and voucher mechanics. This page pulls live Singapore laptop listings from BuyWhere's catalog so the product cards below reflect current local retailer data, while the guide focuses on the durable decisions that matter before checkout: which class of laptop fits your work, how much memory and storage to prioritise, when local warranty is worth paying for, and which sale windows move real prices rather than just sticker prices.",
   "canonicalPath": "/laptop-singapore",
   "country": "SG",
@@ -33,7 +33,7 @@
   "datePublished": "2026-08-26",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live laptop prices across Singapore retailers",
-  "comparisonSectionTitle": "Which laptop type fits you — at a glance",
+  "comparisonSectionTitle": "Which laptop type fits you \u2014 at a glance",
   "comparisonColumns": [
     "Buyer type",
     "Prioritise",
@@ -102,7 +102,7 @@
     "Avoid accessory contamination when searching. Sleeves, stands, skins, coolers and replacement chargers often contain the word laptop; BuyWhere filters those out of the product cards, but shoppers should still verify the listing is the actual computer.",
     "If you already own a working laptop, upgrade for a concrete reason: battery no longer lasts a workday, memory is limiting your apps, the display is poor, or your course or job now needs GPU or creator performance. Do not upgrade just because a new chip name launched."
   ],
-  "faqSectionTitle": "Laptops in Singapore — common questions",
+  "faqSectionTitle": "Laptops in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "What is the best laptop for most Singapore buyers in 2026?",
@@ -125,56 +125,7 @@
       "answer": "Check memory, storage type, display resolution and warranty first. A low price is not good value if the laptop has cramped memory, slow storage, a dim panel or no clear Singapore service route. It is usually better to buy a slightly older mainstream model than the newest ultra-cheap configuration."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "54614597",
-      "name": "[Laptop] Microsoft Surface Laptop 13-inch Copilot+PC 256GB/512GB C8 16GB Platinum",
-      "price": 1348.9,
-      "currency": "SGD",
-      "merchant": "shopee",
-      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-7ra2y-mbnl4mv6cmufda",
-      "href": "/r/direct/54614597",
-      "affiliateUrl": "/r/direct/54614597",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "54614585",
-      "name": "Brand New XPro Biz 15.6 Inch Laptop / Intel i7 Laptop / SG Seller",
-      "price": 348.8,
-      "currency": "SGD",
-      "merchant": "shopee",
-      "imageUrl": "https://down-sg.img.susercontent.com/file/sg-11134207-8260d-mlviszmbp05rc6",
-      "href": "/r/direct/54614585",
-      "affiliateUrl": "/r/direct/54614585",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "57456078",
-      "name": "Laptop Screen Extender, Portable Triple Monitor 15.6 inch FHD 1080P, Compatible with Windows, Mac, Chrome, for Laptop 13\" - 17.3\"",
-      "price": 373.61,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "imageUrl": "https://m.media-amazon.com/images/I/71eFpAKsNkL._AC_UL320_.jpg",
-      "href": "/r/direct/57456078",
-      "affiliateUrl": "/r/direct/57456078",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "57496904",
-      "name": "Gaming Laptop, Laptops, 16GB DDR4 512GB SSD, Windows 11 with N100 Processor (up to 3.4GHz, 4C/4T), 15.6\" FHD 1920x1080p, Full Metal Housing, WiFi, BT5.0",
-      "price": 356.38,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "imageUrl": "https://m.media-amazon.com/images/I/71GWnWHvGqL._AC_UL320_.jpg",
-      "href": "/r/direct/57496904",
-      "affiliateUrl": "/r/direct/57496904",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-US": "/best-budget-laptops-us"
   },

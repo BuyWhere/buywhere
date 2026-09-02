@@ -1,10 +1,10 @@
 {
   "slug": "best-webcams-us",
-  "title": "Best Webcams in the US (2026) — Live Prices Compared",
-  "description": "Compare live US webcam prices from Amazon, Best Buy and Logitech. 1080p vs 4K, autofocus vs laptop cameras, with honest lighting and mic advice — no invented specs.",
+  "title": "Best Webcams in the US (2026) \u2014 Live Prices Compared",
+  "description": "Compare live US webcam prices from Amazon, Best Buy and Logitech. 1080p vs 4K, autofocus vs laptop cameras, with honest lighting and mic advice \u2014 no invented specs.",
   "heroEyebrow": "US webcam buying guide",
-  "heroTitle": "Best webcams in the US — 2026 live price comparison",
-  "heroTitleTemplate": "Best webcams in the US — from {floorPrice} today",
+  "heroTitle": "Best webcams in the US \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Best webcams in the US \u2014 from {floorPrice} today",
   "heroBody": "A dedicated webcam still beats most laptop cameras for work calls because it sits at eye line and handles indoor light without the smeared 720p look. In 2026 the useful split is 1080p 30/60 fps for everyday Zoom, 4K for talking-head recording, and whether autofocus and a real clip will sit on your monitor without a boom arm. This page reads live US catalog prices so you can see which of those models are actually in stock today instead of a roundup that froze last year's Logitech sale.",
   "canonicalPath": "/best-webcams-us",
   "country": "US",
@@ -93,7 +93,7 @@
     "Check the clip: a camera that cannot sit on a thin monitor bezel will need a stand you then have to buy separately.",
     "Skip bundles of leftover tripods and ring lights unless you were going to buy them anyway."
   ],
-  "faqSectionTitle": "Webcams in the US — common questions",
+  "faqSectionTitle": "Webcams in the US \u2014 common questions",
   "faqs": [
     {
       "question": "Is the Logitech C920 still worth it in 2026?",
@@ -104,64 +104,15 @@
       "answer": "Almost never. Calls downsample. 4K helps if you crop or archive recordings. Spend on lighting first."
     },
     {
-      "question": "Laptop cameras got better — do I still need a webcam?",
-      "answer": "Some 2025–2026 laptops are fine in daylight. A dedicated cam still wins on eye line (top of the monitor) and low indoor light. If your laptop already sits at eye height, try that before buying."
+      "question": "Laptop cameras got better \u2014 do I still need a webcam?",
+      "answer": "Some 2025\u20132026 laptops are fine in daylight. A dedicated cam still wins on eye line (top of the monitor) and low indoor light. If your laptop already sits at eye height, try that before buying."
     },
     {
       "question": "Should I wait for a sale?",
       "answer": "Webcam prices move with back-to-school and Prime Day. This page tracks live listings; we do not invent a 'usual' street price in the copy."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "36992845",
-      "name": "ASUS BE279QFK Video Conferencing Monitor – 27 Inch IPS Full HD 100Hz Webcam Monitor",
-      "price": 1,
-      "currency": "USD",
-      "merchant": "compumarts.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/ASUS-BE249QFK-Video-Conferencing-Monitor_01_23e6329b-79e4-4bf4-9c8e-30467d3178cc.jpg?v=1778865808",
-      "href": "/r/direct/36992845",
-      "affiliateUrl": "/r/direct/36992845",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36992854",
-      "name": "ASUS BE27ACSBK 27 Inch WQHD Video Conferencing Monitor with Webcam & USB-C Docking",
-      "price": 1,
-      "currency": "USD",
-      "merchant": "compumarts.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/ASUS-BE27ACSBK-Video-Conferencing-Monitor_01.jpg?v=1778853230",
-      "href": "/r/direct/36992854",
-      "affiliateUrl": "/r/direct/36992854",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37398983",
-      "name": "LINK 2 AI-POWERED 4K WEBCAM",
-      "price": 1499,
-      "currency": "USD",
-      "merchant": "broadwaylifestyle.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/8a76d0bbabb8aedc9a2c08ade6ac9be7.jpg?v=1767868076",
-      "href": "/r/direct/37398983",
-      "affiliateUrl": "/r/direct/37398983",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36995245",
-      "name": "Kisonli D1 2K USB Webcam – 2592×1944 Autofocus HD Camera with Microphone",
-      "price": 700,
-      "currency": "USD",
-      "merchant": "compumarts.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Kisonli-D1-2K-USB-Webcam_01.jpg?v=1758067211",
-      "href": "/r/direct/36995245",
-      "affiliateUrl": "/r/direct/36995245",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-business-laptops-us",

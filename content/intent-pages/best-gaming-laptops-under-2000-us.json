@@ -1,11 +1,11 @@
 {
   "slug": "best-gaming-laptops-under-2000-us",
-  "title": "Best Gaming Laptops Under $2,000 in the US (2026) — Live Prices Compared",
+  "title": "Best Gaming Laptops Under $2,000 in the US (2026) \u2014 Live Prices Compared",
   "description": "The best gaming laptops you can actually buy in the United States under two thousand dollars: live prices from Amazon, Best Buy, Walmart and Newegg, with GPU-tier advice so you do not overspend on a chassis that throttles.",
   "heroEyebrow": "US gaming laptops under two thousand dollars",
-  "heroTitle": "Best gaming laptops under $2,000 in the US (2026) — live comparison",
-  "heroTitleTemplate": "Best gaming laptops under $2,000 in the US (2026) — from {floorPrice}",
-  "heroBody": "In the United States the two-thousand-dollar ceiling is the line where a gaming laptop stops being a compromise and starts being a machine you can keep for three years. Below that cap you are choosing between RTX 5050 value chassis from Gigabyte and HP, RTX 5070 sweet-spot models from ASUS ROG and Lenovo Legion, and the last of the RTX 4070 clearance stock that still shows up at Best Buy and Walmart during weekend doorbusters. This page reads live US listings from BuyWhere's catalog so the cards below are what Amazon, Best Buy, Newegg and independent shops are charging today — not a leftover holiday roundup. Country and currency first: these are US-dollar prices, sold into the United States, with US returns and manufacturer warranty.",
+  "heroTitle": "Best gaming laptops under $2,000 in the US (2026) \u2014 live comparison",
+  "heroTitleTemplate": "Best gaming laptops under $2,000 in the US (2026) \u2014 from {floorPrice}",
+  "heroBody": "In the United States the two-thousand-dollar ceiling is the line where a gaming laptop stops being a compromise and starts being a machine you can keep for three years. Below that cap you are choosing between RTX 5050 value chassis from Gigabyte and HP, RTX 5070 sweet-spot models from ASUS ROG and Lenovo Legion, and the last of the RTX 4070 clearance stock that still shows up at Best Buy and Walmart during weekend doorbusters. This page reads live US listings from BuyWhere's catalog so the cards below are what Amazon, Best Buy, Newegg and independent shops are charging today \u2014 not a leftover holiday roundup. Country and currency first: these are US-dollar prices, sold into the United States, with US returns and manufacturer warranty.",
   "canonicalPath": "/best-gaming-laptops-under-2000-us",
   "country": "US",
   "currency": "USD",
@@ -64,7 +64,7 @@
       "values": [
         "RTX 5080 / 5090 (usually above the cap)",
         "Thin 14-inch 'gaming' ultrabooks",
-        "Buyers who need 4K desktop replacement — wait or stretch"
+        "Buyers who need 4K desktop replacement \u2014 wait or stretch"
       ]
     }
   ],
@@ -76,7 +76,7 @@
     },
     {
       "title": "Open-box and warehouse deals beat list more often than sales",
-      "body": "Best Buy open-box 'excellent' and Amazon Warehouse returns regularly undercut the advertised configuration by more than a typical Prime Day markdown, with the same US manufacturer warranty if the serial is unused. Inspect the battery cycle count and confirm the GPU SKU on the invoice — warehouse listings sometimes swap a 5070 for a 5050 in the title."
+      "body": "Best Buy open-box 'excellent' and Amazon Warehouse returns regularly undercut the advertised configuration by more than a typical Prime Day markdown, with the same US manufacturer warranty if the serial is unused. Inspect the battery cycle count and confirm the GPU SKU on the invoice \u2014 warehouse listings sometimes swap a 5070 for a 5050 in the title."
     },
     {
       "title": "Windows 11 Home vs Pro is a red herring at this price",
@@ -84,22 +84,22 @@
     },
     {
       "title": "18-inch models finally fit the cap",
-      "body": "Last year an 18-inch RTX machine blew past two thousand dollars. In 2026 Gigabyte and MSI 18-inch RTX 5070 Ti configs land inside the cap at independent shops. They are desktop replacements, not backpack machines — if you commute, stay at 16 inches."
+      "body": "Last year an 18-inch RTX machine blew past two thousand dollars. In 2026 Gigabyte and MSI 18-inch RTX 5070 Ti configs land inside the cap at independent shops. They are desktop replacements, not backpack machines \u2014 if you commute, stay at 16 inches."
     }
   ],
   "adviceSectionTitle": "How to stay under two thousand without buying a lemon",
   "advicePoints": [
     "Lock the GPU floor before you shop brands. If you play competitive shooters at 1080p, RTX 5050 is enough; if you want Cyberpunk-class titles at high settings, do not leave checkout without RTX 5070 or a proven RTX 4070.",
     "Prefer Amazon sold-by-Amazon, Best Buy, or Newegg marketplace sellers with fulfilled-by-Newegg. Third-party 'import' listings on Amazon often void the US NVIDIA/AMD board-partner warranty.",
-    "Ignore RAM above 32 GB at this budget unless you also run local LLMs or After Effects. Games in 2026 are still happiest at 16–32 GB; the extra DIMM is margin for the seller.",
+    "Ignore RAM above 32 GB at this budget unless you also run local LLMs or After Effects. Games in 2026 are still happiest at 16\u201332 GB; the extra DIMM is margin for the seller.",
     "Check whether the listing is a Best Buy exclusive SKU. Exclusive part numbers cannot be price-matched at Amazon or Walmart, which is how some 5070 laptops look cheaper until you add a three-year Geek Squad plan you did not want.",
     "If two configs are within a small gap of the cap, take the better screen (240 Hz or mini-LED) over a 1 TB to 2 TB storage bump. External NVMe is cheap; a washed-out 144 Hz panel is not."
   ],
-  "faqSectionTitle": "Gaming laptops under two thousand dollars in the US — questions shoppers actually ask",
+  "faqSectionTitle": "Gaming laptops under two thousand dollars in the US \u2014 questions shoppers actually ask",
   "faqs": [
     {
       "question": "Can I get an RTX 5070 laptop in the US for under two thousand dollars in 2026?",
-      "answer": "Yes. HP OMEN, ASUS ROG Strix and some Lenovo Legion 5070 configs regularly land under the cap at Amazon and Best Buy, especially open-box. The live cards on this page are the current US floor — if a listing is far below that floor with no reviews, it is usually a preorder or a different GPU."
+      "answer": "Yes. HP OMEN, ASUS ROG Strix and some Lenovo Legion 5070 configs regularly land under the cap at Amazon and Best Buy, especially open-box. The live cards on this page are the current US floor \u2014 if a listing is far below that floor with no reviews, it is usually a preorder or a different GPU."
     },
     {
       "question": "Is a leftover RTX 4070 still worth buying in the United States?",
@@ -114,56 +114,7 @@
       "answer": "Only if you play competitive esports. For story games and creation work, a 165 Hz IPS or a dimmer mini-LED is the better spend. High-refresh panels also drain battery faster on flights."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "36995929",
-      "name": "Gigabyte Gaming A16 16.0\" 165Hz 1TB 16GB DDR5 RTX 5050 Windows 11 Home Gaming Laptop",
-      "price": 915.83,
-      "currency": "USD",
-      "merchant": "computerorbit.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/3761149-l-a.jpg?v=1778513127",
-      "href": "/r/direct/36995929",
-      "affiliateUrl": "/r/direct/36995929",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36995928",
-      "name": "Gigabyte Gaming A18 Pro 18.0\" 165Hz 1TB 32GB DDR5 RTX 5070 Ti Windows 11 Home Gaming Laptop",
-      "price": 1499.17,
-      "currency": "USD",
-      "merchant": "computerorbit.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/71ago8q4KjL._AC_SL1500.jpg?v=1778513634",
-      "href": "/r/direct/36995928",
-      "affiliateUrl": "/r/direct/36995928",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36995927",
-      "name": "Gigabyte Gaming A16 Pro 16.0\" 165Hz 1TB 32GB DDR5 RTX 5070 Ti Windows 11 Home Gaming Laptop",
-      "price": 1374.17,
-      "currency": "USD",
-      "merchant": "computerorbit.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/71v1QaoJC4L._AC_SL1500.jpg?v=1778514739",
-      "href": "/r/direct/36995927",
-      "affiliateUrl": "/r/direct/36995927",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36996649",
-      "name": "ASUS ROG Strix G18 G815LP-S9005W Intel Core Ultra 9 275HX 16GB RAM 1TB SSD RTX 5070 Windows 11 Home Gaming Laptop",
-      "price": 1632.5,
-      "currency": "USD",
-      "merchant": "computerorbit.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0562/7713/9620/files/089ece15230a2791d1793456a1359dc34b196111.jpg?v=1769079867",
-      "href": "/r/direct/36996649",
-      "affiliateUrl": "/r/direct/36996649",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/best-gaming-laptops-under-2000-singapore"
   },

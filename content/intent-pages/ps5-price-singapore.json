@@ -124,44 +124,7 @@
       "answer": "Platform sale events on Shopee and Lazada such as 9.9, 11.11 and 12.12, plus year-end shopping periods, are when console vouchers and bank promos usually stack deepest."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "53116846",
-      "name": "Sony PlayStation 5 Pro 2TB / PS5 Slim console (Shopee SG listing)",
-      "price": 729.9,
-      "currency": "SGD",
-      "merchant": "Shopee",
-      "imageUrl": null,
-      "href": "/r/direct/53116846",
-      "affiliateUrl": "/r/direct/53116846",
-      "brand": "Sony",
-      "category": "Gaming console"
-    },
-    {
-      "id": "56321123",
-      "name": "Sony PlayStation 5 Slim Disc / Digital console (Shopee SG listing)",
-      "price": 751.9,
-      "currency": "SGD",
-      "merchant": "Shopee",
-      "imageUrl": null,
-      "href": "/r/direct/56321123",
-      "affiliateUrl": "/r/direct/56321123",
-      "brand": "Sony",
-      "category": "Gaming console"
-    },
-    {
-      "id": "53131194",
-      "name": "Sony PlayStation 5 Pro / PS5 Slim 1TB console (Shopee SG listing)",
-      "price": 730,
-      "currency": "SGD",
-      "merchant": "Shopee",
-      "imageUrl": null,
-      "href": "/r/direct/53131194",
-      "affiliateUrl": "/r/direct/53131194",
-      "brand": "Sony",
-      "category": "Gaming console"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {},
   "categoryIntro": {
     "heading": "Why PS5 prices vary more by seller than by model",

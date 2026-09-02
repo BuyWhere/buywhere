@@ -1,10 +1,10 @@
 {
   "slug": "dyson-v15-price-singapore",
-  "title": "Dyson V15 Price in Singapore (2026) — Live Prices Compared",
+  "title": "Dyson V15 Price in Singapore (2026) \u2014 Live Prices Compared",
   "description": "Current Dyson V15 price in Singapore: live listings from Amazon.sg, Shopee, Lazada and local electronics retailers, with buying advice on Detect variants, local warranty, refurbished sets and whether the V12 is enough.",
   "heroEyebrow": "Singapore Dyson V15 price guide",
-  "heroTitle": "Dyson V15 Price in Singapore (2026) — live prices and buying advice",
-  "heroTitleTemplate": "Dyson V15 Price in Singapore (2026) — from {floorPrice} today",
+  "heroTitle": "Dyson V15 Price in Singapore (2026) \u2014 live prices and buying advice",
+  "heroTitleTemplate": "Dyson V15 Price in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "The Dyson V15 Detect is one of the cordless vacuums Singapore shoppers compare most often because it sits at the point where Dyson's strongest suction, laser dust reveal and particle counter meet a price that can swing widely between official stores and marketplace sellers. In Singapore in 2026, you will see local warranty units, parallel-import sets, older bundle stock and occasional refurbished listings all described as \"V15\", so the lowest sticker price is not always the safest buy. This page pulls live Singapore listings in S$ from BuyWhere's catalog every few minutes so you can see the current market floor, check whether the seller is an authorised channel, and decide whether the V15 premium makes sense for your flat size, flooring and cleaning habits.",
   "canonicalPath": "/dyson-v15-price-singapore",
   "country": "SG",
@@ -27,7 +27,7 @@
   "datePublished": "2026-08-25",
   "dateModified": "2026-08-30",
   "productSectionTitle": "Live Dyson V15 prices in Singapore",
-  "comparisonSectionTitle": "Dyson V15 Singapore options — at a glance",
+  "comparisonSectionTitle": "Dyson V15 Singapore options \u2014 at a glance",
   "comparisonColumns": [
     "Listing type",
     "What to check",
@@ -96,7 +96,7 @@
     "If you live in a smaller flat and mostly clean hard floors, compare the V12 Detect Slim before committing. It is lighter and often enough; the V15 earns its premium when bin size, suction and pet-hair performance matter.",
     "Do not overpay for accessories you will leave in the box. Extra tools are useful only if they match your floors, furniture or pet-cleaning routine."
   ],
-  "faqSectionTitle": "Dyson V15 price in Singapore — common questions",
+  "faqSectionTitle": "Dyson V15 price in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "How much does a Dyson V15 cost in Singapore in 2026?",
@@ -119,56 +119,7 @@
       "answer": "Avoid vague listings that do not state the exact variant, condition, included cleaner heads or warranty type. Very cheap listings with generic photos, no local-set wording or hidden refurbished terms are not the same value as an authorised local set."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "55978388",
-      "name": "Dyson Airstrait Hair Straightener - Ceramic Pink/Rose Gold (HT01 CEPK)",
-      "price": 499.0,
-      "currency": "SGD",
-      "merchant": "harvey_norman_sg",
-      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/149/Slide1_yga7-b1.JPG",
-      "href": "/r/direct/55978388",
-      "affiliateUrl": "/r/direct/55978388",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "55927330",
-      "name": "Dyson HD16 Supersonic Hair Dryer - Ambersilk/Ceramic Topaz",
-      "price": 549.0,
-      "currency": "SGD",
-      "merchant": "harvey_norman_sg",
-      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/186/supernural1234.jpg",
-      "href": "/r/direct/55927330",
-      "affiliateUrl": "/r/direct/55927330",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "55802693",
-      "name": "Dyson Supersonic HD17 Ceramic Pink - 113335-01",
-      "price": 709.0,
-      "currency": "SGD",
-      "merchant": "harvey_norman_sg",
-      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/161/Slide1_tcdt-jt.JPG",
-      "href": "/r/direct/55802693",
-      "affiliateUrl": "/r/direct/55802693",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "55781514",
-      "name": "Dyson HS02 Airwrap Origin Multi-Styler - Nickel/Copper",
-      "price": 319.0,
-      "currency": "SGD",
-      "merchant": "harvey_norman_sg",
-      "imageUrl": "https://hnsgsfp.imgix.net/4/images/detailed/172/Dyson_HS02_Airwrap_Origin_Multi-Styler_-_NickelCopper_01.JPG",
-      "href": "/r/direct/55781514",
-      "affiliateUrl": "/r/direct/55781514",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-US": "/cheapest-dyson-v15-us"
   },

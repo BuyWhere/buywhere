@@ -1,10 +1,10 @@
 {
   "slug": "best-budget-phones-singapore",
-  "title": "Best Budget Phones in Singapore (2026) — Live Prices Compared",
+  "title": "Best Budget Phones in Singapore (2026) \u2014 Live Prices Compared",
   "description": "The best budget phones to buy in Singapore: live prices from Amazon.sg, Shopee, Lazada and local mobile retailers, with practical advice on Android updates, warranty, storage, cameras, 5G and which compromises are safe at this price.",
   "heroEyebrow": "Singapore budget phone guide",
-  "heroTitle": "Best budget phones in Singapore — 2026 live price comparison",
-  "heroTitleTemplate": "Best budget phones in Singapore (2026) — from {floorPrice} today",
+  "heroTitle": "Best budget phones in Singapore \u2014 2026 live price comparison",
+  "heroTitleTemplate": "Best budget phones in Singapore (2026) \u2014 from {floorPrice} today",
   "heroBody": "In Singapore, the best budget phone is usually not the newest flagship imitation; it is the model that balances battery life, storage, update support, warranty and a camera that does not fall apart indoors. The local market changes quickly because Xiaomi, Samsung, Oppo, Vivo, Nothing, CMF and older iPhones all move through Shopee Mall, LazMall, Amazon.sg, telco promos and neighbourhood mobile shops at different speeds. This page pulls live Singapore listings from BuyWhere's catalog so you can compare current budget-phone prices while using the guide below to avoid the common traps: parallel-import sets with weak warranty, tiny storage tiers, fake global ROM language, and specs that sound good but do not help day-to-day use.",
   "canonicalPath": "/best-budget-phones-singapore",
   "country": "SG",
@@ -103,7 +103,7 @@
     "Compare final checkout price after platform vouchers, free shipping, bank promos and coins cashback. Shopee and Lazada often change the winner once the voucher stack is applied.",
     "If buying an older iPhone under this budget, inspect battery health, storage and seller warranty carefully. iOS support can be excellent, but a weak battery or tiny storage tier ruins the value."
   ],
-  "faqSectionTitle": "Budget phones in Singapore — common questions",
+  "faqSectionTitle": "Budget phones in Singapore \u2014 common questions",
   "faqs": [
     {
       "question": "What is the best budget phone in Singapore right now?",
@@ -126,56 +126,7 @@
       "answer": "Shopee and Lazada campaign days, telco recontract promos and brand-store clearance periods usually create the deepest discounts. The live listings on this page show the current floor, and the best deal often appears after vouchers rather than from the lowest sticker price."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "9222976908546513133",
-      "name": "Apple iPhone 17 128GB - Black",
-      "price": 999,
-      "currency": "SGD",
-      "merchant": "apple.com.sg",
-      "imageUrl": "https://store.storeimages.cdn-apple.com/iphone-17-black-sg.jpg",
-      "href": "/r/direct/9222976908546513133",
-      "affiliateUrl": "/r/direct/9222976908546513133",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "9222976908546513273",
-      "name": "Apple iPhone 17 128GB Unlocked - Teal (Harvey Norman)",
-      "price": 999,
-      "currency": "SGD",
-      "merchant": "harveynorman.com.sg",
-      "imageUrl": "https://www.harveynorman.com.sg/images/iphone-17-128-teal.jpg",
-      "href": "/r/direct/9222976908546513273",
-      "affiliateUrl": "/r/direct/9222976908546513273",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "9222976908546513269",
-      "name": "Apple iPhone 17 256GB - Teal",
-      "price": 1149,
-      "currency": "SGD",
-      "merchant": "apple.com.sg",
-      "imageUrl": "https://store.storeimages.cdn-apple.com/iphone-17-teal-sg.jpg",
-      "href": "/r/direct/9222976908546513269",
-      "affiliateUrl": "/r/direct/9222976908546513269",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "9222976908546513271",
-      "name": "Apple iPhone 17 256GB - Lavender (Challenger)",
-      "price": 1099,
-      "currency": "SGD",
-      "merchant": "challenger.com.sg",
-      "imageUrl": "https://online.challenger.sg/images/iphone-17-256-lav.jpg",
-      "href": "/r/direct/9222976908546513271",
-      "affiliateUrl": "/r/direct/9222976908546513271",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {},
   "inboundLinks": [
     "/best-iphones-singapore",

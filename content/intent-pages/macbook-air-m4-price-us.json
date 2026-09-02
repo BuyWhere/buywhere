@@ -1,11 +1,11 @@
 {
   "slug": "macbook-air-m4-price-us",
-  "title": "MacBook Air M4 Price in the US (2026) — Live Listings Compared",
+  "title": "MacBook Air M4 Price in the US (2026) \u2014 Live Listings Compared",
   "description": "What the MacBook Air M4 actually costs in the United States right now: live prices from Apple, Amazon, Best Buy and B&H, with advice on 13 vs 15-inch, 16 GB RAM, AppleCare, and when leftover M4 stock still beats a new M5.",
   "heroEyebrow": "US MacBook Air M4 price guide",
-  "heroTitle": "MacBook Air M4 price in the US (2026) — live comparison",
-  "heroTitleTemplate": "MacBook Air M4 in the US (2026) — from {floorPrice} today",
-  "heroBody": "In the United States the MacBook Air M4 is no longer the newest Air — M5 13-inch and 15-inch configs now sit next to it at Apple, Amazon and Best Buy — but M4 13-inch 16 GB machines still show up as leftover and refurbished stock, often at a meaningful gap below current M5 list. These are US-dollar prices sold into the United States. This page pulls live listings from BuyWhere's catalog so you can see the current floor, whether a listing is AppleCare, a dock, or an actual Air, and whether the cheaper unit is M4 or already an M5.",
+  "heroTitle": "MacBook Air M4 price in the US (2026) \u2014 live comparison",
+  "heroTitleTemplate": "MacBook Air M4 in the US (2026) \u2014 from {floorPrice} today",
+  "heroBody": "In the United States the MacBook Air M4 is no longer the newest Air \u2014 M5 13-inch and 15-inch configs now sit next to it at Apple, Amazon and Best Buy \u2014 but M4 13-inch 16 GB machines still show up as leftover and refurbished stock, often at a meaningful gap below current M5 list. These are US-dollar prices sold into the United States. This page pulls live listings from BuyWhere's catalog so you can see the current floor, whether a listing is AppleCare, a dock, or an actual Air, and whether the cheaper unit is M4 or already an M5.",
   "canonicalPath": "/macbook-air-m4-price-us",
   "country": "US",
   "currency": "USD",
@@ -39,7 +39,7 @@
       "label": "Leftover M4 13-inch",
       "values": [
         "Amazon Warehouse, Best Buy open-box, leftover Apple education",
-        "Chip in About This Mac / spec sheet — must say M4",
+        "Chip in About This Mac / spec sheet \u2014 must say M4",
         "Buyers who want Air battery at a discount to M5"
       ]
     },
@@ -55,7 +55,7 @@
       "label": "AppleCare+ only",
       "values": [
         "Apple and authorised resellers",
-        "Not a laptop — skip",
+        "Not a laptop \u2014 skip",
         "Add only after you own the machine"
       ]
     },
@@ -72,7 +72,7 @@
   "highlights": [
     {
       "title": "The catalog now mixes M4 leftover with M5 current",
-      "body": "A search for MacBook Air M4 in the US often returns 13-inch M5 machines and AppleCare SKUs. That is expected after the M5 launch. Use the live cards and the spec line: if it says M5, you are not looking at the leftover M4 discount you came for — you may still want it."
+      "body": "A search for MacBook Air M4 in the US often returns 13-inch M5 machines and AppleCare SKUs. That is expected after the M5 launch. Use the live cards and the spec line: if it says M5, you are not looking at the leftover M4 discount you came for \u2014 you may still want it."
     },
     {
       "title": "256 GB SSD is the regret spec, not the chip",
@@ -90,12 +90,12 @@
   "adviceSectionTitle": "How to pay less for a US MacBook Air without getting a dock",
   "advicePoints": [
     "Confirm the chip in the title and the spec table. M4 leftover is the hunt; M5 current is often the better four-year buy.",
-    "Ignore AppleCare+, USB-C hubs, and Thunderbolt docks in the price table — they are not the laptop.",
+    "Ignore AppleCare+, USB-C hubs, and Thunderbolt docks in the price table \u2014 they are not the laptop.",
     "Buy from Apple, Amazon sold-by-Amazon, Best Buy, or B&H. Third-party 'import' Airs may be other-region keyboards.",
     "If 256 GB is the only M4 left, spend the difference on a 512 GB M5 instead of living on an external SSD.",
-    "Compare /best-macbooks-us if you might want a 14-inch Pro instead — Pro thermals matter if you compile all day."
+    "Compare /best-macbooks-us if you might want a 14-inch Pro instead \u2014 Pro thermals matter if you compile all day."
   ],
-  "faqSectionTitle": "MacBook Air M4 price in the US — questions shoppers actually ask",
+  "faqSectionTitle": "MacBook Air M4 price in the US \u2014 questions shoppers actually ask",
   "faqs": [
     {
       "question": "Is the MacBook Air M4 still sold in the US in 2026?",
@@ -111,59 +111,10 @@
     },
     {
       "question": "Why do some 'M4 Air' listings cost under a few hundred dollars?",
-      "answer": "They are almost always docks, cases or AppleCare — not the computer. This page's floor price is meant to hide those."
+      "answer": "They are almost always docks, cases or AppleCare \u2014 not the computer. This page's floor price is meant to hide those."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "35785588",
-      "name": "13-inch MacBook Air: Apple M5 chip with 10-core CPU and 10-core GPU, 1TB SSD - Starlight",
-      "price": 1899,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/IMG-19250940_m_jpeg_1_848f5ded-370f-44d8-9237-1ef8eb69184b.jpg?v=1772558374",
-      "href": "/r/direct/35785588",
-      "affiliateUrl": "/r/direct/35785588",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785591",
-      "name": "13-inch MacBook Air: Apple M5 chip with 10-core CPU and 10-core GPU, 1TB SSD - Silver",
-      "price": 1899,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/IMG-19250922_m_jpeg_1_092945d4-c0a7-4d93-9189-dcc4fc6cdb8e.jpg?v=1772558373",
-      "href": "/r/direct/35785591",
-      "affiliateUrl": "/r/direct/35785591",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785267",
-      "name": "13-inch MacBook Air: Apple M5 chip with 10-core CPU and 10-core GPU, 512GB SSD - Midnight",
-      "price": 1899,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/IMG-19250913_m_jpeg_1_4f132b52-d0d5-41eb-97c8-12612e2f4fee.jpg?v=1772558421",
-      "href": "/r/direct/35785267",
-      "affiliateUrl": "/r/direct/35785267",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "35785593",
-      "name": "13-inch MacBook Air: Apple M5 chip with 10-core CPU and 10-core GPU, 1TB SSD - Starlight",
-      "price": 2199,
-      "currency": "USD",
-      "merchant": "istudiosg.com",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0637/3864/2612/files/IMG-19250940_m_jpeg_1.jpg?v=1772558317",
-      "href": "/r/direct/35785593",
-      "affiliateUrl": "/r/direct/35785593",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/macbook-air-m4-price-singapore"
   },
