@@ -997,9 +997,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Under load, db.connect() can stall for seconds on a saturated pool and the
   // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
   let searchClient: import('pg').PoolClient;
+  let searchPoolWaitMs = -1;
   try {
     const acquiredSearch = await acquireMcpClientTimed('search_products');
     searchClient = acquiredSearch.client;
+    searchPoolWaitMs = acquiredSearch.poolWaitMs;
   } catch (acquireErr) {
     const degradedKind = classifyMcpDegradedKind(acquireErr);
     const restHits = await restFallbackPromise;
@@ -1041,8 +1043,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
     {
       const stSearch = await showStatementTimeout(searchClient);
-      const waitMs = (typeof acquiredSearch !== 'undefined') ? acquiredSearch.poolWaitMs : -1;
-      console.warn(`[mcp] BUY-67598 search_products pool_wait_ms=${waitMs} statement_timeout=${stSearch} sql_start`);
+      console.warn(`[mcp] BUY-67598 search_products pool_wait_ms=${searchPoolWaitMs} statement_timeout=${stSearch} sql_start`);
     }
     if (useChildTable) {
       await searchClient.query(`SET enable_seqscan = off`);
@@ -2010,9 +2011,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
   let bestPriceClient: import('pg').PoolClient;
+  let fbpPoolWaitMs = -1;
   try {
     const acquiredFbp = await acquireMcpClientTimed('find_best_price');
     bestPriceClient = acquiredFbp.client;
+    fbpPoolWaitMs = acquiredFbp.poolWaitMs;
   } catch (acquireErr) {
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
@@ -2035,7 +2038,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
     {
       const stFbp = await showStatementTimeout(bestPriceClient);
-      console.warn(`[mcp] BUY-67598 find_best_price pool_wait_ms=${acquiredFbp.poolWaitMs} statement_timeout=${stFbp} sql_start`);
+      console.warn(`[mcp] BUY-67598 find_best_price pool_wait_ms=${fbpPoolWaitMs} statement_timeout=${stFbp} sql_start`);
     }
     await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan
     await bestPriceClient.query('SET enable_indexscan = off'); // BUY-79200: Bitmap Index Scan on idx_sp_fts_<cc>
