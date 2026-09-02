@@ -179,9 +179,11 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
     const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
     assert.ok(requestedUrls.length > 0);
     assert.ok(requestedUrls.every((url) => url.includes("limit=24")));
-    // BUY-79810: US robot vacuum SSR uses region=US (not country=us) so recall
-    // matches v1 named-brand rows. Do not send category= (planner timeout).
+    // BUY-79810: US robot vacuum SSR uses query= + region=US (not q= + country=us)
+    // so recall matches v1 named-brand rows. Do not send category= (planner timeout).
+    assert.ok(requestedUrls.every((url) => url.includes("query=")));
     assert.ok(requestedUrls.every((url) => url.includes("region=US")));
+    assert.ok(requestedUrls.every((url) => !url.includes("country=")));
     assert.ok(requestedUrls.every((url) => !url.includes("category=")));
     assert.ok(products.length >= 4);
     const names = products.map((product) => product.name).join(" ");
@@ -1501,6 +1503,13 @@ test("BUY-77675: laptop token floor requires strict model OR loose+signal", () =
   for (const title of accessories) {
     assert.equal(floorPasses(title), false, `floor must reject accessory: ${title}`);
   }
+});
+
+test("BUY-79810: robot-vacuum 2026 SSR uses query+region high-recall path", () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.ok(source.includes('params.set("query", query)'), "must send query= for high-recall v1");
+  assert.ok(source.includes('params.set("region", "US")'), "must send region=US not country=us");
+  assert.ok(source.includes("/v1/products/search"), "must call canonical v1 when API key is present");
 });
 
 test("BUY-79032: getSeoLandingProducts must not send searchCategory as API category=", () => {

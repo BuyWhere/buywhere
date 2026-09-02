@@ -9,6 +9,7 @@ import {
   isMerchantAllowedForCountry,
 } from "@/lib/merchant-allowlist";
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
+import { apiBase, apiHeaders } from "@/lib/server-api";
 
 const BASE_URL = "https://buywhere.ai";
 
@@ -1531,8 +1532,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (collected.length >= 24) break;
 
     try {
+      const highRecallRobotUs =
+        config.slug === "best-robot-vacuums-2026" && config.country === "US";
       const params = new URLSearchParams({
-        q: query,
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
         // BUY-79277: always over-fetch so accessory demotion can still fill
@@ -1541,13 +1543,15 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       });
       // BUY-79810: US robot-vacuum FTS on country_code=US collapses to a 9-row
       // Wyze accessory cluster. Live named brands (Shark Best Buy, Roomba,
-      // Roborock Costco) are indexed under region=US. Use the region filter
-      // (exact-case "US") and skip country/deliver_to for this page so SSR
-      // recall matches v1 `query=robot+vacuum&region=US`. Other landings keep
-      // the BUY-78769 lowercase country + deliver_to hard filter.
-      if (config.slug === "best-robot-vacuums-2026" && config.country === "US") {
+      // Roborock Costco) are indexed under region=US. Call canonical v1 with
+      // `query`+`region=US` (site `/api/products/search` is rate-limited and
+      // `q`+`country=US` only returns Wyze). Accessory/minPrice filters still
+      // run locally below. Other landings keep lowercase country + deliver_to.
+      if (highRecallRobotUs) {
+        params.set("query", query);
         params.set("region", "US");
       } else {
+        params.set("q", query);
         params.set("country", config.country.toLowerCase());
         params.set("deliver_to", config.country.toLowerCase());
         params.set("include_unshippable", "false");
@@ -1558,18 +1562,19 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // (10s degraded, total=0) on US/SG partitions and force the page onto
       // fallbackProducts. Keep searchCategory for local accessory/GPU filters.
 
-      // Route through BuyWhere's own /api/products/search route handler rather
-      // than the external product API. The route handler injects the backend
-      // API key and centralizes degraded/fallback handling, so SSR no longer
-      // depends on BUYWHERE_API_KEY being present in the server-component
-      // environment (the previous direct external call 401'd silently, which
-      // is why every SEO page fell back to static editorial products).
-      // BUY-78769: prefer loopback so SSR does not hairpin through public HTTPS
-      // (that path 8s-aborts and leaves the page on editorial /search?q= fallbacks).
-      // revalidate 60 + cache-bust header so the 15-min empty cache from the
-      // uppercase-country bug cannot keep serving 0 live /r/ cards.
-      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
-        headers: { Accept: "application/json", "x-buywhere-seo-cache": "78914" },
+      // BUY-79810: robot-vacuum 2026 SSR must not hairpin through the public
+      // site search proxy (429). Hit api.buywhere.ai with the service key when
+      // present; otherwise keep the loopback proxy for other pages.
+      const useCanonicalV1 = highRecallRobotUs && Boolean(process.env.BUYWHERE_API_KEY);
+      const searchUrl = useCanonicalV1
+        ? `${apiBase()}/v1/products/search?${params.toString()}`
+        : `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`;
+      const response = await fetch(searchUrl, {
+        headers: {
+          Accept: "application/json",
+          "x-buywhere-seo-cache": "79810",
+          ...(useCanonicalV1 ? apiHeaders() : {}),
+        },
         next: { revalidate: 60 },
         signal: AbortSignal.timeout(12000),
       });
