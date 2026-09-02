@@ -169,7 +169,11 @@ The response includes retry information:
 
 When an MCP tool or REST API call returns `200 OK` with zero products, the response includes an `emptiness_reason` field in the `meta` object. This tells agents *why* the result is empty, so they can decide whether to retry, widen the query, or surface an error to the user.
 
-> **Note:** Non-empty responses (one or more products) MUST NOT carry `emptiness_reason` per the specification. The field appears only when `data`/`products`/`results`/`items` arrays are empty.
+> **Note (BUY-80190 / BUY-71539 residual, 2026-09-02):** Non-empty responses MUST NOT carry `emptiness_reason` when the response is **clean** (`meta.degraded` is `false` or absent). The field is required only on:
+> - empty responses (P2.6 base contract), OR
+> - non-empty responses when `meta.degraded=true` (timeout / partial-fail / REST fallback / circuit_open).
+>
+> Agents branching on data quality should check `meta.degraded === true` (or `meta.status === 'degraded'`) FIRST and trust the emptiness_reason when it appears on a non-empty payload — it means the results came from a degraded path and may be partial.
 
 ### Enum values
 

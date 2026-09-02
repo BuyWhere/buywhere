@@ -39,9 +39,12 @@ describe('BUY-80194: REST tier currency isolation never restores leaks', () => {
   });
 
   it('cache version bumped so pre-fix Redis pages cannot poison US/SG', () => {
+    // Slice above starts at tryTierSearch (which is below the cache version
+    // constant). Match the cache version across the full file.
+    // BUY-80190 may supersede the b80194 tag in the cache version string.
     assert.match(
       source,
-      /SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80194'/,
+      /SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION\s*=\s*'tier-child-fts-v\d+-b(?:80194|80190)'/,
     );
   });
 });

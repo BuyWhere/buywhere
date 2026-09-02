@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80194'; // v19: BUY-80194 never restore foreign-currency child FTS rows (+ v18 search_mode honesty)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v20-b80190'; // v20: BUY-80190 degraded non-empty responses now carry meta.emptiness_reason (+ v19 BUY-80194 / v18 search_mode honesty)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -1503,8 +1503,29 @@ router.get(
           const cur = String(prod.price?.currency || '').toUpperCase();
           return cur === wantCur;
         });
+      const responseIsEmpty = fallbackProducts.length === 0;
+      // BUY-80190: P2.6 (BUY-71539 residual). Fallback results come from a
+      // degraded path (the primary FTS statement timed out at 57014). Even when
+      // the fallback returned non-empty products, the response envelope must
+      // carry meta.degraded=true + meta.emptiness_reason='api_error' so agents
+      // can distinguish these partial-fail results from a clean FTS hit.
+      const fallbackEmptiness = responseIsEmpty
+        ? buildRestApiErrorEmptiness(countryCode, deliverTo)
+        : {
+            emptiness_reason: 'api_error' as const,
+            confidence: 'low' as const,
+            diagnostic: {
+              engine_status: 'degraded' as const,
+              indexed_for_region: !countryCode || SUPPORTED_REGIONS.has(String(countryCode).toUpperCase()),
+              category_recognized: true,
+              rate_limit_remaining: null,
+              deliver_to_present: restDestinationPresent(countryCode, deliverTo),
+              timed_out_stage: 'catalog_search',
+            },
+            degraded_kind: 'timeout' as const,
+          };
       const responseBody = buildSearchResponse(
-        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
+        fallbackProducts, total, limit, offset, responseTimeMs, false, true, hasMore, restEchoDest(countryCode, deliverTo), fallbackEmptiness
       );
       (responseBody as unknown as Record<string, unknown>).search_mode = { requested_mode: modeExec.requested_mode, executed_mode: 'keyword', fallback_reason: modeExec.fallback_reason ?? source };
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
@@ -2302,7 +2323,26 @@ router.get(
       dealsClient.release();
     }
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
+    // BUY-80190: P2.6 (BUY-71539 residual). When the deals path is degraded
+    // (statement timeout on the discount-index scan), stamp meta.emptiness_reason
+    // so agents can detect degraded data regardless of result count. The empty
+    // case already carries it via the buildSearchResponse empty branch.
+    const dealsEmptiness = degraded
+      ? {
+          emptiness_reason: 'api_error' as const,
+          confidence: 'low' as const,
+          diagnostic: {
+            engine_status: 'degraded' as const,
+            indexed_for_region: !countryCode || SUPPORTED_REGIONS.has(String(countryCode).toUpperCase()),
+            category_recognized: true,
+            rate_limit_remaining: null,
+            deliver_to_present: restDestinationPresent(countryCode, deliverTo),
+            timed_out_stage: 'offer_aggregation',
+          },
+          degraded_kind: 'timeout' as const,
+        }
+      : (deals.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null);
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded, undefined, restEchoDest(countryCode, deliverTo), dealsEmptiness);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
     // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.

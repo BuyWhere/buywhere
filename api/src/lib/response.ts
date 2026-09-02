@@ -302,7 +302,14 @@ export function buildProduct(
   return base;
 }
 
-// BUY-71542 / P2.6 + BUY-72044 / P2.6A: optional P2.6 envelope. When the response is empty AND the caller derived an emptiness reason, attach the emptiness_reason/confidence/diagnostic triplet to meta. Non-empty responses ignore this (reasons are only meaningful for empty results).
+// BUY-71542 / P2.6 + BUY-72044 / P2.6A + BUY-80190: P2.6 envelope. Surface the
+// emptiness_reason/confidence/diagnostic triplet when the caller derived one AND
+// either (a) the response is empty, or (b) the response is degraded (timeout,
+// partial-fail, REST fallback, circuit_open). For non-degraded non-empty
+// responses, the triplet is omitted — reasons are not meaningful for clean
+// non-empty results. BUY-80190: P2.6 (BUY-71539 residual) — non-empty degraded
+// responses MUST carry the same triplet so agents can distinguish degraded data
+// from clean data, regardless of result count.
 export function buildSearchResponse(
   products: CanonicalProduct[],
   total: number,
@@ -331,6 +338,11 @@ export function buildSearchResponse(
        : mode === 'hybrid' ? 'hybrid (rrf + pgvector hnsw)'
        : 'keyword (fts)')
     : undefined;
+  // BUY-80190: P2.6 (BUY-71539 residual). The emptiness triplet is emitted when
+  // the response is empty (P2.6 base contract) OR when the response is degraded
+  // (timeout, partial-fail, REST fallback, circuit_open). Agents rely on the
+  // triplet to detect degraded data regardless of result count.
+  const emitEmptiness = (isEmpty || degraded) && !!emptiness;
   return {
     data: products,
     // F33 (2026-08-22): products/results/items are CONTRACT aliases of data — clients
@@ -349,10 +361,11 @@ export function buildSearchResponse(
       ...(degraded != null && { degraded }),
       ...(status && { status }),
       ...(hasMore != null && { has_more: hasMore }),
-      // BUY-71542 / P2.6 + BUY-72044 / P2.6A: surface the empty-result triplet
-      // when (a) the caller derived one and (b) the response is genuinely empty.
-      // Non-empty responses MUST NOT carry an emptiness_reason per spec §2.1.
-      ...(isEmpty && emptiness && {
+      // BUY-71542 / P2.6 + BUY-72044 / P2.6A + BUY-80190: surface the
+      // empty-result (or degraded-result) triplet when (a) the caller derived
+      // one AND (b) the response is empty OR degraded. Clean non-empty responses
+      // MUST NOT carry an emptiness_reason per spec §2.1.
+      ...(emitEmptiness && emptiness && {
         emptiness_reason: emptiness.emptiness_reason,
         confidence: emptiness.confidence,
         diagnostic: emptiness.diagnostic,
