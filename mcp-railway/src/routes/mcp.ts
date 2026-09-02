@@ -113,10 +113,10 @@ function restSearchQueryParams(opts: {
       params.set('market', opts.country);
       params.set('deliver_to', opts.country);
     } else {
-      // BUY-79631: country= returns native-currency market rows (SGD shirts)
-      // so BUY-79642 isolation does not empty the page.
+      // BUY-79631: country= WITHOUT deliver_to. Pairing country+deliver_to
+      // post-filters the SGD shirt page to empty (REST meta.total=21, n=0).
+      // Bare country= returns Carpenter Fold Shirt SGD.
       params.set('country', opts.country);
-      params.set('deliver_to', opts.country);
     }
   }
   params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
@@ -171,8 +171,6 @@ async function searchProductsViaRestFallback(opts: {
   apiKey?: string;
 }): Promise<{ products: ReturnType<typeof buildProduct>[]; total: number } | null> {
   if (!opts.q) return null;
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
   try {
     const headers: Record<string, string> = { accept: 'application/json' };
     const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
@@ -201,6 +199,8 @@ async function searchProductsViaRestFallback(opts: {
       });
       let lastErr: unknown = null;
       for (const base of bases) {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
         try {
           const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
             method: 'GET',
@@ -221,6 +221,8 @@ async function searchProductsViaRestFallback(opts: {
           lastErr = new Error(`empty from ${base} mode=${mode}`);
         } catch (e) {
           lastErr = e;
+        } finally {
+          clearTimeout(timer);
         }
       }
       if (lastErr) {
@@ -248,8 +250,6 @@ async function searchProductsViaRestFallback(opts: {
   } catch (err) {
     console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -1221,6 +1221,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         // BUY-79642: do not substitute wrong-currency rows when market filtering empties the page.
         if (wantCur && candidates.length === 0) {
           candidates = [];
+        }
+        // BUY-79631: native FTS often ranks USD-labelled Shopify as "SG" for
+        // broad tokens (shirt). Isolation then returns n=0 with total>0, which
+        // skips REST. Treat a currency-empty native page as a miss and serve
+        // REST country= hits (Carpenter Fold Shirt SGD).
+        if (q && candidates.length === 0) {
+          const restHits = await restFallbackPromise;
+          if (restHits && restHits.products.length > 0) {
+            console.warn(`[search_products] BUY-79631: native isolation empty — REST n=${restHits.products.length} q=${q} country=${country}`);
+            return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+          }
         }
         rows = candidates.slice(offset, offset + Math.max(limit, 1));
         total = candidates.length + offset;
