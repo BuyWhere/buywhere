@@ -12,7 +12,7 @@ const CC_TLD: Record<string, string> = {
   tr: 'TR', se: 'SE', no: 'NO', dk: 'DK', pl: 'PL', cz: 'CZ', at: 'AT',
   ie: 'IE', me: 'ME', pt: 'PT', be: 'BE', fi: 'FI', gr: 'GR', hu: 'HU',
   ro: 'RO', bg: 'BG', hr: 'HR', sk: 'SK', si: 'SI', lt: 'LT', lv: 'LV',
-  ee: 'EE', lu: 'LU',
+  ee: 'EE', lu: 'LU', kw: 'KW',
 };
 
 const GENERIC_TLDS = new Set([
@@ -25,6 +25,8 @@ const FOREIGN_HOSTS: Record<string, string> = {
   'iplanet.one': 'IN',
   'mac-center.com': 'CO',
   'milagron.com': 'TR',
+  'blink.com.kw': 'KW',
+  'www.blink.com.kw': 'KW',
 };
 
 const MARKETPLACE_HOSTS: Record<string, string> = {
