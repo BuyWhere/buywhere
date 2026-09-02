@@ -10,17 +10,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "mesh Wi-Fi system",
+  "searchQuery": "Deco",
   "backupQueries": [
-    "mesh router",
-    "WiFi mesh system",
-    "TP-Link Deco mesh"
+    "ASUS mesh",
+    "TP-LINK DECO BE5000",
+    "ASUS ZenWiFi AX XD6"
   ],
-  "minPrice": 80,
+  "minPrice": 150,
   "requiredProductTerms": [
-    "mesh",
-    "wifi",
-    "router"
+    "zenwifi",
+    "deco",
+    "mesh"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
