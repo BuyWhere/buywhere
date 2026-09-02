@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Knative liveness probe — lightweight, no DB dependency
 app.get('/healthz', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', ts: new Date().toISOString(), fix: 'BUY-79631-v3' });
 });
 
 // BUY-69817: public health surface with per-tool/per-region breakdown.
@@ -42,6 +42,7 @@ app.get('/health', async (_req, res) => {
       db: 'ok',
       redis: pong === 'PONG' ? 'ok' : 'degraded',
       ts: new Date().toISOString(),
+      fix: 'BUY-79631-v3',
     });
   } catch (err) {
     res.status(503).json({ status: 'down', error: String(err), ts: new Date().toISOString() });

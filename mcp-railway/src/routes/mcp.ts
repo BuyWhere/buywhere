@@ -1160,6 +1160,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
         }
       } else {
+        // BUY-79631: GIN on "shirt" returns USD Shopify labelled SG (n=40) and
+        // isolation empties after 2.5s — REST country= already has the SGD hit.
+        const BROAD_REST_TOKENS = new Set(['shirt', 'shirts', 'tshirt', 't-shirt']);
+        if (q && BROAD_REST_TOKENS.has(q.toLowerCase()) && country) {
+          const restHits = await searchProductsViaRestFallback(restFallbackOpts);
+          if (restHits && restHits.products.length > 0) {
+            console.warn(`[search_products] BUY-79631: broad-token REST n=${restHits.products.length} q=${q} country=${country}`);
+            return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+          }
+        }
         // BUY-78767: Keyword FTS returns columns from search_products itself.
         // PK-joining to products (373M) times out; REST tryTierSearch does the same.
         // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
