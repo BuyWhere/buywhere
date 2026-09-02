@@ -10,21 +10,22 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "sony 1000xm6",
+  "searchQuery": "WH-1000XM6",
   "backupQueries": [
+    "Sony WH-1000XM6 Wireless",
     "Sony WH-1000XM6",
-    "Sony WH1000XM6 headphones",
-    "Sony wireless noise cancelling headphones"
+    "WH-1000XM6 Wireless Noise Cancelling Headphones"
   ],
   "requiredProductTerms": [
     "wh-1000xm6",
     "sony",
     "headphones"
   ],
+  "minPrice": 200,
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-02",
   "productSectionTitle": "Live Sony WH-1000XM6 prices in the US",
   "comparisonSectionTitle": "Where the WH-1000XM6 is cheapest — at a glance",
   "comparisonColumns": [
