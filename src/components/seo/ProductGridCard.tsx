@@ -62,7 +62,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
 
   return (
     <div
-      className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
+      className={`group grid h-full min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
@@ -163,20 +163,20 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
               to wrap to 4 lines on /best-gaming-laptops-us. Use rounded-lg
               (8px) + whitespace-nowrap + flex-shrink-0 so the CTA stays
               single-line at content width and never wraps mid-phrase. */}
-          <div className={`${compact ? "grid gap-2" : "flex flex-wrap items-center justify-end gap-2"}`}>
+          <div className={`${compact ? "grid gap-2" : "grid gap-2 justify-items-end"}`}>
             {isMerchantOffer ? (
               <a
                 href={affiliateHref}
                 onClick={handleAffiliateClick}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full shrink-0 whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 Buy at {product.merchant}
               </a>
             ) : (
               <span
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 Compare prices
               </span>
@@ -185,7 +185,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
               <Link
                 href={product.productUrl}
                 prefetch={false}
-                className={`inline-flex shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex max-w-full shrink-0 whitespace-nowrap min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
                 View details
               </Link>
