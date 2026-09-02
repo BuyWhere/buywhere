@@ -71,7 +71,19 @@ const MCP_CATALOG_WALL_TOOLS = new Set([
   'get_deals_v2',
   'find_best_price',
   'find_best_price_v2',
+  'list_categories',
 ]);
+// BUY-67598: per-tool wall. get_deals stays tight; find_best_price gets a wider
+// budget so the 25s probe client sees fail-open JSON instead of a hang.
+const MCP_TOOL_WALL_MS: Record<string, number> = {
+  get_deals: 4000,
+  get_deals_v2: 4000,
+  search_products: 3500,
+  search_products_v2: 3500,
+  list_categories: 3500,
+  find_best_price: 20000,
+  find_best_price_v2: 20000,
+};
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
 // Override via MCP_FTS_CACHE_TTL_SECONDS env.
@@ -88,6 +100,26 @@ async function acquireMcpClient() {
     ]);
   } finally {
     if (timer) clearTimeout(timer);
+  }
+}
+
+// BUY-67598: separate pool-acquire wait from SQL so sweep RCA can tell starvation vs query.
+async function acquireMcpClientTimed(tool: string): Promise<{ client: any; poolWaitMs: number }> {
+  const t0 = Date.now();
+  const client = await acquireMcpClient();
+  const poolWaitMs = Date.now() - t0;
+  if (poolWaitMs >= 200) {
+    console.warn(`[mcp] BUY-67598 ${tool} pool_wait_ms=${poolWaitMs}`);
+  }
+  return { client, poolWaitMs };
+}
+
+async function showStatementTimeout(client: any): Promise<string | null> {
+  try {
+    const res = await client.query('SHOW statement_timeout');
+    return String(res.rows?.[0]?.statement_timeout ?? '');
+  } catch (_) {
+    return null;
   }
 }
 
@@ -966,7 +998,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
   let searchClient: import('pg').PoolClient;
   try {
-    searchClient = await acquireMcpClient();
+    const acquiredSearch = await acquireMcpClientTimed('search_products');
+    searchClient = acquiredSearch.client;
   } catch (acquireErr) {
     const degradedKind = classifyMcpDegradedKind(acquireErr);
     const restHits = await restFallbackPromise;
@@ -1006,6 +1039,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // Child-table FTS is <10ms; extra SET LOCAL hops were burning the 3.5s wall
     // under pool contention.
     await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
+    {
+      const stSearch = await showStatementTimeout(searchClient);
+      const waitMs = (typeof acquiredSearch !== 'undefined') ? acquiredSearch.poolWaitMs : -1;
+      console.warn(`[mcp] BUY-67598 search_products pool_wait_ms=${waitMs} statement_timeout=${stSearch} sql_start`);
+    }
     if (useChildTable) {
       await searchClient.query(`SET enable_seqscan = off`);
       // BUY-79260: force Bitmap Index Scan on the GIN (matches BUY-79200 FBP fix).
@@ -1574,8 +1612,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
 
   let total = 0;
   try {
-    dealsClient = await acquireMcpClient();
+    const acquiredDeals = await acquireMcpClientTimed('get_deals');
+    dealsClient = acquiredDeals.client;
     await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
+    {
+      const stDeals = await showStatementTimeout(dealsClient);
+      console.warn(`[mcp] BUY-67598 get_deals pool_wait_ms=${acquiredDeals.poolWaitMs} statement_timeout=${stDeals} sql_start`);
+    }
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
     // BUY-74579: do NOT set enable_indexscan=off here. That GIN-search setting
     // forces BitmapAnd(idx_sp_disc, idx_sp_cc_price)+Sort (~700k cost, JIT)
@@ -1713,17 +1756,23 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await acquireMcpClient();
+    const acquiredCats = await acquireMcpClientTimed('list_categories');
+    const client = acquiredCats.client;
     try {
-      await client.query('SET statement_timeout = 8000');
+      await client.query('SET statement_timeout = 4000');
+      {
+        const stCat = await showStatementTimeout(client);
+        console.warn(`[mcp] BUY-67598 list_categories pool_wait_ms=${acquiredCats.poolWaitMs} statement_timeout=${stCat} sql_start`);
+      }
       const tableCheck = await client.query(
         `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
-      const MAT_VIEW_TIMEOUT_MS = 8000;
+      const MAT_VIEW_TIMEOUT_MS = 4000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
       // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
-      const LIVE_TIMEOUT_MS = 1800;
+      const LIVE_TIMEOUT_MS = 1500;
+      const skipColdScan = acquiredCats.poolWaitMs >= 500;
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
@@ -1774,7 +1823,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       // country during ingestion skew. Keep the bounded updated_at scan, but push the
       // country/category predicates into the inner query so each market gets its own
       // recent sample before grouping.
-      if (rows.length === 0) {
+      if (rows.length === 0 && !skipColdScan) {
         try {
           await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
           const recentResult = await client.query(
@@ -1799,7 +1848,7 @@ async function handleListCategories(args: Record<string, unknown>) {
           // recent-products fallback timed out — fall through to static category defaults
         }
       }
-      if (rows.length === 0) {
+      if (rows.length === 0 && !skipColdScan) {
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           name,
@@ -1962,7 +2011,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
   let bestPriceClient: import('pg').PoolClient;
   try {
-    bestPriceClient = await acquireMcpClient();
+    const acquiredFbp = await acquireMcpClientTimed('find_best_price');
+    bestPriceClient = acquiredFbp.client;
   } catch (acquireErr) {
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
@@ -1983,6 +2033,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
+    {
+      const stFbp = await showStatementTimeout(bestPriceClient);
+      console.warn(`[mcp] BUY-67598 find_best_price pool_wait_ms=${acquiredFbp.poolWaitMs} statement_timeout=${stFbp} sql_start`);
+    }
     await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan
     await bestPriceClient.query('SET enable_indexscan = off'); // BUY-79200: Bitmap Index Scan on idx_sp_fts_<cc>
     const candParams = [...tierParams, CANDIDATE_POOL];
@@ -2586,16 +2640,17 @@ function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, sta
 async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
   const startedAt = Date.now();
+  const wallMs = MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS;
   let timer: NodeJS.Timeout | undefined;
   const wall = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), wallMs);
   });
   try {
     return await Promise.race([work(), wall]);
   } catch (err) {
     const message = String((err as { message?: string })?.message || '');
     if (message.includes('mcp_catalog_wall_timeout')) {
-      console.warn(`[mcp] BUY-78767: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+      console.warn(`[mcp] BUY-67598/BUY-78767: ${name} hit ${wallMs}ms catalog wall — flushing degraded envelope`);
       return mcpCatalogWallEnvelope(name, args, startedAt) as T;
     }
     throw err;
@@ -3145,6 +3200,47 @@ router.get('/health/cache_hit_latency', async (req: Request, res: Response) => {
 });
 
 // GET /mcp/health/authenticated — deeper probe requiring API key
+
+// GET /mcp/diagnostics — BUY-67598: timeout budgets + live SHOW statement_timeout.
+router.get('/diagnostics', requireApiKey, async (_req: Request, res: Response) => {
+  let statementTimeout: string | null = null;
+  let poolWaitMs: number | null = null;
+  try {
+    const acquired = await acquireMcpClientTimed('diagnostics');
+    poolWaitMs = acquired.poolWaitMs;
+    try {
+      statementTimeout = await showStatementTimeout(acquired.client);
+    } finally {
+      releaseClientSafely(acquired.client);
+    }
+  } catch (err: unknown) {
+    return res.status(503).json({
+      issue: 'BUY-67598',
+      error: (err as Error).message || String(err),
+      tool_wall_ms: MCP_TOOL_WALL_MS,
+      catalog_wall_ms: MCP_CATALOG_WALL_MS,
+      catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+      db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+    });
+  }
+  res.json({
+    issue: 'BUY-67598',
+    tool_wall_ms: MCP_TOOL_WALL_MS,
+    catalog_wall_ms: MCP_CATALOG_WALL_MS,
+    catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+    db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+    session_statement_timeout: statementTimeout,
+    pool_wait_ms: poolWaitMs,
+    list_categories: {
+      mat_view_timeout_ms: 4000,
+      live_timeout_ms: 1500,
+      skip_cold_scan_if_pool_wait_ms: 500,
+      cached_ttl_s: 600,
+    },
+    ts: new Date().toISOString(),
+  });
+});
+
 router.get('/health/authenticated', requireApiKey, async (_req: Request, res: Response) => {
   try {
     const [countResult, pong] = await Promise.all([
