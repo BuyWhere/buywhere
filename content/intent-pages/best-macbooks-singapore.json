@@ -121,7 +121,6 @@
       "price": 1399,
       "currency": "SGD",
       "merchant": "Challenger",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Air+M4&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -132,7 +131,6 @@
       "price": 1699,
       "currency": "SGD",
       "merchant": "Challenger",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Air+15+M4&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -143,7 +141,6 @@
       "price": 2499,
       "currency": "SGD",
       "merchant": "Harvey Norman",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+14+M4+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -154,7 +151,6 @@
       "price": 2999,
       "currency": "SGD",
       "merchant": "Apple Store",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+16+M4+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -165,7 +161,6 @@
       "price": 1199,
       "currency": "SGD",
       "merchant": "Shopee Mall",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Air+M3&country=sg",
       "brand": "Apple",
       "category": "Laptop"
@@ -176,7 +171,6 @@
       "price": 2299,
       "currency": "SGD",
       "merchant": "Lazada Mall",
-      "imageUrl": null,
       "href": "/search?q=MacBook+Pro+14+M3+Pro&country=sg",
       "brand": "Apple",
       "category": "Laptop"
