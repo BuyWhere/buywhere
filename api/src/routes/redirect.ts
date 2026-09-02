@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { classifyUserAgent, hashIp, clientIp } from '../lib/botClass';
 import { generateShopeeSgDeeplink, isAffiliateWrapped } from '../lib/involveAsia';
 import { createHash } from 'crypto';
-import { db } from '../config';
+import { db, catalogDb } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
 import { fallbackForBrokenDestination } from '../lib/brokenDestinationFallbacks';
 import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -360,7 +360,7 @@ const redirectHandler = async (req: Request, res: Response) => {
   if (!destinationUrl) {
     try {
       const productResult = await withTimeout(
-        db.query(
+        catalogDb.query(
           probeEnabled
             ? `SELECT url, merchant_id, url_status FROM products WHERE id = $1`
             : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`,
@@ -385,24 +385,31 @@ const redirectHandler = async (req: Request, res: Response) => {
   // the parent lookup and 302'd to FALLBACK_URL. One UNION ALL of PK probes
   // (planner uses each child's id index; never scans the parent).
   if (!destinationUrl && /^\d+$/.test(String(productId))) {
-    const CHILD_CCS = ['sg', 'us', 'my', 'th', 'ph', 'id', 'vn', 'au', 'gb', 'ca', 'jp', 'de', 'tw', 'kr'];
+    // Prefer SG then US — the two markets that serve /r/direct intent-page
+    // traffic. Sequential so a missing child table cannot fail the whole
+    // lookup (UNION ALL of 14 tables did that in prod).
+    const CHILD_CCS = ['sg', 'us'];
     const urlStatusSelect = probeEnabled ? 'url_status' : 'NULL::text AS url_status';
-    const unionSql = CHILD_CCS
-      .map((cc) => `SELECT url, merchant_id, ${urlStatusSelect} FROM products_partitioned_${cc} WHERE id = $1`)
-      .join('\nUNION ALL\n');
-    try {
-      const childResult = await withTimeout(
-        db.query(`${unionSql}\nLIMIT 1`, [productId]),
-        LOOKUP_TIMEOUT_MS,
-        'products_partitioned union lookup'
-      );
-      if (childResult.rows.length > 0) {
-        destinationUrl = childResult.rows[0].url;
-        merchantId = childResult.rows[0].merchant_id || 'unknown';
-        urlStatus = childResult.rows[0].url_status || null;
+    for (const cc of CHILD_CCS) {
+      if (destinationUrl) break;
+      const table = `products_partitioned_${cc}`;
+      try {
+        const childResult = await withTimeout(
+          catalogDb.query(
+            `SELECT url, merchant_id, ${urlStatusSelect} FROM ${table} WHERE id = $1 LIMIT 1`,
+            [productId]
+          ),
+          LOOKUP_TIMEOUT_MS,
+          `${table} lookup`
+        );
+        if (childResult.rows.length > 0) {
+          destinationUrl = childResult.rows[0].url;
+          merchantId = childResult.rows[0].merchant_id || 'unknown';
+          urlStatus = childResult.rows[0].url_status || null;
+        }
+      } catch (err) {
+        console.warn(`[redirect] ${table} lookup failed:`, (err as Error).message);
       }
-    } catch (err) {
-      console.warn('[redirect] products_partitioned lookup failed:', (err as Error).message);
     }
   }
 
