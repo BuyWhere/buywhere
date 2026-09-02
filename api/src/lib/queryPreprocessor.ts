@@ -176,6 +176,11 @@ function cleanQueryText(text: string): string {
   // Strip leftover standalone punctuation and collapse whitespace
   cleaned = cleaned.replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  // BUY-79353: english FTS dictionary does not stem "tvs" → "tv" (plainto_tsquery
+  // "OLED TVs" becomes 'ole' & 'tvs', matching only 6 legacy rows). Irregular
+  // catalog plurals that fail stemming get rewritten to the singular lexeme.
+  cleaned = cleaned.replace(/\btvs\b/gi, 'tv');
+
   return cleaned;
 }
 

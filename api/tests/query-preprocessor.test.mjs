@@ -19,4 +19,9 @@ describe('query preprocessor SEO boilerplate normalization', () => {
       assert.equal(preprocessSearchQuery(query).cleanedQuery, expected);
     }
   });
+
+  it('BUY-79353 stems irregular tvs plural so OLED TVs matches tv lexeme', () => {
+    assert.equal(preprocessSearchQuery('OLED TVs').cleanedQuery, 'OLED tv');
+    assert.equal(preprocessSearchQuery('best oled tvs in US').cleanedQuery, 'oled tv');
+  });
 });
