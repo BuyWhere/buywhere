@@ -321,7 +321,7 @@ type McpDegradedKind = 'timeout' | 'auth_failure' | 'upstream_exception' | 'circ
 // on every such failure keeps SG permanently degraded. The circuit should only open for
 // genuine pool-exhaustion (timeouts) so the pool can drain. upstream_exception always
 // proceeds to REST fallback so the user gets results anyway.
-const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 10);
+const MCP_DEGRADED_CIRCUIT_THRESHOLD = Number(process.env.MCP_DEGRADED_CIRCUIT_THRESHOLD || 0);
 const MCP_DEGRADED_CIRCUIT_COOLDOWN_MS = Number(process.env.MCP_DEGRADED_CIRCUIT_COOLDOWN_MS || 120_000);
 const mcpDegradedCircuitState = new Map<string, { failures: number; openedUntil: number }>();
 
@@ -774,10 +774,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     ? searchProductsViaRestFallback(restFallbackOpts)
     : Promise.resolve(null);
 
-  // BUY-79598: removed circuit check. The SG catalog recovers in <100ms but the circuit
-  // stays open 120s after a single timeout failure, blocking macbook/nike entirely. REST
-  // fallback fills transient degradation and is more responsive than the circuit state.
-  // (If pool exhaustion becomes a prolonged issue, re-add circuit for timeout only.)
+  // BUY-79598: circuit fully removed from search_products catalog_search. The circuit was
+  // counter-productive: transient catalog errors open it for 120s, blocking SG queries while
+  // the catalog recovers in <100ms. REST fallback is the soft-fail path. Circuit stays
+  // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
 
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
   const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
@@ -923,11 +923,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     searchClient = await acquireMcpClient();
   } catch (acquireErr) {
     const degradedKind = classifyMcpDegradedKind(acquireErr);
-    // BUY-79598: only open circuit for genuine pool exhaustion (timeout). Non-timeout
-    // acquire errors (e.g. connection refused) mean the catalog is reachable.
-    if (degradedKind === 'timeout') {
-      recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-    }
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
       console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} kind=${degradedKind} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
@@ -1197,7 +1192,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       }
     }
     console.log(`[search_products] SUCCESS total=${total} results=${rows?.length} table=${detailTable}`);
-    recordMcpCircuitSuccess('search_products', 'catalog_search', country || null);
   } catch (err) {
     await searchClient.query('ROLLBACK').catch(() => {});
     // BUY-74597: classify and return the canonical degraded envelope. Never throw
@@ -1210,18 +1204,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     console.warn(`[search_products] DEBUG: full error object:`, JSON.stringify(err).slice(0, 500));
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
-      // BUY-79598: REST served hits. Do not open the circuit — upstream_exception
-      // means the catalog is healthy, not exhausted. Only timeout opens the circuit.
-      console.warn(`[search_products] BUY-79260: query degraded — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
+      // BUY-79598: REST served hits — return them directly.
+      console.warn(`[search_products] BUY-79598: catalog error — REST fallback n=${restHits.products.length} kind=${degradedKind}`);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
-    // BUY-79598: only open circuit for genuine pool exhaustion (timeout). An
-    // upstream_exception is a transient catalog error; REST fills it and the next
-    // query will succeed — opening the circuit for 120s would block macbook/nike
-    // entirely while the catalog is already healthy.
-    if (degradedKind === 'timeout') {
-      recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
-    }
+    // Catalog error with no REST fallback — return degraded envelope.
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
