@@ -246,18 +246,17 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
-  // BUY-77195 / BUY-79827: callers probe GET /v1/featured?country=MY. Mounting
-  // productsRouter at /v1/featured previously hit GET `/` (the list handler),
-  // which scans the parent table for MY and 500s at ~8s. Rewrite `/` →
-  // `/featured` so the alias lands on the featured handler.
-  app.use('/v1/featured', (req, _res, next) => {
+  // BUY-77195 / BUY-79827: callers probe GET /v1/featured?country=MY.
+  // Do NOT mount productsRouter at /v1/featured — that binds GET `/` to the
+  // list handler and 500s MY on the parent table. Invoke the router
+  // unmounted with url rewritten to `/featured` so the featured route
+  // matches (a mounted rewrite left Express matching the leftover path
+  // and 404'd).
+  app.get('/v1/featured', (req, res, next) => {
     const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-    const pathOnly = req.url.includes('?') ? req.url.slice(0, req.url.indexOf('?')) : req.url;
-    if (pathOnly === '/' || pathOnly === '') {
-      req.url = '/featured' + q;
-    }
-    next();
-  }, productsRouter);
+    req.url = '/featured' + q;
+    productsRouter(req, res, next);
+  });
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
