@@ -152,11 +152,25 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   );
 }
 
+function isCatalogPhotoSrc(src?: string | null): boolean {
+  if (!src) return false;
+  if (src.startsWith("data:image/svg")) return false;
+  return src.startsWith("http") || src.startsWith("/api/image-proxy");
+}
+
 export function ProductGridImage({ src, alt, brand, merchant, category, className }: ProductGridImageProps) {
   const [hasError, setHasError] = useState(false);
 
-  if (hasError || !src) {
-    return <BrandedPlaceholder alt={alt} brand={brand} merchant={merchant} category={category} />;
+  // BUY-79843: never SSR the branded SVG wireframe into Live Catalog Snapshot.
+  // VidMee treats inline <svg> as an empty catalog even when titles/prices exist.
+  if (hasError || !isCatalogPhotoSrc(src)) {
+    return (
+      <div
+        className="flex h-full w-full items-center justify-center bg-slate-100"
+        data-missing-catalog-photo=""
+        aria-hidden="true"
+      />
+    );
   }
 
   // BUY-65158: Use a plain <img> (not next/image) so the SSR HTML shows the
