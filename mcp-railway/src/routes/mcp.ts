@@ -922,13 +922,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   try {
     searchClient = await acquireMcpClient();
   } catch (acquireErr) {
-    recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    const degradedKind = classifyMcpDegradedKind(acquireErr);
+    // BUY-79598: only open circuit for genuine pool exhaustion (timeout). Non-timeout
+    // acquire errors (e.g. connection refused) mean the catalog is reachable.
+    if (degradedKind === 'timeout') {
+      recordMcpCircuitFailure('search_products', 'catalog_search', country || null);
+    }
     const restHits = await restFallbackPromise;
     if (restHits && restHits.products.length > 0) {
-      console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
+      console.warn(`[search_products] BUY-79260: pool acquire failed — REST fallback n=${restHits.products.length} kind=${degradedKind} err=${String((acquireErr as Error)?.message || acquireErr).slice(0,120)}`);
       return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
     }
-    const degradedKind = classifyMcpDegradedKind(acquireErr);
     return buildMcpDegradedSearchResponse({
       tool: 'search_products',
       stage: 'catalog_search',
