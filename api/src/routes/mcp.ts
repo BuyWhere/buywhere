@@ -1207,7 +1207,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               // BUY-74181: re-scope global vector candidates to the requested market
@@ -1233,7 +1233,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               const vecResult = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'flow-embed-1@1024'
-                 ORDER BY embedding_v2 <=> $1::vector LIMIT 200`,
+                 ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT 200`,
                 [queryVec]
               );
               vecRows = vecResult.rows;
@@ -2871,9 +2871,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding_v2 <=> $1::vector)::float AS distance
+      `SELECT product_id, ((embedding_v2::halfvec(1024)) <=> $1::halfvec(1024))::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY embedding_v2 <=> $1::vector LIMIT $3`,
+       ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024) LIMIT $3`,
       [refEmbedding, productId, limit]
     );
   } catch {
@@ -3649,6 +3649,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
   if (method === 'tools/list') {
     return res.json(jsonrpcOk(id, { tools: TOOLS_ALL }));
+  }
+  // BWEXT-F4FAFBA7: an unknown METHOD must be a JSON-RPC -32601, per spec,
+  // regardless of auth. Only tools/call proceeds to the authenticated handler —
+  // previously unknown methods fell through to requireApiKey and surfaced as
+  // an HTTP 401, which strict clients cannot distinguish from an auth problem.
+  if (method !== 'tools/call') {
+    return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
   }
   return next();
 });

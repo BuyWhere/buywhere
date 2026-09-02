@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v17-b79353'; // BUY-79353: tvs→tv stem + US child reindex
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v18-modehon'; // v18: search_mode honesty fields in cached bodies (BWEXT-69EEE94E)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -1044,10 +1044,46 @@ router.get(
     // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
     // correct. Keyword archive path honors buildSortOrder end-to-end.
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
+    // BWEXT-69EEE94E mode honesty: report what engine actually ran and why any fallback happened.
+    const modeExec: { requested_mode: string | null; executed_mode: string; fallback_reason: string | null } = {
+      requested_mode: rawMode ?? null,
+      executed_mode: 'keyword',
+      fallback_reason: sortRequested && rawMode && rawMode !== 'keyword' ? 'sort_forces_keyword' : null,
+    };
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
+
+    // BWEXT-B40E8514: invalid enum/range/pagination inputs must 400 with field-level
+    // errors instead of silently clamping to a misleading 200.
+    {
+      const verrs: Array<{ field: string; issue: string }> = [];
+      const rawLimitStr = req.query.limit as string | undefined;
+      if (rawLimitStr !== undefined) {
+        const n = Number(rawLimitStr);
+        if (!Number.isInteger(n) || n < 1) verrs.push({ field: 'limit', issue: 'must be an integer >= 1' });
+        else if (n > 100) verrs.push({ field: 'limit', issue: 'must be <= 100' });
+      }
+      for (const [f, v] of [['country_code', req.query.country_code], ['country', req.query.country], ['cc', req.query.cc], ['deliver_to', req.query.deliver_to]] as const) {
+        if (v !== undefined && !/^[A-Za-z]{2}$/.test(String(v))) verrs.push({ field: f, issue: 'must be a 2-letter ISO country code' });
+      }
+      const vMin = req.query.min_price !== undefined ? Number(req.query.min_price) : undefined;
+      const vMax = req.query.max_price !== undefined ? Number(req.query.max_price) : undefined;
+      if (vMin !== undefined && (!Number.isFinite(vMin) || vMin < 0)) verrs.push({ field: 'min_price', issue: 'must be a non-negative number' });
+      if (vMax !== undefined && (!Number.isFinite(vMax) || vMax < 0)) verrs.push({ field: 'max_price', issue: 'must be a non-negative number' });
+      if (vMin !== undefined && vMax !== undefined && Number.isFinite(vMin) && Number.isFinite(vMax) && vMin > vMax) {
+        verrs.push({ field: 'min_price', issue: 'must not exceed max_price' });
+      }
+      const rawModeCheck = (req.query.mode as string | undefined)?.toLowerCase();
+      if (rawModeCheck !== undefined && !VALID_SEARCH_MODES.has(rawModeCheck)) {
+        verrs.push({ field: 'mode', issue: "must be one of 'keyword', 'semantic', 'hybrid'" });
+      }
+      if (verrs.length > 0) {
+        res.status(400).json({ error: { code: 'invalid_request', message: 'One or more query parameters are invalid.', details: verrs } });
+        return;
+      }
+    }
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -1473,6 +1509,7 @@ router.get(
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
       );
+      (responseBody as unknown as Record<string, unknown>).search_mode = { requested_mode: modeExec.requested_mode, executed_mode: 'keyword', fallback_reason: modeExec.fallback_reason ?? source };
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
@@ -1616,7 +1653,7 @@ router.get(
           // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
           // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
           // filter after materialization. Without a (country_code, updated_at)
-          // index, scanning 300M+ fresh SG rows took seconds per query, and the
+          // index, scanning 370M++ fresh SG rows took seconds per query, and the
           // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
           // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
           // (idx_products_search_country) bounds the scan to matching products only,
@@ -1754,11 +1791,13 @@ router.get(
       const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && (flowEmbedKey !== '' || geminiKey !== '')
         ? vectorDb
         : null;
+      if (q !== '' && searchMode !== 'keyword' && !activeVectorDb) modeExec.fallback_reason = 'vector_db_unavailable';
 
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+        if (!queryVector) modeExec.fallback_reason = 'query_embed_failed';
         if (queryVector) {
           try {
             // BUY-63271: mark a savepoint before any local (client) queries so a statement
@@ -1829,6 +1868,7 @@ router.get(
               );
             }
 
+            modeExec.executed_mode = searchMode;
             total = rankedCandidateIds.length;
             hasMore = total > offset + limit;
 
@@ -1865,6 +1905,8 @@ router.get(
             // poison the fail-open fallback and surface as a 500.
             await client.query('ROLLBACK TO SAVEPOINT before_vector').catch(() => {});
             console.warn('[search] vector search failed, falling back to FTS:', (vectorErr as Error)?.message || vectorErr);
+            modeExec.executed_mode = 'keyword';
+            modeExec.fallback_reason = modeExec.fallback_reason ?? 'vector_error';
             dataResult = await execFtsQuery(dataQuery);
           }
         } else {
@@ -2028,6 +2070,7 @@ router.get(
       restEchoDest(countryCode, deliverTo),
       filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null,
     );
+    (responseBody as unknown as Record<string, unknown>).search_mode = { ...modeExec };
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
@@ -2521,10 +2564,13 @@ router.get(
 
     if (vectorDb) {
       try {
-        // Fetch pre-computed embedding for this product.
+        // Fetch the pre-computed v2 embedding for this product. The legacy v1
+        // `embedding` column has no index — ordering by it seq-scans 8M+ rows and
+        // was the 504 on this endpoint. v2 KNN must use the exact halfvec
+        // expression idx_pe_v2_hnsw_half is built on or the planner ignores it.
         const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`,
+          `SELECT embedding_v2::text AS embedding FROM product_embeddings
+           WHERE product_id = $1 AND embedding_v2 IS NOT NULL`,
           [id]
         );
         if (embResult.rows.length > 0) {
@@ -2535,10 +2581,10 @@ router.get(
             score: string;
           }>(
             `SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
+                    1 - ((embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)) AS score
              FROM product_embeddings
              WHERE product_id != $2
-             ORDER BY embedding <=> $1::vector
+             ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)
              LIMIT $3`,
             [embeddingStr, id, limit]
           );

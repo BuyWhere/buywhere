@@ -31,7 +31,7 @@ export default function RegisterPage() {
               <div className="mt-6 space-y-4">
                 {[
                   "Free API key instantly — no credit card required",
-                  "1,000 requests/day on the free tier",
+                  "10,000 requests/day on the free tier",
                   "Access to product search for US + SEA markets",
                   "Quickstart guides and MCP integration help",
                   "Support via our contact page",

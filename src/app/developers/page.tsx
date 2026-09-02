@@ -232,7 +232,7 @@ export default function DevelopersPage() {
       <section className="bg-indigo-950 text-indigo-100 py-4">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-center">
-            <span>300M+ products</span>
+            <span>370M+ products</span>
             <span className="hidden sm:block text-indigo-600">·</span>
             <span>950,000+ merchants</span>
             <span className="hidden sm:block text-indigo-600">·</span>

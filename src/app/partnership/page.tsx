@@ -14,7 +14,7 @@ export const metadata = buildPageMetadata({
 
 const valueProps = [
   {
-    stat: "300M+",
+    stat: "370M++",
     label: "products indexed across priority categories",
     detail: "Merchants join a catalog already used for search, comparison, and recommendation experiences.",
   },

@@ -88,9 +88,11 @@ function withBaselineSecurityHeaders(
   request: NextRequest,
   response: NextResponse
 ): NextResponse {
-  if (isHtmlRequest(request)) {
-    applyBaselineSecurityHeaders(response);
-  }
+  // BWEXT-E295E918 (2026-09-02): headers were gated on Accept: text/html, so
+  // any client that didn't send that header (curl, fetch, external scanners)
+  // measured the site at 0/5 security headers. They're harmless on JSON —
+  // apply on every response.
+  applyBaselineSecurityHeaders(response);
   // BUY-75413 (P2.3): agent-discovery headers are applied unconditionally,
   // not gated on isHtmlRequest. The P2.3 acceptance gate measures every
   // middleware-passed-through response on buywhere.ai/* — HTML and JSON alike.
@@ -493,7 +495,7 @@ export async function middleware(request: NextRequest) {
     (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
     pathname === "/.well-known/"
   ) {
-    return NextResponse.next();
+    return withBaselineSecurityHeaders(request, NextResponse.next());
   }
 
   // BUY-69260: Next.js 14.2.35 throws
@@ -642,7 +644,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/ingest/ph" ||
     pathname.startsWith("/ingest/ph/")
   ) {
-    return NextResponse.next();
+    return withBaselineSecurityHeaders(request, NextResponse.next());
   }
 
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.

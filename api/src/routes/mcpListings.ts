@@ -25,7 +25,7 @@ const CANONICAL = {
   install: 'npx -y @buywhere/mcp-server',
   npm_package: '@buywhere/mcp-server',
   registry_id: 'io.github.BuyWhere/buywhere-mcp',
-  catalog_claim: '300M+ products, 150,000+ stores',
+  catalog_claim: '370M+ products, 150,000+ stores',
   auth: 'API key — self-register at POST https://api.buywhere.ai/v1/auth/register?verify=false',
   tool_count: 13,
 };
