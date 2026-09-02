@@ -774,23 +774,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     ? searchProductsViaRestFallback(restFallbackOpts)
     : Promise.resolve(null);
 
-  if (isMcpCircuitOpen('search_products', 'catalog_search', country || null)) {
-    const restHits = await restFallbackPromise;
-    if (restHits && restHits.products.length > 0) {
-      console.warn(`[search_products] BUY-79260: circuit_open — REST fallback n=${restHits.products.length} country=${country}`);
-      return aliasSearchEnvelope(buildSearchResponse(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
-    }
-    return buildMcpDegradedSearchResponse({
-      tool: 'search_products',
-      stage: 'catalog_search',
-      kind: 'circuit_open',
-      limit,
-      offset,
-      responseTimeMs: Date.now() - t0,
-      country: country || null,
-      deliverToPresent,
-    });
-  }
+  // BUY-79598: removed circuit check. The SG catalog recovers in <100ms but the circuit
+  // stays open 120s after a single timeout failure, blocking macbook/nike entirely. REST
+  // fallback fills transient degradation and is more responsive than the circuit state.
+  // (If pool exhaustion becomes a prolonged issue, re-add circuit for timeout only.)
 
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
   const cacheKey = `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
