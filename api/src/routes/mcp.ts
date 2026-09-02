@@ -188,6 +188,24 @@ async function searchProductsViaRestFallback(opts: {
       return true;
     }).map((item) => item.product);
     const total = Number(body.meta?.total ?? body.total ?? products.length) || products.length;
+    if (products.length === 0 && rows.length > 0) {
+      // BUY-79598: REST market=macbook returns MDL/USD rows with no country_code.
+      // Dropping them left MCP with api_error while REST had hits.
+      return {
+        products: rows.slice(0, Math.max(opts.limit, 1)).map((r) => {
+          const price = r.price;
+          const flattened: Record<string, unknown> = { ...r };
+          if (price && typeof price === 'object' && !Array.isArray(price)) {
+            const p = price as { amount?: unknown; currency?: unknown };
+            flattened.price = p.amount;
+            if (p.currency) flattened.currency = p.currency;
+          }
+          if (!flattened.domain && r.merchant) flattened.domain = r.merchant;
+          return buildProduct(flattened, opts.currency, opts.compact);
+        }),
+        total: Number(body.meta?.total ?? body.total ?? rows.length) || rows.length,
+      };
+    }
     return { products, total };
   } catch (err) {
     console.warn('[search_products] REST fallback failed:', (err as Error)?.message?.slice(0, 160));
@@ -271,7 +289,14 @@ function mcpCircuitKey(tool: McpDegradedTool, stage: McpDegradedStage, country?:
 }
 
 function isMcpCircuitOpen(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
-  const state = mcpDegradedCircuitState.get(mcpCircuitKey(tool, stage, country));
+  const key = mcpCircuitKey(tool, stage, country);
+  // BUY-79598: search_products circuit stays open after query-specific 08P01/timeout
+  // and blocks SG while REST is healthy. Drain it; REST fallback is the soft-fail path.
+  if (tool === 'search_products') {
+    mcpDegradedCircuitState.delete(key);
+    return false;
+  }
+  const state = mcpDegradedCircuitState.get(key);
   return !!state && state.openedUntil > Date.now();
 }
 
@@ -1400,15 +1425,18 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   if (country) {
     const want = country.toUpperCase();
     const wantCur = (COUNTRY_CURRENCY[want] || '').toUpperCase();
-    rows = (rows as Record<string, unknown>[]).filter(r => {
+    const native = rows as Record<string, unknown>[];
+    const filtered = native.filter(r => {
       const cc = String(r.country_code || '').toUpperCase();
       if (cc && cc !== want) return false;
       if (wantCur) {
         const cur = String(r.currency || '').toUpperCase();
-        if (cur !== wantCur) return false;
+        if (cur && cur !== wantCur) return false;
       }
       return true;
-    }).slice(0, limit);
+    });
+    // BUY-79598: keep native-currency overfetch if SGD filter emptied a USD-labelled SG page.
+    rows = (filtered.length > 0 ? filtered : native).slice(0, limit);
   }
 
   const merchantMapForMcpSearch = await lookupMerchantMap(
