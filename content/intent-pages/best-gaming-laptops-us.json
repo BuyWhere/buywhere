@@ -3,18 +3,21 @@
   "title": "Best gaming laptops in the US (2026) — live prices, GPU tiers and what to buy",
   "description": "The best gaming laptops to buy in the US right now: live prices from Amazon, Best Buy and Newegg, with expert guidance on GPU tier, thermals, screen quality and which RTX generation is worth the premium in 2026.",
   "heroEyebrow": "US gaming laptop buying guide",
-  "heroTitle": "Best gaming laptops in the US — 2026 live price comparison",
+  "heroTitle": "Best gaming laptops in the US (2026) — RTX 5070 & 5080 picks",
   "heroTitleTemplate": "Best gaming laptops in the US (2026) — RTX options from {floorPrice}",
   "heroBody": "Choosing a gaming laptop in 2026 is more complicated than it looks. The GPU is still the most important component — an RTX 5070 laptop handles current games at high settings comfortably, an RTX 5080 or 5090 pushes 4K and high-refresh on the most demanding titles — but thermal design, screen quality and keyboard feel vary enormously between models at the same GPU tier, and a poorly cooled RTX 5080 laptop can feel slower than a well-designed RTX 5070. This page pulls live US prices from BuyWhere's catalog so you can see what is actually in stock and how prices move at major retailers.",
   "canonicalPath": "/best-gaming-laptops-us",
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "gaming laptop",
+  "searchQuery": "gaming laptop RTX",
   "backupQueries": [
-    "RTX gaming laptop",
-    "NVIDIA gaming laptop",
-    "gaming notebook"
+    "ASUS ROG gaming laptop",
+    "Lenovo Legion laptop",
+    "HP OMEN gaming laptop",
+    "ASUS TUF gaming laptop",
+    "Alienware gaming laptop",
+    "MSI Katana gaming laptop"
   ],
   "minPrice": 500,
   "requiredProductTerms": [
@@ -23,9 +26,9 @@
     "rtx"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-02",
   "productSectionTitle": "Live gaming laptop prices in the US",
   "comparisonSectionTitle": "Gaming laptop GPU tiers — what you get at each level",
   "comparisonColumns": [
@@ -116,7 +119,6 @@
       "answer": "15.6-inch is the most common and balances portability with immersion; 16-inch is the sweet spot if you want a numpad or slightly larger display without sacrificing too much portability; 17.3-inch is for buyers who prioritise screen size and rarely move the machine."
     }
   ],
-  "searchCategory": "gaming_laptops",
   "fallbackProducts": [
     {
       "id": "36992931",
@@ -182,5 +184,9 @@
   },
   "owner": "Venture",
   "reviewer": "Hue",
-  "queueRow": 20
+  "queueRow": 20,
+  "requiredGpuTokens": [
+    "rtx 5070",
+    "rtx 5080"
+  ]
 }
