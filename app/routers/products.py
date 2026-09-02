@@ -201,21 +201,26 @@ async def list_products(
     if country:
         base_query = base_query.where(Product.country_code == country.upper())
 
-    if sort_by == "price_asc":
-        base_query = base_query.order_by(Product.price.asc())
-    elif sort_by == "price_desc":
-        base_query = base_query.order_by(Product.price.desc())
-    elif sort_by == "newest":
-        base_query = base_query.order_by(Product.created_at.desc())
-    elif not q:
-        base_query = base_query.order_by(Product.updated_at.desc())
-
+    # BUY-80193: count without ORDER BY. Wrapping the ordered query in a subquery
+    # forced a full sort of the country slice (~3M AU rows) and 8s statement timeout.
     if offset == 0:
         count_query = select(func.count()).select_from(base_query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar_one()
     else:
         total = None
+
+    if sort_by == "price_asc":
+        base_query = base_query.order_by(Product.price.asc())
+    elif sort_by == "price_desc":
+        base_query = base_query.order_by(Product.price.desc())
+    elif sort_by == "newest":
+        base_query = base_query.order_by(Product.created_at.desc())
+    elif not q and not country:
+        # BUY-80193: default updated_at DESC is a global index scan + filter.
+        # On AU/JP/MY/... that times out (~8s) because matching rows are sparse
+        # in the updated_at index. Country browse uses idx_products_active_country.
+        base_query = base_query.order_by(Product.updated_at.desc())
 
     results = await db.execute(base_query.limit(limit).offset(offset))
     products = results.scalars().all()
@@ -469,8 +474,6 @@ async def v1_product_search(
             "ts_headline('english', coalesce(title, '') || ' ' || coalesce(description, ''), "
             "plainto_tsquery('english', :q_hl), 'MaxWords=50, MinWords=20, MaxFragments=2')"
         ).bindparams(q_hl=q)
-    else:
-        base_query = base_query.order_by(Product.updated_at.desc())
 
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
@@ -483,12 +486,16 @@ async def v1_product_search(
     if country:
         base_query = base_query.where(Product.country_code == country.upper())
 
+    # BUY-80193: count without ORDER BY so country slices do not sort millions of rows.
     if offset == 0:
         count_query = select(func.count()).select_from(base_query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar_one()
     else:
         total = None
+
+    if not q and not country:
+        base_query = base_query.order_by(Product.updated_at.desc())
 
     results = await db.execute(base_query.limit(limit).offset(offset))
     products = results.scalars().all()
