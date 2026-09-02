@@ -16,12 +16,12 @@
     "Sony WH-1000XM6",
     "WH-1000XM6 Wireless Noise Cancelling Headphones"
   ],
+  "minPrice": 350,
   "requiredProductTerms": [
     "wh-1000xm6",
     "sony",
     "headphones"
   ],
-  "minPrice": 200,
   "excludeAccessories": true,
   "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
