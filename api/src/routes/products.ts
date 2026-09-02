@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v17-b80215'; // BUY-80215: skip empty semantic-cache hits so SG head terms re-query FTS
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v18-b80215'; // BUY-80215: skip empty/currency-leaky semantic-cache hits
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -427,7 +427,7 @@ async function tryTierSearch(
   const phoneAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '\\m(phone|iphone)\\M'
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|tempered|glass|screen)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
       THEN 0.15 ELSE 1.0
     END`;
@@ -1126,9 +1126,18 @@ router.get(
           const semParsed = JSON.parse(semHit.body);
           const semProducts = semParsed.products || semParsed.results || semParsed.data || [];
           const semEmpty = Array.isArray(semProducts) && semProducts.length === 0;
+          const wantCur = countryCode ? (currency || '').toUpperCase() : '';
+          const semLeak = wantCur && Array.isArray(semProducts) && semProducts.some((p: Record<string, unknown>) => {
+            const price = p.price as unknown;
+            const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
+              ? String((price as { currency?: string }).currency || '').toUpperCase()
+              : String((p as { currency?: string }).currency || '').toUpperCase();
+            return cur && cur !== wantCur;
+          });
           // BUY-80215: empty semantic hits fossilize no_match for SG head terms
-          // (iphone) even when products_partitioned_sg has priced SKUs.
-          if (semEmpty) {
+          // (iphone) even when products_partitioned_sg has priced SKUs. Currency
+          // leaks (USD Shopify accessories for country=SG) are equally stale.
+          if (semEmpty || semLeak) {
             res.locals.cacheHit = false;
           } else {
             res.locals.cacheHit = true;
