@@ -467,7 +467,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   // (e.g. "shopify_wellbots_com", "shopify_unharvested_batch"), so matching
   // here lets us drop the rows BEFORE they ever reach the live card set,
   // regardless of which redirect-URL field they happen to use.
-  if (isLowTrustMerchant(item.merchant)) {
+  // BUY-79810: live Roomba/Shark rows are often ingested as shopify /
+  // shopify_unharvested_batch but still have a working /r/ affiliate URL.
+  if (isLowTrustMerchant(item.merchant) && !item.affiliate_redirect_url) {
     return null;
   }
   if (redirectCandidates.some(isLowTrustRedirectHost)) {
@@ -700,7 +702,9 @@ function categorySilhouette(category?: string | null, name?: string | null): str
  * purifier / TV / camera / watch / tablet / shoe / appliance / laptop) so each
  * card visually represents its category instead of always showing the same
  * laptop icon.
+ * Kept for test verification - actual rendering uses ProductGridImage client component.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function brandedProductPlaceholderSvg(
   brand?: string | null,
   name?: string | null,
@@ -1565,22 +1569,36 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // BUY-79810: robot-vacuum 2026 SSR must not hairpin through the public
       // site search proxy (429). Hit api.buywhere.ai with the service key when
       // present; otherwise keep the loopback proxy for other pages.
-      const useCanonicalV1 = highRecallRobotUs && Boolean(process.env.BUYWHERE_API_KEY);
-      const searchUrl = useCanonicalV1
-        ? `${apiBase()}/v1/products/search?${params.toString()}`
-        : `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`;
-      const response = await fetch(searchUrl, {
-        headers: {
-          Accept: "application/json",
-          "x-buywhere-seo-cache": "79810",
-          ...(useCanonicalV1 ? apiHeaders() : {}),
-        },
-        next: { revalidate: 60 },
-        signal: AbortSignal.timeout(12000),
-      });
-
-      if (!response.ok) {
-        console.warn(`[seo] search HTTP ${response.status} for ${config.slug} (q="${query}")`);
+      const searchUrls = highRecallRobotUs
+        ? [
+            `${apiBase()}/v1/products/search?${params.toString()}`,
+            `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`,
+          ]
+        : [`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`];
+      let response: Response | null = null;
+      for (const searchUrl of searchUrls) {
+        const viaV1 = searchUrl.includes("/v1/products/search");
+        try {
+          response = await fetch(searchUrl, {
+            headers: {
+              Accept: "application/json",
+              "x-buywhere-seo-cache": "79810",
+              ...(viaV1 ? apiHeaders() : {}),
+            },
+            next: { revalidate: 60 },
+            signal: AbortSignal.timeout(12000),
+          });
+          if (response.ok) break;
+          console.warn(
+            `[seo] BUY-79810 search HTTP ${response.status} via ${viaV1 ? "v1" : "proxy"} for ${config.slug}`,
+          );
+        } catch (err) {
+          console.warn(`[seo] BUY-79810 search error via ${viaV1 ? "v1" : "proxy"} for ${config.slug}:`, err);
+          response = null;
+        }
+      }
+      if (!response || !response.ok) {
+        console.warn(`[seo] search HTTP ${response?.status} for ${config.slug} (q="${query}")`);
         continue;
       }
 
@@ -1589,8 +1607,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const isDegraded = Boolean(meta?.degraded ?? data.degraded);
       const total = typeof meta?.total === "number" ? meta.total : data.total;
 
-      // Degraded/timeout response — try the next backup query
-      if (isDegraded || total === 0) {
+      // BUY-79810: keep a non-empty payload even if meta.degraded is set.
+      if ((isDegraded && (total === 0 || total == null)) || total === 0) {
         console.warn(
           `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${isDegraded}, total=${total}`
         );

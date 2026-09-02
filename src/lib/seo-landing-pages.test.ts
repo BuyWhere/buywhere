@@ -154,7 +154,7 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   const requestedUrls: string[] = [];
   globalThis.fetch = async (input) => {
     const url = String(input);
-    if (!url.includes("/api/products/search")) {
+    if (!url.includes("/api/products/search") && !url.includes("/v1/products/search")) {
       return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
     }
     requestedUrls.push(url);

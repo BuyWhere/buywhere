@@ -105,6 +105,8 @@ const US_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   "vizio",
   "hisense_us",
   "hisense",
+  "costco_us",
+  "costco",
   // BUY-79032: US catalog search is currently Shopify-heavy (country_code=US,
   // working /r/direct). Without this slug the live card loop never keeps those
   // rows when affiliate_redirect_url is missing, and the final label gate
@@ -385,6 +387,19 @@ export function candidateAllowlistSlugs(rawSlug: string): string[] {
     out.push("shopify");
   }
 
+  // BUY-79810: ingest slugs like buy30590_retailer_bestbuy / costco_us must
+  // resolve to the retailer allowlist entry (bestbuy / costco).
+  const retailerMatch = lower.match(/(?:^|_)retailer_([a-z0-9]+)$/);
+  if (retailerMatch) {
+    const retailer = retailerMatch[1];
+    if (!out.includes(retailer)) out.push(retailer);
+    if (retailer === "bestbuy" && !out.includes("bestbuy_us")) out.push("bestbuy_us");
+  }
+  if (lower.endsWith("_us") && lower.length > 3) {
+    const bare = lower.slice(0, -3);
+    if (bare && !out.includes(bare)) out.push(bare);
+  }
+
   // BUY-77342: also add space-normalized variants so "bestdenki" matches
   // allowlist entries like "best denki". Split on common word boundaries and
   // rejoin with spaces to catch camelCase, PascalCase, and concatenated names.
@@ -512,6 +527,8 @@ const US_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "tcl",
   "vizio",
   "hisense",
+  "costco",
+  "costco us",
   // BUY-79032: live US intent pages (best-laptops-us / earbuds / macbooks)
   // hydrate from Shopify tenants labeled "Shopify" after
   // stripMerchantTenantSuffix. Without this label the final country gate
