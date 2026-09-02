@@ -2693,17 +2693,57 @@ router.get(
            AND price IS NOT NULL
          ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
          LIMIT $2 OFFSET $3`;
+
+    // BUY-79500: deduplicate Shopify variant rows so a single product does not
+    // occupy every slot in the featured carousel. Shopify stores one row per
+    // variant (size/color), all sharing metadata.product_id. We fetch a multiple
+    // of the requested limit, keep the first (most recent) variant of each
+    // product, and apply offset/slice on the distinct-product stream.
+    const DEDUP_INITIAL_MULTIPLIER = 5;
+    const DEDUP_MAX_FETCH = 500;
+    let fetchLimit = Math.min(limit * DEDUP_INITIAL_MULTIPLIER, DEDUP_MAX_FETCH);
+    let fetchOffset = 0;
+    const seenProductKeys = new Set<string>();
+    const distinctRows: Record<string, unknown>[] = [];
     let featuredDb = readDb();
-    let result;
-    try {
-      result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
-    } catch (err) {
-      console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
-      featuredDb = db;
-      result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
+
+    function dedupKey(row: Record<string, unknown>): string {
+      const meta = (row.metadata as Record<string, unknown> | null) || {};
+      const productId = meta?.product_id as string | undefined;
+      // Shopify variants share metadata.product_id; non-Shopify sources generally
+      // have one SKU per product, so source_id (aliased sku) is a safe fallback.
+      return productId ? `pid:${productId}` : `sku:${row.source_id}`;
     }
 
-    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
+    while (distinctRows.length < offset + limit && fetchLimit <= DEDUP_MAX_FETCH) {
+      let result;
+      try {
+        result = await featuredDb.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+      } catch (err) {
+        if (fetchOffset === 0) {
+          console.warn(`[products:featured] readDb() query failed, falling back to primary: ${(err as Error).message}`);
+          featuredDb = db;
+          result = await featuredDb.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+        } else {
+          throw err;
+        }
+      }
+      if (result.rows.length === 0) break;
+      for (const row of result.rows) {
+        const key = dedupKey(row);
+        if (!seenProductKeys.has(key)) {
+          seenProductKeys.add(key);
+          distinctRows.push(row);
+          if (distinctRows.length >= offset + limit) break;
+        }
+      }
+      if (distinctRows.length >= offset + limit) break;
+      fetchOffset += result.rows.length;
+      fetchLimit = Math.min(fetchLimit * 2, DEDUP_MAX_FETCH);
+    }
+
+    const pagedRows = distinctRows.slice(offset, offset + limit);
+    const products = pagedRows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
