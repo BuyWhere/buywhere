@@ -41,12 +41,21 @@ export interface SearchParams {
   platform?: string;
 }
 
+/** Honesty envelope from GET /v1/products/search (BWEXT-69EEE94E). */
+export interface SearchMode {
+  requested_mode: string | null;
+  executed_mode: string;
+  fallback_reason: string | null;
+}
+
 export interface SearchResponse {
   results: Product[];
   total: number;
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  /** Present on live API responses; omitted on synthetic batch-error placeholders. */
+  search_mode?: SearchMode;
 }
 
 export interface MerchantPrice {
@@ -307,6 +316,7 @@ export interface AgentSearchResponse {
   results: AgentSearchResult[];
   query_time_ms: number;
   cache_hit: boolean;
+  search_mode?: SearchMode;
 }
 
 export interface AgentSearchParams {

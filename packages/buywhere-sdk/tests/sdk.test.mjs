@@ -264,3 +264,42 @@ test('products client alerts/reviews throw — routes never deployed (BUY-70872)
     globalThis.fetch = originalFetch;
   }
 });
+
+test('SDK search preserves search_mode honesty envelope from /v1/products/search', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({
+      data: [{
+        id: '54500472',
+        title: 'Test',
+        name: 'Test',
+        price: { amount: 1, currency: 'SGD' },
+        merchant: 'amazon.sg',
+        url: 'u',
+        image_url: null,
+        region: 'sg',
+        country_code: 'SG',
+        updated_at: '2026-09-02T00:00:00Z',
+      }],
+      meta: { total: 1, limit: 1, offset: 0, response_time_ms: 10, cached: false },
+      search_mode: { requested_mode: null, executed_mode: 'keyword', fallback_reason: null },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const client = createClient('bw_live_test');
+    const response = await client.search.search({ query: 'iphone', limit: 1 });
+    assert.match(calls[0].url, /\/v1\/products\/search\?/);
+    assert.equal(response.search_mode.executed_mode, 'keyword');
+    assert.equal(response.search_mode.requested_mode, null);
+    assert.equal(response.search_mode.fallback_reason, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
