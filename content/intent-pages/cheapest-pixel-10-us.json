@@ -18,7 +18,9 @@
   ],
   "minPrice": 500,
   "requiredProductTerms": [
-    "pixel 10"
+    "pixel 10",
+    "google",
+    "unlocked"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
