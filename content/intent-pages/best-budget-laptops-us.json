@@ -10,11 +10,11 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "business laptop",
+  "searchQuery": "budget laptop",
   "backupQueries": [
-    "Lenovo laptop",
-    "HP laptop",
-    "asus laptop"
+    "cheap laptop",
+    "affordable laptop",
+    "laptop under $500"
   ],
   "minPrice": 200,
   "requiredProductTerms": [
