@@ -10,22 +10,22 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "mesh Wi-Fi system",
+  "searchQuery": "ASUS mesh",
   "backupQueries": [
-    "mesh router",
-    "WiFi mesh system",
-    "TP-Link Deco mesh"
+    "Deco",
+    "ASUS ZenWiFi AX XD6",
+    "TP-LINK DECO BE5000"
   ],
-  "minPrice": 80,
+  "minPrice": 150,
   "requiredProductTerms": [
-    "mesh",
-    "wifi",
-    "router"
+    "zenwifi",
+    "deco",
+    "mesh"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-02",
   "productSectionTitle": "Live mesh Wi-Fi prices in Singapore",
   "comparisonSectionTitle": "Which mesh system should you buy in Singapore? At a glance",
   "comparisonColumns": [
