@@ -125,6 +125,9 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
         return { rows: filtered, geoDropped, highDropped, maxAllowedUsd };
       }
     }
+  }
+  // BUY-79892: leftover 1–2 row set after geo drop still needs the phone band
+  // (milagron.com $359.99 silicone case after .ie/.me drop).
   if (deviceType === 'phone') {
     maxAllowedUsd = maxAllowedUsd ?? 2500;
     const minPhoneUsd = 400;
