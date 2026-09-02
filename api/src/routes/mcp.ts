@@ -101,6 +101,9 @@ const MCP_TOOL_WALL_MS: Record<string, number> = {
   find_best_price: 20000,
   find_best_price_v2: 20000,
 };
+// BUY-79945: SEA search REST fallback is 8s (TH ~7s). The 3500ms catalog wall
+// raced the fallback and flushed api_error at ~3.5s before REST could fill.
+const MCP_SEARCH_SEA_WALL_MS = parseInt(process.env.MCP_SEARCH_SEA_WALL_MS || '9000', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:v7:* keys as soon as a run lands.
 // Override per BUYWHERE_API_KEY_METADATA binding or MCP_FTS_CACHE_TTL_SECONDS env.
@@ -3052,19 +3055,31 @@ function mcpCatalogWallEnvelope(name: string, args: Record<string, unknown>, sta
   });
 }
 
+function mcpToolWallMs(name: string, args: Record<string, unknown>): number {
+  const base = MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS;
+  if (name === 'search_products' || name === 'search_products_v2') {
+    const cc = String(
+      args.deliver_to || args.country_code || args.country || args.market || '',
+    ).trim().toUpperCase();
+    if (SEA_REST_FALLBACK_COUNTRIES.has(cc)) return Math.max(base, MCP_SEARCH_SEA_WALL_MS);
+  }
+  return base;
+}
+
 async function withMcpCatalogWall<T>(name: string, args: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   if (!MCP_CATALOG_WALL_TOOLS.has(name)) return work();
   const startedAt = Date.now();
+  const wallMs = mcpToolWallMs(name, args);
   let timer: NodeJS.Timeout | undefined;
   const wall = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), (MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS));
+    timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), wallMs);
   });
   try {
     return await Promise.race([work(), wall]);
   } catch (err) {
     const message = String((err as { message?: string })?.message || '');
     if (message.includes('mcp_catalog_wall_timeout')) {
-      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${(MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS)}ms catalog wall — flushing degraded envelope`);
+      console.warn(`[mcp] BUY-67598/BUY-78735: ${name} hit ${wallMs}ms catalog wall — flushing degraded envelope`);
       return mcpCatalogWallEnvelope(name, args, startedAt) as T;
     }
     throw err;
