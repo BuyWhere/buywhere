@@ -213,6 +213,9 @@ function isolateRestSearchHits(
       const cur = item.rowCurrency || fromProduct;
       if (cur && cur !== expectedCur) return false;
     }
+    // BUY-80191: REST can still serialize {amount:null} for bad rows.
+    const amt = extractNumericPrice(p.price);
+    if (amt == null || !(amt > 0)) return false;
     return true;
   }).map((item) => item.product);
   return { products, dropped: rows.length - products.length };
@@ -958,7 +961,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v11:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -999,7 +1002,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     try {
       const idIdx = 1;
       const idParams: unknown[] = [identifier.normalized];
-      const idConds: string[] = ['is_active = true'];
+      const idConds: string[] = ['is_active = true', 'price > 0'];
       idConds.push(identifierMatchPredicate(identifier, idIdx).sql);
       if (country) {
         idParams.push(country.toUpperCase());
@@ -1040,7 +1043,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     }
   }
 
-  const conditions: string[] = ['is_active = true'];
+  // BUY-80191: REST archive already requires `price > 0`. MCP FTS/identifier
+  // paths omitted it, so US child-table hits (Shopify/Woo null-price stubs from
+  // ingest batches like BUY-80080) filled the default page of 20 with
+  // `price.amount=null`. Freshness gate for agent-DX: unpriced rows are not
+  // sellable catalog.
+  const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
   if (q) {
@@ -1078,7 +1086,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // Drops is_active (tier only contains active products) and category ILIKE
   // (tier category is a slug, not free-text). Uses sp.* prefix to avoid
   // ambiguity when the tier query joins back to products for full columns.
-  const tierConditions: string[] = [];
+  const tierConditions: string[] = ['sp.price > 0'];
   const tierParams: unknown[] = [];
   if (q) {
     tierParams.push(q);
@@ -1303,7 +1311,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const detailParams: unknown[] = [...pageIds];
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailConditions = [`id IN (${ph})`, 'is_active = true'];
+            const detailConditions = [`id IN (${ph})`, 'is_active = true', 'price > 0'];
             if (country) {
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
@@ -1349,7 +1357,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM products WHERE id IN (${ph}) AND is_active = true AND price > 0`,
               tierIds
             );
             // Preserve tier ranking order
@@ -1569,6 +1577,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
         const cur = String(r.currency || '').toUpperCase();
         if (cur && cur !== wantCur) return false;
       }
+      // BUY-80191: drop unpriced rows even if SQL missed them (REST fallback /
+      // cached pages / child-table nulls).
+      const amt = extractNumericPrice(r.price);
+      if (amt == null || !(amt > 0)) return false;
       return true;
     });
     // BUY-79642: never fall back to currency/country leaks. If overfetch did not
@@ -1596,7 +1608,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   );
   const products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact, merchantMapForMcpSearch, caller)
-  );
+  ).filter((p) => {
+    const amt = extractNumericPrice(p.price);
+    return amt != null && amt > 0;
+  });
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
   // the response is genuinely empty (products.length === 0) — non-empty responses
