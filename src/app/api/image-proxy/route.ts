@@ -13,7 +13,7 @@
 // src/lib/hotlink-hosts.ts `viaImageProxy`); ProductGridImage's onError
 // fallback still lands on the branded SVG when the proxy itself fails.
 import { NextRequest, NextResponse } from "next/server";
-import { HOTLINK_BLOCKED_HOSTS } from "@/lib/hotlink-hosts";
+import { isHotlinkBlockedHostname } from "@/lib/hotlink-hosts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   }
   // Strict allowlist: only the known hotlink-blocked hosts. This route must
   // never become an open proxy / SSRF relay.
-  if (!HOTLINK_BLOCKED_HOSTS.has(upstream.hostname)) {
+  if (!isHotlinkBlockedHostname(upstream.hostname)) {
     return NextResponse.json({ error: "host not allowlisted" }, { status: 403 });
   }
 

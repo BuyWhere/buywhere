@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HOTLINK_BLOCKED_HOSTS, viaImageProxy } from "@/lib/hotlink-hosts";
+import { isHotlinkBlockedHostname, viaImageProxy } from "@/lib/hotlink-hosts";
 import { toSiteUrl } from "@/lib/site-url";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 import {
@@ -559,7 +559,7 @@ function isUsableProductImage(imageUrl?: string | null) {
     const url = new URL(imageUrl);
     // BUY-70187: blocked hosts are usable VIA the proxy — the caller rewrites
     // them with viaImageProxy before rendering.
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
+    if (isHotlinkBlockedHostname(url.hostname)) return true;
     return !url.hostname.endsWith(".elescat.store");
   } catch {
     return false;
@@ -729,7 +729,7 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
     // which enforces real reachability per-request (502 → client onError SVG
     // fallback). Trust them here so the SSR filter doesn't drop the product
     // before the proxy even gets a chance.
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
+    if (isHotlinkBlockedHostname(url.hostname)) return true;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -871,7 +871,7 @@ async function verifyUsableImageContent(
     if (url.protocol === "data:") return true;
     // BUY-70187: blocked-host URLs are rendered through the proxy and skip
     // the shape probe — the client onError path handles upstream failures.
-    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return true;
+    if (isHotlinkBlockedHostname(url.hostname)) return true;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
       url.hostname === "m.media-amazon.com" ||

@@ -16,11 +16,29 @@ export const HOTLINK_BLOCKED_HOSTS = new Set([
   "dlcdnwebimgs.asus.com",
   "www.asus.com",
   "shopifycdn.com",
+  // BUY-79779: Shopify CDN fails SSR HEAD/GET probes (403/HTML) even when
+  // the asset is fetchable with a browser UA. Route through /api/image-proxy.
+  "cdn.shopify.com",
+  "cdn.shopifycdn.net",
+  "images.shopifycdn.com",
   "elescat.store",
   "source.unsplash.com",
   "images.unsplash.com",
   "unsplash.com",
 ]);
+
+/**
+ * True when hostname is an exact blocked host or a subdomain of one.
+ */
+export function isHotlinkBlockedHostname(hostname?: string | null): boolean {
+  if (!hostname) return false;
+  const host = hostname.toLowerCase();
+  if (HOTLINK_BLOCKED_HOSTS.has(host)) return true;
+  for (const blocked of HOTLINK_BLOCKED_HOSTS) {
+    if (host.endsWith(`.${blocked}`)) return true;
+  }
+  return false;
+}
 
 /**
  * True when the URL's hostname is a known hotlink-blocked host that
@@ -29,7 +47,7 @@ export const HOTLINK_BLOCKED_HOSTS = new Set([
 export function isHotlinkBlockedHost(imageUrl?: string | null): boolean {
   if (!imageUrl) return false;
   try {
-    return HOTLINK_BLOCKED_HOSTS.has(new URL(imageUrl).hostname);
+    return isHotlinkBlockedHostname(new URL(imageUrl).hostname);
   } catch {
     return false;
   }
@@ -47,7 +65,7 @@ export function viaImageProxy(imageUrl?: string | null): string | null {
   try {
     const url = new URL(imageUrl);
     if (url.protocol !== "https:" && url.protocol !== "http:") return imageUrl;
-    if (!HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return imageUrl;
+    if (!isHotlinkBlockedHostname(url.hostname)) return imageUrl;
     return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
   } catch {
     return imageUrl;

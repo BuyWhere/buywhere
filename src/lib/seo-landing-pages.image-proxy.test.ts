@@ -56,3 +56,19 @@ test("HOTLINK_BLOCKED_HOSTS contains the QA-flagged hosts", () => {
     assert.ok(HOTLINK_BLOCKED_HOSTS.has(host), `missing ${host}`);
   }
 });
+
+test("BUY-79779: cdn.shopify.com is rewritten through /api/image-proxy", () => {
+  const shopify = "https://cdn.shopify.com/s/files/1/0599/1904/0557/files/P1936413.jpg?v=1787614206";
+  assert.equal(isHotlinkBlockedHost(shopify), true);
+  assert.equal(viaImageProxy(shopify), `/api/image-proxy?url=${encodeURIComponent(shopify)}`);
+  const shopifycdn = "https://cdn.shopifycdn.net/s/files/1/0000/0001/file.jpg";
+  assert.equal(isHotlinkBlockedHost(shopifycdn), true);
+  assert.match(viaImageProxy(shopifycdn)!, /^\/api\/image-proxy\?url=/);
+});
+
+test("BUY-79779: verifyReachableImage trusts cdn.shopify.com without probing", async () => {
+  assert.equal(
+    await verifyReachableImage("https://cdn.shopify.com/s/files/1/0000/0001/products/x.jpg"),
+    true,
+  );
+});
