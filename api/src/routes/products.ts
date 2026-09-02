@@ -852,7 +852,8 @@ router.get(
 
     // Keep SELECT/ORDER references stable while swapping the physical table.
     const TABLE_ALIAS = 'products';
-    const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
+    // BUY-79816: add sku for cross-merchant image fallback (manufacturer_image_url would require join to canonical table)
+    const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.sku, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
                 NULL::text AS affiliate_url,
                 ${TABLE_ALIAS}.title, ${TABLE_ALIAS}.price, ${TABLE_ALIAS}.currency, ${TABLE_ALIAS}.image_url, ${TABLE_ALIAS}.metadata, ${TABLE_ALIAS}.updated_at,
                 ${TABLE_ALIAS}.region, ${TABLE_ALIAS}.country_code, ${TABLE_ALIAS}.created_at, ${TABLE_ALIAS}.description, ${TABLE_ALIAS}.brand, ${TABLE_ALIAS}.mpn, ${TABLE_ALIAS}.gtin,

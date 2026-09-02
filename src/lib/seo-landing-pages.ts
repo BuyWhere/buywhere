@@ -103,6 +103,10 @@ export type LandingProduct = {
   /** BUY-73640: raw upstream merchant slug for country allowlist filtering */
   merchantSlug?: string | null;
   imageUrl: string | null;
+  /** BUY-79816: original SKU for cross-merchant image fallback */
+  sku?: string | null;
+  /** BUY-79816: manufacturer image URL for fallback */
+  manufacturerImageUrl?: string | null;
   href: string;
   productUrl?: string | null;
   affiliateUrl?: string | null;
@@ -136,6 +140,10 @@ type SearchApiItem = {
   country_code?: string | null;
   // BUY-73322: region metadata for filtering non-local merchants
   region?: string | null;
+  // BUY-79816: SKU for cross-merchant image fallback
+  sku?: string | null;
+  // Manufacturer image URL (from canonical product record)
+  manufacturer_image_url?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -539,6 +547,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     // BUY-72906: keep the upstream merchant/market country available for
     // SSR-layer defense-in-depth filtering on country-specific landing pages.
     countryCode: item.country_code ?? null,
+    // BUY-79816: SKU and manufacturer image for fallback chain
+    sku: item.sku || null,
+    manufacturerImageUrl: item.manufacturer_image_url || null,
   };
 }
 
@@ -1676,61 +1687,150 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // placeholder" because the page no longer shows real product photos — and
   // the QA expectation is "Live Catalog Snapshot shows real product
   // thumbnails with prices and merchant badges".
+  // BUY-79816: Quality gate with fallback chain for placeholder retailer images.
+  // Quality gate checks:
+  // 1. Size check: reject rasters < 20KB (logos/watermarks like Best Denki 9136 bytes)
+  // 2. Content check: reject images with <40 unique colors at 40x40 or square+small
+  // 3. Hash collision: no two cards share identical image URL
   //
-  // When the dropped count brings the live card set below 4, the
-  // fallback-top-up branch (below) substitutes curated fallbackProducts
-  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
-  // Roborock, Dyson, Xiaomi, etc.).
+  // Fallback chain (when primary image fails quality gate):
+  // 1. Try other merchant images for the same SKU
+  // 2. Try manufacturer image if we have one stored
+  // 3. Else null (empty-image treatment - never retailer logo)
   const verified: LandingProduct[] = [];
-  const probeResults = await Promise.all(
-    collected.map(async (product) => {
-      if (!product.imageUrl) return false;
-      if (!sanitizeProductImageUrl(product.imageUrl)) return false;
-      // BUY-63507: chain the reachable probe with a content-shape probe. A 200
-      // OK on a 1:1 product photo with heavy white margins renders as a
-      // "blank/white" card under our aspect-[4/3] + object-cover layout. The
-      // content probe drops those products so the next live result fills the
-      // slot instead.
-      const reachable = await verifyReachableImage(product.imageUrl);
-      if (!reachable) return false;
-      return verifyUsableImageContent(product.imageUrl);
-    })
-  );
-  for (let i = 0; i < collected.length; i++) {
-    if (probeResults[i]) {
-      verified.push(collected[i]);
-    } else {
-      console.warn(
-        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
-      );
+
+  // Group products by SKU for cross-merchant fallback
+  const productsBySku = new Map<string, LandingProduct[]>();
+  for (const p of collected) {
+    if (p.sku) {
+      const existing = productsBySku.get(p.sku) || [];
+      existing.push(p);
+      productsBySku.set(p.sku, existing);
     }
   }
 
-  // BUY-79241: priced live hits with a constructible /r/direct/{id} MUST render.
-  // Image-probe failure used to drop the entire card (OLED US: 7 live TVs → 0
-  // /r/). Prefer a branded SVG over emptying the snapshot when we'd fall below
-  // 3 crawlable cards.
+  // Process each product through quality gate with fallback
+  const imageQualityResults = await Promise.all(
+    collected.map(async (product) => {
+      if (!product.imageUrl) return { passed: false, reason: "no_url" };
+      if (!sanitizeProductImageUrl(product.imageUrl)) return { passed: false, reason: "invalid_url" };
+      // First check: reachable
+      const reachable = await verifyReachableImage(product.imageUrl);
+      if (!reachable) return { passed: false, reason: "unreachable" };
+      // Second check: quality gate (size + color diversity via verifyUsableImageContent)
+      const qualityPassed = await verifyUsableImageContent(product.imageUrl);
+      if (!qualityPassed) return { passed: false, reason: "low_quality" };
+      return { passed: true, reason: "ok" };
+    })
+  );
+
+  for (let i = 0; i < collected.length; i++) {
+    const product = collected[i];
+    const result = imageQualityResults[i];
+
+    if (result.passed) {
+      verified.push(product);
+      continue;
+    }
+
+    // Quality gate failed - try fallback chain
+    console.warn(
+      `[seo] BUY-79816 quality gate failed for ${product.id} on ${config.slug}: ${result.reason}, trying fallback`
+    );
+
+    // Fallback 1: Try another merchant's image for the same SKU
+    let fallbackImage: string | null = null;
+    if (product.sku) {
+      const skuProducts = productsBySku.get(product.sku) || [];
+      for (const otherProduct of skuProducts) {
+        if (otherProduct.id === product.id) continue; // skip self
+        // Check if other product's image passes quality
+        if (otherProduct.imageUrl && sanitizeProductImageUrl(otherProduct.imageUrl)) {
+          const otherQuality = await verifyUsableImageContent(otherProduct.imageUrl);
+          if (otherQuality) {
+            fallbackImage = otherProduct.imageUrl;
+            console.warn(
+              `[seo] BUY-79816 found fallback image from merchant ${otherProduct.merchant} for SKU ${product.sku}`
+            );
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback 2: Try manufacturer image
+    if (!fallbackImage && product.manufacturerImageUrl) {
+      const mfrUrl = sanitizeProductImageUrl(product.manufacturerImageUrl);
+      if (mfrUrl) {
+        const mfrQuality = await verifyUsableImageContent(mfrUrl);
+        if (mfrQuality) {
+          fallbackImage = mfrUrl;
+          console.warn(`[seo] BUY-79816 using manufacturer image for ${product.id}`);
+        }
+      }
+    }
+
+    if (fallbackImage) {
+      verified.push({ ...product, imageUrl: fallbackImage });
+    } else {
+      // No fallback available - check if we should keep the card anyway
+      const constructibleRedirect = Boolean(product.id) && product.price !== null;
+      if (constructibleRedirect) {
+        // Keep the card but with null image (empty-image treatment)
+        verified.push({ ...product, imageUrl: null });
+        console.warn(
+          `[seo] BUY-79816 keeping product ${product.id} on ${config.slug} with null image after fallback chain exhausted`
+        );
+      } else {
+        console.warn(
+          `[seo] dropping unusable product ${product.id} on ${config.slug}: ${product.imageUrl}`
+        );
+      }
+    }
+  }
+
+  // BUY-79816: Hash collision detection - no two cards should share identical image URL
+  const seenImageUrls = new Set<string>();
+  const dedupedProducts: LandingProduct[] = [];
+  for (const product of verified) {
+    if (!product.imageUrl) {
+      // Null images (from fallback chain) don't collide - allow them
+      dedupedProducts.push(product);
+      continue;
+    }
+    const imageKey = product.imageUrl;
+    if (seenImageUrls.has(imageKey)) {
+      // Collision detected - skip this product (keep the first one encountered)
+      console.warn(
+        `[seo] BUY-79816 hash collision for ${imageKey} - skipping duplicate from ${product.merchant}`
+      );
+      continue;
+    }
+    seenImageUrls.add(imageKey);
+    dedupedProducts.push(product);
+  }
+
+  // Replace verified with deduped for minimum card check
+  const finalVerified = dedupedProducts;
+
+  // BUY-79241 / BUY-79816: ensure minimum live cards for crawlable /r/direct links.
   const MIN_LIVE_CARDS = 3;
-  if (verified.length < MIN_LIVE_CARDS) {
-    for (let i = 0; i < collected.length && verified.length < MIN_LIVE_CARDS; i++) {
-      if (probeResults[i]) continue;
-      const product = collected[i];
+  if (finalVerified.length < MIN_LIVE_CARDS) {
+    for (const product of collected) {
+      if (finalVerified.length >= MIN_LIVE_CARDS) break;
+      if (finalVerified.some(p => p.id === product.id)) continue;
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
-      // BUY-79812: omit the photo rather than a retailer watermark or data: SVG.
-      // ProductGridImage already renders an explicit unavailable state for null src.
-      verified.push({
-        ...product,
-        imageUrl: null,
-      });
+      // Add with null image
+      finalVerified.push({ ...product, imageUrl: null });
       console.warn(
-        `[seo] BUY-79241 keeping priced product ${product.id} on ${config.slug} without photo after image-probe fail`,
+        `[seo] BUY-79816 adding fallback product ${product.id} to meet minimum cards`,
       );
     }
   }
 
   // Carry seenIds across the verified list so fallback top-up dedup still works.
-  const verifiedProducts = verified;
+  const verifiedProducts = finalVerified;
 
   // BUY-73741 (defense-in-depth final pipeline): every return path below goes
   // through this guard so a row that slipped past the per-item filter (e.g. an
