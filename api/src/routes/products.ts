@@ -870,9 +870,13 @@ router.get(
     // 7e9 catchup rows that are the actual newest updated_at. idx_products_country_code
     // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US
     // still use id DESC on the PK (ids there are monotonic snowflakes).
+    // BUY-80193: default updated_at DESC walks idx_products_updated_at and
+    // filters country. AU/JP/MY/TH/TW/VN/PH/KR are sparse in that index and
+    // hit the 8s statement_timeout (HTTP 500). Child SG/US keep PK id DESC.
+    // Other countries: no ORDER BY so idx_products_active_country can LIMIT.
     const orderBy = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
       ? `ORDER BY ${TABLE_ALIAS}.id DESC`
-      : `ORDER BY ${TABLE_ALIAS}.updated_at DESC`;
+      : '';
 
     // BUY-77835: route the heavy catalog list query to the read replica (when
     // healthy) so it does not compete with interactive /v1/products/search on
