@@ -10,11 +10,11 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "business laptop",
+  "searchQuery": "ThinkPad laptop",
   "backupQueries": [
-    "ThinkPad",
     "EliteBook",
-    "professional laptop"
+    "business laptop",
+    "Dell Pro laptop"
   ],
   "minPrice": 600,
   "requiredProductTerms": [

@@ -10,12 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "business laptop",
+  "searchQuery": "ThinkPad Singapore",
   "backupQueries": [
-    "professional laptop Singapore",
-    "corporate laptop",
-    "ThinkPad laptop",
-    "latitude laptop"
+    "EliteBook Singapore",
+    "business laptop Singapore",
+    "Lenovo laptop Singapore"
   ],
   "minPrice": 800,
   "requiredProductTerms": [

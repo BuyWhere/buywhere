@@ -10,11 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "MacBook",
+  "searchQuery": "MacBook Air Singapore",
   "backupQueries": [
-    "MacBook Air",
-    "MacBook Pro",
-    "Apple laptop"
+    "MacBook Pro Singapore",
+    "Apple laptop Singapore",
+    "MacBook Singapore"
   ],
   "minPrice": 900,
   "requiredProductTerms": [
