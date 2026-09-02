@@ -24,6 +24,7 @@ const GENERIC_TLDS = new Set([
 const FOREIGN_HOSTS: Record<string, string> = {
   'iplanet.one': 'IN',
   'mac-center.com': 'CO',
+  'milagron.com': 'TR',
 };
 
 const MARKETPLACE_HOSTS: Record<string, string> = {
@@ -124,11 +125,14 @@ export function applyFbpGeoAndHighOutlierGuard<T extends Record<string, unknown>
         return { rows: filtered, geoDropped, highDropped, maxAllowedUsd };
       }
     }
-  } else if (deviceType === 'phone') {
-    maxAllowedUsd = 2500;
-    const filtered = working.filter((r) => rowToUsd(r) <= 2500);
-    highDropped = working.length - filtered.length;
-    // Prefer empty over presenting INR/COP-as-USD as a US phone price.
+  if (deviceType === 'phone') {
+    maxAllowedUsd = maxAllowedUsd ?? 2500;
+    const minPhoneUsd = 400;
+    const filtered = working.filter((r) => {
+      const usd = rowToUsd(r);
+      return usd >= minPhoneUsd && usd <= (maxAllowedUsd as number);
+    });
+    highDropped += working.length - filtered.length;
     return { rows: filtered, geoDropped, highDropped, maxAllowedUsd };
   }
 
