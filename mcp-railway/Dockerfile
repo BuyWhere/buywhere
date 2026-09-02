@@ -12,8 +12,8 @@ COPY src/ ./src/
 RUN npm run build
 RUN npm prune --production
 
-# BUY-79598: force layer invalidation so Railway picks up circuit removal
-ENV BUILD_TS=20260902
+# BUY-79598: force Railway rebuild — circuit removal + REST fallback + currency isolation
+ENV BUILD_TS=20260902-RAW
 
 ENV NODE_ENV=production
 ENV MCP_PORT=8081
