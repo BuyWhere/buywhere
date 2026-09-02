@@ -565,6 +565,9 @@ const SG_ALLOWED_MERCHANT_LABELS: ReadonlySet<string> = new Set([
   "dyson",
   "philips",
   "xiaomi",
+  // BUY-80149: display labels for live levoit.sg / sterra.sg air purifiers.
+  "levoit",
+  "sterra",
   "asus",
   "lenovo",
   "hp",

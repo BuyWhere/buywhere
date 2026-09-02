@@ -62,6 +62,16 @@ test("BUY-80149: levoit.sg / sterra.sg match SG allowlist", () => {
   assert.equal(isMerchantAllowedForCountry({ merchant: "sterra" }, "SG"), true);
   assert.equal(isMerchantAllowedForCountry({ merchant: "sterra_sg" }, "SG"), true);
   assert.equal(isMerchantAllowedForCountry({ merchant: "sterra.sg" }, "SG"), true);
+  assert.deepEqual(
+    filterProductsForCountry(
+      [
+        { id: "1", merchant: "Levoit" },
+        { id: "2", merchant: "Sterra" },
+      ],
+      "SG",
+    ).map((p) => p.id),
+    ["1", "2"],
+  );
 });
 
 test("BUY-77121: non-allowlisted merchants still rejected", () => {
