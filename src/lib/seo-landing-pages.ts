@@ -1606,6 +1606,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     try {
       const highRecallRobotUs =
         config.slug === "best-robot-vacuums-2026" && config.country === "US";
+      // BUY-80149: air-purifier SG must not hairpin the 3600s FTS cache that
+      // still serves USD Honeywell respirators for q=air+purifier&country=sg.
+      const highRecallAirPurifierSg =
+        config.slug === "air-purifier-singapore" && config.country === "SG";
+      const useCanonicalV1 = highRecallRobotUs || highRecallAirPurifierSg;
       const params = new URLSearchParams({
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
@@ -1637,7 +1642,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // BUY-79810: robot-vacuum 2026 SSR must not hairpin through the public
       // site search proxy (429). Hit api.buywhere.ai with the service key when
       // present; otherwise keep the loopback proxy for other pages.
-      const searchUrls = highRecallRobotUs
+      const searchUrls = useCanonicalV1
         ? [
             `${apiBase()}/v1/products/search?${params.toString()}`,
             `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`,
@@ -1650,7 +1655,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           response = await fetch(searchUrl, {
             headers: {
               Accept: "application/json",
-              "x-buywhere-seo-cache": "79810",
+              "x-buywhere-seo-cache": highRecallAirPurifierSg ? "80149" : "79810",
+              ...(highRecallAirPurifierSg ? { "Cache-Control": "no-cache" } : {}),
               ...(viaV1 ? apiHeaders() : {}),
             },
             next: { revalidate: 60 },
