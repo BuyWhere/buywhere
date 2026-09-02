@@ -1,0 +1,186 @@
+{
+  "slug": "best-budget-laptops-us",
+  "title": "Best budget laptops in the US (2026) — live US prices compared",
+  "description": "The best budget laptops you can actually buy in the US right now: live US listings for school, work, and everyday use, with the upgrade advice that matters when you cannot spend MacBook money.",
+  "heroEyebrow": "US budget laptop guide",
+  "heroTitle": "Best budget laptops in the US (2026) — 2026 picks for school, work and home",
+  "heroTitleTemplate": "Best budget laptops in the US (2026) — from {floorPrice} at Amazon and Best Buy",
+  "heroBody": "The US budget-laptop market is healthier than it has been in years: solid 14–16 inch laptops with current-gen processors, 1080p or better displays, and at least 8 GB of RAM now land comfortably under the thousand-dollar mark, and there is a credible pick at almost every step below that. This page pulls live US listings from BuyWhere's catalog so you can see the prices Amazon, Best Buy, Walmart and direct-to-consumer brands are actually charging today, and matches that against the buying decisions that matter — RAM, storage, screen quality and the right processor generation.",
+  "canonicalPath": "/best-budget-laptops-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "business laptop",
+  "backupQueries": [
+    "Lenovo laptop",
+    "HP laptop",
+    "asus laptop"
+  ],
+  "minPrice": 200,
+  "requiredProductTerms": [
+    "laptop",
+    "notebook",
+    "computer"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Prices checked September 1, 2026",
+  "datePublished": "2026-08-25",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live US budget-laptop prices",
+  "comparisonSectionTitle": "Best US budget laptop — at a glance",
+  "comparisonColumns": [
+    "Best for",
+    "What to look for",
+    "Why we picked it",
+    "Watch out for"
+  ],
+  "comparisonRows": [
+    {
+      "label": "School / everyday pick",
+      "values": [
+        "14\" FHD or better, 8 GB RAM, 256 GB SSD",
+        "Current-gen Ryzen or Core, all-day battery",
+        "Often bundled with student deals during back-to-school"
+      ]
+    },
+    {
+      "label": "Work-from-home pick",
+      "values": [
+        "14–15\" IPS, 16 GB RAM, 512 GB SSD",
+        "Good keyboard and trackpad, reliable Wi-Fi 6E",
+        "Avoid ultra-budget SKUs with soldered low-spec panels"
+      ]
+    },
+    {
+      "label": "Streaming / media pick",
+      "values": [
+        "15–16\" FHD+ or better, stereo speakers",
+        "Bright display, slim bezels, decent battery",
+        "Integrated graphics only; do not pay a GPU premium at this tier"
+      ]
+    },
+    {
+      "label": "Travel / light pick",
+      "values": [
+        "13–14\" sub-1.4 kg chassis, 1080p+",
+        "Compact charger, decent keyboard",
+        "Smaller batteries and fewer ports — bring an adapter"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What changed in budget laptops this year",
+  "highlights": [
+    {
+      "title": "16 GB of RAM is now the floor, not the upgrade",
+      "body": "Two years ago, 8 GB was the typical budget laptop spec. In 2026, 16 GB is the new sensible floor on any laptop you plan to keep for more than a year — browsers, video calls and AI features chew through memory fast, and 8 GB is now noticeably sluggish once you open more than a handful of tabs. Stretch the budget for 16 GB if you can."
+    },
+    {
+      "title": "Displays are the new differentiator",
+      "body": "Processors in the budget tier have largely converged; the meaningful differences are now in screen quality. Look for 1080p or higher IPS panels, 300 nits or better brightness and full sRGB coverage if you care about colour. Avoid the cheapest TN panels and 1366×768 SKUs — they feel slow even with strong internals."
+    },
+    {
+      "title": "Battery life and USB-C charging",
+      "body": "The biggest quality-of-life improvement in budget laptops is USB-C charging. If the laptop charges over USB-C at 45 watts or higher, you can carry one charger for your phone, tablet and laptop, which is genuinely freeing when you travel. Check the charger wattage before you buy — not every USB-C port supports charging."
+    },
+    {
+      "title": "Repairability and upgradability are real again",
+      "body": "Several budget lines now ship with user-replaceable SSDs, batteries and even RAM. If you keep laptops for five-plus years, look for service manuals and confirm that parts are stocked before you commit to a specific model."
+    }
+  ],
+  "adviceSectionTitle": "How to buy the right budget laptop in the US",
+  "advicePoints": [
+    "Do not pay for a dedicated GPU at this tier. Integrated graphics now handle streaming, light photo editing and most indie games; a discrete GPU at this price band means sacrifices in CPU, RAM or screen.",
+    "Prioritise RAM and storage over the latest processor generation. The jump from a last-gen Ryzen or Core to the current one is small in everyday use; the jump from 8 to 16 GB of RAM is huge.",
+    "Buy from a brand with US service. Major US retailers and direct-to-consumer brands with US-based service mean a faster, cheaper repair path. Grey-market listings can be cheaper but warranty service is harder.",
+    "Time the buy around back-to-school and Black Friday. The deepest US budget-laptop discounts cluster in late July through September and again in late November. If you can wait, the same laptop often drops by 20–30%.",
+    "Check the keyboard and trackpad in person if you can. Specs are easy to compare online; keyboard feel and trackpad smoothness are not. A five-minute hands-on at Best Buy or a big-box store is worth the trip.",
+    "Do not overpay for bloatware-free promises. A clean Windows install is a one-hour afternoon with a USB stick; do not let a 'bloatware-free' sticker push you into a worse-spec laptop."
+  ],
+  "faqSectionTitle": "Best budget laptops in the US — common questions",
+  "faqs": [
+    {
+      "question": "What is the best budget laptop under a thousand dollars in the US?",
+      "answer": "For most people, a 14-inch laptop with a current-generation Ryzen or Core processor, 16 GB of RAM and a 512 GB SSD is the right pick. The live US listings on this page show the current options from Amazon, Best Buy, Walmart and the direct-to-consumer brands."
+    },
+    {
+      "question": "Are Chromebooks a smarter buy than budget Windows laptops in the US?",
+      "answer": "If your work lives in the browser and you do not depend on Windows-only apps, a mid-range Chromebook is faster and cheaper than a comparable Windows laptop. If you need any Windows app for school or work, a Windows budget laptop is the safer buy."
+    },
+    {
+      "question": "How long should a budget laptop last in 2026?",
+      "answer": "A well-chosen budget laptop with 16 GB of RAM and a current-gen processor should comfortably last four to six years for everyday school, work and streaming. Battery replacement after three years can extend that further if the chassis is serviceable."
+    },
+    {
+      "question": "Is it worth waiting for Black Friday to buy a US budget laptop?",
+      "answer": "Often yes. Black Friday and the week before it are the deepest discount windows for US budget laptops; if you can wait two to three months, the same model is often 20–30% cheaper than at launch."
+    },
+    {
+      "question": "Should I buy an entry-level MacBook or a premium Windows laptop at the same price?",
+      "answer": "If your work fits macOS and you value battery life and resale value, the entry-level MacBook is a strong pick. If you play games, depend on Windows-only apps or need a touchscreen or 2-in-1, a premium Windows laptop is the better choice at the same price."
+    }
+  ],
+  "fallbackProducts": [
+    {
+      "id": "9222976908546513010",
+      "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" Premium Business Laptop - Intel Core Ultra 7 155H, 16GB RAM, 512GB SSD",
+      "price": 1999,
+      "currency": "USD",
+      "merchant": "lenovo.com",
+      "imageUrl": "https://p1-ofp.static.pub/lenovo-x1c12.jpg",
+      "href": "/r/direct/9222976908546513010",
+      "affiliateUrl": "/r/direct/9222976908546513010",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513019",
+      "name": "Dell Latitude 5550 15.6\" Business Laptop - Intel Core Ultra 7 155U, 16GB RAM, 512GB SSD",
+      "price": 1499,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-5550.jpg",
+      "href": "/r/direct/9222976908546513019",
+      "affiliateUrl": "/r/direct/9222976908546513019",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513021",
+      "name": "Dell Latitude 7350 Detachable 13.3\" Business Laptop - Intel Core Ultra 7 164U, 16GB RAM, 512GB SSD",
+      "price": 1899,
+      "currency": "USD",
+      "merchant": "dell.com",
+      "imageUrl": "https://i.dell.com/latitude-7350.jpg",
+      "href": "/r/direct/9222976908546513021",
+      "affiliateUrl": "/r/direct/9222976908546513021",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "9222976908546513007",
+      "name": "Lenovo ThinkPad T14 Gen 5 14\" Business Laptop - Intel Core Ultra 7 155U, 32GB RAM, 1TB SSD",
+      "price": 1899,
+      "currency": "USD",
+      "merchant": "lenovo.com",
+      "imageUrl": "https://p1-ofp.static.pub/lenovo-t14g5-1tb.jpg",
+      "href": "/r/direct/9222976908546513007",
+      "affiliateUrl": "/r/direct/9222976908546513007",
+      "brand": "",
+      "category": ""
+    }
+  ],
+  "hreflangAlternates": {
+    "en-SG": "/best-budget-laptops-singapore"
+  },
+  "inboundLinks": [
+    "/best-gaming-laptops-us",
+    "/search?q=laptop"
+  ],
+  "categoryIntro": {
+    "heading": "Why the US budget laptop market is unusually competitive",
+    "body": "The US is the most competitive market for budget laptops in the world — direct-to-consumer brands, major retailers, and carrier and OEM bundles all stack up against each other, and the same spec sheet can be had at meaningfully different prices depending on where and when you buy. Back-to-school and Black Friday are the obvious discount windows, but the rest of the year carries steady pricing from direct-to-consumer brands trying to win share. This page tracks the listings that are actually available, at the prices they actually trade for, so you can pick the right budget laptop for what you need rather than chase the cheapest sticker."
+  },
+  "owner": "Venture",
+  "reviewer": "Hue",
+  "queueRow": 14
+}

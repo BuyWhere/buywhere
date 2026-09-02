@@ -1,0 +1,125 @@
+name: Install MCP Uptime Monitoring
+
+on:
+  workflow_dispatch:
+    inputs:
+      mcp_url:
+        description: 'MCP health endpoint URL'
+        required: false
+        default: 'https://mcp.buywhere.ai/health'
+      dry_run:
+        description: 'If true, validate steps without making changes'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  install-mcp-uptime:
+    name: Install MCP uptime monitoring on production VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload scripts to VM
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          REMOTE_TMP="/tmp/mcp-uptime-install"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p $REMOTE_TMP"
+          for f in scripts/setup-mcp-uptime-monitoring.sh scripts/check-mcp-uptime.sh scripts/report-mcp-uptime.sh scripts/mcp-uptime-dashboard.html; do
+            scp -P "$SSH_PORT" "$f" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/"
+          done
+
+      - name: Run setup script
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          MCP_URL: ${{ github.event.inputs.mcp_url }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY RUN would execute:"
+            echo "  ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'cd /tmp/mcp-uptime-install && ./setup-mcp-uptime-monitoring.sh $MCP_URL'"
+            exit 0
+          fi
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd /tmp/mcp-uptime-install && chmod +x *.sh && ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
+
+      - name: Install nginx config and reload
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          WEB_ROOT="$(echo $HOME)/mcp-uptime/www"
+          NGINX_CONF="/etc/nginx/sites-enabled/mcp-uptime.conf"
+
+          if [ -f "$NGINX_CONF" ]; then
+            echo "nginx config already exists — skipping write"
+          else
+            CONTENT="location /mcp-uptime {
+                alias ${WEB_ROOT};
+                index index.html;
+                add_header Cache-Control \"no-cache, max-age=0\";
+                add_header X-Frame-Options \"SAMEORIGIN\";
+            }"
+            TMPFILE=$(mktemp)
+            echo "$CONTENT" > "$TMPFILE"
+            cp "$TMPFILE" "$NGINX_CONF" 2>/dev/null \
+              || sudo -n cp "$TMPFILE" "$NGINX_CONF" 2>/dev/null \
+              || sudo cp "$TMPFILE" "$NGINX_CONF" 2>/dev/null \
+              || echo "$CONTENT" | sudo -n tee "$NGINX_CONF" > /dev/null 2>/dev/null \
+              || echo "$CONTENT" | sudo tee "$NGINX_CONF" > /dev/null 2>/dev/null \
+              || echo "WARNING: could not write nginx config — add manually"
+            rm -f "$TMPFILE"
+            [ -f "$NGINX_CONF" ] && echo "nginx config written to $NGINX_CONF"
+          fi
+
+          nginx -t 2>&1 || sudo -n nginx -t 2>&1 || sudo nginx -t 2>&1 || { echo "ERROR: nginx config test failed"; exit 1; }
+          echo "nginx config syntax OK"
+
+          nginx -s reload 2>/dev/null \
+            || sudo -n nginx -s reload 2>/dev/null \
+            || sudo nginx -s reload 2>/dev/null \
+            || systemctl reload nginx 2>/dev/null \
+            || sudo -n systemctl reload nginx 2>/dev/null \
+            || echo "WARNING: nginx reload failed — reload manually"
+          echo "nginx reloaded"
+          REMOTE
+
+      - name: Verify installation
+        run: |
+          echo "=== Verifying MCP uptime monitoring ==="
+          sleep 10
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://api.buywhere.ai/mcp-uptime/uptime.json 2>/dev/null || echo "000")
+          echo "GET /mcp-uptime/uptime.json -> HTTP ${HTTP}"
+          if [ "$HTTP" = "200" ]; then
+            echo "SUCCESS: Dashboard is live"
+          else
+            echo "WARNING: Dashboard returned ${HTTP} - may need a moment to generate first report"
+          fi
+
+      - name: Summary
+        run: |
+          echo "=== MCP Uptime Monitoring Install Summary ==="
+          echo "Dashboard: https://api.buywhere.ai/mcp-uptime"
+          echo "Status: $(curl -s https://api.buywhere.ai/mcp-uptime/uptime.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("status","unknown"))' 2>/dev/null || echo 'pending')"

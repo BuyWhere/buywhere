@@ -1,0 +1,9 @@
+{
+  "description": "Magento Public API Discovery \u2014 BUY-17966",
+  "generated_at": "2026-05-15T18:18:33.637336+00:00",
+  "total_magento_stores": 0,
+  "total_guest_accessible": 0,
+  "total_needs_credentials": 0,
+  "accessible_merchants": [],
+  "needs_credentials_merchants": []
+}

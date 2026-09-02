@@ -1,0 +1,314 @@
+{
+  "run_id": "164542e5-417c-430b-88ad-537c63430a31",
+  "batch": "r409_batch192",
+  "timestamp": "2026-08-26T154200Z",
+  "niches_queried": [
+    "astronomy",
+    "model_railroading",
+    "soap_making_supplies",
+    "board_games",
+    "rc_drones",
+    "calligraphy"
+  ],
+  "raw_discoveries": {
+    "astronomy": [
+      "astronomics.com",
+      "highpointscientific.com",
+      "agenaastro.com",
+      "milehighastro.com",
+      "starizona.com",
+      "cloudbreakoptics.com",
+      "telescopes.net",
+      "usa.all-startelescope.com"
+    ],
+    "model_railroading": [
+      "trainz.com",
+      "modeltrainstuff.com",
+      "modeltrainmarket.com",
+      "factorydirecthobbies.com",
+      "shop.trains.com",
+      "walthers.com",
+      "macrailproducts.com",
+      "rrhobbies.com",
+      "themodelrailroadshop.com",
+      "trainworld.com"
+    ],
+    "soap_making_supplies": [
+      "brambleberry.com",
+      "midwestfragranceco.com",
+      "shayandcompany.com",
+      "chemistrystore.com",
+      "wholesalesuppliesplus.com",
+      "soapandmore.com",
+      "naturesgardencandles.com",
+      "essentiallabs.com"
+    ],
+    "board_games": [
+      "theop.games",
+      "chesshouse.com",
+      "boardgamegeek.com",
+      "ledergames.com",
+      "dwarvenforge.com",
+      "pandemoniumbooks.com",
+      "boardlandia.com",
+      "wargamesatlantic.com",
+      "compleatstrategist.com",
+      "level99games.com"
+    ],
+    "rc_drones": [
+      "racedayquads.com",
+      "getfpv.com",
+      "rotorriot.com",
+      "helidirect.com",
+      "newbeedrone.com",
+      "pyrodrone.com",
+      "exhobby.com",
+      "exodrones.com",
+      "masterairscrew.com"
+    ],
+    "calligraphy": [
+      "paperinkarts.com",
+      "johnnealbooks.com",
+      "thepostmansknock.com",
+      "gouletpens.com",
+      "jetpens.com",
+      "arabiccalligraphysupplies.com",
+      "blueheronarts.com",
+      "orientalartsupply.com",
+      "writtenwordcalligraphy.com"
+    ]
+  },
+  "validated_shopify": [
+    {
+      "domain": "astronomics.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "astronomy"
+    },
+    {
+      "domain": "milehighastro.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "astronomy"
+    },
+    {
+      "domain": "starizona.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "astronomy"
+    },
+    {
+      "domain": "cloudbreakoptics.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "astronomy"
+    },
+    {
+      "domain": "usa.all-startelescope.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "astronomy"
+    },
+    {
+      "domain": "trainz.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "model_railroading"
+    },
+    {
+      "domain": "modeltrainstuff.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "model_railroading"
+    },
+    {
+      "domain": "modeltrainmarket.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "model_railroading"
+    },
+    {
+      "domain": "factorydirecthobbies.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "model_railroading"
+    },
+    {
+      "domain": "shop.trains.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "model_railroading"
+    },
+    {
+      "domain": "midwestfragranceco.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "soap_making_supplies"
+    },
+    {
+      "domain": "wholesalesuppliesplus.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "soap_making_supplies"
+    },
+    {
+      "domain": "soapandmore.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 0,
+      "niche": "soap_making_supplies"
+    },
+    {
+      "domain": "naturesgardencandles.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "soap_making_supplies"
+    },
+    {
+      "domain": "essentiallabs.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "soap_making_supplies"
+    },
+    {
+      "domain": "theop.games",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "chesshouse.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "ledergames.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "dwarvenforge.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "pandemoniumbooks.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "boardlandia.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 0,
+      "niche": "board_games"
+    },
+    {
+      "domain": "wargamesatlantic.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "level99games.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "board_games"
+    },
+    {
+      "domain": "racedayquads.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "rotorriot.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "helidirect.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "newbeedrone.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "pyrodrone.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "exhobby.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "masterairscrew.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "rc_drones"
+    },
+    {
+      "domain": "gouletpens.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "calligraphy"
+    },
+    {
+      "domain": "orientalartsupply.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "calligraphy"
+    },
+    {
+      "domain": "writtenwordcalligraphy.com",
+      "shopify_status": 200,
+      "is_shopify": true,
+      "product_count": 30,
+      "niche": "calligraphy"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--bw-font-sans);
+  font-weight: 600;
+  border-radius: var(--bw-radius-sm);
+  white-space: nowrap;
+}
+
+.new {
+  background-color: var(--bw-color-primary);
+  color: var(--bw-color-white);
+}
+
+.sale {
+  background-color: var(--bw-color-error);
+  color: var(--bw-color-white);
+}
+
+.out-of-stock {
+  background-color: var(--bw-color-gray-200);
+  color: var(--bw-color-gray-600);
+}

@@ -1,0 +1,2002 @@
+[
+  {
+    "id": 1,
+    "query": "running shoes",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return running shoes from multiple merchants, ranked by relevance and popularity",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 2,
+    "query": "wireless earbuds",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return wireless earbuds across several brands and merchants",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 3,
+    "query": "coffee maker",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return coffee makers of various types (drip, espresso, pour-over)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 4,
+    "query": "laptop stand",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return laptop stands from multiple merchants with correct category",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 5,
+    "query": "yoga mat",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return yoga mats with correct category and material variants",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 6,
+    "query": "gaming mouse",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return gaming mice with DPI info across brands",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 7,
+    "query": "standing desk",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return standing/height-adjustable desks",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 8,
+    "query": "kitchen knife",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return kitchen knives of common types (chef, santoku)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 9,
+    "query": "birthday gift",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "medium",
+    "expected_behavior": "should return giftable products (toys, gifts, electronics) despite non-specific intent",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 10,
+    "query": "bluetooth speaker",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return bluetooth/portable speakers across brands",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 11,
+    "query": "smartphone",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return smartphones across brands, not accessories",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 12,
+    "query": "laptop bag",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return laptop bags and sleeves fitting 13-16 inch laptops",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 13,
+    "query": "noise cancelling headphones",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return ANC over-ear/on-ear headphones",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 14,
+    "query": "air purifier",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return air purifiers with CADR/room coverage info",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 15,
+    "query": "robot vacuum",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return robot vacuums (Roomba, etc.)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 16,
+    "query": "mechanical keyboard",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return mechanical keyboards by switch type and layout",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 17,
+    "query": "webcam",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return webcams with resolution (1080p/4K)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 18,
+    "query": "portable charger",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return power banks by capacity (mAh)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 19,
+    "query": "desk lamp",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return desk lamps including LED eye-care models",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 20,
+    "query": "water bottle",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return insulated/steel water bottles",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 21,
+    "query": "backpack",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return backpacks across categories (school, travel, laptop)",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 22,
+    "query": "yoga pants",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return yoga/active leggings",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 23,
+    "query": "sunglasses",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return sunglasses with lens/UV protection info",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 24,
+    "query": "watch",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return watches (smart + analog) with correct category",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 25,
+    "query": "pillow",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "generic_search",
+    "difficulty": "easy",
+    "expected_behavior": "should return pillows with fill/material variants",
+    "_note": "generic product query exercising broad keyword + semantic recall"
+  },
+  {
+    "id": 26,
+    "query": "iphone 15 pro max",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find iPhone 15 Pro Max specifically, with capacity/variant",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 27,
+    "query": "samsung galaxy s24",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Samsung Galaxy S24 family specifically",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 28,
+    "query": "sony wh-1000xm5",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Sony WH-1000XM5 headphones exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 29,
+    "query": "dyson v12",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Dyson V12 cordless vacuum exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 30,
+    "query": "airpods pro",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Apple AirPods Pro (1st/2nd gen) exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 31,
+    "query": "macbook pro m3",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Apple MacBook Pro with M3 chip family",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 32,
+    "query": "nintendo switch oled",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Nintendo Switch OLED console exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 33,
+    "query": "ps5 console",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find PlayStation 5 console (disc/digital) exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 34,
+    "query": "fitbit charge 6",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Fitbit Charge 6 fitness tracker exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 35,
+    "query": "kindle paperwhite",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Kindle Paperwhite e-reader exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 36,
+    "query": "goPro hero 12",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find GoPro HERO 12 action camera exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 37,
+    "query": "bose quietcomfort",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Bose QuietComfort line of headphones",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 38,
+    "query": "roomba j7",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find iRobot Roomba j7 robot vacuum exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 39,
+    "query": "dji mini 4",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find DJI Mini 4 drone line exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 40,
+    "query": "garmin forerunner 265",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Garmin Forerunner 265 GPS watch exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 41,
+    "query": "tesla model 3 floor mats",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "hard",
+    "expected_behavior": "should find Tesla Model 3 floor mats/all-weather mats from accessory sellers despite niche SKU",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 42,
+    "query": "lg c4 65 inch",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find LG C4 65-inch OLED TV exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 43,
+    "query": "samsung frame tv",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Samsung The Frame TV line",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 44,
+    "query": "apple watch ultra 2",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Apple Watch Ultra 2 exactly",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 45,
+    "query": "sony a7 iv",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sku_exact",
+    "difficulty": "easy",
+    "expected_behavior": "should find Sony Alpha a7 IV camera body/lens kit",
+    "_note": "exact model/SKU query testing precise product matching, not just category"
+  },
+  {
+    "id": 46,
+    "query": "best laptop under 1000",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return laptops priced below ~$1000, ranked by value",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 47,
+    "query": "cheap wireless headphones",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return budget wireless headphones irrespective of brand",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 48,
+    "query": "premium coffee grinder",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return high-end burr coffee grinders",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 49,
+    "query": "kids tablet for school",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return child-friendly tablets with parental controls",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 50,
+    "query": "office furniture singapore",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return office furniture available/designed for Singapore market",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 51,
+    "query": "home gym equipment",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return fitness equipment for home use (dumbbells, benches, bands)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 52,
+    "query": "camping gear essentials",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return core camping equipment (tents, stoves, lanterns)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 53,
+    "query": "pet supplies online",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return pet food, toys and accessories",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 54,
+    "query": "baby stroller lightweight",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return lightweight/compact strollers",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 55,
+    "query": "kitchen appliances sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return kitchen appliances (blenders, toasters, air fryers) on discount",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 56,
+    "query": "outdoor security camera",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return outdoor IP/security cameras",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 57,
+    "query": "smart home starter kit",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return smart-home bundles (hub + lights + plugs)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 58,
+    "query": "travel accessories carry on",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return carry-on travel accessories (organizers, adapters, luggage)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 59,
+    "query": "car accessories interior",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return interior car accessories (covers, mats, organizers)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 60,
+    "query": "garden tools set",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return garden tool sets",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 61,
+    "query": "home office desk setup",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return desk setup items (monitors, chairs, organizenders)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 62,
+    "query": "christmas gifts for dad",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return giftable gadgets/tools typical for a dad gift",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 63,
+    "query": "valent day gifts for her",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return gifts commonly bought for female partners (jewelry, cosmetics, flowers)",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 64,
+    "query": "back to school supplies",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return stationery and school essentials",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 65,
+    "query": "diwali decorations online",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "category_browse",
+    "difficulty": "medium",
+    "expected_behavior": "should return Diwali/lamps/decoration items given cultural context",
+    "_note": "browse-style query with intent modifiers, relying on semantic matching"
+  },
+  {
+    "id": 66,
+    "query": "cheapest iphone 16",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return iPhone 16 listings ordered by price ascending to surface cheapest",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 67,
+    "query": "best price airpods pro",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return cheapest AirPods Pro listings across merchants",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 68,
+    "query": "shopee vs lazada laptop deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return laptop listings from Shopee and Lazada for side-by-side comparison",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 69,
+    "query": "amazon vs walmart tv prices",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return the same TV models sold by Amazon and Walmart to compare",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 70,
+    "query": "lowest price nike running shoes",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return Nike running shoes ordered by price to surface lowest",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 71,
+    "query": "price comparison bluetooth speakers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return comparable bluetooth speakers so user can compare prices",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 72,
+    "query": "affordable alternatives to dyson",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should surface comparable cordless vacuums cheaper than Dyson",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 73,
+    "query": "budget gaming monitor 27 inch",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return 27-inch gaming monitors under ~$300",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 74,
+    "query": "premium vs budget mechanical keyboard",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return keyboards across wide price range to compare premium vs budget tiers",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 75,
+    "query": "best value noise cancelling headphones",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return well-reviewed ANC headphones with good feature-per-dollar",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 76,
+    "query": "costco vs amazon bulk snacks",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return bulk snack packs available at Costco and Amazon",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 77,
+    "query": "target vs walmart baby formula",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return baby formula listings across Target and Walmart",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 78,
+    "query": "cheapest place to buy lego sets",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return LEGO set listings from multiple merchants ordered by price",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 79,
+    "query": "price match guarantee electronics",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return electronics retailers with price-match policies",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 80,
+    "query": "best deal on samsung galaxy tab",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return Samsung Galaxy Tab listings, cheapest/ discounted first",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 81,
+    "query": "who has the cheapest protein powder",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return protein powder listings ordered by unit price across sellers",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 82,
+    "query": "best buy price match amazon",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return products where price comparison between Best Buy and Amazon applies",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 83,
+    "query": "cheapest place to buy designer perfume",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "hard",
+    "expected_behavior": "should return designer fragrance listings from discount sellers",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 84,
+    "query": "bulk buying office supplies cheap",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return office supplies in bulk quantities at low unit prices",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 85,
+    "query": "cheapest standing desk with drawers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "price_comparison",
+    "difficulty": "medium",
+    "expected_behavior": "should return standing desks with drawers priced low",
+    "_note": "comparative/value-seeking intent; ordering and cross-merchant coverage matter"
+  },
+  {
+    "id": 86,
+    "query": "deals on electronics today",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return electronics with active discounts",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 87,
+    "query": "black friday laptop deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return discounted laptops (Black Friday campaign)",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 88,
+    "query": "clearance shoes nike",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return Nike shoes on clearance with price cuts",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 89,
+    "query": "flash sale shopee",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return items on Shopee flash-sale timers",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 90,
+    "query": "coupon code amazon electronics",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return Amazon electronics eligible for coupon/discount",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 91,
+    "query": "biggest discounts right now",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return deep-discounted products regardless of category",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 92,
+    "query": "price drop alerts",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return products recently reduced in price",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 93,
+    "query": "refurbished iphone deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return refurbished iPhone offers",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 94,
+    "query": "open box tv deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return open-box/damaged-box TVs at discount",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 95,
+    "query": "end of season sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return seasonal clearance inventory",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 96,
+    "query": "members only discount",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return membership-exclusive deals (Costco, Sam's)",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 97,
+    "query": "bulk discount office chairs",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return office chairs where multi-unit pricing applies",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 98,
+    "query": "warehouse sale electronics",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return electronics from warehouse/outlet channels",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 99,
+    "query": "student discount laptops",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return laptops with education/student pricing",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 100,
+    "query": "military discount electronics",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return electronics sellers offering military discounts",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 101,
+    "query": "loyalty rewards best buy",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return products eligible under Best Buy rewards",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 102,
+    "query": "cashback offer credit card",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return products with card-cashback promotions when tagged",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 103,
+    "query": "bundle deal gaming console",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "medium",
+    "expected_behavior": "should return console bundles (console + games/accessories)",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 104,
+    "query": "free shipping deals today",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return products with free-shipping promotions",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 105,
+    "query": "lightning deal amazon right now",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "deals_discounts",
+    "difficulty": "hard",
+    "expected_behavior": "should return Amazon lightning deals currently active",
+    "_note": "deal/discount-seeking; should surface promotions, campaigns and price cuts"
+  },
+  {
+    "id": 106,
+    "query": "where to buy lego star wars",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return the same/related LEGO Star Wars sets available from multiple merchants",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 107,
+    "query": "sony headphones multiple stores",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return the same Sony headphone models carried by several retailers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 108,
+    "query": "nike air max all retailers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Nike Air Max stock across multiple retailers for comparison",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 109,
+    "query": "apple ipad compare sellers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return iPad listings from several sellers so prices can be compared",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 110,
+    "query": "samsung tv best buy vs amazon",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Samsung TV listings from both Best Buy and Amazon",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 111,
+    "query": "dyson vacuum who has stock",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Dyson vacuum listings across merchants, favoring in-stock sellers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 112,
+    "query": "lululemon leggings all stores",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return lululemon leggings carried by multiple resellers/retailers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 113,
+    "query": "adidas ultraboost compare prices",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return the same adidas Ultraboost model priced by different sellers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 114,
+    "query": "bose speaker different shops",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Bose speaker listings across different stores",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 115,
+    "query": "dell laptop authorized dealers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Dell laptops from authorized reseller listings",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 116,
+    "query": "canon camera authorized retailers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Canon camera listings from authorized retailers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 117,
+    "query": "patagonia jacket all sellers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Patagonia jacket stock across sellers",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 118,
+    "query": "yet tumbler compare prices",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return YETI tumbler listings priced by various merchants",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 119,
+    "query": "kitchenaid mixer best deal",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return KitchenAid mixer listings across sellers ordered by value",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 120,
+    "query": "vitamix blender all stores",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "cross_merchant",
+    "difficulty": "hard",
+    "expected_behavior": "should return Vitamix blender listings from multiple stores",
+    "_note": "same-product multi-merchant query; cross-seller coverage and comparability are key"
+  },
+  {
+    "id": 121,
+    "query": "shopee singapore deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "easy",
+    "expected_behavior": "should return items discounted on Shopee Singapore",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 122,
+    "query": "lazada malaysia electronics",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "easy",
+    "expected_behavior": "should return electronics sold on Lazada Malaysia",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 123,
+    "query": "courts singapore promotion",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return items on promotion at Courts Singapore",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 124,
+    "query": "harvey norman aircon",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "easy",
+    "expected_behavior": "should return air-conditioners sold at Harvey Norman",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 125,
+    "query": "best denki washing machine",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "easy",
+    "expected_behavior": "should return washing machines sold at Best Denki",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 126,
+    "query": "challenger phone deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return phone deals at Challenger (SG tech retailer)",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 127,
+    "query": "fairprice online grocery",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return grocery items from NTUC FairPrice online",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 128,
+    "query": "iqoo phone singapore",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "easy",
+    "expected_behavior": "should return iQOO phones available in Singapore",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 129,
+    "query": "shopee sg flash sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return Shopee Singapore flash-sale items",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 130,
+    "query": "lazada sg 11.11 sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return items discounted for Lazada Singapore 11.11",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 131,
+    "query": "changi airport duty free",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return duty-free electronics/beauty items associated with Changi Airport",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 132,
+    "query": "takashimaya department store",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return products carried by Takashimaya Singapore",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 133,
+    "query": "tangs singapore sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return sale items at Tangs Singapore",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 134,
+    "query": "wet market fresh seafood delivery",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return fresh seafood delivery options relevant to Singapore wet-market context",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 135,
+    "query": "redmart online grocery",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "sea_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return grocery items from RedMart (Lazada grocery)",
+    "_note": "Singapore/Malaysia retailer-anchored query; geography/market of return matters"
+  },
+  {
+    "id": 136,
+    "query": "amazon prime day deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return electronics/household items typical of Prime Day discounts",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 137,
+    "query": "walmart clearance sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return clearance-priced items from Walmart",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 138,
+    "query": "target circle offers",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return items carrying Target Circle offers",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 139,
+    "query": "best buy open box deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return open-box electronics from Best Buy",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 140,
+    "query": "costco membership deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return electronics/bulk items with Costco member pricing",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 141,
+    "query": "home depot labor day sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return tools/appliances discounted for Labor Day at Home Depot",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 142,
+    "query": "lowes appliances sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return major appliances on sale at Lowe's",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 143,
+    "query": "chewy pet supplies deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return discounted pet supplies from Chewy",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 144,
+    "query": "wayfair furniture sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return furniture on sale at Wayfair",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 145,
+    "query": "etsy handmade gifts",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return handmade/custom gifts typical of Etsy",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 146,
+    "query": "ulta beauty sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return beauty items on sale at Ulta",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 147,
+    "query": "zappos shoe deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return discounted shoes sold by Zappos",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 148,
+    "query": "rei members sale",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return outdoor gear under REI member pricing",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 149,
+    "query": "bed bath beyond alternatives",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return home-goods equivalents now sold at other retailers after BBB closure",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 150,
+    "query": "craigslist furniture near me",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return second-hand/used furniture listings typical of local marketplaces",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 151,
+    "query": "facebook marketplace deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return used/local goods consistent with Facebook Marketplace inventory",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 152,
+    "query": "offerup local deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "hard",
+    "expected_behavior": "should return local second-hand goods consistent with OfferUp inventory",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 153,
+    "query": "mercari second hand",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return pre-owned/used goods consistent with Mercari listings",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 154,
+    "query": "poshmark clothing deals",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return pre-owned fashion/clothing consistent with Poshmark",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 155,
+    "query": "depop vintage fashion",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "us_retailers",
+    "difficulty": "medium",
+    "expected_behavior": "should return vintage/second-hand apparel consistent with Depop",
+    "_note": "US-retailer-anchored query; merchant coverage and US market context matter"
+  },
+  {
+    "id": 156,
+    "query": "gift for someone who has everything",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return novel/unique giftable products because intent is deliberately vague",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 157,
+    "query": "something to help me sleep better",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface sleep aids: masks, white-noise devices, weighted blankets, supplements",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 158,
+    "query": "replace my broken laptop charger for dell xps 15",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return a compatible Dell XPS 15 charger/adaptor despite the verbose phrasing",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 159,
+    "query": "thing that makes my coffee taste better",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface coffee accessories improving taste: grinders, kettles, filters",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 160,
+    "query": "organize my messy desk cables",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return cable management products (clips, sleeves, racks)",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 161,
+    "query": "cool gadget under 50 dollars",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return trending gadgets priced under $50",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 162,
+    "query": "stuff for my new apartment",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return essential household/apartment items across furniture and home goods",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 163,
+    "query": "make my phone battery last longer",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface power banks/chargers and accessories solving low battery life",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 164,
+    "query": "reduce eye strain from screen",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface blue-light glasses, anti-glare filters, eye-care lamps",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 165,
+    "query": "keep food fresh longer without fridge",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface food-storage solutions (vacuum sealers, containers, coolers)",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 166,
+    "query": "workout equipment small apartment",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return compact/low-footprint fitness gear",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 167,
+    "query": "noise blocker for office",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface earplugs/headphones/white-noise devices for office focus",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 168,
+    "query": "clean air without bulky purifier",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface compact/personal air purifiers",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 169,
+    "query": "track my running without phone",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface GPS running watches that operate standalone",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 170,
+    "query": "charge all devices with one cable",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface multi-protocol/multi-port charging cables and GaN chargers",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 171,
+    "query": "find something similar to airpods but cheaper",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface budget ANC true-wireless earbuds similar to AirPods",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 172,
+    "query": "good gifts for techies under 30",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return affordable tech-adjacent gadgets under ~$30",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 173,
+    "query": "outdoor gear for singapore weather",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return rainproof/breathable outdoor gear suited to tropical Singapore",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 174,
+    "query": "laptop that wont overheat",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should surface good-thermals laptops and cooling pads",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 175,
+    "query": "mouse ergonomic for small hands",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "hard_queries",
+    "difficulty": "hard",
+    "expected_behavior": "should return compact ergonomic mice sized for small hands",
+    "_note": "ambiguous/intent-first query; semantic understanding, not keyword match, is required"
+  },
+  {
+    "id": 176,
+    "query": "xyzzy product",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return no relevant results and a clean empty/degraded response, not an error",
+    "_note": "nonsense token; asserts robust empty result path"
+  },
+  {
+    "id": 177,
+    "query": "asdhjkasfh product search",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty results gracefully (emptiness_reason populated), not 500",
+    "_note": "random non-word; input validation / empty handling"
+  },
+  {
+    "id": 178,
+    "query": "buy 0 results",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty results gracefully rather than misinterpreting as a quantity filter",
+    "_note": "number word edge case"
+  },
+  {
+    "id": 179,
+    "query": "ąęć product",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not crash on non-ASCII characters; returns empty or loosely-matching results",
+    "_note": "unicode/international charset robustness"
+  },
+  {
+    "id": 180,
+    "query": "手袋 shopee",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not crash on CJK text; may return empty if index is English-only, but must be a clean envelope",
+    "_note": "non-Latin script handling"
+  },
+  {
+    "id": 181,
+    "query": " productName null",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not crash; leading-space token treated as noise, returns empty gracefully",
+    "_note": "query with leading space and domain keyword"
+  },
+  {
+    "id": 182,
+    "query": "product with 99999 price",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not filter incorrectly on price literal; returns products or empty cleanly",
+    "_note": "numeric literal interpretation guard"
+  },
+  {
+    "id": 183,
+    "query": "extremely long product name search query that goes on and on and should test truncation and token limits in the embedding pipeline to ensure nothing breaks",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should be truncated/embedded without error and return empty or best-effort results, not 413/500",
+    "_note": "long-input truncation / token-limit guard"
+  },
+  {
+    "id": 184,
+    "query": "",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty results or a validation error, never crash",
+    "_note": "empty-string query guard"
+  },
+  {
+    "id": 185,
+    "query": " ",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should treat whitespace-only as empty and return empty gracefully",
+    "_note": "whitespace-only query guard"
+  },
+  {
+    "id": 186,
+    "query": "undefined",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty results, not crash or inject a literal 'undefined' keyword",
+    "_note": "JS identifier edge case"
+  },
+  {
+    "id": 187,
+    "query": "null",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty results, not crash",
+    "_note": "JS null literal edge case"
+  },
+  {
+    "id": 188,
+    "query": "script tag test <script>alert(1)</script>",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty result and echo sanitized (never execute) input; no crash",
+    "_note": "XSS injection attempt guard"
+  },
+  {
+    "id": 189,
+    "query": "sql injection ' OR 1=1 --",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should NOT evaluate the injection; parameters must be bound and return empty, not all rows",
+    "_note": "SQL injection guard — must not bypass filters"
+  },
+  {
+    "id": 190,
+    "query": "product name with emoji 🎧📱💻",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not crash on emoji; returns empty or loosely-matching results cleanly",
+    "_note": "emoji/surrogate-pair encoding guard"
+  },
+  {
+    "id": 191,
+    "query": "very rare product xyzzy 12345",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should return empty gracefully with no close-match noise",
+    "_note": "rare/nonexistent SKU; empty-result path"
+  },
+  {
+    "id": 192,
+    "query": "UPPERCASE PRODUCT NAME",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should be case-insensitive and return matching products, or empty cleanly",
+    "_note": "case-normalization guard"
+  },
+  {
+    "id": 193,
+    "query": "mixed Case PrOduCt",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should match case-insensitively to the product",
+    "_note": "case-insensitive matching verification"
+  },
+  {
+    "id": 194,
+    "query": "product (with) [brackets] {braces}",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should parse literal punctuation as text (not syntax) and return empty or best-effort, never error",
+    "_note": "punctuation/symbol handling guard"
+  },
+  {
+    "id": 195,
+    "query": "product@domain.com",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should treat @ as literal text, return empty gracefully, not crash",
+    "_note": "email-shaped token guard"
+  },
+  {
+    "id": 196,
+    "query": "http://example.com/product",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not fetch/external request; returns empty gracefully",
+    "_note": "URL-shaped query guard — no SSRF/external call"
+  },
+  {
+    "id": 197,
+    "query": "\t\n\r",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should treat control/whitespace-only as empty; return empty result gracefully",
+    "_note": "control-character/whitespace query guard"
+  },
+  {
+    "id": 198,
+    "query": "`,$",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should treat punctuation-only as empty noise; return empty cleanly",
+    "_note": "punctuation-only query guard"
+  },
+  {
+    "id": 199,
+    "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should truncate long input gracefully and return empty or best-effort, not crash",
+    "_note": "extreme-length single-token query guard"
+  },
+  {
+    "id": 200,
+    "query": "iphone OR samsung",
+    "type": "search",
+    "mode": "hybrid",
+    "category": "edge_cases",
+    "difficulty": "hard",
+    "expected_behavior": "should not interpret boolean operator; treat literal and return best-effort results",
+    "_note": "boolean operator in query text guard"
+  }
+]

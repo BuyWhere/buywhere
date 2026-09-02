@@ -1,0 +1,15 @@
+{
+  "started": "20260828T155637Z",
+  "source_counts": {
+    "crtsh_myshopify": 0
+  },
+  "source_errors": {
+    "crtsh_myshopify": [
+      "crt.sh fetch failed for '%.myshopify.com' after retries: 502 Server Error: Bad Gateway for url: https://crt.sh/?q=%25.myshopify.com&output=json&exclude=expired"
+    ]
+  },
+  "candidate_count": 0,
+  "existing_count": 0,
+  "new_candidate_count": 0,
+  "new_candidates_sample": []
+}

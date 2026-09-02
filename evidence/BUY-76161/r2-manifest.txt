@@ -1,0 +1,4 @@
+bucket=buywhere-data
+key=shopify/deuxcranes.com/2026-08-27.jsonl
+bytes=99901
+md5=743000b0240915246ca85703d22cf552

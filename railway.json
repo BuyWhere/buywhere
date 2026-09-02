@@ -1,0 +1,15 @@
+{
+  "deploy": {
+    "healthcheckPath": "/api/health/site?self=1",
+    "healthcheckTimeout": 600,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  },
+  "variables": {
+    "SITE_HEALTH_BASE_URL": "https://buywhere.ai",
+    "DISK_SPACE_CHECK_INTERVAL_MS": "300000",
+    "ARTIFACT_CLEANUP_RETENTION_HOURS": "48",
+    "ARTIFACT_CLEANUP_AUTO_APPLY": "1",
+    "ARTIFACT_CLEANUP_REPORT_PATH": "/tmp/artifact_cleanup_report.json"
+  }
+}
