@@ -2,7 +2,7 @@ row,priority,slug,intent_type,category,country,why,assigned_to,reviewer,status,u
 1,1,airpods-pro-3-price-malaysia,price,airpods pro 3,MY,SG/MY price pages get ChatGPT-User traffic (iphone-16-price-singapore: 257),Wave,Fetch,blocked:country-support,,['']
 2,1,airpods-pro-3-price-singapore,price,airpods pro 3,SG,SG/MY price pages get ChatGPT-User traffic (iphone-16-price-singapore: 257),Buzz,Hue,live,2026-08-25T18:38Z,['']
 3,1,airpods-pro-3-vs-airpods-pro-2-singapore,vs,airpods pro 3 vs airpods pro 2,SG,'X vs Y' = #3 ChatGPT page (iphone-16-vs-17: 834 fetches),Surf,Fetch,live,2026-09-01T12:15Z,'2026-08-31T18:50Z Surf: approved→live (reviewer confirmed HTTP 200); /r/ gap BUY-75629 Flux SEV-1.'
-4,1,airpods-pro-3-vs-airpods-pro-2-us,vs,airpods pro 3 vs airpods pro 2,US,'X vs Y' = #3 ChatGPT page (iphone-16-vs-17: 834 fetches),Venture,Hue,live,2026-08-25,['']
+4,1,airpods-pro-3-vs-airpods-pro-2-us,vs,airpods pro 3 vs airpods pro 2,US,'X vs Y' = #3 ChatGPT page (iphone-16-vs-17: 834 fetches),Venture,Hue,blocked:catalog,2026-09-02T06:00Z,"blocked:catalog — US catalog only AirPods Pro cases/accessories; queries tried: AirPods Pro, Apple AirPods Pro, AirPods Pro 2, AirPods Pro 3, AirPods Pro USB-C, Apple AirPods"
 5,1,best-4k-monitors-singapore,best,4k monitors,SG,proven intent family (ChatGPT/Perplexity fetches),Sol,Fetch,live,2026-08-25,['']
 6,1,best-4k-monitors-us,best,4k monitors,US,proven intent family (ChatGPT/Perplexity fetches),Wave,Hue,live,2026-08-25,['']
 7,1,best-air-purifiers-singapore,best,air purifiers,SG,proven intent family (ChatGPT/Perplexity fetches),Buzz,Fetch,live,2026-08-25T18:38Z,['']
