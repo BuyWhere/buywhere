@@ -548,6 +548,15 @@ export async function middleware(request: NextRequest) {
 
   capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip, cookieHeader, referrer);
 
+  // BUY-79828: friendly-404 variants must not be CDN-cached as the generic
+  // "Lost in the aisles?" shell. Query-param dispatch is SSR; noindex 404s.
+  if (pathname === "/not-found" || pathname === "/not-found/") {
+    const response = NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return withBaselineSecurityHeaders(request, response);
+  }
+
   // Dead blog slugs → 410 Gone (clean removal signal for Google, not a redirect)
   if (isDeadBlogSlug(pathname)) {
     return tagAgent(new NextResponse(null, {

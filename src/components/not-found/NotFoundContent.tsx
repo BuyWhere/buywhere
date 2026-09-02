@@ -311,6 +311,8 @@ export function NotFoundCategory({
   ];
 
   return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
     <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12">
       <div className="max-w-2xl w-full text-center">
         <div className="mb-8">
@@ -405,6 +407,8 @@ export function NotFoundCategory({
         </div>
       </div>
     </main>
+      <Footer />
+    </div>
   );
 }
 
@@ -452,6 +456,8 @@ export function NotFoundCompare({
     : `in ${countryLabel(country1)}`;
 
   return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
     <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12">
       <div className="max-w-2xl w-full text-center">
         <div className="mb-8">
@@ -553,6 +559,8 @@ export function NotFoundCompare({
         </div>
       </div>
     </main>
+      <Footer />
+    </div>
   );
 }
 
@@ -598,6 +606,8 @@ export function NotFoundProduct({ id, country }: { id?: string; country?: string
   ];
 
   return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
     <main id="main-content" className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12">
       <div className="max-w-2xl w-full text-center">
         <div className="mb-8">
@@ -735,6 +745,8 @@ export function NotFoundProduct({ id, country }: { id?: string; country?: string
         </div>
       </div>
     </main>
+      <Footer />
+    </div>
   );
 }
 
