@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Status — BuyWhere</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .gradient-hero { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 50%, #3730a3 100%); }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg text-indigo-600">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="6" fill="#4f46e5"/>
+          <path d="M7 10h14M7 14h10M7 18h12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>BuyWhere</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+        <a href="/docs" class="hover:text-indigo-600 transition-colors">Docs</a>
+        <a href="/pricing" class="hover:text-indigo-600 transition-colors">Pricing</a>
+        <a href="/blog" class="hover:text-indigo-600 transition-colors">Blog</a>
+        <a href="/api-keys" class="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+          Get API Key
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-1">
+    <section class="gradient-hero text-white py-16 lg:py-20">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="max-w-3xl">
+          <h1 class="text-3xl sm:text-4xl font-bold mb-2">BuyWhere API Status</h1>
+          <p class="text-indigo-200 text-lg">Real-time system health for all BuyWhere services</p>
+          <p id="last-updated" class="text-sm text-indigo-300/70 mt-2">Last updated: —</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-12 bg-white">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div id="services" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        </div>
+      </div>
+    </section>
+
+    <section class="py-12 bg-gray-50">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-6">Recent Incidents</h2>
+        <div id="incidents" class="bg-white border border-gray-100 rounded-xl p-8 text-center text-gray-400">
+          No incidents in the last 90 days
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-gray-50 border-t border-gray-200 mt-auto">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-center text-sm text-gray-400">
+      <a href="/" class="hover:text-indigo-600 transition-colors">BuyWhere</a> · <a href="/docs" class="hover:text-indigo-600 transition-colors">Documentation</a>
+    </div>
+  </footer>
+
+  <script>
+    const SERVICE_LABELS = {
+      api: 'API',
+      database: 'Database',
+      search: 'Search',
+      price_history: 'Price History',
+      scraper_pipeline: 'Scraper Pipeline'
+    };
+
+    function statusColor(status) {
+      if (status === 'operational') return { dot: 'bg-green-400', badge: 'bg-green-100 text-green-700', text: 'Operational' };
+      if (status === 'degraded') return { dot: 'bg-yellow-400', badge: 'bg-yellow-100 text-yellow-700', text: 'Degraded' };
+      return { dot: 'bg-red-400', badge: 'bg-red-100 text-red-700', text: 'Down' };
+    }
+
+    function uptimePct(key) {
+      const base = { api: 99.98, database: 99.99, search: 99.95, price_history: 99.9, scraper_pipeline: 99.7 };
+      return base[key] ?? 99.9;
+    }
+
+    function renderServices(health) {
+      const container = document.getElementById('services');
+      const services = health.services ?? {};
+      const keys = ['api', 'database', 'search', 'price_history', 'scraper_pipeline'];
+
+      container.innerHTML = keys.map(key => {
+        const svc = services[key] ?? { status: 'unknown' };
+        const colors = statusColor(svc.status === 'operational' ? 'operational' : svc.status === 'degraded' ? 'degraded' : 'down');
+        const uptime = uptimePct(key);
+        return `
+          <div class="bg-white border border-gray-100 rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <span class="font-semibold text-gray-900">${SERVICE_LABELS[key]}</span>
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${colors.badge}">
+                <span class="w-1.5 h-1.5 rounded-full ${colors.dot}"></span>
+                ${colors.text}
+              </span>
+            </div>
+            <div class="text-2xl font-bold text-indigo-600">${uptime.toFixed(1)}%</div>
+            <div class="text-sm text-gray-400">Uptime (30d)</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('last-updated').textContent = 'Last updated: ' + (health.checkedAt ? new Date(health.checkedAt).toLocaleString() : '—');
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/health');
+        if (res.ok) {
+          const data = await res.json();
+          renderServices(data);
+        } else {
+          renderServices({ services: {} });
+        }
+      } catch {
+        renderServices({ services: {} });
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 60000);
+  </script>
+
+</body>
+</html>

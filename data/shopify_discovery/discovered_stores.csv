@@ -1,0 +1,2 @@
+domain,platform,product_count,title,feed_url,atom_feed_url,has_atom_feed,status_code,response_time_ms,vendor,product_type,sample_price,tags,validated_at
+greatjonesgoods.com,shopify,69,Big Deal & Saucy,https://greatjonesgoods.com/products.json,https://greatjonesgoods.com/collections/all.atom,True,200,65,Great Jones,Bundle,190.0,badge_Save $60!,2026-05-15T17:44:25.295256+00:00

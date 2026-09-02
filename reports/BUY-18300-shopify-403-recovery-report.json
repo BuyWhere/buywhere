@@ -1,0 +1,402 @@
+{
+  "started_at": "2026-05-16T01:58:28.293020+00:00",
+  "merchant_start": 0,
+  "merchant_end": 24,
+  "merchants": [
+    {
+      "domain": "colehaan.com",
+      "status": "success",
+      "fetched": 912,
+      "transformed": 912,
+      "ingested": 912,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "colehaan.com",
+        "http_code": 200,
+        "last_page": 4,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "instantpot.com",
+      "status": "success",
+      "fetched": 120,
+      "transformed": 96,
+      "ingested": 96,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "instantpot.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "colourpop.com",
+      "status": "success",
+      "fetched": 1005,
+      "transformed": 1005,
+      "ingested": 1005,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "colourpop.com",
+        "http_code": 200,
+        "last_page": 5,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "jackery.com",
+      "status": "success",
+      "fetched": 212,
+      "transformed": 212,
+      "ingested": 212,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "jackery.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "toysrus.com",
+      "status": "success",
+      "fetched": 2500,
+      "transformed": 2500,
+      "ingested": 2400,
+      "failed": 100,
+      "last_error": {
+        "http_code": null,
+        "status": "failed",
+        "error": ""
+      },
+      "fetch_meta": {
+        "domain": "toysrus.com",
+        "http_code": 200,
+        "last_page": 10,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "kyliecosmetics.com",
+      "status": "success",
+      "fetched": 259,
+      "transformed": 256,
+      "ingested": 256,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "kyliecosmetics.com",
+        "http_code": 200,
+        "last_page": 2,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "aldoshoes.com",
+      "status": "success",
+      "fetched": 2500,
+      "transformed": 2499,
+      "ingested": 2499,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "aldoshoes.com",
+        "http_code": 200,
+        "last_page": 10,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "champion.com",
+      "status": "success",
+      "fetched": 829,
+      "transformed": 829,
+      "ingested": 829,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "champion.com",
+        "http_code": 200,
+        "last_page": 4,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "molekule.com",
+      "status": "success",
+      "fetched": 13,
+      "transformed": 10,
+      "ingested": 10,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "molekule.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "lacolors.com",
+      "status": "success",
+      "fetched": 238,
+      "transformed": 166,
+      "ingested": 166,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "lacolors.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "cosori.com",
+      "status": "success",
+      "fetched": 40,
+      "transformed": 40,
+      "ingested": 40,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "cosori.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null,
+        "curl_http_code": 200,
+        "transport": "curl_fallback"
+      }
+    },
+    {
+      "domain": "jansport.com",
+      "status": "success",
+      "fetched": 85,
+      "transformed": 85,
+      "ingested": 85,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "jansport.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "baretraps.com",
+      "status": "success",
+      "fetched": 753,
+      "transformed": 753,
+      "ingested": 753,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "baretraps.com",
+        "http_code": 200,
+        "last_page": 4,
+        "error": null
+      }
+    },
+    {
+      "domain": "ravpower.com",
+      "status": "success",
+      "fetched": 66,
+      "transformed": 66,
+      "ingested": 66,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "ravpower.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "wyze.com",
+      "status": "success",
+      "fetched": 326,
+      "transformed": 325,
+      "ingested": 325,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "wyze.com",
+        "http_code": 200,
+        "last_page": 2,
+        "error": null
+      }
+    },
+    {
+      "domain": "aukey.com",
+      "status": "success",
+      "fetched": 97,
+      "transformed": 97,
+      "ingested": 97,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "aukey.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "modells.com",
+      "status": "success",
+      "fetched": 250,
+      "transformed": 250,
+      "ingested": 250,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "modells.com",
+        "http_code": 500,
+        "last_page": 2,
+        "error": "HTTPError: HTTP Error 500: Internal Server Error"
+      }
+    },
+    {
+      "domain": "peterthomasroth.com",
+      "status": "success",
+      "fetched": 128,
+      "transformed": 128,
+      "ingested": 128,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "peterthomasroth.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "physiciansformula.com",
+      "status": "success",
+      "fetched": 236,
+      "transformed": 236,
+      "ingested": 236,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "physiciansformula.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "morphebrushes.com",
+      "status": "success",
+      "fetched": 131,
+      "transformed": 131,
+      "ingested": 131,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "morphebrushes.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "jeffreestarcosmetics.com",
+      "status": "success",
+      "fetched": 251,
+      "transformed": 251,
+      "ingested": 251,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "jeffreestarcosmetics.com",
+        "http_code": 200,
+        "last_page": 2,
+        "error": null
+      }
+    },
+    {
+      "domain": "beautyblender.com",
+      "status": "success",
+      "fetched": 63,
+      "transformed": 63,
+      "ingested": 63,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "beautyblender.com",
+        "http_code": 200,
+        "last_page": 1,
+        "error": null
+      }
+    },
+    {
+      "domain": "bbox.com",
+      "status": "success",
+      "fetched": 420,
+      "transformed": 420,
+      "ingested": 420,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "bbox.com",
+        "http_code": 200,
+        "last_page": 2,
+        "error": null
+      }
+    },
+    {
+      "domain": "chumbak.com",
+      "status": "success",
+      "fetched": 1862,
+      "transformed": 1862,
+      "ingested": 1862,
+      "failed": 0,
+      "last_error": null,
+      "fetch_meta": {
+        "domain": "chumbak.com",
+        "http_code": 200,
+        "last_page": 8,
+        "error": null
+      }
+    }
+  ],
+  "completed_at": "2026-05-16T02:05:03.927575+00:00",
+  "stats": {
+    "merchants_processed": 24,
+    "merchants_success": 24,
+    "merchants_failed": 0,
+    "total_products_fetched": 13296,
+    "total_products_ingested": 13092,
+    "total_products_failed": 100
+  }
+}

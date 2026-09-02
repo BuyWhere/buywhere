@@ -1,0 +1,439 @@
+{
+  "batch": 199,
+  "date": "20260827",
+  "input_merchants": 43,
+  "unique_merchants": 43,
+  "domains_with_products": 15,
+  "products": 3881,
+  "output": "data/us_discovery_batch199_20260827.ndjson",
+  "report": [
+    {
+      "domain": "cheesemaking.com",
+      "platform": "Shopify",
+      "products": 242,
+      "pages": 2,
+      "errors": []
+    },
+    {
+      "domain": "kombucha.com",
+      "platform": "Shopify",
+      "products": 34,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "claystudio.shop",
+      "platform": "Shopify",
+      "products": 3,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "sourdoughstarter.com",
+      "platform": "Shopify",
+      "products": 8,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "hemp.co",
+      "platform": "Shopify",
+      "products": 32,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "sourdoughstarter.co",
+      "platform": "Shopify",
+      "products": 10,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "localhoney.com",
+      "platform": "Shopify",
+      "products": 9,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "bathbombs.com",
+      "platform": "Shopify",
+      "products": 419,
+      "pages": 2,
+      "errors": []
+    },
+    {
+      "domain": "ukelele.co",
+      "platform": "Shopify",
+      "products": 345,
+      "pages": 2,
+      "errors": []
+    },
+    {
+      "domain": "balm.co",
+      "platform": "Shopify",
+      "products": 60,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "carved.com",
+      "platform": "Shopify",
+      "products": 750,
+      "pages": 3,
+      "errors": []
+    },
+    {
+      "domain": "honeybee.shop",
+      "platform": "Shopify",
+      "products": 750,
+      "pages": 3,
+      "errors": []
+    },
+    {
+      "domain": "woodcraft.com",
+      "platform": "Shopify",
+      "products": 750,
+      "pages": 3,
+      "errors": []
+    },
+    {
+      "domain": "leathersupply.com",
+      "platform": "Shopify",
+      "products": 231,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "yarn.com",
+      "platform": "Shopify",
+      "products": 238,
+      "pages": 1,
+      "errors": []
+    },
+    {
+      "domain": "oliveoil.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "chocolate.com",
+      "platform": "Shopify",
+      "products": 0,
+      "pages": 0,
+      "errors": [
+        "http 429"
+      ]
+    },
+    {
+      "domain": "balsamic.shop",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "roaster.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "teashop.com",
+      "platform": "Shopify",
+      "products": 0,
+      "pages": 0,
+      "errors": [
+        "http 429"
+      ]
+    },
+    {
+      "domain": "chocolateshop.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "teashop.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "chocolate.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "icecream.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "nutbutter.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "cookies.com",
+      "platform": "Shopify",
+      "products": 0,
+      "pages": 0,
+      "errors": [
+        "http 429"
+      ]
+    },
+    {
+      "domain": "peanutbutter.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "granola.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "localhoney.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "maple.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "pie.shop",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "bonbon.shop",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "bbqsauce.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html; charset=utf-8",
+        "html response text/html; charset=utf-8",
+        "html response text/html; charset=utf-8"
+      ]
+    },
+    {
+      "domain": "icecream.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "rawhoney.shop",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "mustard.shop",
+      "platform": "Shopify",
+      "products": 0,
+      "pages": 0,
+      "errors": [
+        "http 429"
+      ]
+    },
+    {
+      "domain": "beeproducts.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "almondbutter.com",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 404",
+        "http 404",
+        "http 404"
+      ]
+    },
+    {
+      "domain": "candy.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "pantry.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html",
+        "html response text/html",
+        "html response text/html"
+      ]
+    },
+    {
+      "domain": "oliveoil.shop",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html; charset=utf-8",
+        "html response text/html; charset=utf-8",
+        "html response text/html; charset=utf-8"
+      ]
+    },
+    {
+      "domain": "nutbutter.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "http 520",
+        "http 520",
+        "http 520"
+      ]
+    },
+    {
+      "domain": "oatmeal.co",
+      "platform": "WooCommerce",
+      "products": 0,
+      "pages": 0,
+      "api": null,
+      "errors": [
+        "html response text/html; charset=UTF-8",
+        "html response text/html; charset=UTF-8",
+        "html response text/html; charset=UTF-8"
+      ]
+    }
+  ]
+}

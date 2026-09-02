@@ -1,0 +1,61 @@
+{
+  "merchant_id": "carousell_sg",
+  "started_at": "2026-06-26T08:00:04Z",
+  "completed_at": "2026-06-26T08:02:05Z",
+  "duration_seconds": 121.4,
+  "categories_attempted": [
+    "electronics-phones",
+    "electronics-laptops",
+    "electronics-tablets",
+    "fashion-men",
+    "fashion-women",
+    "home-living",
+    "sports-outdoors",
+    "toys-games"
+  ],
+  "category_stats": {
+    "electronics-phones": {
+      "category_name": "Mobile Phones",
+      "products_scraped": 0
+    },
+    "electronics-laptops": {
+      "category_name": "Laptops",
+      "products_scraped": 0
+    },
+    "electronics-tablets": {
+      "category_name": "Tablets",
+      "products_scraped": 0
+    },
+    "fashion-men": {
+      "category_name": "Fashion - Men",
+      "products_scraped": 0
+    },
+    "fashion-women": {
+      "category_name": "Fashion - Women",
+      "products_scraped": 0
+    },
+    "home-living": {
+      "category_name": "Home & Living",
+      "products_scraped": 0
+    },
+    "sports-outdoors": {
+      "category_name": "Sports & Outdoors",
+      "products_scraped": 0
+    },
+    "toys-games": {
+      "category_name": "Toys & Games",
+      "products_scraped": 0
+    }
+  },
+  "products_scraped": 0,
+  "unique_skus": 0,
+  "rows_inserted": 0,
+  "rows_updated": 0,
+  "rows_failed": 0,
+  "mode": "full",
+  "scrape_only": true,
+  "concurrency": 6,
+  "batch_size": 50,
+  "page_limit": 5,
+  "output_file": "/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_1782460804082.jsonl"
+}
