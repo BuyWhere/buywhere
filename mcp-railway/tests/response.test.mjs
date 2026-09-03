@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildProduct, CURRENCY_RATES } = require('../dist/lib/response');
+const { buildProduct, CURRENCY_RATES, extractNumericPrice } = require('../dist/lib/response');
 
 describe('buildProduct currency normalization (BUY-66199)', () => {
   // Mirrors the live evidence row from mcp.buywhere.ai at 2026-08-04T18:00Z.
@@ -72,6 +72,31 @@ describe('buildProduct currency normalization (BUY-66199)', () => {
     // We do NOT fabricate a USD figure for a currency we have no rate for.
     assert.equal(product.normalized_price_usd, null);
     assert.equal(product.price.currency, 'XYZ');
+  });
+});
+
+describe('BUY-80524: FBP v1 amount must survive numeric pg prices', () => {
+  function mapFbpAmount(raw) {
+    // Mirrors mcp-railway handleFindBestPrice mapping after BUY-80524.
+    return extractNumericPrice(raw);
+  }
+
+  it('keeps a JS number from node-pg numeric/float8', () => {
+    assert.equal(mapFbpAmount(18.59), 18.59);
+  });
+
+  it('still parses string numeric from text-mode pg', () => {
+    assert.equal(mapFbpAmount('42.55'), 42.55);
+  });
+
+  it('unwraps nested {amount,currency} from REST fallback rows', () => {
+    assert.equal(mapFbpAmount({ amount: 82, currency: 'SGD' }), 82);
+  });
+
+  it('JSON-serializes a finite amount, never NaN→null', () => {
+    const amount = mapFbpAmount(75.57);
+    const encoded = JSON.parse(JSON.stringify({ price: { amount, currency: 'SGD' } }));
+    assert.equal(encoded.price.amount, 75.57);
   });
 });
 

@@ -339,15 +339,19 @@ async function findBestPriceViaRestFallback(opts: {
     if (price && typeof price === 'object' && !Array.isArray(price) && (price as { currency?: string }).currency) {
       curr = String((price as { currency?: string }).currency);
     }
+    const merchant = (p.merchant as string) || ((p as { merchant_name?: string }).merchant_name) || null;
     return {
       id: p.id,
       title: p.title,
       name: p.title,
       price: { amount, currency: curr },
-      merchant: p.merchant,
+      // BUY-80524: Cart/v1 agents read both merchant and merchant_name.
+      merchant,
+      merchant_name: merchant,
       url: p.url,
       image_url: p.image_url,
       country_code: opts.country,
+      url_status: (p as { url_status?: string }).url_status || 'ok',
     };
   });
   return {
@@ -1940,8 +1944,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(searchName, country);
 
+  // BUY-80524: catalog FTS currently hangs 5–8s then the wall returns
+  // amount-less degraded v1. Kick REST in parallel so the first call still
+  // returns a priced best_price (v2 looked "working" only after v1 tripped
+  // the circuit). Winner is the first envelope with a priced best_price.
+  const restFallbackPromise = findBestPriceViaRestFallback({ productName, country, t0 }).catch(() => null);
+
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
-    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    const restFbp = await restFallbackPromise;
     if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
       return restFbp;
@@ -2018,7 +2028,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     fbpPoolWaitMs = acquiredFbp.poolWaitMs;
   } catch (acquireErr) {
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
-    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    const restFbp = await restFallbackPromise;
     if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: pool acquire failed — REST fallback n=${restFbp.meta.total}`);
       return restFbp;
@@ -2034,7 +2044,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     });
   }
   let result: { rows: Record<string, unknown>[] };
-  try {
+  // BUY-80524: don't wait the 20s tool wall for a hung GIN scan. If REST
+  // already has a priced envelope, take it after 2.5s of catalog silence.
+  const FBP_REST_RACE_MS = parseInt(process.env.MCP_FBP_REST_RACE_MS || '2500', 10);
+  const catalogWork = (async () => {
     await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
     {
       const stFbp = await showStatementTimeout(bestPriceClient);
@@ -2065,20 +2078,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       if (aIn !== bIn) return aIn - bIn;
       return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
     }).slice(0, limit);
-    result = {
-      rows: ranked.map((r) => ({
-        id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
-        url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
-        category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
-      })),
-    };
-    // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
-    if (result.rows.length === 0) {
+    let rows = ranked.map((r) => ({
+      id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
+      url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
+      category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
+    }));
+    if (rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
       const titlePattern = `%${productName}%`;
-      // requestedCountry already declared above for BUY-76909 child-table routing
       const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-      result = await bestPriceClient.query(
+      const ilike = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at, category, NULL::text[] AS category_path, NULL::jsonb AS metadata
@@ -2097,13 +2106,33 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
           ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
           : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern])
       );
+      rows = ilike.rows as typeof rows;
     }
     recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
+    return { rows };
+  })();
+  try {
+    const raced = await Promise.race([
+      catalogWork.then((rows) => ({ kind: 'catalog' as const, rows })),
+      restFallbackPromise.then(async (rest) => {
+        await new Promise((r) => setTimeout(r, FBP_REST_RACE_MS));
+        return { kind: 'rest' as const, rest };
+      }),
+    ]);
+    if (raced.kind === 'rest' && raced.rest && raced.rest.best_price) {
+      console.warn(`[find_best_price] BUY-80524: REST won race n=${raced.rest.meta.total} country=${country}`);
+      return raced.rest;
+    }
+    if (raced.kind === 'catalog') {
+      result = raced.rows;
+    } else {
+      result = await catalogWork;
+    }
   } catch (err: any) {
     const degradedKind = classifyMcpDegradedKind(err);
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
-    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    const restFbp = await restFallbackPromise;
     if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
       return restFbp;
@@ -2117,10 +2146,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       deliverToPresent,
     });
   } finally {
-    // BUY-56185: discard connections poisoned by statement_timeout
-    releaseClientSafely(bestPriceClient);
+    // BUY-80524: catalogWork may still be in-flight if REST won the race.
+    // Don't recycle the client until that query settles or errors.
+    void catalogWork.finally(() => releaseClientSafely(bestPriceClient));
   }
-
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
   const toUsd = CURRENCY_RATES[currency] ?? 1;
 
@@ -2163,17 +2192,39 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const filteredAccessories = result.rows.filter(r => !isAccessory(r));
   const candidates = filteredAccessories.length > 0 ? filteredAccessories : result.rows;
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    name: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  // BUY-80524: node-pg returns numeric/float8 as JS number. parseFloat(number as
+  // string) is NaN, and JSON.stringify(NaN) becomes null — v1 agents then see
+  // best_price.price.amount=null while merchant/url still populate. extractNumericPrice
+  // accepts number | string | {amount}.
+  const data = candidates.map((r: Record<string, unknown>) => {
+    const amount = extractNumericPrice(r.price);
+    const merchant = (r.domain as string) || (r.merchant as string) || null;
+    return {
+      id: r.id,
+      title: r.title,
+      name: r.title,
+      price: { amount, currency: (r.currency as string) || currency },
+      normalized_price_usd: amount != null ? Math.round(amount * toUsd * 100) / 100 : null,
+      merchant,
+      merchant_name: merchant,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+      url_status: (r.url_status as string) || 'ok',
+    };
+  });
+  // BUY-80524: if catalog rows have no finite amount, prefer the REST envelope.
+  const catalogHasPrice = data.some((row) => {
+    const amt = extractNumericPrice(row.price);
+    return amt != null && amt > 0;
+  });
+  if (!catalogHasPrice) {
+    const restFbp = await restFallbackPromise;
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-80524: catalog unpriced — REST fallback n=${restFbp.meta.total}`);
+      return restFbp;
+    }
+  }
 
   return {
     best_price: data[0] ?? null,
