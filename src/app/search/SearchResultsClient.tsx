@@ -19,7 +19,10 @@ import { FilterChipRow } from './FilterChipRow';
 import { FilterBottomSheet } from './FilterBottomSheet';
 
 const PAGE_SIZE = 20;
-const SEARCH_FETCH_LIMIT = 40;
+// BUY-80662: match REST /v1/products/search working page (limit=10). The
+// search_products_tier cache at limit=40 still mixes accessory rows; keep
+// first-page SSR/client fetches on the same limit as the public REST contract.
+const SEARCH_FETCH_LIMIT = 10;
 const MIN_QUERY_LENGTH = 2;
 const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
@@ -628,8 +631,11 @@ export function applyProductSort(
   mode: SortMode,
   query: string = ''
 ): SearchCardProduct[] {
+  // BUY-80662: default relevance MUST preserve REST search_products_tier order.
+  // Client-side image/price/accessory scoring previously bubbled Casely cases
+  // (images + USD prices) above actual laptops for q=laptop.
+  if (mode === 'relevance') return products;
   const base = sortProductsByRelevance(products, query);
-  if (mode === 'relevance') return base;
   if (mode === 'price_asc') {
     return [...base].sort((left, right) => {
       const cmp = compareByPriceAsc(left, right);
@@ -1323,11 +1329,10 @@ export default function SearchResultsClient({
   const initialCountryValue = normalizeCountry(initialCountry);
   const initialCountryOption = getCountryOption(initialCountryValue);
   const initialProducts = useMemo(
-    () => sortProductsByRelevance(
-      initialItems.map((item) => normalizeProduct(item, initialCountryOption.currency, pathname)),
-      initialSearchQuery
-    ).slice(0, PAGE_SIZE),
-    [initialCountryOption.currency, initialItems, initialSearchQuery, pathname]
+    () => initialItems
+      .map((item) => normalizeProduct(item, initialCountryOption.currency, pathname))
+      .slice(0, PAGE_SIZE),
+    [initialCountryOption.currency, initialItems, pathname]
   );
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1566,6 +1571,7 @@ export default function SearchResultsClient({
     const params = new URLSearchParams({
       q: trimmedQuery,
       country: activeCountry.apiValue,
+      deliver_to: activeCountry.apiValue,
       limit: String(SEARCH_FETCH_LIMIT),
     });
 
@@ -1621,10 +1627,9 @@ export default function SearchResultsClient({
         setDegraded(false);
         setDegradedHint(null);
       }
-      const normalizedItems = sortProductsByRelevance(
-        rawItems.map((item) => normalizeProduct(item, activeCountry.currency, pathname)),
-        query
-      ).slice(0, PAGE_SIZE);
+      const normalizedItems = rawItems
+        .map((item) => normalizeProduct(item, activeCountry.currency, pathname))
+        .slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
 
       if (lastRequestKeyRef.current !== requestKey) {

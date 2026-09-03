@@ -250,6 +250,14 @@ function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
   if (!hasAccessoryKeyword) return false;
   if (queryWords.length === 0) return true;
 
+  // BUY-80662: when the query itself is a device token (laptop, phone, …)
+  // accessory SKUs still contain that token ("Casely laptop case"). Matching
+  // query-word coverage must NOT keep them in the primary bucket — REST
+  // search_products_tier already ranked computers first; this BFF pass
+  // previously promoted cases back to the head.
+  const { isDevice, isStorage } = classifyDeviceQuery(queryWords.join(' '));
+  if (isDevice && !isStorage) return true;
+
   const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
   return matchedQueryWords / queryWords.length < 0.5;
 }
@@ -339,6 +347,15 @@ export async function GET(request: NextRequest) {
       upstreamParams.set(key, value);
     }
   });
+
+  // BUY-80662: REST ranking is gated on deliver_to (ISO-2). SSR /search historically
+  // only sent `country`, so the BFF hit a different ranking path than
+  // /v1/products/search?q=laptop&deliver_to=US. Mirror country onto deliver_to
+  // when the caller omitted it.
+  if (!upstreamParams.get('deliver_to')) {
+    const country = (upstreamParams.get('country') || upstreamParams.get('country_code') || 'US').toUpperCase();
+    if (country.length === 2) upstreamParams.set('deliver_to', country);
+  }
 
   // BUY-72906: REMOVED the country -> country_code rename. The FastAPI backend
   // expects 'country' (not 'country_code'), so we now pass it through unchanged.

@@ -20,6 +20,7 @@ type SearchPageProps = {
   searchParams: Promise<{
     q?: string | string[];
     country?: string | string[];
+    deliver_to?: string | string[];
   }>;
 };
 
@@ -140,9 +141,11 @@ async function fetchInitialResults(
     // keep the public default
   }
 
+  const countryCode = country.toLowerCase() === 'sg' ? 'SG' : 'US';
   const params = new URLSearchParams({
     q: query.trim(),
-    country: country.toLowerCase() === 'sg' ? 'SG' : 'US',
+    country: countryCode,
+    deliver_to: countryCode,
     limit: String(SSR_FETCH_LIMIT),
   });
 
@@ -178,7 +181,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   }
 
   const initialQuery = safeString(resolved?.q);
-  const initialCountry = safeString(resolved?.country);
+  const initialCountry = safeString(resolved?.country) || safeString(resolved?.deliver_to);
 
   const initialResults = await fetchInitialResults(initialQuery, initialCountry);
 

@@ -85,6 +85,8 @@ function isAccessoryItem(item, queryWords) {
   const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
   if (!hasAccessoryKeyword) return false;
   if (queryWords.length === 0) return true;
+  const { isDevice, isStorage } = classifyDeviceQuery(queryWords.join(' '));
+  if (isDevice && !isStorage) return true;
   const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
   return matchedQueryWords / queryWords.length < 0.5;
 }
@@ -184,3 +186,19 @@ test('laptop ssd remains a storage positive control', () => {
 
   assert.equal(ranked[0].metadata.category, 'Storage');
 });
+
+test('BUY-80662: bare laptop query demotes Casely cases behind computers', () => {
+  const ranked = rankAndClassifyItems([
+    { title: 'Casely Garden Breeze Laptop Case', metadata: { category: 'Laptop Accessories' } },
+    { title: 'Casely Harbor Stripe Laptop Sleeve', metadata: { category: 'Cases' } },
+    { title: 'HP Omnibook Laptop 16 inch', metadata: { category: 'Laptops' } },
+    { title: 'Acer Predator Helios Laptop', metadata: { category: 'Laptops' } },
+    { title: 'ASUS ROG Strix Gaming Laptop', metadata: { category: 'Laptops' } },
+  ], 'laptop');
+
+  const top3 = ranked.slice(0, 3).map((item) => String(item.title));
+  assert.ok(top3.every((title) => /HP|Acer|ASUS/i.test(title)), `computers first, got ${top3.join(' | ')}`);
+  assert.ok(ranked.slice(0, 3).every((item) => !/casely|case|sleeve/i.test(String(item.title)) || /HP|Acer|ASUS/i.test(String(item.title))));
+  assert.ok(ranked.slice(3).some((item) => /casely/i.test(String(item.title))));
+});
+
