@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v20-b80415'; // BUY-80415: exact-title + console/mp4 ranking
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v21-b80441'; // BUY-80441: keep in-currency on-intent SKUs over accessories
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -386,6 +386,8 @@ async function tryTierSearch(
   // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
   const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
+  let currencyRankIdx = 0;
+  if (p.currency) { currencyRankIdx = i; params.push(p.currency); i++; }
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
@@ -435,7 +437,7 @@ async function tryTierSearch(
   const phoneAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '\\m(phone|iphone|ipad|airpods)\\M'
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|poncho|magnetic|golf|lens|camera|folio|tempered|glass|otterbox|quadlock|rokform)\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|poncho|magnetic|golf|lens|camera|folio|tempered|glass|screen|otterbox|quadlock|rokform)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
       THEN 0.08 ELSE 1.0
     END`;
@@ -483,6 +485,32 @@ async function tryTierSearch(
         AND lower(sp.title) !~* '\\m(controller|dualsense)\\M'
       THEN 10.0 ELSE 1.0
     END`;
+  // BUY-80441: demote console/TV accessories and Shopify junk so on-intent
+  // SKUs (iPhone 16 units, Switch 2 consoles, Best Denki TVs) outrank pouches.
+  const consoleTvAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(nintendo|switch|playstation|xbox|console|tv)\\M'
+        AND (lower(sp.title) ~* '\\m(case|cover|pouch|skin|stand|mount|charger|cable|screen|protector|holder|bag|sleeve)\\M'
+          OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
+      THEN 0.2 ELSE 1.0
+    END`;
+  const consoleUnitBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(nintendo switch 2 console|switch 2 console|playstation 5|xbox series)\\M'
+        AND lower(sp.title) !~* '\\m(case|cover|pouch|skin|charger|cable)\\M'
+      THEN 3.0 ELSE 1.0
+    END`;
+  const tvUnitBoost = `
+    CASE
+      WHEN (lower(sp.title) ~* '\\m([0-9]{2}\\s?(inch|in))\\M' OR lower(sp.title) ~* '\\m(led tv|google tv|smart tv|oled|qled)\\M')
+        AND lower(sp.title) ~* '\\mtv\\M'
+        AND lower(sp.title) !~* '\\m(sensor|sweatshirt|pullover)\\M'
+      THEN 2.5 ELSE 1.0
+    END`;
+  const inMarketCurrencyBoost = currencyRankIdx ? `
+    CASE
+      WHEN upper(sp.currency) = upper($${currencyRankIdx}) THEN 4.0 ELSE 0.4
+    END` : '1.0';
 
   const laptopBoost = `
     CASE
@@ -496,7 +524,7 @@ async function tryTierSearch(
   // forced 1000 PK lookups and blew the 4s tier timeout for broad terms like
   // `s24 case` (~3.6s). Selecting title/category/source/price/updated_at in cand
   // keeps the same ranking semantics in ~40-110ms.
-  const rankCols = `title, category, source, price, updated_at`;
+  const rankCols = `title, category, source, price, updated_at, currency`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       (
@@ -522,9 +550,13 @@ async function tryTierSearch(
             (${deviceAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
             (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
-            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
+            (${deviceExactBoost.replace(/sp./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp./g, 'c.')}) *
+            (${consoleTvAccessoryPenalty.replace(/sp./g, 'c.')}) *
+            (${consoleUnitBoost.replace(/sp./g, 'c.')}) *
+            (${tvUnitBoost.replace(/sp./g, 'c.')}) *
+            (${inMarketCurrencyBoost.replace(/sp./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -708,24 +740,17 @@ async function tryTierSearch(
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const isolateCur = !!(p.countryCode && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
-    const products = pageRows
-      .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
-      .filter((prod) => {
-        if (!wantCur) return true;
-        const cur = String(prod.price?.currency || '').toUpperCase();
-        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
-        return cur === wantCur;
-      });
-    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
-    // matched but the currency post-filter emptied the page. Archive for
-    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
-    // even though products_partitioned_sg has live iPhone rows (USD
-    // Shopify labelled SG). Serve the child hits without currency
-    // isolation — leaking USD is a truthful in-market listing; api_error
-    // is not. BUY-79497 archive fallback stays for empty child FTS only.
+    const mapped = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const products = mapped.filter((prod) => {
+      if (!wantCur) return true;
+      const cur = String(prod.price?.currency || '').toUpperCase();
+      return cur === wantCur;
+    });
+    // BUY-80441: keep in-currency on-intent SKUs. Only leak mismatched
+    // currency when ZERO in-currency hits survived the filter.
     let served = products;
     if (useChildTable && wantCur && served.length === 0) {
-      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+      served = mapped;
     }
     const productsOut = served;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.

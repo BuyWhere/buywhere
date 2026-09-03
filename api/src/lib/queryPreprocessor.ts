@@ -63,6 +63,7 @@ const NOISE_WORDS = new Set([
   'buy', 'purchase', 'order', 'get', 'find', 'show', 'give',
   'want', 'need', 'looking',
   'cheap', 'cheaper', 'cheapest', 'affordable', 'expensive',
+  'budget',
   'price', 'prices', 'cost', 'costs',
   'deal', 'deals', 'discount', 'sale',
 ]);
