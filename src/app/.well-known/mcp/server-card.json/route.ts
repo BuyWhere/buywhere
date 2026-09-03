@@ -251,7 +251,7 @@ function buildServerCard() {
         method: "POST",
         url: "https://api.buywhere.ai/v1/auth/register?verify=false",
         body: { agent_name: "<your-agent-name>" },
-        returns: "api_key — 1,000 requests/day free, instantly",
+        returns: "api_key — 10,000 requests/day free, instantly",
       },
     },
     sunset: {

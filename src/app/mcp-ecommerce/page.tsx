@@ -228,7 +228,7 @@ export default async function McpEcommercePage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Agents-first setup</p>
           <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
           <p className="mt-4 text-lg leading-relaxed text-slate-600">
-            Register an agent programmatically and get an API key immediately. The free tier includes 1,000 requests/day.
+            Register an agent programmatically and get an API key immediately. The free tier includes 10,000 requests/day.
           </p>
           <pre className="mt-6 overflow-x-auto rounded-xl bg-slate-950 p-5 font-mono text-sm leading-7 text-slate-100">
             <code>{agentRegisterCurl}</code>

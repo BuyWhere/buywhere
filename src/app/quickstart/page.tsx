@@ -241,7 +241,7 @@ export default function QuickstartPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-indigo-600">Agents-first setup</p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
-              Skip the human form when you are provisioning an agent. This call returns an <code className="rounded bg-white px-1.5 py-0.5 text-sm text-slate-900">api_key</code> instantly with 1,000 requests/day free.
+              Skip the human form when you are provisioning an agent. This call returns an <code className="rounded bg-white px-1.5 py-0.5 text-sm text-slate-900">api_key</code> instantly with 10,000 requests/day free.
             </p>
             <div className="mt-6">
               <CodeBlock label="agent key registration" code={agentRegisterCurl} />

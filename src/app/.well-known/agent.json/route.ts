@@ -1,7 +1,7 @@
 const AGENT_JSON = {
   name: 'BuyWhere',
   description:
-    'Agent-native product catalog API for AI shopping agents: 300M+ products from 950,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
+    'Agent-native product catalog API for AI shopping agents: 370M+ products from 950,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
   provider: {
     organization: 'BuyWhere',
@@ -23,7 +23,7 @@ const AGENT_JSON = {
       id: 'product-search',
       name: 'Product Search',
       description:
-        'Search 300M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
+        'Search 370M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
       tags: ['e-commerce', 'search', 'products', 'availability'],
       examples: [
         'Find wireless earbuds under 150 USD that ship to US',
