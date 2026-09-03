@@ -13,8 +13,11 @@ describe('BUY-80415 ranking verify', () => {
     assert.match(productsSrc, /deviceExactBoost/);
     assert.match(productsSrc, /deviceControllerPenalty/);
     assert.match(productsSrc, /deviceConsoleBoost/);
+    assert.match(productsSrc, /phoneUnitPriceBoost/);
     assert.match(productsSrc, /dualsense/);
     assert.match(productsSrc, /mp4/);
+    assert.match(productsSrc, /left earbud/);
+    assert.match(productsSrc, /problemz/);
     assert.match(productsSrc, /child_title_fb/);
   });
 });

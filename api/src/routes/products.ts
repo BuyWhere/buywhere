@@ -414,6 +414,8 @@ async function tryTierSearch(
   const isPhoneQuery = /\b(iphone|smartphone|(?<![a-z])phone(?![a-z]))\b/.test(qLower);
   const isEarbudQuery = /\b(airpods?|earbuds?|earphones?|headphones?)\b/.test(qLower);
   const queryWantsAccessory = /\b(case|cases|cover|covers|pouch|skin|skins|tip|tips|charger|cable|holder)\b/.test(qLower);
+  const phoneAccessoryTitleSource = 'holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|skin|skins|belt|mp4|magsafe|mag.?safe|plyo|problemz|socialmedia|social queen|ponchos|artistry';
+  const earbudAccessoryTitleSource = 'case|cover|hook|hooks|tip|tips|ear.?tip|skin|skins|kate.?spade|foam|replacement|left earbud|right earbud|earbuds only|earbud only|charging case';
   const laptopAccessoryPenalty = isLaptopQuery ? `
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
@@ -455,14 +457,25 @@ async function tryTierSearch(
   const deviceAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '\\m(iphone|ipad|airpods?|phone|tablet)\\M'
-        AND (lower(sp.title) ~* '\\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare|tip|tips|ear.?tip|foam|replacement|kate.?spade|pouch|belt)\\M'
+        AND (lower(sp.title) ~* '\\m(case|cases|cover|covers|mount|mounts|holder|stand|glass|protector|screen protector|lens|wallet|strap|lanyard|charger|cable|adapter|dock|skin|skins|sleeve|sleeves|applecare|tip|tips|ear.?tip|foam|replacement|kate.?spade|pouch|belt|hook|hooks|left earbud|right earbud|earbuds only|earbud only|magsafe|mag.?safe|plyo|problemz|socialmedia|social queen|ponchos|artistry)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories|case|cases|mount|mounts|screen protector)\\M')
       THEN 0.08 ELSE 1.0
     END`;
+  const phoneUnitPriceBoost = `
+    CASE
+      WHEN lower($${qIdx}) ~* '\\m(iphone|phone)\\M'
+        AND lower(sp.title) ~* '\\m(iphone|smartphone|mobile phone|cell phone)\\M'
+        AND coalesce(sp.price, 0) >= 100
+      THEN 12.0
+      WHEN lower($${qIdx}) ~* '\\m(iphone|phone)\\M'
+        AND coalesce(sp.price, 0) < 100
+      THEN 0.05
+      ELSE 1.0
+    END`;
   const intentAccessoryFilter = (!queryWantsAccessory && (isPhoneQuery || isEarbudQuery))
     ? (isEarbudQuery
-      ? ` AND NOT (lower(sp.title) ~* '\\m(tip|tips|ear.?tip|skin|skins|kate.?spade|foam|replacement)\\M')`
-      : ` AND NOT (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|skin|skins|belt|mp4)\\M')`)
+      ? ` AND NOT (lower(sp.title) ~* '\\m(${earbudAccessoryTitleSource})\\M')`
+      : ` AND NOT (lower(sp.title) ~* '\\m(${phoneAccessoryTitleSource})\\M')`)
     : '';
   const isConsoleQuery = /\b(ps5|playstation)\b/i.test(p.q);
   const consoleAccessoryFilter = (!queryWantsAccessory && isConsoleQuery)
@@ -553,6 +566,7 @@ async function tryTierSearch(
             (${deviceExactBoost.replace(/sp./g, 'c.')}) *
             (${deviceControllerPenalty.replace(/sp./g, 'c.')}) *
             (${deviceConsoleBoost.replace(/sp./g, 'c.')}) *
+            (${phoneUnitPriceBoost.replace(/sp./g, 'c.')}) *
             (${consoleTvAccessoryPenalty.replace(/sp./g, 'c.')}) *
             (${consoleUnitBoost.replace(/sp./g, 'c.')}) *
             (${tvUnitBoost.replace(/sp./g, 'c.')}) *
@@ -593,7 +607,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost}) * (${phoneUnitPriceBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -604,7 +618,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost}) * (${phoneUnitPriceBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
