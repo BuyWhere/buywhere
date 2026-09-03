@@ -1,3 +1,0 @@
-# BUY-76175: Hourly throughput dispatcher — v6.4
-# Runs at the top of every UTC hour and files BUY-29861 child issues on FAIL.
-0 * * * * /home/paperclip/buywhere/scripts/run-dispatcher-hourly.sh

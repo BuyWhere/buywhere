@@ -1,5 +1,0 @@
-bucket=buywhere-data
-key=shopify/the-katha/2026-08-27.jsonl
-bytes=1419342
-head_content_length=1419342
-md5=33a0ccdd56147019df7415a9678462cc

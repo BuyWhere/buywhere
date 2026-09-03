@@ -1,4 +1,0 @@
-  WARN fetch fail https://www.amazon.sg/s?k=macbook+air+m4&i=electronics: HTTP Error 503: Service Temporarily Unavailable
-  [gather] keyword 'macbook air 13 m4': 24 asins in search
-  WARN fetch fail https://www.amazon.sg/dp/B0DZ65TS2X: HTTP Error 500: Internal Server Error
-  WARN fetch fail https://www.amazon.sg/dp/B0D9VHHPSN: HTTP Error 500: Internal Server Error

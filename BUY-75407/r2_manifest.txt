@@ -1,3 +1,0 @@
-key=buywhere-data/shopify/cushlatea/2026-08-26.jsonl
-bytes=149811
-md5=16cab2535701db2a12923dbc7648ef92

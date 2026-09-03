@@ -1,3 +1,0 @@
-{"ts":"2026-08-28T07:50:02.140Z","event":"detected","pid":1474071,"usename":"ingest_rw","application_name":"","state":"active","age_sec":1091,"query_preview":"\n      WITH oldest AS (\n        SELECT id\n        FROM merchants\n        WHERE onboarding_stage = 'discovered'\n          AND scrape_error IS NOT NULL AND scrape_error != ''\n         AND scrape_error N"}
-{"ts":"2026-08-28T07:50:02.144Z","event":"cancelled","pid":1474071}
-{"ts":"2026-08-28T07:51:02.566Z","event":"terminated","pid":1474071,"age_sec":55}
