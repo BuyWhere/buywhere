@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v24-b80570'; // v24 BUY-80570: bare-device query non-computer title 0.05x demotion
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v25-b80585'; // v25 BUY-80585: hyphen key-ring tokens + 0.10x case/sleeve on bare device query
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -409,11 +409,15 @@ async function tryTierSearch(
   // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
   // exported from searchRelevanceTaxonomy so the API tier and the SEO page
   // both demote the same accessory set.
+  // BUY-80585: on bare-device queries, raise accessory-token penalty from
+  // 0.25x → 0.10x so Casely cases / hyphen key-rings fall off first page.
+  // Non-bare queries (q=laptop case) keep 0.25x so accessories still surface.
+  const isBareQuery = isBareDeviceQuery(p.q);
   const laptopAccessoryPenalty = `
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN 0.25 ELSE 1.0
+      THEN ${isBareQuery ? '0.10' : '0.25'} ELSE 1.0
     END`;
   // BUY-80570: bare-device query demotion — for queries like "laptop" with no
   // accessory intent, demote non-computer titles (exact "Laptop", wooden notebook,
@@ -524,7 +528,7 @@ async function tryTierSearch(
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN 0.25 ELSE 1
+      THEN ${isBareQuery ? '0.10' : '0.25'} ELSE 1
     END`;
   // BUY-80570: bare-device query title fallback demotion — same 0.05x factor
   // for non-computer titles when query is a bare device term.
