@@ -10,11 +10,11 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "television",
+  "searchQuery": "4k tv",
   "backupQueries": [
-    "Hisense television",
-    "Smart television",
-    "UHD TV"
+    "smart tv",
+    "television",
+    "hisense tv"
   ],
   "minPrice": 200,
   "requiredProductTerms": [
