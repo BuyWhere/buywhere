@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v18-modehon'; // v18: search_mode honesty fields in cached bodies (BWEXT-69EEE94E)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80441'; // v19 BUY-80441: in-market currency + console/TV unit ranking
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -389,6 +389,14 @@ async function tryTierSearch(
   const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+  // BUY-80441: device-unit queries must not fill the cand LIMIT with pouches/cases.
+  const qLower = p.q.toLowerCase();
+  const isDeviceUnitQuery = /\b(iphone|airpods|nintendo|switch|\btv\b|oled|qled|google tv|smart tv)\b/.test(qLower)
+    || /\b(43|50|55|65).{0,8}(inch|in)\b/.test(qLower)
+    || /\bbudget tv\b/.test(qLower);
+  const deviceAccessoryCandExcl = isDeviceUnitQuery
+    ? ` AND NOT (lower(sp.title) ~* '\\m(case|cover|pouch|holder|stand|mount|skin|sleeve|protector|charger|cable|adapter|screen protector|belt pouch|silicone|wallet|tempered glass)\\M')`
+    : '';
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
@@ -440,13 +448,40 @@ async function tryTierSearch(
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-80441: prefer in-market currency (SGD on SG child) over USD cross-list pouches.
+  const inMarketCurrencyBoost = `
+    CASE
+      WHEN $${i} = '' THEN 1.0
+      WHEN upper(sp.currency) = upper($${i}) THEN 3.0
+      ELSE 0.35
+    END`;
+  params.push(p.currency || '');
+  i++;
+  const consoleTvAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(case|cover|pouch|holder|stand|mount|skin|sleeve|protector|charger|cable|adapter|screen protector|belt pouch)\\M'
+        AND lower(sp.title) ~* '\\m(switch|nintendo|tv|iphone|airpods)\\M'
+      THEN 0.12 ELSE 1.0
+    END`;
+  const consoleUnitBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(nintendo switch 2 console|nintendo switch 2|switch 2 console)\\M'
+        AND lower(sp.title) !~* '\\m(case|cover|pouch|skin|game)\\M'
+      THEN 4.0 ELSE 1.0
+    END`;
+  const tvUnitBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(led tv|google tv|smart tv|oled tv|qled tv|43.?inch|55.?inch)\\M'
+        AND lower(sp.title) !~* '\\m(wall mount|bracket|remote|cover)\\M'
+      THEN 3.5 ELSE 1.0
+    END`;
   // BUY-77644: project the columns needed for ranking into the cand CTE so the
   // top CTE can rank against the bounded candidate set without a second join to
   // search_products. The old plan joined search_products in top (BUY-54980) which
   // forced 1000 PK lookups and blew the 4s tier timeout for broad terms like
   // `s24 case` (~3.6s). Selecting title/category/source/price/updated_at in cand
   // keeps the same ranking semantics in ~40-110ms.
-  const rankCols = `title, category, source, price, updated_at`;
+  const rankCols = `title, category, source, price, updated_at, currency`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
@@ -465,7 +500,11 @@ async function tryTierSearch(
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${inMarketCurrencyBoost.replace(/sp\./g, 'c.')}) *
+            (${consoleTvAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${consoleUnitBoost.replace(/sp\./g, 'c.')}) *
+            (${tvUnitBoost.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -502,7 +541,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -513,7 +552,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -557,7 +596,7 @@ async function tryTierSearch(
     // BUY-77812: always lead with FTS. The phone-category regex scan on
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    let rows = (await client.query(mkQuery(andMatch, deviceAccessoryCandExcl), params)).rows;
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
@@ -575,7 +614,7 @@ async function tryTierSearch(
       // Single-lexeme head terms keep the OR fallback because their posting lists are
       // smaller and the archive path is already fast for them.
       if (rows.length === 0 && lexemes.length === 1) {
-        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+        rows = (await client.query(mkQuery(orMatch, deviceAccessoryCandExcl), params)).rows;   // recall fallback
       }
       if (!skipSlowFallbacks) {
         if (rows.length === 0 && isGenericPhoneQuery) {
@@ -644,6 +683,7 @@ async function tryTierSearch(
     // Shopify labelled SG). Serve the child hits without currency
     // isolation — leaking USD is a truthful in-market listing; api_error
     // is not. BUY-79497 archive fallback stays for empty child FTS only.
+    // BUY-80441: Only leak mismatched currency when the in-currency page is empty.
     let served = products;
     if (useChildTable && wantCur && served.length === 0) {
       served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
