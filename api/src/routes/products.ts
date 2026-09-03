@@ -596,13 +596,23 @@ async function tryTierSearch(
         OR lower(sp.title) = lower($${qIdx})
       THEN 0.05 ELSE 1.0
     END` : '1.0';
+  // BUY-80656: explicit ILIKE exclusions for laptop accessories in title fallback.
+  // The regex-based laptopAccessoryPenalty demotes but doesn't exclude. Add explicit
+  // exclusions for laptop case/sleeve/skin/decal/sticker/cover to filter them out.
+  const laptopAccessoryExclusions = isBareQuery ? `
+    AND lower(sp.title) NOT ILIKE '%laptop case%'
+    AND lower(sp.title) NOT ILIKE '%laptop sleeve%'
+    AND lower(sp.title) NOT ILIKE '%laptop skin%'
+    AND lower(sp.title) NOT ILIKE '%laptop decal%'
+    AND lower(sp.title) NOT ILIKE '%laptop sticker%'
+    AND lower(sp.title) NOT ILIKE '%laptop cover%'` : '';
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
   // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}${laptopAccessoryExclusions}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -613,7 +623,7 @@ async function tryTierSearch(
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}${laptopAccessoryExclusions}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
