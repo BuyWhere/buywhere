@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80415'; // BUY-80215: skip empty/currency-leaky semantic-cache hits
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v20-b80415'; // BUY-80415: exact-title + console/mp4 ranking
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -460,8 +460,29 @@ async function tryTierSearch(
   const intentAccessoryFilter = (!queryWantsAccessory && (isPhoneQuery || isEarbudQuery))
     ? (isEarbudQuery
       ? ` AND NOT (lower(sp.title) ~* '\\m(tip|tips|ear.?tip|skin|skins|kate.?spade|foam|replacement)\\M')`
-      : ` AND NOT (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|skin|skins|belt)\\M')`)
+      : ` AND NOT (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|skin|skins|belt|mp4)\\M')`)
     : '';
+  const isConsoleQuery = /\b(ps5|playstation)\b/i.test(p.q);
+  const consoleAccessoryFilter = (!queryWantsAccessory && isConsoleQuery)
+    ? ` AND NOT (lower(sp.title) ~* '\\m(dualsense|controller|controllers|headset|headsets|charging station|media remote)\\M')`
+    : '';
+  const deviceExactBoost = `
+    CASE
+      WHEN lower(sp.title) LIKE '%' || lower($${qIdx}) || '%' THEN 6.0
+      ELSE 1.0
+    END`;
+  const deviceControllerPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(mp4|dualsense|controller|controllers)\\M' THEN 0.04
+      ELSE 1.0
+    END`;
+  const deviceConsoleBoost = `
+    CASE
+      WHEN lower($${qIdx}) ~* '(ps5|playstation)'
+        AND lower(sp.title) ~* '\\m(console)\\M'
+        AND lower(sp.title) !~* '\\m(controller|dualsense)\\M'
+      THEN 10.0 ELSE 1.0
+    END`;
 
   const laptopBoost = `
     CASE
@@ -480,13 +501,13 @@ async function tryTierSearch(
     WITH cand AS (
       (
         SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-        WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+        WHERE ${match}${filterSql}${extraFilter}${storageExcl}${consoleAccessoryFilter}
         LIMIT 160
       )
       UNION ALL
       (
         SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-        WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+        WHERE ${match}${filterSql}${extraFilter}${storageExcl}${consoleAccessoryFilter}
           AND lower(sp.title) ~* '\\m(iphone [0-9]|ipad (air|pro|mini)|airpods|macbook|galaxy s[0-9]|galaxy tab|pixel [0-9])\\M'
           AND NOT (lower(sp.title) ~* '\\m(case|cover|mount|holder|poncho|wallet|protector|folio|tempered|glass|charger|cable|adapter|kit)\\M')
         LIMIT 80
@@ -500,7 +521,10 @@ async function tryTierSearch(
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${deviceAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -531,24 +555,24 @@ async function tryTierSearch(
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}${consoleAccessoryFilter}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}${consoleAccessoryFilter}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${primaryDeviceBoost}) * (${laptopAccessoryPenaltyTitle}) * (${deviceAccessoryPenalty}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -610,6 +634,8 @@ async function tryTierSearch(
       // FTS is 0-row. Bounded title ILIKE on the child table recovers them.
       // Child sessions pin enable_seqscan=off for GIN; ILIKE cannot use GIN and
       // would fail/timeout. Re-enable seqscan only for this bounded fallback.
+      // SAVEPOINT: a 4s timeout must not abort the outer tx / empty-child path.
+      await client.query('SAVEPOINT child_title_fb');
       try {
         await client.query('SET LOCAL enable_seqscan = on');
         rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
@@ -617,7 +643,9 @@ async function tryTierSearch(
           const tokenTitleFallbackUnfiltered = tokenTitleFallbackQuery.replace(intentAccessoryFilter, '');
           rows = (await client.query(tokenTitleFallbackUnfiltered, params)).rows;
         }
-      } catch { /* child title fallback is best-effort */ }
+      } catch {
+        await client.query('ROLLBACK TO SAVEPOINT child_title_fb').catch(() => {});
+      }
     }
     if (rows.length === 0) {
       // BUY-77644: broad OR fallbacks on multi-word queries union huge posting lists
