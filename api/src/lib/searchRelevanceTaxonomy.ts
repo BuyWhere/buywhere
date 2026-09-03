@@ -245,3 +245,68 @@ export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
   })
   .map((re) => `\\m(?:${re})\\M`)
   .join('|');
+
+// ─────────────────────────────────────────────────────────────────────────
+// BUY-80570: bare-device query taxonomy.
+//
+// When the user's query is a bare device token (laptop/notebook/macbook/chromebook
+// with no accessory or long-tail intent), generic/non-computer titles that happen
+// to contain that lexeme must be demoted so real laptops lead the first page.
+//
+// `isBareDeviceQuery` checks the raw query string (before any normalising).
+// `NON_COMPUTER_TITLE_PATTERNS` are Postgres ARE word-bounded patterns matched
+// against the product title.
+//
+// Both gates must fire together: a bare-device query on a non-computer title
+// gets 0.05x. A non-computer title in a long-tail query (e.g. "wooden laptop
+// stand") is not demoted — the long-tail intent already narrows to accessories.
+export const BARE_DEVICE_QUERY_TOKENS = new Set<string>([
+  'laptop', 'notebook', 'macbook', 'chromebook',
+]);
+
+export const NON_COMPUTER_TITLE_PATTERNS = [
+  // Exact single-word title match (e.g. title = "Laptop")
+  '\\mLaptop\\M',
+  // Craft / toy / non-computer products historically mis-tagged under Computing
+  '\\mWooden\\M.*\\mNotebook\\M',
+  '\\mWooden\\M.*\\mLaptop\\M',
+  // Marketplace / instruction listings containing "recommended for"
+  'recommended for fsx',
+  'recommended for FSX',
+  // FSX 2020 / flight-sim marketplace listing
+  '\\mFSX\\M',
+];
+
+export const NON_COMPUTER_TITLE_PG_RE_SOURCE = NON_COMPUTER_TITLE_PATTERNS
+  .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|');
+
+function normalizeQueryTokensForBare(q: string): Set<string> {
+  return new Set(
+    q
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
+      .filter(Boolean),
+  );
+}
+
+/**
+ * True when the query is a bare device query with no accessory intent:
+ * - exactly one token, AND
+ * - token is in BARE_DEVICE_QUERY_TOKENS (laptop/notebook/macbook/chromebook).
+ *
+ * Long-tail queries like "wooden laptop stand" return false — the accessory
+ * intent already distinguishes them from a generic "laptop" search.
+ *
+ * Matching is stem-tolerant: `macbooks` matches `macbook`.
+ */
+export function isBareDeviceQuery(q: string): boolean {
+  const tokens = normalizeQueryTokensForBare(q);
+  if (tokens.size !== 1) return false;
+  const token = [...tokens][0];
+  return [...BARE_DEVICE_QUERY_TOKENS].some(
+    (fam) => token.length >= fam.length && token.startsWith(fam),
+  );
+}
