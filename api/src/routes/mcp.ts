@@ -1385,6 +1385,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
             }
+            // BUY-80652: non-child-table countries skip currency in tierWhere but the
+            // detail join has no currency filter, so USD rows pass country_code=SG and
+            // leak into results. Apply native currency on the join to match isolation.
+            if (country && COUNTRY_CURRENCY[country]) {
+              detailParams.push(COUNTRY_CURRENCY[country]);
+              detailConditions.push(`currency = $${detailParams.length}`);
+            }
             if (region) {
               detailParams.push(region);
               detailConditions.push(`region = $${detailParams.length}`);
@@ -1423,13 +1430,20 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailConditions2 = ['id IN (' + ph + ')', 'is_active = true', 'price > 0'];
+            const detailParams2: unknown[] = [...tierIds];
+            // BUY-80652: mirror Fix A — add native currency to detail join for non-child-table.
+            if (country && COUNTRY_CURRENCY[country]) {
+              detailParams2.push(COUNTRY_CURRENCY[country]);
+              detailConditions2.push(`currency = $${detailParams2.length}`);
+            }
             // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true AND price > 0`,
-              tierIds
+               FROM products WHERE ${detailConditions2.join(' AND ')}`,
+              detailParams2
             );
             // Preserve tier ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -2315,10 +2329,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
-    if (restFbp && restFbp.best_price) {
+    if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
       console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
-      const allRows = [restFbp.best_price, ...restFbp.alternatives];
+      const allRows = restFbp.best_price
+        ? [restFbp.best_price, ...restFbp.alternatives]
+        : restFbp.alternatives;
       const rowToUsd = (r: Record<string, unknown>) => {
         const price = r.price as { amount: number; currency: string } | null;
         if (!price?.amount) return 0;
@@ -2334,12 +2350,20 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       if (geo.geoDropped > 0 || geo.highDropped > 0) {
         console.log(`[find_best_price] BUY-80322 REST fallback geo guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} product="${productName}" country=${country}`);
       }
+      // BUY-80652: apply native currency filter before declaring empty.
       const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
       const guarded = rankFbpHardwareFirst(native);
       return {
         best_price: guarded[0] ?? null,
         alternatives: guarded.slice(1),
-        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
+        meta: {
+          ...restFbp.meta,
+          degraded: true,
+          degraded_kind: 'circuit_open',
+          emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
+          confidence: guarded.length === 0 ? 'low' : 'medium',
+          guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0,
+        },
       };
     }
     return buildMcpDegradedBestPriceResponse({
@@ -2488,10 +2512,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
-    if (restFbp && restFbp.best_price) {
+    if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
       console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
-      const allRows = [restFbp.best_price, ...restFbp.alternatives];
+      const allRows = restFbp.best_price
+        ? [restFbp.best_price, ...restFbp.alternatives]
+        : restFbp.alternatives;
       const rowToUsd = (r: Record<string, unknown>) => {
         const price = r.price as { amount: number; currency: string } | null;
         if (!price?.amount) return 0;
@@ -2507,12 +2533,20 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       if (geo.geoDropped > 0 || geo.highDropped > 0) {
         console.log(`[find_best_price] BUY-80322 REST fallback geo guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} product="${productName}" country=${country}`);
       }
+      // BUY-80652: apply native currency filter before declaring empty.
       const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
       const guarded = rankFbpHardwareFirst(native);
       return {
         best_price: guarded[0] ?? null,
         alternatives: guarded.slice(1),
-        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
+        meta: {
+          ...restFbp.meta,
+          degraded: true,
+          degraded_kind: degradedKind,
+          emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
+          confidence: guarded.length === 0 ? 'low' : 'medium',
+          guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0,
+        },
       };
     }
     return buildMcpDegradedBestPriceResponse({
