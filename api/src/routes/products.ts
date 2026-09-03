@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v22-b80550'; // v22 BUY-80550: laptop mount/key-ring accessory penalty
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v23-b80550'; // v23 BUY-80550: co-occurrence 0.10x penalty + compound accessory aliases
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -424,11 +424,28 @@ async function tryTierSearch(
   // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
   // exported from searchRelevanceTaxonomy so the API tier and the SEO page
   // both demote the same accessory set.
+  //
+  // BUY-80550 (residual): co-occurrence demotion tiers:
+  //   - Title contains BOTH a device token (laptop/notebook/macbook/chromebook)
+  //     AND an accessory token → 0.10x. Rationale: FTS boosts device lexeme
+  //     (~2.0 ts_rank), leaving 0.5 at 0.25x — still above a real laptop.
+  //     0.10x gives ~0.2, below a typical laptop's ts_rank.
+  //   - Title or category contains an accessory token (no device co-occurrence)
+  //     in the title → 0.25x (keep pre-existing accessory-only penalty).
+  //   - No accessory match → 1.0x.
+  // BUY-80550: bagpack/briefcase/pouch added to LAPTOP_ACCESSORY_SOFT_TOKENS;
+  // compound forms can't match via bare bag/case/pouch tokens due to \m\M
+  // word-boundary constraints.
+  const deviceTokenRE = String.raw`\m(laptop|notebook|macbook|chromebook)\M`;
   const laptopAccessoryPenalty = `
     CASE
-      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN 0.25 ELSE 1.0
+      WHEN lower(sp.title) ~* '${deviceTokenRE}'
+        AND lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.10
+      WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.25
+      ELSE 1.0
     END`;
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
   // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
@@ -533,11 +550,16 @@ async function tryTierSearch(
   // sync — when widening the accessory list, update both
   // `LAPTOP_ACCESSORY_SOFT_TOKENS` (searchRelevanceTaxonomy.ts) and
   // `LAPTOP_ACCESSORY_RE` (seo-landing-pages.ts).
+  // BUY-80550: co-occurrence tiers mirror mkQuery's laptopAccessoryPenalty.
   const laptopAccessoryPenaltyTitle = `
     CASE
-      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN 0.25 ELSE 1
+      WHEN lower(sp.title) ~* '${deviceTokenRE}'
+        AND lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.10
+      WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.25
+      ELSE 1
     END`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
   // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
