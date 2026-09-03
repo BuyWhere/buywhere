@@ -1957,6 +1957,9 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
       timed_out_stage: null,
     };
   }
+  // BUY-71542: empty 200 OK must always carry emptiness_reason (spec §2.2).
+  // Category-unsupported is already stamped above; remaining empties are no_match/no_data.
+  applyNoMatchMeta(result);
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
@@ -3208,11 +3211,19 @@ async function dispatchTool(name: string, args: Record<string, unknown>, caller?
       case 'search_products':  return handleSearchProducts(args, caller);
       case 'get_product':      return handleGetProduct(args, caller);
       case 'compare_products': return handleCompareProducts(args, caller);
-      case 'get_deals':        return handleGetDeals(args, caller);
+      case 'get_deals': {
+        const deals = await handleGetDeals(args, caller);
+        applyNoMatchMeta(deals);
+        return deals;
+      }
       case 'list_categories':  return handleListCategories(args);
       case 'find_best_price':  return handleFindBestPrice(args);
       case 'ingest_products':  return handleIngestProducts(args);
-      case 'find_similar':     return handleFindSimilar(args);
+      case 'find_similar': {
+        const similar = await handleFindSimilar(args);
+        applyNoMatchMeta(similar);
+        return similar;
+      }
       case 'search_products_v2':  return handleSearchProductsV2(args);
       case 'get_product_v2':      return handleGetProductV2(args);
       case 'compare_products_v2': return handleCompareProductsV2(args);
