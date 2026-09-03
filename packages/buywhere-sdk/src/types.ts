@@ -29,6 +29,8 @@ export interface GetProductParams {
   product_id: number;
 }
 
+export type SearchModeOption = 'keyword' | 'semantic' | 'hybrid';
+
 export interface SearchParams {
   query: string;
   country?: string;
@@ -39,6 +41,19 @@ export interface SearchParams {
   price_min?: number;
   price_max?: number;
   platform?: string;
+  /**
+   * Explicitly request a search mode. Falls back to hybrid (RRF blend of FTS
+   * and vector) when not specified. keyword=FTS only; semantic=vector only.
+   * @default 'hybrid'
+   */
+  mode?: SearchModeOption;
+}
+
+/** Honesty envelope from GET /v1/products/search (BWEXT-69EEE94E). */
+export interface SearchMode {
+  requested_mode: string | null;
+  executed_mode: string;
+  fallback_reason: string | null;
 }
 
 export interface SearchResponse {
@@ -47,6 +62,8 @@ export interface SearchResponse {
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  /** Present on live API responses; omitted on synthetic batch-error placeholders. */
+  search_mode?: SearchMode;
 }
 
 export interface MerchantPrice {
@@ -307,6 +324,7 @@ export interface AgentSearchResponse {
   results: AgentSearchResult[];
   query_time_ms: number;
   cache_hit: boolean;
+  search_mode?: SearchMode;
 }
 
 export interface AgentSearchParams {

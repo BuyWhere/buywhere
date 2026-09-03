@@ -76,6 +76,12 @@ export function createApp() {
   app.use((_req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('X-Frame-Options', 'DENY');
+    // BWEXT-E295E918 baseline browser-hardening headers. The CSP allows inline
+    // styles because the /docs HTML pages use them; the API itself returns JSON.
+    res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.set('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'");
+    res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
   app.use(express.json({ limit: '10mb' }));

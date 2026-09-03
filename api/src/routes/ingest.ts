@@ -2,6 +2,10 @@ import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
 import { validatePrice } from '../lib/pricing';
+import {
+  SEARCH_PRODUCTS_SINK_SOURCES,
+  promoteAmazonUsToSearchProducts,
+} from '../lib/promoteAmazonUsToSearchProducts';
 
 const router = Router();
 
@@ -918,6 +922,12 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
     // skuToId was populated by the pre-existing check above; refresh with final IDs
     for (const r of finalResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
       skuToId.set(rowKey(r), r.id);
+    }
+
+    if (SEARCH_PRODUCTS_SINK_SOURCES.has(source)) {
+      const sinkIds = [...skuToId.values()].map((id) => String(id));
+      // Do not await — GIN idx_sp_fts can stall; ingest response must not wait.
+      void promoteAmazonUsToSearchProducts(db, sinkIds);
     }
 
     for (const p of validProducts) {

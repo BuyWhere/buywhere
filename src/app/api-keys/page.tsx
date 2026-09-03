@@ -143,7 +143,7 @@ export default function ApiKeysPage() {
     path: "/api-keys",
     name: "API Keys — BuyWhere",
     description:
-      "Create and manage your BuyWhere API keys. Free tier during beta, with 1,000 requests per month included.",
+      "Create and manage your BuyWhere API keys. Free tier during beta, with 10,000 requests per day included.",
     breadcrumb: [
       { name: "Home", path: "/" },
       { name: "API Keys", path: "/api-keys" },
@@ -181,7 +181,7 @@ export default function ApiKeysPage() {
             <h2 className="text-2xl font-bold text-gray-900">Agents: zero-human setup</h2>
             <p className="mt-2 text-sm leading-7 text-gray-600">
               No form, no email, no waiting — one HTTP call returns a working API key instantly.
-              Free tier: 1,000 requests/day.
+              Free tier: 10,000 requests/day.
             </p>
             <div className="mt-4 overflow-hidden rounded-xl bg-gray-900">
               <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">

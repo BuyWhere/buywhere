@@ -6,7 +6,7 @@ const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 
 const AI_AGENT_DESCRIPTOR = {
   name: 'BuyWhere',
-  description: 'Agent-native product catalog API — 300M+ products, 900,000+ direct merchants worldwide, location-aware deliver_to ranking',
+  description: 'Agent-native product catalog API — 370M+ products, 900,000+ direct merchants worldwide, location-aware deliver_to ranking',
   version: '1.0',
   protocols: {
     mcp: 'https://api.buywhere.ai/mcp',
@@ -27,7 +27,7 @@ const AI_AGENT_DESCRIPTOR = {
 const A2A_AGENT_CARD = {
   name: 'BuyWhere',
   description:
-    'Real-time shopping API and agent-native product catalog for AI agents: 381M+ products from 900,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
+    'Real-time shopping API and agent-native product catalog for AI agents: 370M+ products from 900,000+ merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
   provider: {
     organization: 'BuyWhere',
@@ -49,7 +49,7 @@ const A2A_AGENT_CARD = {
       id: 'product-search',
       name: 'Product Search',
       description:
-        'Search 381M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
+        'Search 370M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
       tags: ['e-commerce', 'search', 'products', 'availability'],
       examples: [
         'Find wireless earbuds under 150 USD that ship to US',
@@ -113,9 +113,9 @@ router.get('/ai-plugin.json', (_req: Request, res: Response) => {
     schema_version: 'v1',
     name_for_human: 'BuyWhere Product Catalog',
     name_for_model: 'buywhere_catalog',
-    description_for_human: 'Product catalog for AI agents: 300M+ products from 900,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
+    description_for_human: 'Product catalog for AI agents: 370M+ products from 900,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
     description_for_model:
-      'Use this plugin to search the BuyWhere global product catalog for AI agents and LLM apps. Search 300M+ products across 900,000+ storefronts worldwide; pass deliver_to=<ISO country> for the end user delivery location so results rank deliverable-first and include availability labels (local | ships_to_you | unavailable | unknown). Filter by merchant/retailer, price range, country, currency, availability, and include_unshippable. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
+      'Use this plugin to search the BuyWhere global product catalog for AI agents and LLM apps. Search 370M+ products across 900,000+ storefronts worldwide; pass deliver_to=<ISO country> for the end user delivery location so results rank deliverable-first and include availability labels (local | ships_to_you | unavailable | unknown). Filter by merchant/retailer, price range, country, currency, availability, and include_unshippable. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
     auth: {
       type: 'user_http',
       authorization_type: 'bearer',
@@ -172,7 +172,7 @@ router.get('/glama.json', (_req: Request, res: Response) => {
     "$schema": "https://glama.ai/mcp/schemas/connector.json",
     name: "buywhere",
     display_name: "BuyWhere",
-    description: "Agent-native product catalog API. Search 300M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.",
+    description: "Agent-native product catalog API. Search 370M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.",
     icon_url: "https://buywhere.ai/assets/icon.png",
     public_repository: true,
     homepage_url: "https://buywhere.ai",
@@ -194,7 +194,7 @@ router.get('/glama.json', (_req: Request, res: Response) => {
     },
     maintainers: [{ email: "api@buywhere.ai" }],
     tools: [
-      { name: "search_products", description: "Full-text search across 300M+ products from 20+ e-commerce platforms" },
+      { name: "search_products", description: "Full-text search across 370M+ products from 20+ e-commerce platforms" },
       { name: "get_product", description: "Get full product details by BuyWhere product ID" },
       { name: "compare_prices", description: "Compare prices for a product across all platforms" },
       { name: "get_deals", description: "Find products with active discounts" },
@@ -224,7 +224,7 @@ export function sendOpenApiSpec(res: Response) {
     info: {
       title: 'BuyWhere Product Catalog API',
       version: '1',
-      description: 'Agent-native product catalog API for Southeast Asia and US commerce. Search 300M+ products across Shopee, Lazada, Amazon, Walmart, FairPrice, Carousell, and 20+ e-commerce platforms. Compare prices, discover deals, and find best prices through REST or MCP.',
+      description: 'Agent-native product catalog API for Southeast Asia and US commerce. Search 370M+ products across Shopee, Lazada, Amazon, Walmart, FairPrice, Carousell, and 20+ e-commerce platforms. Compare prices, discover deals, and find best prices through REST or MCP.',
     },
     servers: [{ url: `${API_BASE_URL}/v1` }],
     paths: {
@@ -276,8 +276,9 @@ export function sendOpenApiSpec(res: Response) {
       '/products/search': {
         get: {
           summary: 'Search products by keyword with full-text search',
+          description: 'Public read endpoint: works without credentials at anonymous rate limits. Sending a Bearer API key raises limits to your tier (free tier: 10 requests/min, 10,000/day) and enables usage attribution.',
           operationId: 'searchProducts',
-          security: [{ BearerAuth: [] }],
+          security: [],
           parameters: [
             { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Keyword search query (full-text). Alias: query.' },
             { name: 'query', in: 'query', schema: { type: 'string' }, description: 'Alias for q (accepted for agent convenience; prefer q).' },
@@ -292,7 +293,7 @@ export function sendOpenApiSpec(res: Response) {
             { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents. Adds normalized_price_usd field. Reduces response ~40%.' },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
             { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
-            { name: 'mode', in: 'query', schema: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'keyword' }, description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `semantic` uses the Jina v3 query embedding against the pgvector pool, and `hybrid` RRF-merges the FTS and semantic candidate ranks. If vector infrastructure is unavailable, `semantic` and `hybrid` fall back to the keyword path.' },
+            { name: 'mode', in: 'query', schema: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'keyword' }, description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `semantic` embeds the query (flow-embed-1, 1024-dim) and searches the pgvector pool, and `hybrid` RRF-merges the FTS and semantic candidate ranks. If vector infrastructure is unavailable, `semantic` and `hybrid` fall back to the keyword path.' },
           ],
           responses: {
             '200': {
@@ -346,7 +347,7 @@ export function sendOpenApiSpec(res: Response) {
                               category_recognized: { type: 'boolean' },
                               timed_out_stage: { type: 'string', description: 'Stage that timed out (catalog_search, offer_aggregation)' },
                               deliver_to_present: { type: 'boolean' },
-                              rate_limit_remaining: { type: ['integer', 'null'] },
+                              rate_limit_remaining: { type: 'integer', nullable: true },
                             },
                           },
                           degraded_kind: { type: 'string', description: 'Type of degradation (timeout, api_error, auth_failure)' },
@@ -355,13 +356,66 @@ export function sendOpenApiSpec(res: Response) {
                           deliver_to_inferred: { type: 'boolean', description: 'Whether deliver_to was inferred from country_code' },
                         },
                       },
+                      search_mode: {
+                        type: 'object',
+                        description: 'Mode honesty: which engine the request asked for, which one actually ran, and why any fallback happened.',
+                        properties: {
+                          requested_mode: { type: 'string', nullable: true, enum: ['keyword', 'semantic', 'hybrid', null] },
+                          executed_mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'] },
+                          fallback_reason: { type: 'string', nullable: true, description: 'e.g. vector_error, query_embed_failed, vector_db_unavailable, sort_forces_keyword' },
+                        },
+                      },
                     },
                   },
                 },
               },
             },
-            '401': { description: 'Missing or invalid API key' },
+            '400': {
+              description: 'Invalid query parameters (limit out of range, malformed country code, inverted or negative price range, unknown mode)',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      error: {
+                        type: 'object',
+                        properties: {
+                          code: { type: 'string', example: 'invalid_request' },
+                          message: { type: 'string' },
+                          details: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, issue: { type: 'string' } } } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             '429': { description: 'Rate limit exceeded' },
+          },
+        },
+      },
+      '/products/{id}/price-history': {
+        get: {
+          summary: 'Historical price points for a product',
+          operationId: 'getPriceHistory',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'BuyWhere product ID' },
+          ],
+          responses: {
+            '200': { description: 'Price history series', content: { 'application/json': { schema: { type: 'object' } } } },
+            '401': { description: 'Missing or invalid API key' },
+          },
+        },
+      },
+      '/usage/counters': {
+        get: {
+          summary: 'Usage counters for the calling API key',
+          operationId: 'getUsageCounters',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': { description: 'Request counters and remaining quota', content: { 'application/json': { schema: { type: 'object' } } } },
+            '401': { description: 'Missing or invalid API key' },
           },
         },
       },
@@ -517,7 +571,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       name: 'BuyWhere Product Catalog',
       version: '1.0.0',
     },
-    description: "Agent-native product catalog API for Southeast Asia and US commerce. Search 300M+ products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, Carousell, FairPrice, Harvey Norman, and 20+ e-commerce platforms. Compare prices across merchants, discover deals, browse categories, find best prices — all through a single MCP endpoint.",
+    description: "Agent-native product catalog API for Southeast Asia and US commerce. Search 370M+ products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, Carousell, FairPrice, Harvey Norman, and 20+ e-commerce platforms. Compare prices across merchants, discover deals, browse categories, find best prices — all through a single MCP endpoint.",
     contact: { email: 'api@buywhere.ai', url: 'https://buywhere.ai' },
     license: 'MIT',
     servers: [
@@ -528,7 +582,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       },
     ],
     tools: [
-      { name: 'search_products', description: 'Full-text product search with price, category, merchant, region, and rating filters across 300M+ products from 20+ e-commerce platforms. Supports multiple currencies and compact JSON mode for AI agents.', inputSchema: { type: 'object', properties: { q: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, currency: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean' } } } },
+      { name: 'search_products', description: 'Full-text product search with price, category, merchant, region, and rating filters across 370M+ products from 20+ e-commerce platforms. Supports multiple currencies and compact JSON mode for AI agents.', inputSchema: { type: 'object', properties: { q: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, currency: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean' } } } },
       { name: 'get_product', description: 'Get a specific product by ID including full details, current price, brand, category, ratings, merchant info, and specifications.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, currency: { type: 'string' } }, required: ['id'] } },
       { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
       { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, category: { type: 'string', description: 'Filter by product category name (e.g. "electronics", "beauty", "fashion")' }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
@@ -546,7 +600,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       required: true,
       type: 'bearer',
       register_url: 'https://api.buywhere.ai/v1/auth/register',
-      description: 'Register for a free API key. Free tier: 1,000 calls/month. No credit card required.',
+      description: 'Register for a free API key. Free tier: 10,000 requests/day. No credit card required.',
     },
     documentation: 'https://api.buywhere.ai/docs/guides/mcp',
     homepage: 'https://buywhere.ai',

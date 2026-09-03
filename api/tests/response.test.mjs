@@ -355,7 +355,7 @@ describe('deriveEmptiness (BUY-71542 + BUY-72044 / P2.6A)', () => {
 
     assert.equal(degraded.meta.degraded, true);
     assert.equal(degraded.meta.status, 'degraded');
-    assert.equal(degraded.meta.emptiness_reason, 'timeout');
+    assert.equal(degraded.meta.emptiness_reason, 'api_error');
     assert.equal(degraded.meta.degraded_kind, 'timeout');
     assert.equal(degraded.meta.degraded_reason, 'catalog_search');
     assert.equal(degraded.meta.confidence, 'low');

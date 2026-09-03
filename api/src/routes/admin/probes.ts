@@ -21,6 +21,21 @@ import { MCP_FTS_CACHE_TTL_SECONDS } from '../mcp';
 
 const router = Router();
 
+const DEFAULT_LOG_LIMIT = 100;
+const MAX_LOG_LIMIT = 1000;
+
+type ProbeLogRow = {
+  id: string;
+  product_id: string;
+  merchant_id: string | null;
+  url: string;
+  status: string;
+  reason: string | null;
+  response_code: number | null;
+  checked_at: string;
+  latency_ms: number | null;
+};
+
 // BUY-75368: probes endpoint is a MONITORING concern (Cart / weekly A1/A2
 // report) as well as an ADMIN concern. Accept either tier.
 //
@@ -176,7 +191,132 @@ router.get('/v1/admin/probes/mcp_cache_hit_latency', probeAuth, async (req: Requ
   }
 });
 
+// BUY-71331: per-URL probe history for Cart A2 reporting. Restored after
+// BUY-75368's rewrite (commit 06a7ce9e5) dropped the handler from probes.ts.
+// Cursor pagination uses the (checked_at DESC, id DESC) keyset backed by
+// idx_url_probe_log_checked_at_id (see api/src/migrate.ts).
+function parseLogsPagination(req: Request): {
+  limit: number;
+  offset: number;
+  cursorCheckedAt: string | null;
+  cursorId: string | null;
+  status: string | null;
+  productId: string | null;
+  since: string | null;
+  until: string | null;
+} {
+  const rawLimit = parseInt((req.query.limit as string) || `${DEFAULT_LOG_LIMIT}`, 10);
+  const limit = Number.isNaN(rawLimit) ? DEFAULT_LOG_LIMIT : Math.min(Math.max(rawLimit, 1), MAX_LOG_LIMIT);
+
+  const rawOffset = parseInt((req.query.offset as string) || '0', 10);
+  const offset = Number.isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
+
+  const cursor = (req.query.cursor as string) || '';
+  let cursorCheckedAt: string | null = null;
+  let cursorId: string | null = null;
+  if (cursor) {
+    const lastColon = cursor.lastIndexOf(':');
+    if (lastColon > 0 && lastColon < cursor.length - 1) {
+      cursorCheckedAt = cursor.slice(0, lastColon) || null;
+      cursorId = cursor.slice(lastColon + 1) || null;
+    }
+  }
+
+  return {
+    limit,
+    offset,
+    cursorCheckedAt,
+    cursorId,
+    status: (req.query.status as string) || null,
+    productId: (req.query.product_id as string) || null,
+    since: (req.query.since as string) || null,
+    until: (req.query.until as string) || null,
+  };
+}
+
+async function getProbesLogs(req: Request, res: Response): Promise<void> {
+  const { limit, offset, cursorCheckedAt, cursorId, status, productId, since, until } =
+    parseLogsPagination(req);
+
+  const whereClauses: string[] = [];
+  const params: (string | number)[] = [];
+  let paramIndex = 1;
+
+  if (status) {
+    whereClauses.push(`status = $${paramIndex++}`);
+    params.push(status);
+  }
+  if (productId) {
+    whereClauses.push(`product_id = $${paramIndex++}`);
+    params.push(productId);
+  }
+  if (since) {
+    whereClauses.push(`checked_at >= $${paramIndex++}`);
+    params.push(since);
+  }
+  if (until) {
+    whereClauses.push(`checked_at <= $${paramIndex++}`);
+    params.push(until);
+  }
+  if (cursorCheckedAt && cursorId) {
+    // Keyset pagination: rows older than the cursor (checked_at, id) pair.
+    whereClauses.push(`(checked_at, id) < ($${paramIndex++}, $${paramIndex++})`);
+    params.push(cursorCheckedAt, cursorId);
+  }
+
+  const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  const rowsSql = `
+    SELECT id, product_id, merchant_id, url, status, reason,
+           http_status AS response_code, checked_at, latency_ms
+      FROM url_probe_log
+      ${where}
+     ORDER BY checked_at DESC, id DESC
+     LIMIT $${paramIndex++}
+     OFFSET $${paramIndex++}
+  `;
+  params.push(limit, offset);
+
+  const countSql = `
+    SELECT COUNT(*)::text AS total
+      FROM url_probe_log
+      ${where}
+  `;
+
+  try {
+    const [rowsResult, countResult] = await Promise.all([
+      db.query<ProbeLogRow>(rowsSql, params),
+      db.query<{ total: string }>(countSql, params.slice(0, -2)), // exclude limit/offset from count
+    ]);
+
+    const rows = rowsResult.rows;
+    const total = Number(countResult.rows[0]?.total || '0');
+
+    const lastRow = rows[rows.length - 1];
+    const nextCursor = lastRow ? `${lastRow.checked_at}:${lastRow.id}` : null;
+
+    res.json({
+      data: rows,
+      pagination: {
+        limit,
+        offset,
+        total,
+        returned: rows.length,
+        next_cursor: nextCursor,
+        has_more: offset + rows.length < total,
+      },
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: 'QUERY_FAILED', message });
+  }
+}
+
+router.get('/v1/admin/probes/logs', probeAuth, getProbesLogs);
+router.get('/admin/probes/logs', probeAuth, getProbesLogs);
+
 // ProbeAuth is the only thing we export alongside the default router.
 // (adminAuth kept imported for backward test compatibility.)
 export { probeAuth, adminAuth };
 export default router;
+

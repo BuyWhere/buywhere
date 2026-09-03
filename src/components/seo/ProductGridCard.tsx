@@ -146,8 +146,8 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
           </div>
         </a>
 
-        <div className={`mt-auto ${compact ? "grid gap-3" : "flex items-end justify-between gap-4"}`}>
-          <div>
+        <div className="mt-auto flex min-w-0 flex-col gap-3">
+          <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">
               Current price
             </p>
@@ -155,28 +155,24 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
               {formatPrice(product.price, product.currency)}
             </p>
           </div>
-          {/* BUY-70352 / BUY-76340 / BUY-78332: unify CTA shape. Merchant rows get
-              a real affiliate <a> to /r/direct/{id} (crawlable + commission).
-              Non-merchant rows get the passive "Compare prices" span. A
-              secondary "View details" link keeps the PDP reachable.
-              BUY-78332: rounded-full + narrow flex column forced "Buy at Best Buy"
-              to wrap to 4 lines on /best-gaming-laptops-us. Use rounded-lg
-              (8px) + whitespace-nowrap + flex-shrink-0 so the CTA stays
-              single-line at content width and never wraps mid-phrase. */}
-          <div className={`${compact ? "grid gap-2" : "flex flex-wrap items-center justify-end gap-2"}`}>
+          {/* BUY-79796: stack CTAs full-width. Horizontal nowrap + price+buttons
+              in one row clipped "Buy at Computerorbit" on /best-gaming-laptops-us
+              and /laptop-singapore. Column + w-full + wrap keeps the label inside
+              the card (overflow-hidden on the card shell). */}
+          <div className="flex min-w-0 w-full flex-col gap-2">
             {isMerchantOffer ? (
               <a
                 href={affiliateHref}
                 onClick={handleAffiliateClick}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
-                className={`inline-flex max-w-full whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex w-full min-w-0 min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "text-xs" : "text-sm"}`}
               >
                 Buy at {product.merchant}
               </a>
             ) : (
               <span
-                className={`inline-flex max-w-full whitespace-nowrap min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex w-full min-w-0 min-h-11 items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "text-xs" : "text-sm"}`}
               >
                 Compare prices
               </span>
@@ -185,7 +181,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
               <Link
                 href={product.productUrl}
                 prefetch={false}
-                className={`inline-flex max-w-full whitespace-nowrap min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "w-full text-xs" : "text-sm"}`}
+                className={`inline-flex w-full min-w-0 min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:text-amber-900 ${compact ? "text-xs" : "text-sm"}`}
               >
                 View details
               </Link>

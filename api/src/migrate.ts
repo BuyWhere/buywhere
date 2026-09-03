@@ -187,6 +187,8 @@ CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_truth
   ON affiliate_clicks(clicked_at, agent_framework, is_internal);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
+-- BUY-71331: cursor pagination for /v1/admin/probes/logs.
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_checked_at_id ON url_probe_log(checked_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_products_url_status ON products(url_status);
 
@@ -637,6 +639,8 @@ export async function runMigrations() {
       );
       CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
       CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
+      -- BUY-71331: cursor pagination for /v1/admin/probes/logs.
+      CREATE INDEX IF NOT EXISTS idx_url_probe_log_checked_at_id ON url_probe_log(checked_at DESC, id DESC);
       GRANT INSERT, SELECT ON url_probe_log TO PUBLIC;
       CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_products_url_status ON products(url_status);

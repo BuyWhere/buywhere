@@ -925,6 +925,24 @@ function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h:
   return null;
 }
 
+function isTrustedAirPurifierShopifyPhoto(config: SeoLandingPageConfig, product: LandingProduct): boolean {
+  if (config.slug !== "air-purifier-singapore" || config.country !== "SG") return false;
+  if (!product.imageUrl) return false;
+  const merchant = (product.merchantSlug || product.merchant || "").toLowerCase();
+  if (!/^(levoit(?:[._-]?sg)?|sterra(?:[._-]?sg)?)$/.test(merchant) && merchant !== "levoit.sg" && merchant !== "sterra.sg") {
+    return false;
+  }
+  if (product.imageUrl.startsWith("/api/image-proxy")) {
+    return product.imageUrl.includes("cdn.shopify.com") || product.imageUrl.includes("cdn.shopify.com".replaceAll(".", "%2E"));
+  }
+  try {
+    const url = new URL(product.imageUrl);
+    return url.hostname === "cdn.shopify.com";
+  } catch {
+    return false;
+  }
+}
+
 const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
 const SQUARE_FILE_SIZE_THRESHOLD = 250 * 1024; // < 250 KB square product photos are likely centered-on-white
 
@@ -1606,6 +1624,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     try {
       const highRecallRobotUs =
         config.slug === "best-robot-vacuums-2026" && config.country === "US";
+      // BUY-80149: air-purifier SG must not hairpin the 3600s FTS cache that
+      // still serves USD Honeywell respirators for q=air+purifier&country=sg.
+      const highRecallAirPurifierSg =
+        config.slug === "air-purifier-singapore" && config.country === "SG";
+      const useCanonicalV1 = highRecallRobotUs || highRecallAirPurifierSg;
       const params = new URLSearchParams({
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
@@ -1637,7 +1660,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // BUY-79810: robot-vacuum 2026 SSR must not hairpin through the public
       // site search proxy (429). Hit api.buywhere.ai with the service key when
       // present; otherwise keep the loopback proxy for other pages.
-      const searchUrls = highRecallRobotUs
+      const searchUrls = useCanonicalV1
         ? [
             `${apiBase()}/v1/products/search?${params.toString()}`,
             `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`,
@@ -1650,7 +1673,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           response = await fetch(searchUrl, {
             headers: {
               Accept: "application/json",
-              "x-buywhere-seo-cache": "79810",
+              "x-buywhere-seo-cache": highRecallAirPurifierSg ? "80149" : "79810",
+              ...(highRecallAirPurifierSg ? { "Cache-Control": "no-cache" } : {}),
               ...(viaV1 ? apiHeaders() : {}),
             },
             next: { revalidate: 60 },
@@ -1777,9 +1801,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const reachable = await verifyReachableImage(product.imageUrl);
       if (!reachable) return { passed: false, reason: "unreachable", fingerprint: null };
       const qualityPassed = await verifyUsableImageContent(product.imageUrl);
-      if (!qualityPassed) return { passed: false, reason: "low_quality", fingerprint: null };
+      if (!qualityPassed && !isTrustedAirPurifierShopifyPhoto(config, product)) {
+        return { passed: false, reason: "low_quality", fingerprint: null };
+      }
       const fingerprint = await fingerprintRemoteImage(product.imageUrl);
-      return { passed: true, reason: "ok", fingerprint };
+      return { passed: true, reason: qualityPassed ? "ok" : "trusted_shopify_photo", fingerprint };
     })
   );
 
@@ -2340,8 +2366,12 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "air purifier Singapore",
-    backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
+    // BUY-80149: broad "air purifier Singapore" FTS can return a stale USD
+    // respirator cache. Start with live SG brand queries that currently return
+    // priced levoit.sg / sterra.sg / challenger.sg rows, then keep broad terms
+    // only as last-resort fallbacks.
+    searchQuery: "levoit air purifier",
+    backupQueries: ["sterra air purifier", "Coway air purifier", "Xiaomi air purifier", "air purifier", "air purifier Singapore"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",

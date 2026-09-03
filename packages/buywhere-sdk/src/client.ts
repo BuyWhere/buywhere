@@ -245,6 +245,10 @@ export class BuyWhereClient {
       query.set('platform', searchParams.platform);
     }
 
+    if (searchParams.mode) {
+      query.set('mode', searchParams.mode);
+    }
+
     return this.request<SearchResponse>(`/v1/products/search?${query.toString()}`);
   }
 

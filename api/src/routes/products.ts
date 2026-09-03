@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v17-b79353'; // BUY-79353: tvs→tv stem + US child reindex
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v18-modehon'; // v18: search_mode honesty fields in cached bodies (BWEXT-69EEE94E)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -270,6 +270,7 @@ async function tryIdentifierLookup(
       const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
+      emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
       redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Identifier-Lookup', p.id.kind);
@@ -286,6 +287,7 @@ async function tryIdentifierLookup(
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
+    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
     res.set('X-Identifier-Lookup', p.id.kind);
@@ -613,6 +615,7 @@ async function tryTierSearch(
         if (res.headersSent) return true;
         const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
+        emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
         res.set('X-Search-Tier', '1');
@@ -650,6 +653,7 @@ async function tryTierSearch(
     const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
+    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
@@ -670,11 +674,16 @@ async function tryTierSearch(
 
 async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
   try {
-    const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+    // v2 (2026-09-02): when FLOWAI_EMBED_API_KEY is set, embed via Flow (flow-embed-1,
+    // 1024-dim) to match embedding_v2 — the same contract the MCP path already uses.
+    // Distinct cache prefix so 512-dim gemini vectors are never mixed with 1024-dim.
+    const flowKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+    const ver = flowKey ? 'v2' : 'v1';
+    const embedKey = `qembed:${ver}:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
     if (cached) return cached;
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
-    const vector = await embedQuery(query, geminiKey);
+    const vector = await embedQuery(query, flowKey || geminiKey);
     await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
     return vector;
   } catch (err) {
@@ -981,11 +990,15 @@ router.get(
     // `SET LOCAL statement_timeout` races with the pool's on-connect
     // `SET statement_timeout = 30000`, the response will fire at 5s and the
     // socket will close. Mirrors the BUY-33985 deals fix.
+    const modeExec: { requested_mode: string | null; executed_mode: string; fallback_reason: string | null } = {
+      requested_mode: null, executed_mode: 'keyword', fallback_reason: null,
+    };
     res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
         const degradedBody = buildSearchResponse([], 0, limit, offset, Date.now() - requestStart, false, true, false, restEchoDest(countryCode, deliverTo), buildRestApiErrorEmptiness(countryCode, deliverTo));
+        (degradedBody as unknown as Record<string, unknown>).search_mode = { ...modeExec, fallback_reason: modeExec.fallback_reason ?? 'handler_timeout' };
         res.status(200).json(degradedBody);
 
         // BUY-65260: cache the degraded payload for a short window so a repeat of
@@ -1039,10 +1052,44 @@ router.get(
     // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
     // correct. Keyword archive path honors buildSortOrder end-to-end.
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
+    // BWEXT-69EEE94E mode honesty (declared before the parse so the 10s watchdog
+    // closure can reference it): what engine actually ran + why any fallback.
+    modeExec.requested_mode = rawMode ?? null;
+    if (sortRequested && rawMode && rawMode !== 'keyword') modeExec.fallback_reason = 'sort_forces_keyword';
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
+
+    // BWEXT-B40E8514: invalid enum/range/pagination inputs must 400 with field-level
+    // errors instead of silently clamping to a misleading 200.
+    {
+      const verrs: Array<{ field: string; issue: string }> = [];
+      const rawLimitStr = req.query.limit as string | undefined;
+      if (rawLimitStr !== undefined) {
+        const n = Number(rawLimitStr);
+        if (!Number.isInteger(n) || n < 1) verrs.push({ field: 'limit', issue: 'must be an integer >= 1' });
+        else if (n > 100) verrs.push({ field: 'limit', issue: 'must be <= 100' });
+      }
+      for (const [f, v] of [['country_code', req.query.country_code], ['country', req.query.country], ['cc', req.query.cc], ['deliver_to', req.query.deliver_to]] as const) {
+        if (v !== undefined && !/^[A-Za-z]{2}$/.test(String(v))) verrs.push({ field: f, issue: 'must be a 2-letter ISO country code' });
+      }
+      const vMin = req.query.min_price !== undefined ? Number(req.query.min_price) : undefined;
+      const vMax = req.query.max_price !== undefined ? Number(req.query.max_price) : undefined;
+      if (vMin !== undefined && (!Number.isFinite(vMin) || vMin < 0)) verrs.push({ field: 'min_price', issue: 'must be a non-negative number' });
+      if (vMax !== undefined && (!Number.isFinite(vMax) || vMax < 0)) verrs.push({ field: 'max_price', issue: 'must be a non-negative number' });
+      if (vMin !== undefined && vMax !== undefined && Number.isFinite(vMin) && Number.isFinite(vMax) && vMin > vMax) {
+        verrs.push({ field: 'min_price', issue: 'must not exceed max_price' });
+      }
+      const rawModeCheck = (req.query.mode as string | undefined)?.toLowerCase();
+      if (rawModeCheck !== undefined && !VALID_SEARCH_MODES.has(rawModeCheck)) {
+        verrs.push({ field: 'mode', issue: "must be one of 'keyword', 'semantic', 'hybrid'" });
+      }
+      if (verrs.length > 0) {
+        res.status(400).json({ error: { code: 'invalid_request', message: 'One or more query parameters are invalid.', details: verrs } });
+        return;
+      }
+    }
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -1112,7 +1159,7 @@ router.get(
         const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
         let semVec: string | null = null;
         const semGk = process.env.GEMINI_API_KEY ?? '';
-        if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
+        if (semGk || process.env.FLOWAI_EMBED_API_KEY) semVec = await getCachedQueryEmbedding(q, semGk);
         const semHit = await semLookup(redis, semScope, qNorm, semVec);
         res.locals.semScope = semScope;
         res.locals.semQNorm = qNorm;
@@ -1468,6 +1515,7 @@ router.get(
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
       );
+      (responseBody as unknown as Record<string, unknown>).search_mode = { requested_mode: modeExec.requested_mode, executed_mode: 'keyword', fallback_reason: modeExec.fallback_reason ?? source };
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
@@ -1611,7 +1659,7 @@ router.get(
           // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
           // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
           // filter after materialization. Without a (country_code, updated_at)
-          // index, scanning 300M+ fresh SG rows took seconds per query, and the
+          // index, scanning 370M++ fresh SG rows took seconds per query, and the
           // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
           // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
           // (idx_products_search_country) bounds the scan to matching products only,
@@ -1745,14 +1793,17 @@ router.get(
         return r;
       };
       const geminiKey = process.env.GEMINI_API_KEY ?? '';
-      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
+      const flowEmbedKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
+      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && (flowEmbedKey !== '' || geminiKey !== '')
         ? vectorDb
         : null;
+      if (q !== '' && searchMode !== 'keyword' && !activeVectorDb) modeExec.fallback_reason = 'vector_db_unavailable';
 
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+        if (!queryVector) modeExec.fallback_reason = 'query_embed_failed';
         if (queryVector) {
           try {
             // BUY-63271: mark a savepoint before any local (client) queries so a statement
@@ -1765,13 +1816,23 @@ router.get(
             // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
             // to FTS silently — that would make semantic = keyword (the original bug). Instead,
             // we return 0 results, which at least makes semantic DIFFERENT from keyword.
-            const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
-               ORDER BY embedding <=> $1::vector
-               LIMIT $2`,
-              [queryVector, candidateCap]
-            );
+            // v2 path orders by the same halfvec expression the HNSW index is built on;
+            // anything else falls back to a sequential scan.
+            const semanticCandidates = flowEmbedKey !== ''
+              ? await activeVectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'flow-embed-1@1024'
+                   ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)
+                   LIMIT $2`,
+                  [queryVector, candidateCap]
+                )
+              : await activeVectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'gemini-embedding-001@512'
+                   ORDER BY embedding <=> $1::vector
+                   LIMIT $2`,
+                  [queryVector, candidateCap]
+                );
 
             const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
             let filteredSemanticIds: string[] = [];
@@ -1813,6 +1874,7 @@ router.get(
               );
             }
 
+            modeExec.executed_mode = searchMode;
             total = rankedCandidateIds.length;
             hasMore = total > offset + limit;
 
@@ -1849,6 +1911,8 @@ router.get(
             // poison the fail-open fallback and surface as a 500.
             await client.query('ROLLBACK TO SAVEPOINT before_vector').catch(() => {});
             console.warn('[search] vector search failed, falling back to FTS:', (vectorErr as Error)?.message || vectorErr);
+            modeExec.executed_mode = 'keyword';
+            modeExec.fallback_reason = modeExec.fallback_reason ?? 'vector_error';
             dataResult = await execFtsQuery(dataQuery);
           }
         } else {
@@ -2012,6 +2076,7 @@ router.get(
       restEchoDest(countryCode, deliverTo),
       filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null,
     );
+    (responseBody as unknown as Record<string, unknown>).search_mode = { ...modeExec };
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
@@ -2505,10 +2570,13 @@ router.get(
 
     if (vectorDb) {
       try {
-        // Fetch pre-computed embedding for this product.
+        // Fetch the pre-computed v2 embedding for this product. The legacy v1
+        // `embedding` column has no index — ordering by it seq-scans 8M+ rows and
+        // was the 504 on this endpoint. v2 KNN must use the exact halfvec
+        // expression idx_pe_v2_hnsw_half is built on or the planner ignores it.
         const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM product_embeddings
-           WHERE product_id = $1`,
+          `SELECT embedding_v2::text AS embedding FROM product_embeddings
+           WHERE product_id = $1 AND embedding_v2 IS NOT NULL`,
           [id]
         );
         if (embResult.rows.length > 0) {
@@ -2519,10 +2587,10 @@ router.get(
             score: string;
           }>(
             `SELECT product_id,
-                    1 - (embedding <=> $1::vector) AS score
+                    1 - ((embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)) AS score
              FROM product_embeddings
              WHERE product_id != $2
-             ORDER BY embedding <=> $1::vector
+             ORDER BY (embedding_v2::halfvec(1024)) <=> $1::halfvec(1024)
              LIMIT $3`,
             [embeddingStr, id, limit]
           );

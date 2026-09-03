@@ -259,7 +259,7 @@ export default function IntegratePage() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Agents-first setup</p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
             <p className="mt-4 text-lg leading-relaxed text-slate-600">
-              Register an agent directly and get an API key in the JSON response. 1,000 requests/day free.
+              Register an agent directly and get an API key in the JSON response. 10,000 requests/day free.
             </p>
           </div>
           <div className="rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">

@@ -33,8 +33,12 @@ function expectDegradedEnvelope(result, expectedKind) {
   assert.equal(result.meta.degraded, true, 'meta.degraded must be true on timeout/degraded path');
   assert.equal(result.meta.status, 'degraded', 'meta.status must be "degraded"');
   assert.equal(result.meta.confidence, 'low', 'meta.confidence must be "low"');
-  assert.ok(['timeout', 'partial_timeout', 'auth_failure', 'api_error'].includes(result.meta.emptiness_reason),
-    `meta.emptiness_reason must classify the degraded cause, got ${result.meta.emptiness_reason}`);
+  // BUY-79931: emptiness_reason is the locked P2.6 enum; timeout is degraded_kind only.
+  assert.equal(result.meta.emptiness_reason, 'api_error',
+    `meta.emptiness_reason must be api_error on degraded empty 200, got ${result.meta.emptiness_reason}`);
+  if (result.meta.degraded_kind === 'timeout') {
+    assert.equal(result.meta.emptiness_reason, 'api_error');
+  }
   assert.equal(result.meta.degraded_kind, expectedKind, `meta.degraded_kind must equal ${expectedKind}`);
   assert.ok(result.meta.diagnostic, 'meta.diagnostic must be present');
   assert.equal(result.meta.diagnostic.engine_status, 'degraded',
@@ -56,7 +60,7 @@ describe('BUY-74597: MCP degraded-mode contract', () => {
       degradedKind: 'timeout',
       timedOutStage: 'catalog_search',
     });
-    assert.equal(out.emptiness_reason, 'timeout');
+    assert.equal(out.emptiness_reason, 'api_error');
     assert.equal(out.confidence, 'low');
     assert.equal(out.degraded_kind, 'timeout');
     assert.equal(out.diagnostic.engine_status, 'degraded');
@@ -70,7 +74,7 @@ describe('BUY-74597: MCP degraded-mode contract', () => {
       degradedKind: 'partial_timeout',
       timedOutStage: 'offer_aggregation',
     });
-    assert.equal(out.emptiness_reason, 'partial_timeout');
+    assert.equal(out.emptiness_reason, 'api_error');
     assert.equal(out.degraded_kind, 'partial_timeout');
     assert.equal(out.diagnostic.timed_out_stage, 'offer_aggregation');
   });
@@ -80,7 +84,7 @@ describe('BUY-74597: MCP degraded-mode contract', () => {
       ...BASE_SIGNALS,
       degradedKind: 'auth_failure',
     });
-    assert.equal(out.emptiness_reason, 'auth_failure');
+    assert.equal(out.emptiness_reason, 'api_error');
     assert.equal(out.confidence, 'low');
     assert.equal(out.degraded_kind, 'auth_failure');
     assert.equal(out.diagnostic.engine_status, 'error');
@@ -185,6 +189,36 @@ describe('BUY-74597: MCP degraded-mode contract', () => {
       }),
     );
     assert.equal(result.meta.diagnostic.deliver_to_present, true);
-    assert.equal(result.meta.emptiness_reason, 'timeout');
+    assert.equal(result.meta.emptiness_reason, 'api_error');
+  });
+
+  it('BUY-79931: empty 200 with degraded_kind=timeout asserts emptiness_reason=api_error', () => {
+    const result = buildSearchResponse(
+      [],
+      0,
+      20,
+      0,
+      3502,
+      false,
+      true,
+      undefined,
+      'SG',
+      deriveEmptiness({
+        ...BASE_SIGNALS,
+        deliverToPresent: true,
+        requestedCountry: 'SG',
+        degradedKind: 'timeout',
+        timedOutStage: 'catalog_search',
+      }),
+    );
+    assert.equal(result.data.length, 0);
+    assert.equal(result.meta.degraded, true);
+    assert.equal(result.meta.degraded_kind, 'timeout');
+    assert.equal(result.meta.degraded_reason, 'catalog_search');
+    assert.equal(result.meta.emptiness_reason, 'api_error');
+    assert.notEqual(result.meta.emptiness_reason, 'timeout');
+    assert.equal(result.meta.confidence, 'low');
+    assert.equal(result.meta.diagnostic.engine_status, 'degraded');
+    assert.equal(result.meta.diagnostic.timed_out_stage, 'catalog_search');
   });
 });

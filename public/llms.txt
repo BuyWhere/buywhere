@@ -1,9 +1,9 @@
 # BuyWhere
 
-BuyWhere is an agent-native product catalog API for AI agents and LLM applications. Catalog (live at GET /v1/catalog/stats): more than 360M products from roughly 950K merchants in 80+ countries, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications. Catalog (live at GET /v1/catalog/stats): more than 370M products from roughly 950K merchants in 80+ countries, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
 ## Catalog Coverage
-- **Total catalog**: more than 360M products from roughly 950K merchants in 80+ countries (verified live at GET /v1/catalog/stats — canonical source)
+- **Total catalog**: more than 370M products from roughly 950K merchants in 80+ countries (verified live at GET /v1/catalog/stats — canonical source)
 - **Public sitemap index** (`/sitemap-merchants.xml`): ~100 SG storefront sample — discovery surface only, not the full catalog
 - Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
 - **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
@@ -38,12 +38,17 @@ MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools
-1. **search_products** — Full-text search with merchant, price, category, and country filters.
-2. **get_product** — Get full product details by BuyWhere product ID.
-3. **get_price** — Get current prices for a product across all available merchants.
-4. **compare_prices** — Compare 2–5 products side-by-side with price range, pros/cons, and best-value recommendation.
-5. **get_affiliate_link** — Get the click-tracked BuyWhere affiliate link for a product.
-6. **get_catalog** — List available product categories in the BuyWhere catalog.
+Read tools (v1): search_products, get_product, compare_products, get_deals, list_categories, find_best_price, find_similar.
+Read tools (v2, structured results): search_products_v2, get_product_v2, compare_products_v2, get_deals_v2, find_best_price_v2.
+Write tool: ingest_products (authenticated merchants only).
+1. **search_products / search_products_v2** — Full-text, semantic, or hybrid search with merchant, price, category, country, and deliver_to filters.
+2. **get_product / get_product_v2** — Full product details by BuyWhere product ID.
+3. **compare_products / compare_products_v2** — Compare 2-5 products side-by-side.
+4. **get_deals / get_deals_v2** — Current discounted offers, filterable by market.
+5. **list_categories** — Category tree of the catalog.
+6. **find_best_price / find_best_price_v2** — Cheapest offer for a product intent, with merchant handoff.
+7. **find_similar** — Nearest-neighbour similar products by semantic embedding.
+
 
 ## Authentication
 
@@ -55,7 +60,7 @@ Authorization: Bearer bw_live_YOUR_API_KEY
 
 Get a free API key at: https://api.buywhere.ai/v1/auth/register
 
-Free tier: 1,000 calls/month. No credit card required.
+Free tier: 10,000 requests/day. No credit card required.
 
 ## Use Cases
 - AI shopping agents and price comparison assistants
@@ -72,7 +77,7 @@ Free tier: 1,000 calls/month. No credit card required.
 - npm registry metadata: https://registry.npmjs.org/@buywhere%2fmcp-server
 
 ## Rate Limits
-- Free: 1,000 calls/month
+- Free: 10,000 requests/day
 - Starter: 50,000 calls/month — $9/month
 - Pro: 500,000 calls/month — $49/month
 - Enterprise: Custom limits
