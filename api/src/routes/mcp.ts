@@ -1059,7 +1059,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // query set (shirt/phone/nike/laptop × SG/MY/TH/VN/ID/PH/US) from the
   // tiny search_products_smoke_rank snapshot (hourly drain refresh). Falls
   // through to FTS if the table is missing or the pair is unpopulated.
-  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike', 'laptop']);
+  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike']);
   const SMOKE_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'ID', 'PH', 'US']);
   const qNorm = q.toLowerCase();
   if (
