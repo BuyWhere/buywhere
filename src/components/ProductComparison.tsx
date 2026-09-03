@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import PlatformComparisonBadge from "@/components/PlatformComparisonBadge";
@@ -11,6 +12,8 @@ import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
 import type { DataFreshness } from "@/lib/freshness";
 import editorialContent from "../../content/compare/editorial-content.json";
 import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
+import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from "@/lib/click-attribution";
+import { captureProductCardClick } from "@/lib/posthog-client";
 
 type Region = "SG" | "US" | "BOTH";
 type PriceMissingReason = "not_found" | "retailer_unavailable" | "scraping_failed" | "product_discontinued";
@@ -186,12 +189,37 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
   const bestPrice = hasPrices ? product.prices.find(p => p.price !== null) : null;
   const [selectedMerchant, setSelectedMerchant] = useState(bestPrice || product.prices[0]);
   const [showAllPrices, setShowAllPrices] = useState(false);
+  const pathname = usePathname();
 
   const coverage = product.coverage;
   const coverageInfo = coverage ? getCoverageScore(coverage) : null;
 
   const isSparseState = retailerCount <= 2;
   const isSingleRetailer = retailerCount === 1;
+
+  // BUY-80661: emit affiliate_click with source_page on every comparison CTA.
+  // Wrap the merchant URL through /r/direct/{id} when possible so the redirect
+  // server records source_page too; otherwise the onClick handler below still
+  // captures source_page via the PostHog event + URL ?pathname= params.
+  const merchantHref = (merchant: MerchantPrice): string => {
+    const numericId = /^\d+$/.test(product.id) ? product.id : null;
+    const wrapped = numericId
+      ? buildAffiliateRedirectUrl(numericId, pathname)
+      : null;
+    return wrapped || merchant.url;
+  };
+
+  const handleMerchantClick = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    merchant: MerchantPrice
+  ): void => {
+    attachProductCardClickAttribution(event);
+    captureProductCardClick({
+      href: event.currentTarget.href,
+      productId: product.id,
+      merchantId: merchant.merchant,
+    });
+  };
 
   if (isMobile) {
     return (
@@ -219,7 +247,8 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
         </div>
         <div className="border-t border-gray-100 p-3">
           <Link
-            href={selectedMerchant.url}
+            href={merchantHref(selectedMerchant)}
+            onClick={(e) => handleMerchantClick(e, selectedMerchant)}
             className="block w-full text-center px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
           >
             View on {selectedMerchant.merchant}
@@ -287,7 +316,8 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
               Limited comparison data — only one retailer available
             </div>
             <Link
-              href={selectedMerchant.url}
+              href={merchantHref(selectedMerchant)}
+              onClick={(e) => handleMerchantClick(e, selectedMerchant)}
               className="block w-full text-center px-4 py-3 bg-amber-600 text-white font-semibold rounded-xl hover:bg-amber-700 transition-colors"
             >
               View on {selectedMerchant.merchant}
@@ -331,7 +361,8 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
               Only 2 retailers — comparison limited
             </div>
             <Link
-              href={selectedMerchant.url}
+              href={merchantHref(selectedMerchant)}
+              onClick={(e) => handleMerchantClick(e, selectedMerchant)}
               className="block w-full text-center px-4 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
             >
               View on {selectedMerchant.merchant}
@@ -405,7 +436,8 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
 
             {bestPrice && (
               <Link
-                href={selectedMerchant.url}
+                href={merchantHref(selectedMerchant)}
+                onClick={(e) => handleMerchantClick(e, selectedMerchant)}
                 className="block w-full text-center px-4 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
               >
                 View on {selectedMerchant.merchant}

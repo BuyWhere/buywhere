@@ -1,9 +1,11 @@
 "use client";
 
 import { trackAffiliateClick } from "@/lib/ga4";
+import { captureProductCardClick } from "@/lib/posthog-client";
 
-
-
+// BUY-80661: wire source_page into AffiliateLink so every CTA that goes
+// through this component (PDP buy buttons, wishlist, compare tables) emits
+// affiliate_click with source_page on click.
 interface AffiliateLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   productId: string | number;
   platform: string;
@@ -16,7 +18,9 @@ interface AffiliateLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElemen
 
 /**
  * Component that wraps outbound affiliate links with click tracking.
- * On click, it sends a beacon request to /api/track-click with product_id, platform, and user_agent.
+ * On click, it fires captureProductCardClick (PostHog affiliate_click with
+ * source_page) and sends a beacon to /api/track-click with product_id,
+ * platform, source_page, and user_agent.
  * Adds UTM parameters to the destination URL for affiliate tracking.
  * GDPR/PDPA compliant - only tracks when user interacts with the link.
  */
@@ -41,13 +45,29 @@ export function AffiliateLink({
   const platformName = platform.includes('_') ? platform.split('_')[1] || platform : platform;
   const productLabel = productName || String(productId);
 
-  const handleClick = async () => {
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>): void => {
     trackAffiliateClick(productLabel, platformName);
 
+    // BUY-80661: emit PostHog affiliate_click with source_page + add ?pathname=
+    // to the beacon so server-side tracking also captures the source page.
     try {
+      const currentHref = event.currentTarget.href;
+      captureProductCardClick({
+        href: currentHref,
+        productId,
+        merchantId: platformName,
+      });
+    } catch {
+      // never block navigation
+    }
+
+    try {
+      const sourcePage =
+        typeof window !== "undefined" ? window.location.pathname : "";
       const trackingData = {
         product_id: productId,
         platform: platform,
+        source_page: sourcePage,
         user_agent: userAgent || navigator.userAgent,
       };
 
@@ -66,20 +86,20 @@ export function AffiliateLink({
           },
           body: JSON.stringify(trackingData),
           keepalive: true,
-        }).catch(console.error);
+        }).catch(() => {});
       }
     } catch (err) {
       console.warn("Affiliate link tracking failed:", err);
     }
   };
-  
+
   // Enhance href with UTM parameters if not already present
   const enhancedHref = useEnhancedHrefWithUTM(href || "#", {
     utm_source: utmSource,
     utm_medium: utmMedium,
     utm_campaign: utmCampaign,
   });
-  
+
   return (
     <a
       href={enhancedHref}
