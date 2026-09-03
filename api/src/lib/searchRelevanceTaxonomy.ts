@@ -222,15 +222,6 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
   // when they appear alongside a wireless/bluetooth/foldable signal.
   'wireless keyboard', 'foldable keyboard', 'bluetooth keyboard',
-  // BUY-80550: RAM laptop mounts + key-ring/keychain accessories had zero
-  // penalized tokens so the 0.25x accessory penalty never fired (BUY-80537).
-  'mount', 'mounts', 'mounting',
-  'key ring', 'key rings', 'keyring', 'keyrings',
-  'key chain', 'key chains', 'keychain', 'keychains',
-  'lanyard', 'lanyards',
-  // BUY-80550 (residual): compound-word aliases that `\b`/`\s` cannot match via
-  // bare bag/case/pouch. "Bagpack" is a common misspelling of "backpack".
-  'bagpack', 'bagpacks', 'briefcase', 'briefcases', 'pouch', 'pouches',
 ] as const;
 
 // Postgres ARE regex alternation source. Each token is split on whitespace
@@ -246,67 +237,109 @@ export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
   .map((re) => `\\m(?:${re})\\M`)
   .join('|');
 
-// ─────────────────────────────────────────────────────────────────────────
-// BUY-80570: bare-device query taxonomy.
-//
-// When the user's query is a bare device token (laptop/notebook/macbook/chromebook
-// with no accessory or long-tail intent), generic/non-computer titles that happen
-// to contain that lexeme must be demoted so real laptops lead the first page.
-//
+
+// BUY-80415: device-UNIT queries (iphone / airpods / pixel handsets) must not
+// spend the cand LIMIT 200 on cases, ear tips, skins, belt pouches.
+// Query-token gate only — if the user asked for a case/tips, do not exclude.
+export const DEVICE_UNIT_QUERY_TOKENS = [
+  'iphone', 'airpod', 'airpods', 'pixel', 'galaxy',
+  'ps5', 'playstation',
+] as const;
+
+export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
+  'case', 'cases', 'cover', 'covers', 'protector', 'pouch', 'pouches',
+  'holder', 'stand', 'mount', 'skin', 'skins', 'decal', 'decals',
+  'sticker', 'stickers', 'belt', 'lanyard', 'strap', 'cable', 'cables',
+  'charger', 'chargers', 'adapter', 'ear tip', 'ear tips', 'eartip',
+  'eartips', 'silicone', 'replacement', 'left earbud', 'right earbud',
+  'earbuds only', 'earbud only', 'wallet', 'folio', 'tempered',
+  'mp4', 'dualsense', 'controller', 'controllers',
+] as const;
+
+export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE = DEVICE_UNIT_ACCESSORY_SOFT_TOKENS
+  .map((t) => {
+    const parts = t.split(/\s+/);
+    return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  })
+  .map((re) => `\\m(?:${re})\\M`)
+  .join('|');
+
+function queryTokens(q: string): string[] {
+  return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+export function isDeviceUnitQuery(q: string): boolean {
+  const tokens = queryTokens(q);
+  if (tokens.length === 0) return false;
+  const hitsUnit = tokens.some((t) =>
+    DEVICE_UNIT_QUERY_TOKENS.some((fam) => t === fam || t.startsWith(fam)),
+  );
+  if (!hitsUnit) return false;
+  const accessoryAsk = tokens.some((t) =>
+    DEVICE_UNIT_ACCESSORY_SOFT_TOKENS.some((a) => a.split(/\s+/).includes(t)),
+  );
+  return !accessoryAsk;
+}
+
+export function deviceUnitAccessoryExclusionFragment(): string {
+  return ` AND NOT (lower(sp.title) ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}')`;
+}
+
+// BUY-80570: demote non-computer titles for bare device queries
 // `isBareDeviceQuery` checks the raw query string (before any normalising).
 // `NON_COMPUTER_TITLE_PATTERNS` are Postgres ARE word-bounded patterns matched
-// against the product title.
-//
-// Both gates must fire together: a bare-device query on a non-computer title
-// gets 0.05x. A non-computer title in a long-tail query (e.g. "wooden laptop
-// stand") is not demoted — the long-tail intent already narrows to accessories.
+// against the raw title to detect non-computer listings.
 export const BARE_DEVICE_QUERY_TOKENS = new Set<string>([
-  'laptop', 'notebook', 'macbook', 'chromebook',
+  'laptop',
+  'notebook',
+  'macbook',
+  'chromebook',
 ]);
 
 export const NON_COMPUTER_TITLE_PATTERNS = [
-  // Exact single-word title match (e.g. title = "Laptop")
-  '\\mLaptop\\M',
-  // Craft / toy / non-computer products historically mis-tagged under Computing
-  '\\mWooden\\M.*\\mNotebook\\M',
-  '\\mWooden\\M.*\\mLaptop\\M',
-  // Marketplace / instruction listings containing "recommended for"
+  // Craft/hobby items historically in wrong categories
+  'wooden notebook',
+  // Marketplace listings / instructions, not actual SKUs
+  'fsx',
   'recommended for fsx',
-  'recommended for FSX',
-  // FSX 2020 / flight-sim marketplace listing
-  '\\mFSX\\M',
-];
+  'flight simulator',
+  // Generic placeholder titles
+  '^laptop$',
+  '^notebook$',
+] as const;
 
 export const NON_COMPUTER_TITLE_PG_RE_SOURCE = NON_COMPUTER_TITLE_PATTERNS
-  .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .map((t) => {
+    if (t.startsWith('^') || t.endsWith('$')) {
+      // Anchor pattern — use as-is (already word-bounded)
+      return t.replace(/^\^|$$/g, '');
+    }
+    // Phrase — add word boundaries
+    const parts = t.split(/\s+/);
+    return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  })
+  .map((re) => `\\m(?:${re})\\M`)
   .join('|');
 
-function normalizeQueryTokensForBare(q: string): Set<string> {
-  return new Set(
-    q
-      .toLowerCase()
-      .trim()
-      .split(/\s+/)
-      .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
-      .filter(Boolean),
-  );
-}
-
 /**
- * True when the query is a bare device query with no accessory intent:
- * - exactly one token, AND
+ * Check if query is a "bare" device query (laptop/notebook/macbook/chromebook)
+ * with NO accessory intent.
+ *
+ * Conditions:
  * - token is in BARE_DEVICE_QUERY_TOKENS (laptop/notebook/macbook/chromebook).
- *
- * Long-tail queries like "wooden laptop stand" return false — the accessory
- * intent already distinguishes them from a generic "laptop" search.
- *
- * Matching is stem-tolerant: `macbooks` matches `macbook`.
+ * - query is short (1-3 tokens) — long-tail like "wooden laptop stand" is excluded.
+ * - NO accessory token present (bag, case, stand, mount, etc).
  */
 export function isBareDeviceQuery(q: string): boolean {
-  const tokens = normalizeQueryTokensForBare(q);
-  if (tokens.size !== 1) return false;
-  const token = [...tokens][0];
-  return [...BARE_DEVICE_QUERY_TOKENS].some(
-    (fam) => token.length >= fam.length && token.startsWith(fam),
+  const tokens = queryTokens(q);
+  if (tokens.length === 0 || tokens.length > 3) return false;
+
+  const hitsBareDevice = tokens.some((t) => BARE_DEVICE_QUERY_TOKENS.has(t));
+  if (!hitsBareDevice) return false;
+
+  // Check for accessory intent — if present, this is NOT a bare device query
+  const accessoryAsk = tokens.some((t) =>
+    DEVICE_UNIT_ACCESSORY_SOFT_TOKENS.some((a) => a.split(/\s+/).includes(t)),
   );
+  return !accessoryAsk;
 }
