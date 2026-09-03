@@ -31,6 +31,33 @@ export function extractNumericPrice(raw: unknown): number | null {
   return null;
 }
 
+// BUY-80652: extract the native currency of a search result row.
+// Handles nested `{amount, currency}` price objects (REST API response shape)
+// and flat `currency` column (DB row shape). Unknown/empty/null → null.
+export function extractRowCurrency(row: Record<string, unknown>): string | null {
+  // Nested price object from REST API response
+  const price = row.price;
+  if (price != null && typeof price === 'object' && !Array.isArray(price)) {
+    const cur = (price as Record<string, unknown>).currency;
+    if (typeof cur === 'string' && cur.trim() !== '') return cur.toUpperCase().trim();
+  }
+  // Flat currency column from DB row
+  const cur = row.currency;
+  if (typeof cur === 'string' && cur.trim() !== '') return cur.toUpperCase().trim();
+  return null;
+}
+
+// BUY-80652: drop rows whose native currency does not match the target country.
+// Unknown/empty/null currency is treated as non-native (filtered out).
+export function filterNativeCurrencyRows(
+  rows: Record<string, unknown>[],
+  country: string,
+): Record<string, unknown>[] {
+  const want = COUNTRY_CURRENCY[country?.toUpperCase()] ?? null;
+  if (!want) return rows;
+  return rows.filter((r) => extractRowCurrency(r) === want);
+}
+
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
