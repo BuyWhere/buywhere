@@ -1,5 +1,6 @@
 export interface SGProductForSitemap {
   id: string;
+  merchantId?: string;
   name: string;
   slug: string;
   lastUpdated: string;
@@ -82,6 +83,7 @@ function normalizeSGProductItem(item: ProductListItem): SGProductForSitemap | nu
 
   return {
     id,
+    merchantId: String((item as { merchant_id?: unknown }).merchant_id || "").trim() || undefined,
     name,
     slug: buildSGProductSlug({ id, name }),
     lastUpdated: item.data_updated_at || item.last_updated || new Date().toISOString(),

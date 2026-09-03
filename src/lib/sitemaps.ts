@@ -879,12 +879,20 @@ export async function getProductSitemapChunk(page: number): Promise<SitemapUrlEn
 export async function getSGProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getSGProducts();
 
-  return products.map((product: SGProductForSitemap) => ({
-    url: toSiteUrl(`/products/sg/${product.slug}`),
-    lastModified: product.lastUpdated,
-    changeFrequency: "weekly",
-    priority: 0.7,
-  }));
+  // BWOPS 2026-09-04: emit the 2-segment canonical (/products/sg/<merchant>/<id>).
+  // The single-segment slug form is deliberately 410'd by middleware (BUY-37750
+  // thin-content de-index, BUY-40757 allows the 2-segment route through) — this
+  // sitemap was advertising 4,999 URLs the site intentionally kills, which the
+  // post-deploy verifier measured as 100% dead SG sample. Products without a
+  // merchant_id are skipped rather than emitted in a form that 410s.
+  return products
+    .filter((product: SGProductForSitemap) => Boolean(product.merchantId))
+    .map((product: SGProductForSitemap) => ({
+      url: toSiteUrl(`/products/sg/${product.merchantId}/${product.id}`),
+      lastModified: product.lastUpdated,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    }));
 }
 
 export async function getSGProductSitemapChunkCount(): Promise<number> {
