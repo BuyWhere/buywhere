@@ -10,10 +10,10 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "iPhone 17",
+  "searchQuery": "iPhone 17 unlocked",
   "backupQueries": [
-    "iPhone 17 Pro",
     "Apple iPhone 17",
+    "iPhone 17 Pro",
     "iPhone 17 256GB"
   ],
   "minPrice": 829,
@@ -23,9 +23,9 @@
     "apple"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-02",
   "productSectionTitle": "Live iPhone 17 prices in the US",
   "comparisonSectionTitle": "Where the iPhone 17 is cheapest — at a glance",
   "comparisonColumns": [
@@ -105,48 +105,7 @@
       "answer": "Unlocked US models work on the major US networks and support eSIM activation. Carrier-financed phones may be locked until the carrier's unlock rules are met, so check that detail if you travel or expect to switch service."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "f1",
-      "name": "Apple iPhone 17 Pro",
-      "price": 999,
-      "currency": "USD",
-      "merchant": "Apple Store",
-      "href": "/search?q=iPhone+17+Pro&country=us",
-      "brand": "Apple",
-      "category": "Smartphone"
-    },
-    {
-      "id": "f2",
-      "name": "Apple iPhone 17 Pro Max",
-      "price": 1199,
-      "currency": "USD",
-      "merchant": "Apple Store",
-      "href": "/search?q=iPhone+17+Pro+Max&country=us",
-      "brand": "Apple",
-      "category": "Smartphone"
-    },
-    {
-      "id": "f3",
-      "name": "Apple iPhone 17",
-      "price": 799,
-      "currency": "USD",
-      "merchant": "Apple Store",
-      "href": "/search?q=iPhone+17&country=us",
-      "brand": "Apple",
-      "category": "Smartphone"
-    },
-    {
-      "id": "f4",
-      "name": "Apple iPhone 17 Plus",
-      "price": 899,
-      "currency": "USD",
-      "merchant": "Best Buy",
-      "href": "/search?q=iPhone+17+Plus&country=us",
-      "brand": "Apple",
-      "category": "Smartphone"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/cheapest-iphone-17-singapore"
   },

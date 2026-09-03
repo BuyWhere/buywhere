@@ -22,9 +22,9 @@
     "headphones"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 2, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-02",
   "productSectionTitle": "Live Sony WH-1000XM6 prices in the US",
   "comparisonSectionTitle": "Where the WH-1000XM6 is cheapest — at a glance",
   "comparisonColumns": [
@@ -105,52 +105,8 @@
       "answer": "Historically during Black Friday, Cyber Monday and the broader holiday window in late November and early December. Outside those events, the live product cards on this page reflect the current US$ floor across US-authorised retailers."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "37377305",
-      "name": "Sony WH-1000XM5 Replacement Earpads - Soft PU Leather & Memory Foam Ear Pad Cushions For Extra Comfort, Easy & Quick Installation",
-      "price": 18.38,
-      "currency": "USD",
-      "merchant": "brainwavzaudio.com",
-      "href": "/r/direct/37377305",
-      "affiliateUrl": "/r/direct/37377305",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37377078",
-      "name": "Replacement Audio Cable Compatible with Sony MDR-1000X WH-1000XM5 WH-1000XM4 WH-1000XM3 MDR-1A WH-1000X MDR-XB950BT MDR-XB950N1 MDR-ZX770BN",
-      "price": 16.99,
-      "currency": "USD",
-      "merchant": "brainwavzaudio.com",
-      "href": "/r/direct/37377078",
-      "affiliateUrl": "/r/direct/37377078",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36532134",
-      "name": "Bronze Dragon Portable Cable for Sony WH-1000XM5",
-      "price": 365.0,
-      "currency": "USD",
-      "merchant": "moon-audio.com",
-      "href": "/r/direct/36532134",
-      "affiliateUrl": "/r/direct/36532134",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "36532135",
-      "name": "Bronze Dragon Portable Cable for Sony WH-1000XM5",
-      "price": 385.0,
-      "currency": "USD",
-      "merchant": "moon-audio.com",
-      "href": "/r/direct/36532135",
-      "affiliateUrl": "/r/direct/36532135",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
+  "h1": "Cheapest Sony WH-1000XM6 in the US (2026)",
   "hreflangAlternates": {
     "en-SG": "/cheapest-sony-wh-1000xm6-singapore"
   },
