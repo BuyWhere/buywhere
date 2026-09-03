@@ -222,14 +222,6 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
   // when they appear alongside a wireless/bluetooth/foldable signal.
   'wireless keyboard', 'foldable keyboard', 'bluetooth keyboard',
-  // BUY-80585: hyphenated key-ring forms. PG ARE `\s+` does not match `-`,
-  // so `key ring` never matches title `Laptop - Key Ring`.
-  'key ring', 'key rings', 'keyring', 'keyrings',
-  'key-ring', 'key-rings',
-  'key chain', 'key chains', 'keychain', 'keychains',
-  'key-chain', 'key-chains',
-  'lanyard', 'lanyards',
-  'charm', 'charms',
 ] as const;
 
 // Postgres ARE regex alternation source. Each token is split on whitespace
@@ -239,9 +231,6 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
 // SQL string literal.
 export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
   .map((t) => {
-    // BUY-80585: split on whitespace only. Hyphenated tokens (`key-ring`)
-    // must stay one atom — PG ARE `\s+` does not match `-`, so `key ring`
-    // never matches `Laptop - Key Ring`.
     const parts = t.split(/\s+/);
     return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
   })
@@ -322,8 +311,8 @@ export const NON_COMPUTER_TITLE_PATTERNS = [
 export const NON_COMPUTER_TITLE_PG_RE_SOURCE = NON_COMPUTER_TITLE_PATTERNS
   .map((t) => {
     if (t.startsWith('^') || t.endsWith('$')) {
-      // Anchor pattern — use as-is (already word-bounded)
-      return t.replace(/^\^|$$/g, '');
+      // Anchor pattern — strip the anchors, already word-bounded
+      return t.replace(/\^|\$/g, '');
     }
     // Phrase — add word boundaries
     const parts = t.split(/\s+/);
