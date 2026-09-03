@@ -113,21 +113,23 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-row flex-wrap items-start justify-center gap-2 text-sm text-white px-2">
-              <span className="font-semibold text-white/90 self-center">Try:</span>
-              {exampleQueries.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
-                  className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
-                >
-                  {example}
-                </button>
-              ))}
+            <div className="flex justify-center px-2">
+              <div className="inline-flex max-w-full flex-row flex-wrap items-center justify-center gap-2 text-sm text-white">
+                <span className="shrink-0 font-semibold text-white/90">Try:</span>
+                {exampleQueries.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setQuery(example);
+                      submitQuery(example);
+                    }}
+                    className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
