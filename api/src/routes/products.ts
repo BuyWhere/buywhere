@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS 
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, NON_COMPUTER_TITLE_PG_RE_SOURCE, isBareDeviceQuery } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v23-b80550'; // v23 BUY-80550: co-occurrence 0.10x penalty + compound accessory aliases
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v24-b80570'; // v24 BUY-80570: bare-device query non-computer title 0.05x demotion
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -433,10 +433,14 @@ async function tryTierSearch(
   //   - Title or category contains an accessory token (no device co-occurrence)
   //     in the title → 0.25x (keep pre-existing accessory-only penalty).
   //   - No accessory match → 1.0x.
+  // BUY-80570: bare-device query (q=laptop, single token, no accessory intent)
+  //     + non-computer title pattern (exact "Laptop", wooden notebook, FSX listing)
+  //     → 0.05x. Does NOT fire for long-tail queries (e.g. "wooden laptop stand").
   // BUY-80550: bagpack/briefcase/pouch added to LAPTOP_ACCESSORY_SOFT_TOKENS;
   // compound forms can't match via bare bag/case/pouch tokens due to \m\M
   // word-boundary constraints.
   const deviceTokenRE = String.raw`\m(laptop|notebook|macbook|chromebook)\M`;
+  const isBareQuery = isBareDeviceQuery(p.q);
   const laptopAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
@@ -445,6 +449,7 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}' THEN 0.05` : ''}
       ELSE 1.0
     END`;
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -551,6 +556,7 @@ async function tryTierSearch(
   // `LAPTOP_ACCESSORY_SOFT_TOKENS` (searchRelevanceTaxonomy.ts) and
   // `LAPTOP_ACCESSORY_RE` (seo-landing-pages.ts).
   // BUY-80550: co-occurrence tiers mirror mkQuery's laptopAccessoryPenalty.
+  // BUY-80570: same bare-device non-computer title 0.05x tier.
   const laptopAccessoryPenaltyTitle = `
     CASE
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
@@ -559,6 +565,7 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}' THEN 0.05` : ''}
       ELSE 1
     END`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
