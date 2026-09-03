@@ -228,6 +228,9 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   'key ring', 'key rings', 'keyring', 'keyrings',
   'key chain', 'key chains', 'keychain', 'keychains',
   'lanyard', 'lanyards',
+  // BUY-80550 (residual): compound-word aliases that `\b`/`\s` cannot match via
+  // bare bag/case/pouch. "Bagpack" is a common misspelling of "backpack".
+  'bagpack', 'bagpacks', 'briefcase', 'briefcases', 'pouch', 'pouches',
 ] as const;
 
 // Postgres ARE regex alternation source. Each token is split on whitespace
