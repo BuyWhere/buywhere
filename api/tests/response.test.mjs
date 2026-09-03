@@ -57,6 +57,21 @@ describe('buildProduct', () => {
     assert.match(product.affiliate_disclosure, /commission/i);
   });
 
+  it('normalizes category_path from delimited strings and category fallbacks', () => {
+    const delimited = buildProduct({
+      ...baseRow,
+      category_path: 'Electronics > Computers > Laptops',
+    }, 'SGD', false);
+    assert.deepEqual(delimited.category_path, ['Electronics', 'Computers', 'Laptops']);
+
+    const categoryFallback = buildProduct({
+      ...baseRow,
+      category_path: null,
+      category: 'Electronics',
+    }, 'SGD', false);
+    assert.deepEqual(categoryFallback.category_path, ['Electronics']);
+  });
+
   it('builds compact product with normalized price and specs', () => {
     const row = {
       ...baseRow,

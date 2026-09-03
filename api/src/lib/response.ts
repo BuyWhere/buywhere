@@ -155,6 +155,36 @@ export function regionForCountry(countryCode: string | null | undefined): string
   return null;
 }
 
+export function normalizeCategoryPath(row: Record<string, unknown>): string[] | null {
+  const rawCategoryPath = row.category_path ?? (row.metadata as Record<string, unknown> | null | undefined)?.category_path;
+  const rawCategory = row.category ?? (row.metadata as Record<string, unknown> | null | undefined)?.category;
+
+  const normalizeSegment = (segment: unknown): string | null => {
+    const value = String(segment ?? '').trim();
+    return value ? value : null;
+  };
+
+  if (Array.isArray(rawCategoryPath)) {
+    const parts = rawCategoryPath.map(normalizeSegment).filter((segment): segment is string => Boolean(segment));
+    if (parts.length > 0) return parts;
+  }
+
+  if (typeof rawCategoryPath === 'string') {
+    const parts = rawCategoryPath
+      .split(/\s*(?:>|\/|\\|,|\|)\s*/)
+      .map(normalizeSegment)
+      .filter((segment): segment is string => Boolean(segment));
+    if (parts.length > 0) return parts;
+  }
+
+  if (typeof rawCategory === 'string') {
+    const category = normalizeSegment(rawCategory);
+    if (category) return [category];
+  }
+
+  return null;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -232,6 +262,7 @@ export function buildProduct(
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
   const title = row.title as string;
+  const categoryPath = normalizeCategoryPath(row);
   const base: CanonicalProduct = {
     id: productId,
     title,
@@ -251,7 +282,7 @@ export function buildProduct(
       return rawRegion;
     })(),
     country_code: (row.country_code as string) || null,
-    category_path: Array.isArray(row.category_path) ? (row.category_path as string[]) : null,
+    category_path: categoryPath,
     updated_at: (row.updated_at as string) || null,
     // BUY-74689: merchant_id from the row, real storefront name from the batched
     // merchants lookup. `merchant` / `merchant_id` (platform slug) preserved for

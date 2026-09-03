@@ -55,7 +55,15 @@ describe('BUY-73753: /v1/products list contract', () => {
   it('projects category_path through the canonical product response', () => {
     const responseSource = readFileSync(join(__dirname, '../src/lib/response.ts'), 'utf8');
     assert.match(responseSource, /category_path/);
-    assert.match(responseSource, /Array\.isArray\(row\.category_path\)/);
+    assert.match(responseSource, /normalizeCategoryPath/);
+    assert.match(responseSource, /row\.metadata/);
+    assert.match(responseSource, /row\.category/);
+  });
+
+  it('projects category through featured rows for category_path fallback', () => {
+    const featuredRouteStart = productsSource.indexOf('// GET /v1/products/featured');
+    const featuredRoute = productsSource.slice(featuredRouteStart);
+    assert.match(featuredRoute, /region, country_code, category_path, category/);
   });
 
   // BUY-74513: when the EXPLAIN count sub-query falls back to pg_class
