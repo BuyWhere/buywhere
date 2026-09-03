@@ -5,7 +5,7 @@ import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 import { getCachedFxRates } from './fxRatesLoader';
 import type { MerchantMapEntry } from './merchantLookup';
 export const CURRENCY_RATES: Record<string, number> = {
-  USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
+  USD: 1, SGD: 0.74, TWD: 0.031, KRW: 0.00075, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
 
 // BUY-73753: include every active market code so the LIST/SIMILAR/DEALS
@@ -19,6 +19,7 @@ export const CURRENCY_RATES: Record<string, number> = {
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
+  TW: 'TWD', KR: 'KRW',
   // Single-currency regions stored under EUR/USD on the catalog:
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
