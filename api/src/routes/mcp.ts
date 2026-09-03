@@ -294,8 +294,8 @@ async function searchProductsViaRestFallback(opts: {
       return null;
     };
 
-    // BUY-80652: country= first. market= is the USD Shopify leak for SG/MY shirts.
-    for (const mode of ['country', 'market'] as const) {
+    // BUY-80652: country= only. market= is the USD Shopify leak for SG/MY shirts.
+    for (const mode of ['country'] as const) {
       const rows = await fetchRows(mode);
       if (!rows || rows.length === 0) continue;
       const isolated = isolateRestSearchHits(rows, {
@@ -976,7 +976,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v13:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v14:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -991,11 +991,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       if (parsed.results && parsed.results.length > 0 && !parsed.degraded) {
         const wantCur = (currency || '').toUpperCase();
         const leak = wantCur && (parsed.results as Record<string, unknown>[]).some((p) => {
-          const price = p.price as unknown;
-          const cur = (price && typeof price === 'object' && price !== null && 'currency' in (price as object))
-            ? String((price as { currency?: string }).currency || '').toUpperCase()
-            : String((p as { currency?: string }).currency || '').toUpperCase();
-          return cur !== wantCur;
+          const cur = extractRowCurrency(p);
+          return !cur || cur !== wantCur;
         });
         if (!leak) {
           await recordCacheHitLatency(redis, Date.now() - t0);
