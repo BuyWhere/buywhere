@@ -976,7 +976,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v12:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v13:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.

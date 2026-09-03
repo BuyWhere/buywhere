@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v25-b80585'; // v25 BUY-80585: hyphen key-ring tokens + 0.10x case/sleeve on bare device query
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v26-b80652'; // v26 BUY-80652: never re-serve USD Shopify after native-currency isolation empties the page
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -742,30 +742,27 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
-    const hasMore = rows.length > p.limit;
-    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const isolateCur = !!(p.countryCode && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
+    // BUY-80652: isolate on the overfetch window first, then page — slicing
+    // to limit before currency filter left only USD Shopify on SG shirt.
+    const isolatedRows = wantCur
+      ? rows.filter((r) => String((r as { currency?: string }).currency || '').toUpperCase() === wantCur)
+      : rows;
+    const hasMore = isolatedRows.length > p.limit;
+    const pageRows = hasMore ? isolatedRows.slice(0, p.limit) : isolatedRows;
     const products = pageRows
       .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
       .filter((prod) => {
         if (!wantCur) return true;
         const cur = String(prod.price?.currency || '').toUpperCase();
-        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
         return cur === wantCur;
       });
-    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
-    // matched but the currency post-filter emptied the page. Archive for
-    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
-    // even though products_partitioned_sg has live iPhone rows (USD
-    // Shopify labelled SG). Serve the child hits without currency
-    // isolation — leaking USD is a truthful in-market listing; api_error
-    // is not. BUY-79497 archive fallback stays for empty child FTS only.
-    let served = products;
-    if (useChildTable && wantCur && served.length === 0) {
-      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    }
-    const productsOut = served;
+    // BUY-80652: do NOT re-serve USD Shopify when native isolation empties
+    // the page (SG/MY shirt → callawayapparel USD 250). Prefer empty/native
+    // over a geo-currency leak. BUY-79827 archive fallback stays for empty
+    // child FTS only (handled above when rows.length === 0).
+    const productsOut = products;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
     const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
