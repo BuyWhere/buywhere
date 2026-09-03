@@ -23,9 +23,9 @@
     "bluetooth"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated September 1, 2026",
+  "refreshedLabel": "Updated September 3, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-09-01",
+  "dateModified": "2026-09-03",
   "productSectionTitle": "Live wireless earbud prices in the US",
   "comparisonSectionTitle": "Which wireless earbuds fit your week — at a glance",
   "comparisonColumns": [
@@ -111,52 +111,7 @@
       "answer": "Black Friday week and Amazon Prime Day in July are the two deepest-discount windows. Apple, Sony and Bose drop previous-generation earbuds within weeks of the new flagship launch in the September–November window; Best Buy and Walmart match within days. Outside sale windows the live prices on this page show the current US floor."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "37089346",
-      "name": "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds Noise Cancelling Earphones with Microphone Headphones",
-      "price": 10.26,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "href": "/r/direct/37089346",
-      "affiliateUrl": "/r/direct/37089346",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089345",
-      "name": "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds Noise Cancelling Earphones with Microphone Headphones",
-      "price": 10.56,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "href": "/r/direct/37089345",
-      "affiliateUrl": "/r/direct/37089345",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089344",
-      "name": "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds Noise Cancelling Earphones with Microphone Headphones",
-      "price": 10.29,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "href": "/r/direct/37089344",
-      "affiliateUrl": "/r/direct/37089344",
-      "brand": "",
-      "category": ""
-    },
-    {
-      "id": "37089348",
-      "name": "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds Noise Cancelling Earphones with Microphone Headphones",
-      "price": 10.08,
-      "currency": "USD",
-      "merchant": "ebony-usa.myshopify.com",
-      "href": "/r/direct/37089348",
-      "affiliateUrl": "/r/direct/37089348",
-      "brand": "",
-      "category": ""
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-SG": "/best-wireless-earbuds-singapore"
   },
