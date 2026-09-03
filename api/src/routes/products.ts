@@ -544,7 +544,7 @@ async function tryTierSearch(
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${laptopAccessoryExclusions}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
