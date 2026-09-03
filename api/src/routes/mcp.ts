@@ -3031,11 +3031,36 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     })
     .filter(Boolean);
 
+  // BUY-71542: add emptiness_reason when no similar products found
+  const emptiness = similar.length === 0
+    ? deriveEmptiness({
+        regionHasAnyData: false,
+        categoryHasAnyData: false,
+        apiError: false,
+        rateLimited: false,
+        regionSupported: true,
+        categoryRequested: false,
+        requestedCategory: null,
+        requestedCountry: null,
+        rateLimitRemaining: null,
+        deliverToPresent: false,
+        unfilteredHasAnyData: null,
+        queryAmbiguous: null,
+      })
+    : null;
+
   return {
     product_id: productId,
     similar,
     total: similar.length,
     response_time_ms: Date.now() - t0,
+    ...(emptiness && {
+      meta: {
+        emptiness_reason: emptiness.emptiness_reason,
+        confidence: emptiness.confidence,
+        diagnostic: emptiness.diagnostic,
+      },
+    }),
   };
 }
 
