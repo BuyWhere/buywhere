@@ -578,30 +578,52 @@ async function tryTierSearch(
       ${isBareQuery ? `WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}' THEN 0.05` : ''}
       ELSE 1
     END`;
+  // BUY-80656: title fallback queries need NULL guards to filter out decorative
+  // accessories (fabric sleeves with no price/brand/SKU) and explicit ILIKE
+  // exclusions for laptop case/sleeve/skin/decal/sticker/cover. Without these,
+  // US "laptop" queries return decorative cases instead of real laptops.
+  const laptopFallbackWhereClause = `
+    AND sp.price IS NOT NULL AND sp.price > 0
+    AND sp.brand IS NOT NULL AND sp.brand <> ''
+    AND sp.sku IS NOT NULL
+    AND sp.title NOT ILIKE '%laptop case%'
+    AND sp.title NOT ILIKE '%laptop sleeve%'
+    AND sp.title NOT ILIKE '%laptop skin%'
+    AND sp.title NOT ILIKE '%laptop decal%'
+    AND sp.title NOT ILIKE '%laptop sticker%'
+    AND sp.title NOT ILIKE '%laptop cover%'`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
   // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
+  // BUY-80656: tier-aware tie-break prefers products with brand (real products)
+  // over brand-less rows (accessories), then higher price (premium SKUs).
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${laptopFallbackWhereClause}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC,
+             (sp.brand IS NULL) ASC,
+             sp.price DESC NULLS LAST,
+             sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${laptopFallbackWhereClause}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC,
+             (sp.brand IS NULL) ASC,
+             sp.price DESC NULLS LAST,
+             sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
