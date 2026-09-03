@@ -210,7 +210,7 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // 'mousepad') still cover the actual accessory intent without false-
   // positive risk on real laptop model names.
   'skin', 'skins', 'sleeve', 'sleeves', 'cover', 'covers', 'case', 'cases',
-  'stand', 'stands', 'cooler', 'coolers', 'bag', 'bags', 'backpack', 'backpacks',
+  'stand', 'stands', 'mount', 'mounts', 'cooler', 'coolers', 'bag', 'bags', 'backpack', 'backpacks',
   'sticker', 'stickers', 'decal', 'decals', 'cooling pad',
   'mat', 'mats', 'mouse pad', 'mousepad',
   'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs', 'lock', 'locks',
