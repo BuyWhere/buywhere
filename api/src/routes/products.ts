@@ -2369,6 +2369,9 @@ router.get(
       }
     } catch (_) {}
 
+    // BUY-80411: removed currency filter - it caused TW/KR empty results because
+    // COUNTRY_CURRENCY doesn't include them, defaulting to SGD which doesn't match KRW/TWD products.
+    // Also skip caching empty results to prevent stale empty responses.
     const result = await readDb().query(
       `SELECT id, sku AS source_id, source AS domain, url,
               NULL::text AS affiliate_url,
@@ -2377,16 +2380,18 @@ router.get(
        FROM products
        WHERE is_active = true
          AND country_code = $1
-         AND currency = $2
          AND price IS NOT NULL
        ORDER BY id DESC
-       LIMIT $3 OFFSET $4`,
-      [countryCode, currency, limit, offset]
+       LIMIT $2 OFFSET $3`,
+      [countryCode, limit, offset]
     );
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
+    // Only cache if we have results (prevents stale empty caches)
+    if (products.length > 0) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
+    }
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.json(responseBody);
   })
