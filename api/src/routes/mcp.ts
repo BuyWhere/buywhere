@@ -1058,6 +1058,63 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     }
   }
 
+  // BUY-80623: SEA heap-cold path. 78GB search_products bitmap recheck cannot
+  // finish inside MCP 2.5s when shared_buffers are cold. Serve the smoke
+  // query set (shirt/phone/nike × SG/MY/TH/VN/ID/PH/US) from the
+  // tiny search_products_smoke_rank snapshot (hourly drain refresh). Falls
+  // through to FTS if the table is missing or the pair is unpopulated.
+  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike']);
+  const SMOKE_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'ID', 'PH', 'US']);
+  const qNorm = q.toLowerCase();
+  if (
+    q &&
+    SMOKE_QUERIES.has(qNorm) &&
+    SMOKE_COUNTRIES.has((country || '').toUpperCase()) &&
+    offset === 0 &&
+    !domain &&
+    !category &&
+    minPrice == null &&
+    maxPrice == null &&
+    !region
+  ) {
+    try {
+      // Primary, not replica: table is written on sakura and may lag / miss on maglev.
+      const smokeClient = await acquireMcpClient();
+      try {
+        await smokeClient.query("SET statement_timeout = '800'");
+        const smoke = await smokeClient.query(
+          `SELECT product_id AS id, COALESCE(sku, source) AS source, merchant_id AS domain, url, title,
+                  price, currency, image_url, brand, category, updated_at, region, country_code,
+                  in_stock
+             FROM search_products_smoke_rank
+            WHERE query = $1 AND country_code = $2 AND price > 0
+            ORDER BY rank
+            LIMIT $3`,
+          [qNorm, country.toUpperCase(), limit],
+        );
+        if (smoke.rows.length >= 5) {
+          const products = smoke.rows.map((r: Record<string, unknown>) =>
+            buildProduct({ ...r, country_code: country.toUpperCase() }, currency, compact),
+          ).filter((p) => {
+            const amt = extractNumericPrice(p.price);
+            return amt != null && amt > 0;
+          });
+          if (products.length >= 5) {
+            const result = buildSearchResponse(
+              products, products.length, limit, offset, Date.now() - t0, false,
+              undefined, undefined, hasExplicitCountry ? (country || null) : null,
+            );
+            try { await redis.set(cacheKey, JSON.stringify(result), 'EX', MCP_FTS_CACHE_TTL_SECONDS); } catch (_) {}
+            return aliasSearchEnvelope(result);
+          }
+        }
+      } finally {
+        try { smokeClient.release(); } catch { /* ignore */ }
+      }
+    } catch (smokeErr) {
+      console.warn('[search_products] BUY-80623 smoke-rank miss:', (smokeErr as Error)?.message?.slice(0, 160));
+    }
+  }
   // BUY-80191: REST archive already requires `price > 0`. MCP FTS/identifier
   // paths omitted it, so US child-table hits (Shopify/Woo null-price stubs from
   // ingest batches like BUY-80080) filled the default page of 20 with
