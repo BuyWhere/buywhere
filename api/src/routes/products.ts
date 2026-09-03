@@ -317,6 +317,57 @@ async function tryTierSearch(
     source?: string; scrapedVia?: string;
   },
 ): Promise<boolean> {
+  // BUY-80623: SEA heap-cold path for smoke queries. Tiny snapshot, no 78GB recheck.
+  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike', 'laptop']);
+  const SMOKE_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'ID', 'PH', 'US']);
+  const qNorm = p.q.trim().toLowerCase();
+  const ccSmoke = (p.countryCode || '').toUpperCase();
+  if (
+    SMOKE_QUERIES.has(qNorm) &&
+    SMOKE_COUNTRIES.has(ccSmoke) &&
+    p.offset === 0 &&
+    !p.domain &&
+    !p.category &&
+    !p.brand &&
+    p.minPrice == null &&
+    p.maxPrice == null
+  ) {
+    let smokeClient: PoolClient | null = null;
+    try {
+      smokeClient = await servingReadDbConnect();
+      await smokeClient.query("SET statement_timeout = '800'");
+      const smoke = await smokeClient.query(
+        `SELECT product_id AS id, COALESCE(sku, source) AS source, merchant_id AS domain, url, title,
+                price, currency, image_url, brand, category, updated_at, region, country_code,
+                in_stock
+           FROM search_products_smoke_rank
+          WHERE query = $1 AND country_code = $2 AND price > 0
+          ORDER BY rank
+          LIMIT $3`,
+        [qNorm, ccSmoke, p.limit],
+      );
+      if (smoke.rows.length >= 5) {
+        const products = smoke.rows
+          .map((r: Record<string, unknown>) => buildProduct({ ...r, country_code: ccSmoke }, p.currency, p.compact))
+          .filter((prod) => {
+            const cur = String(prod.price?.currency || '').toUpperCase();
+            return !p.currency || cur === p.currency.toUpperCase();
+          });
+        if (products.length >= 5) {
+          const body = buildSearchResponse(products, products.length, p.limit, p.offset, Date.now() - p.requestStart, false);
+          (body as Record<string, unknown>).source = 'search_products_smoke_rank';
+          redis.set(p.cacheKey, JSON.stringify(body), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+          res.set('X-Search-Tier', 'smoke-rank');
+          res.json(body);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('[search] BUY-80623 smoke-rank miss:', (e as Error)?.message?.slice(0, 160));
+    } finally {
+      try { smokeClient?.release(); } catch { /* ignore */ }
+    }
+  }
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return false;
   const tsOr = lexemes.join(' | ');
