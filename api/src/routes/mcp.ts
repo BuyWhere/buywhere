@@ -3208,7 +3208,11 @@ async function dispatchTool(name: string, args: Record<string, unknown>, caller?
   normalizeToolArgAliases(args);
   return withMcpCatalogWall(name, args, async () => {
     switch (name) {
-      case 'search_products':  return handleSearchProducts(args, caller);
+      case 'search_products': {
+        const r = await handleSearchProducts(args, caller);
+        applyNoMatchMeta(r);
+        return r;
+      }
       case 'get_product':      return handleGetProduct(args, caller);
       case 'compare_products': return handleCompareProducts(args, caller);
       case 'get_deals': {
@@ -3217,7 +3221,11 @@ async function dispatchTool(name: string, args: Record<string, unknown>, caller?
         return deals;
       }
       case 'list_categories':  return handleListCategories(args);
-      case 'find_best_price':  return handleFindBestPrice(args);
+      case 'find_best_price': {
+        const fbp = await handleFindBestPrice(args);
+        applyNoMatchMeta(fbp);
+        return fbp;
+      }
       case 'ingest_products':  return handleIngestProducts(args);
       case 'find_similar': {
         const similar = await handleFindSimilar(args);
