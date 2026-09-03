@@ -60,6 +60,10 @@ function isStorageCategoryItem(item: Record<string, unknown>): boolean {
   return STORAGE_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
 }
 
+// BUY-80705: side-table/end-table/console-table/coffee-table/nightstand are
+// furniture accessories that rank above real laptops for "laptop" queries.
+// They contain no existing accessory token and slip past the penalty — now
+// explicitly listed so they are classified as accessories and demoted.
 const ACCESSORY_KEYWORDS = [
   'adapter',
   'battery',
@@ -67,6 +71,8 @@ const ACCESSORY_KEYWORDS = [
   'case',
   'charger',
   'charging',
+  'coffee table',
+  'console table',
   'cover',
   'ear pad',
   'ear pads',
@@ -74,15 +80,18 @@ const ACCESSORY_KEYWORDS = [
   'ear cushions',
   'earcup',
   'earcups',
+  'end table',
   'foam',
   'holder',
   'mount',
+  'nightstand',
   'pad',
   'pads',
   'part',
   'parts',
   'protector',
   'replacement',
+  'side table',
   'sleeve',
   'stand',
   'strap',
