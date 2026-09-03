@@ -1874,7 +1874,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // only populates for recognised device families — so "Silicone Protective Cover Set for
   // Sony WH-1000XM5" passed as the product itself and became the "best price". This
   // pattern mirrors the SQL de-prioritisation exactly, so ranking and filtering agree.
-  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit)\b/i;
+  const ACCESSORY_PATTERN = /\b(replacement|repair|ear ?pads?|earpads?|eartips?|ear ?tips?|cushions?|protective|protector|silicone|cover|case|sleeve|pouch|charger|charging|cable|adapter|strap|band|skin|decal|sticker|holder|mount|stand|assembly|spare parts?|compatible with|for use with|kit|applecare|apple care|warranty|service plan|protection plan|snap|film|glass|armou?r|shell|folio|bumper|wallet|wrap|holster|lanyard|kickstand|ring|car mount|hooks?)\b/i;
   const isAccessory = (r: Record<string, unknown>) => {
     if (ACCESSORY_PATTERN.test(String(r.title ?? ''))) return true;
     if (!deviceFilter.type) return false;
