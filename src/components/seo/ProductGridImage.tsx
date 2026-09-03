@@ -144,10 +144,9 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
           </text>
         </svg>
       </div>
-      <span className="mt-1 text-xs font-medium text-slate-500">Photo unavailable</span>
-      {(brand || cleanedMerchant) && (
-        <span className="text-[11px] text-slate-400">{brand || cleanedMerchant}</span>
-      )}
+      {/* BUY-80551: "Photo unavailable" copy removed — it's a trust leak. The brand
+          silhouette already communicates "no photo" visually. First-viewport cards
+          without real images are filtered out at the grid level instead. */}
     </div>
   );
 }

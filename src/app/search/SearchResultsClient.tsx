@@ -1690,9 +1690,18 @@ export default function SearchResultsClient({
     [filterState, products]
   );
 
+  // BUY-80551: first-viewport grid shows only products with real images.
+  // Products without images are filtered from the VISIBLE grid but stay in
+  // the full result set for counts and API payloads. This prevents "Photo
+  // unavailable" placeholders from appearing in the first viewport.
+  const productsWithImages = useMemo(
+    () => filteredProducts.filter((p) => p.imageUrl),
+    [filteredProducts]
+  );
+
   const sortedFilteredProducts = useMemo(
-    () => applyProductSort(filteredProducts, sortMode, debouncedQuery),
-    [debouncedQuery, filteredProducts, sortMode]
+    () => applyProductSort(productsWithImages, sortMode, debouncedQuery),
+    [debouncedQuery, productsWithImages, sortMode]
   );
 
   // Facets are derived from the FULL products array (not the filtered
@@ -2024,15 +2033,16 @@ export default function SearchResultsClient({
                   <SortDropdown
                     value={sortMode}
                     onChange={setSortMode}
-                    resultCount={sortedFilteredProducts.length}
+                    resultCount={productsWithImages.length}
                   />
                 ) : (
                   <span />
                 )}
                 <span className="text-xs font-medium text-slate-500 md:text-sm">
-                  {sortedFilteredProducts.length === total
-                    ? `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${total.toLocaleString()} loaded`
-                    : `Showing ${sortedFilteredProducts.length.toLocaleString()} of ${total.toLocaleString()} loaded — filters active`}
+                  {/* BUY-80551: Show full result count (productsWithImages) not filtered count */}
+                  {productsWithImages.length === total
+                    ? `Showing ${productsWithImages.length.toLocaleString()} of ${total.toLocaleString()} loaded`
+                    : `Showing ${productsWithImages.length.toLocaleString()} of ${total.toLocaleString()} loaded — filters active`}
                 </span>
               </div>
 

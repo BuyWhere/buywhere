@@ -251,12 +251,24 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               // still must not render fallbackProducts (BUY-79133).
               null
             ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {(products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).map((product) => (
-                  // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
-                ))}
-              </div>
+              // BUY-80551: filter products without images from the visible grid.
+              // Products without real photos are excluded from the first-viewport
+              // grid to prevent "Photo unavailable" placeholders. The full list
+              // (including no-image products) still goes to JSON-LD schema.
+              <>
+                {(() => {
+                  const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).filter((p) => p.imageUrl);
+                  if (displayProducts.length === 0) return null;
+                  return (
+                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+                      {displayProducts.map((product) => (
+                        // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
+                        <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         </section>
