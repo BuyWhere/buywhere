@@ -348,18 +348,22 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  // BUY-80662: REST ranking is gated on deliver_to (ISO-2). SSR /search historically
-  // only sent `country`, so the BFF hit a different ranking path than
-  // /v1/products/search?q=laptop&deliver_to=US. Mirror country onto deliver_to
-  // when the caller omitted it.
-  if (!upstreamParams.get('deliver_to')) {
-    const country = (upstreamParams.get('country') || upstreamParams.get('country_code') || 'US').toUpperCase();
-    if (country.length === 2) upstreamParams.set('deliver_to', country);
+  // BUY-80662: REST ranking is gated on deliver_to (ISO-2). Passing `country` or
+  // `country_code` routes the Node API onto search_products_smoke_rank (Casely
+  // cases for q=laptop). Mirror country onto deliver_to, then DROP country/
+  // country_code/region so the BFF hits the same path as public REST.
+  const countryCode = (
+    upstreamParams.get('deliver_to') ||
+    upstreamParams.get('country') ||
+    upstreamParams.get('country_code') ||
+    'US'
+  ).toUpperCase();
+  if (!upstreamParams.get('deliver_to') && countryCode.length === 2) {
+    upstreamParams.set('deliver_to', countryCode);
   }
-
-  // BUY-72906: REMOVED the country -> country_code rename. The FastAPI backend
-  // expects 'country' (not 'country_code'), so we now pass it through unchanged.
-  // The deliver_to + include_unshippable params now handle the region filtering.
+  upstreamParams.delete('country');
+  upstreamParams.delete('country_code');
+  upstreamParams.delete('region');
 
   try {
     const response = await fetch(`${API_BASE_URL}/v1/products/search?${upstreamParams.toString()}`, {
@@ -380,7 +384,6 @@ export async function GET(request: NextRequest) {
     }
 
     const query = upstreamParams.get('q') ?? '';
-    const countryCode = upstreamParams.get('country') ?? upstreamParams.get('country_code') ?? 'US';
     const fallback = isDegradedZero(data) ? pickSearchFallback(query, countryCode) : null;
 
     if (fallback) {

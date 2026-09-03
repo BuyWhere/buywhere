@@ -144,7 +144,6 @@ async function fetchInitialResults(
   const countryCode = country.toLowerCase() === 'sg' ? 'SG' : 'US';
   const params = new URLSearchParams({
     q: query.trim(),
-    country: countryCode,
     deliver_to: countryCode,
     limit: String(SSR_FETCH_LIMIT),
   });
