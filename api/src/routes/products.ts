@@ -511,6 +511,41 @@ async function tryTierSearch(
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
+  // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
+  // products parent table JOIN that causes 500s during ingest load (1-2 hr
+  // INSERT transactions hold ShareUpdateExclusiveLock, blocking the tier search
+  // HOT-path for every REST search request -> 500.
+  // MCP search_products already uses this pattern (direct child-table FTS +
+  // bounded PK lookup -> no ingest contention). The child table has all columns
+  // needed for search results (affiliate_url = NULL, matching MCP contract).
+  const childCols = `sp.id, sp.merchant_id AS domain, sp.url, NULL::text AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
+    sp.source AS _source`;
+  const childMkQuery = (match: string, extraFilter = '') => `
+    WITH cand AS (
+      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+      LIMIT 200
+    ), top AS (
+      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
+            (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
+            (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
+      FROM cand c
+      ORDER BY rank DESC LIMIT 200
+    )
+    SELECT ${childCols}, top.rank AS _fts_rank
+    FROM top JOIN ${ftsTable} sp ON sp.id = top.id
+    ORDER BY ${orderPrefix}top.rank DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
   // BUY-63738 + BUY-77675: add accessory penalty to title fallback queries so
@@ -601,7 +636,10 @@ async function tryTierSearch(
     // BUY-77812: always lead with FTS. The phone-category regex scan on
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    // BUY-80719: use childMkQuery for child table queries to avoid the products
+    // parent table JOIN that causes 500s during ingest lock contention.
+    const ftsQuery = useChildTable ? childMkQuery : mkQuery;
+    let rows = (await client.query(ftsQuery(andMatch), params)).rows;
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
@@ -638,7 +676,7 @@ async function tryTierSearch(
       // Single-lexeme head terms keep the OR fallback because their posting lists are
       // smaller and the archive path is already fast for them.
       if (rows.length === 0 && lexemes.length === 1) {
-        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+        rows = (await client.query(ftsQuery(orMatch), params)).rows;   // recall fallback
       }
       if (!skipSlowFallbacks) {
         if (rows.length === 0 && isGenericPhoneQuery) {
@@ -660,7 +698,7 @@ async function tryTierSearch(
     if (dtIdx && rows.length > 0) {
       await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
       try {
-        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
+        const localRows = (await client.query(ftsQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
         if (localRows.length > 0) {
           const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
           rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit + 1);
