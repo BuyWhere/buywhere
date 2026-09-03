@@ -33,7 +33,8 @@ export interface USProductForSitemap {
   id: string;
   name: string;
   slug: string;
-  lastUpdated: string;
+  /** Honest catalog timestamp; omit when the API does not know one. */
+  lastUpdated?: string;
 }
 
 export interface USProductOfferApiItem {
@@ -100,8 +101,36 @@ interface ProductListApiItem {
   id?: string | number;
   title?: string;
   name?: string;
+  price_updated_at?: string;
   data_updated_at?: string;
   last_updated?: string;
+  updated_at?: string;
+}
+
+/**
+ * BUY-79729 / directive §5: sitemap lastmod must be a real catalog timestamp,
+ * never request time. Prefer the price-change clock, then data/updated clocks.
+ * Returns undefined when none of those fields are parseable.
+ */
+export function pickProductSitemapLastmod(item: {
+  price_updated_at?: string | null;
+  data_updated_at?: string | null;
+  last_updated?: string | null;
+  updated_at?: string | null;
+}): string | undefined {
+  for (const raw of [
+    item.price_updated_at,
+    item.data_updated_at,
+    item.last_updated,
+    item.updated_at,
+  ]) {
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const ms = Date.parse(raw);
+    if (Number.isNaN(ms)) continue;
+    // Floor to seconds so request-batched millisecond noise is not a "change".
+    return new Date(Math.floor(ms / 1000) * 1000).toISOString();
+  }
+  return undefined;
 }
 
 interface ProductListApiResponse {
@@ -174,7 +203,7 @@ function normalizeUSProductItem(item: ProductListApiItem): USProductForSitemap |
     id,
     name,
     slug: buildUSProductSlug({ id, name }),
-    lastUpdated: item.data_updated_at || item.last_updated || new Date().toISOString(),
+    lastUpdated: pickProductSitemapLastmod(item),
   };
 }
 

@@ -163,9 +163,11 @@ function readRecentProductsSlice(): SitemapUrlEntry[] {
         if (!e || typeof e !== "object") continue;
         const rec = e as { url?: string; lastModified?: string; changeFrequency?: SitemapUrlEntry["changeFrequency"]; priority?: number };
         if (typeof rec.url !== "string") continue;
+        // BUY-79729: never fall back to request time. Prefer the per-entry
+        // lastModified; omit lastmod entirely when the sidecar has none.
         sliceEntries.push({
           url: rec.url,
-          lastModified: rec.lastModified ?? parsed.lastmod ?? new Date().toISOString(),
+          lastModified: rec.lastModified,
           changeFrequency: rec.changeFrequency,
           priority: typeof rec.priority === "number" ? rec.priority : 0.7,
         });
@@ -556,7 +558,10 @@ function xmlEscape(value: string): string {
 }
 
 function formatLastMod(value: Date | string): string {
-  return new Date(value).toISOString();
+  const ms = value instanceof Date ? value.getTime() : Date.parse(value);
+  if (Number.isNaN(ms)) return new Date(value).toISOString();
+  // Floor to seconds so sub-second request batches do not look like unique lastmods.
+  return new Date(Math.floor(ms / 1000) * 1000).toISOString();
 }
 
 export function buildSitemapResponse(xml: string): Response {
@@ -835,8 +840,15 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
 
 export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getUSProducts();
-  const overrides = readLatestLastmodOverride();
 
+  // BUY-79729 (directive §5): product lastmod is the catalog timestamp
+  // (price_updated_at → data_updated_at → updated_at), never request time
+  // and never the daily OVERRIDE_LASTMOD stamp. applyLastmodOverride() is
+  // intentionally skipped here — that file exists to hint Google at a
+  // 500-URL indexing queue and would cluster 500 URLs on one millisecond.
+  // 4seen re-pushes on lastmod advance; a batched stamp either looks like
+  // every product changed every fetch, or is de-duped and never signals a
+  // real price re-pull.
   const entries: SitemapUrlEntry[] = products.map((product: USProductForSitemap) => ({
     url: toSiteUrl(`/products/us/${product.slug}`),
     lastModified: product.lastUpdated,
@@ -849,9 +861,9 @@ export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   // The base sitemap (above) only emits the first page of /v1/products?country_code=US
   // because that endpoint's pagination metadata is missing from the response
   // (see src/lib/us-products.ts fetchUSProductPage). Until that's fixed, the
-  // queue-driven slice is the only way to make <lastmod> relevant to recently-
-  // changed URLs. The dedupe-by-URL keeps the base slice as the source of
-  // truth for entries that overlap.
+  // queue-driven slice is the only way to include recently-changed URLs that
+  // the unpaginated API page missed. Existing base entries win on URL clash
+  // so we do not overwrite an honest catalog lastmod with the sidecar stamp.
   const recent = readRecentProductsSlice();
   if (recent.length > 0) {
     const seen = new Set(entries.map((entry) => entry.url));
@@ -862,7 +874,7 @@ export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
     }
   }
 
-  return applyLastmodOverride(entries, overrides);
+  return entries;
 }
 
 export async function getProductSitemapChunkCount(): Promise<number> {

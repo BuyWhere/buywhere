@@ -75,6 +75,13 @@ async function readQueue(auditsDir, date) {
   }
 }
 
+function floorToSecondIso(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) return null;
+  return new Date(Math.floor(ms / 1000) * 1000).toISOString();
+}
+
 function normalizeUrl(rawUrl) {
   if (typeof rawUrl !== "string") return null;
   const trimmed = rawUrl.trim();
@@ -98,13 +105,23 @@ async function main() {
   const date = pickDateArg(process.argv);
   const lastmod = process.env.OVERRIDE_LASTMOD || isoUtc(new Date());
 
-  const { urls: rawUrls, path: queuePath, missing } = await readQueue(AUDITS_DIR, date);
+  const { urls: rawUrls, path: queuePath, missing, raw } = await readQueue(AUDITS_DIR, date);
 
   if (missing) {
     console.error(
       `Queue file not found for ${date}: ${queuePath}. Run generate-indexing-queue.mjs first.`,
     );
     process.exit(1);
+  }
+
+  const lastmodByUrl = new Map();
+  if (Array.isArray(raw?.entries)) {
+    for (const e of raw.entries) {
+      if (!e || typeof e !== "object") continue;
+      const norm = normalizeUrl(e.url);
+      const iso = floorToSecondIso(e.lastModified);
+      if (norm && iso) lastmodByUrl.set(norm, iso);
+    }
   }
 
   const seen = new Set();
@@ -144,7 +161,9 @@ async function main() {
     source_queue: path.relative(REPO_ROOT, queuePath),
     entries: urls.map((url) => ({
       url,
-      lastModified: lastmod,
+      // Per-URL catalog lastmod when the queue recorded one; omit otherwise
+      // (BUY-79729 — do not stamp OVERRIDE_LASTMOD onto 500 product URLs).
+      lastModified: lastmodByUrl.get(url),
       changeFrequency: "weekly",
       priority: 0.7,
     })),

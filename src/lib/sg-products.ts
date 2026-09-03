@@ -1,8 +1,10 @@
+import { pickProductSitemapLastmod } from "@/lib/us-products";
+
 export interface SGProductForSitemap {
   id: string;
   name: string;
   slug: string;
-  lastUpdated: string;
+  lastUpdated?: string;
 }
 
 interface ProductListItem {
@@ -10,8 +12,10 @@ interface ProductListItem {
   id?: string | number;
   title?: string;
   name?: string;
+  price_updated_at?: string;
   data_updated_at?: string;
   last_updated?: string;
+  updated_at?: string;
 }
 
 interface ProductListResponse {
@@ -84,7 +88,7 @@ function normalizeSGProductItem(item: ProductListItem): SGProductForSitemap | nu
     id,
     name,
     slug: buildSGProductSlug({ id, name }),
-    lastUpdated: item.data_updated_at || item.last_updated || new Date().toISOString(),
+    lastUpdated: pickProductSitemapLastmod(item),
   };
 }
 
