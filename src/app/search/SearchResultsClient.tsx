@@ -1203,12 +1203,14 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
   return (
     <article
       data-testid="search-product-card"
-      className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      // BUY-80658: drop min-h-[460px] — it pushed View Deal below the 1440x900
+      // fold. Image max-height 160px keeps row-1 CTAs fully in-viewport.
+      className="group relative flex h-full min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
         // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
-        style={{ aspectRatio: '4/3', maxHeight: '220px' }}
+        className="relative w-full max-h-[160px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
+        style={{ aspectRatio: '4/3', maxHeight: '160px' }}
         data-testid="search-product-media"
       >
         <a
@@ -1225,7 +1227,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             brand={product.brand}
             merchant={product.merchant}
             category={product.category}
-            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+            className="relative z-10 block h-full w-full max-h-[160px] max-w-full object-contain p-2"
           />
         </a>
         <div className="absolute right-2 top-2 z-20">
@@ -1233,7 +1235,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
         </div>
       </div>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-1.5 bg-white p-3" data-testid="search-product-details">
         {/* BUY-68743: MerchantBadge is informational; View Deal is the single primary CTA.
             BUY-74691: PlatformChip is visually subordinate to merchant_name.
             BUY-80569: outer wrapper is <article>, not <a> — nested Compare button +
@@ -1272,7 +1274,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
           </div>
         </div>
 
-        <div className="product-card__footer mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
+        <div className="product-card__footer mt-auto space-y-2 border-t border-slate-100 pt-2">
           {/* BUY-65455: label + price on a single baseline-aligned row so the
               numeric price is visually adjacent to the 'Current price' label
               (previously they were disconnected: a floating pill on the image
@@ -1294,7 +1296,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             rel="noopener noreferrer nofollow sponsored"
             aria-label={ctaAria}
             data-testid="search-product-view-deal"
-            className="btn-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            className="btn-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-900"
           >
             {ctaLabel}
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -1826,7 +1828,7 @@ export default function SearchResultsClient({
         ) : null}
 
         <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
-          <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
+          <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-3 lg:py-4' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               {/* Hide the hero H1 + eyebrow when an active search is running so the query
                   isn't echoed twice. The result-count heading below becomes the single,
@@ -1849,7 +1851,7 @@ export default function SearchResultsClient({
               )}
             </div>
 
-            <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
+            <div className={`${hasActiveSearch ? 'mt-3 rounded-[28px] p-2.5 md:p-3' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
               {isNavigating && showSearchPrompt ? <SearchInputSkeleton /> : null}
 
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
