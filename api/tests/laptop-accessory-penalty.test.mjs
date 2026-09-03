@@ -45,7 +45,7 @@ test("LAPTOP_ACCESSORY_SOFT_TOKENS contains the QA-captured accessory categories
     cleaning: ["screen cleaner", "cleaning spray", "screen wipes"],
     keyboard: ["wireless keyboard", "foldable keyboard", "bluetooth keyboard"],
     mounts: ["mount", "mounts", "mounting"],
-    keyring: ["key ring", "key rings", "keyring", "keyrings", "key chain", "keychain", "lanyard"],
+    keyring: ["key ring", "key rings", "keyring", "keyrings", "key-ring", "key-rings", "key chain", "keychain", "key-chain", "lanyard", "charm"],
   };
   for (const [category, tokens] of Object.entries(categoryTokens)) {
     for (const token of tokens) {
@@ -78,6 +78,8 @@ test("LAPTOP_ACCESSORY_PG_RE_SOURCE catches QA-captured accessories (regex synta
     "Mesh Poofy Laptop Sleeve",
     "RAM Mount Laptop Mount for Truck Cab",
     "Laptop Key Ring Keychain Lanyard",
+    "Laptop - Key Ring",
+    "Laptop Key-Ring Charm",
   ];
   for (const title of accessories) {
     assert.equal(re.test(title), true, `accessory must match: ${title}`);

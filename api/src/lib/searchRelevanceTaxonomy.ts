@@ -226,8 +226,11 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // penalized tokens so the 0.25x accessory penalty never fired (BUY-80537).
   'mount', 'mounts', 'mounting',
   'key ring', 'key rings', 'keyring', 'keyrings',
+  'key-ring', 'key-rings',
   'key chain', 'key chains', 'keychain', 'keychains',
+  'key-chain', 'key-chains',
   'lanyard', 'lanyards',
+  'charm', 'charms',
   // BUY-80550 (residual): compound-word aliases that `\b`/`\s` cannot match via
   // bare bag/case/pouch. "Bagpack" is a common misspelling of "backpack".
   'bagpack', 'bagpacks', 'briefcase', 'briefcases', 'pouch', 'pouches',
@@ -240,6 +243,9 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
 // SQL string literal.
 export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
   .map((t) => {
+    // BUY-80585: split on whitespace only. Hyphenated tokens (`key-ring`)
+    // must stay one atom — PG ARE `\s+` does not match `-`, so `key ring`
+    // never matches `Laptop - Key Ring`.
     const parts = t.split(/\s+/);
     return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
   })

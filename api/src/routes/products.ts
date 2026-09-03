@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v24-b80570'; // v24 BUY-80570: bare-device query non-computer title 0.05x demotion
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v25-b80585'; // v25 BUY-80585: hyphen key-ring tokens + 0.10x case/sleeve on bare device query
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -439,6 +439,10 @@ async function tryTierSearch(
   // BUY-80550: bagpack/briefcase/pouch added to LAPTOP_ACCESSORY_SOFT_TOKENS;
   // compound forms can't match via bare bag/case/pouch tokens due to \m\M
   // word-boundary constraints.
+  // BUY-80585: on bare-device queries, raise the accessory-only (no device
+  // co-occurrence) CASE/sleeve/cover/skin penalty from 0.25x → 0.10x so Casely
+  // SKUs fall below the cand LIMIT floor. Hyphen `key-ring` tokens live in
+  // LAPTOP_ACCESSORY_SOFT_TOKENS so `Laptop - Key Ring` matches.
   const deviceTokenRE = String.raw`\m(laptop|notebook|macbook|chromebook)\M`;
   const isBareQuery = isBareDeviceQuery(p.q);
   const laptopAccessoryPenalty = `
@@ -446,6 +450,9 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
         AND lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.10
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.10` : ''}
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
@@ -562,6 +569,9 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
         AND lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.10
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 0.10` : ''}
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
