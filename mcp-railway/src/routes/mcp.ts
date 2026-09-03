@@ -7,7 +7,7 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, extractNumericPrice } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, extractNumericPrice, extractRowCurrency, filterNativeCurrencyRows } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 import { buildClickUrl } from '../lib/instrumentation';
 import {
@@ -178,15 +178,17 @@ function isolateRestSearchHits(
     if (!flattened.source && r.merchant) flattened.source = r.merchant;
     return { product: buildProduct(flattened, opts.currency, opts.compact), rowCurrency };
   }).filter((item) => {
-    const p = item.product;
+    const p = item.product as unknown as Record<string, unknown>;
     if (expectedCc) {
       const cc = String(p.country_code || '').toUpperCase();
       if (cc && cc !== expectedCc) return false;
     }
     if (expectedCur) {
-      const fromProduct = String((p.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+      const fromProduct = extractRowCurrency(p);
       const cur = item.rowCurrency || fromProduct;
-      if (cur && cur !== expectedCur) return false;
+      // BUY-80652: unknown/empty currency on SG/MY Shopify is usually USD —
+      // do not keep it. Prefer empty over a foreign-currency leak.
+      if (!cur || cur !== expectedCur) return false;
     }
     return true;
   }).map((item) => item.product);
@@ -236,7 +238,7 @@ async function searchProductsViaRestFallback(opts: {
         const ac = new AbortController();
         const perAttemptMs = base.includes('railway.internal') || base.includes('127.0.0.1')
           ? 400
-          : REST_SEARCH_FALLBACK_MS;
+          : (mode === 'country' ? Math.max(REST_SEARCH_FALLBACK_MS, 4500) : REST_SEARCH_FALLBACK_MS);
         const timer = setTimeout(() => ac.abort(), perAttemptMs);
         try {
           const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
@@ -270,8 +272,10 @@ async function searchProductsViaRestFallback(opts: {
 
     // BUY-79631: country= first (SGD shirts). market= is high-recall but
     // isolation-empty for shirt SG (USD Shopify) and used to burn the timeout.
+    // BUY-80652: country= first. Do not fall through to market= after a
+    // currency-isolated miss — market= is the USD Shopify leak (SG/MY shirts).
     const modes: Array<'market' | 'country'> = opts.country
-      ? ['country', 'market']
+      ? ['country']
       : ['market'];
     for (const mode of modes) {
       const rows = await fetchRows(mode);
@@ -332,7 +336,12 @@ async function findBestPriceViaRestFallback(opts: {
     apiKey: opts.apiKey,
   });
   if (!restHits || restHits.products.length === 0) return null;
-  const data = restHits.products.map((p) => {
+  const nativeHits = filterNativeCurrencyRows(
+    restHits.products as unknown as Record<string, unknown>[],
+    opts.country,
+  );
+  if (nativeHits.length === 0) return null;
+  const data = nativeHits.map((p) => {
     const price = p.price as unknown;
     let amount = extractNumericPrice(price);
     let curr = COUNTRY_CURRENCY[opts.country] || 'SGD';
@@ -2008,6 +2017,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     tierParams.push(country);
     tierConditions.push(`sp.country_code = $${tierParams.length}`);
   }
+  if (country && COUNTRY_CURRENCY[country]) {
+    // BUY-80652 / BUY-80156: native-currency predicate so FBP does not
+    // bitmap-scan USD Shopify labelled SG/MY then time out on heap recheck.
+    tierParams.push(COUNTRY_CURRENCY[country]);
+    tierConditions.push(`sp.currency = $${tierParams.length}`);
+  }
   const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -2094,6 +2109,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            FROM search_products
            WHERE price > 0
              AND country_code = $1
+             ${COUNTRY_CURRENCY[requestedCountry] ? `AND currency = '${COUNTRY_CURRENCY[requestedCountry].replace(/'/g, '')}'` : ''}
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
            ORDER BY updated_at DESC
            LIMIT $${minPrice > 0 ? 3 : 2}
@@ -2196,23 +2212,27 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // string) is NaN, and JSON.stringify(NaN) becomes null — v1 agents then see
   // best_price.price.amount=null while merchant/url still populate. extractNumericPrice
   // accepts number | string | {amount}.
-  const data = candidates.map((r: Record<string, unknown>) => {
-    const amount = extractNumericPrice(r.price);
-    const merchant = (r.domain as string) || (r.merchant as string) || null;
-    return {
-      id: r.id,
-      title: r.title,
-      name: r.title,
-      price: { amount, currency: (r.currency as string) || currency },
-      normalized_price_usd: amount != null ? Math.round(amount * toUsd * 100) / 100 : null,
-      merchant,
-      merchant_name: merchant,
-      url: r.url as string,
-      image_url: r.image_url as string,
-      country_code: r.country_code as string,
-      url_status: (r.url_status as string) || 'ok',
-    };
-  });
+  const data = filterNativeCurrencyRows(
+    candidates.map((r: Record<string, unknown>) => {
+      const amount = extractNumericPrice(r.price);
+      const merchant = (r.domain as string) || (r.merchant as string) || null;
+      return {
+        id: r.id,
+        title: r.title,
+        name: r.title,
+        price: { amount, currency: (r.currency as string) || currency },
+        currency: (r.currency as string) || currency,
+        normalized_price_usd: amount != null ? Math.round(amount * toUsd * 100) / 100 : null,
+        merchant,
+        merchant_name: merchant,
+        url: r.url as string,
+        image_url: r.image_url as string,
+        country_code: r.country_code as string,
+        url_status: (r.url_status as string) || 'ok',
+      };
+    }) as Record<string, unknown>[],
+    country,
+  );
   // BUY-80524: if catalog rows have no finite amount, prefer the REST envelope.
   const catalogHasPrice = data.some((row) => {
     const amt = extractNumericPrice(row.price);

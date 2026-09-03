@@ -12,9 +12,58 @@ export const CURRENCY_RATES: Record<string, number> = {
 };
 
 export const COUNTRY_CURRENCY: Record<string, string> = {
-  SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
-  PH: 'PHP', ID: 'IDR',
+  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
+  TW: 'TWD', KR: 'KRW',
+  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
+
+/** BUY-80652: nested REST/MCP price currency (offers.priceCurrency, price.currency, row.currency). */
+export function extractRowCurrency(row: Record<string, unknown> | null | undefined): string {
+  if (!row) return '';
+  const offers = row.offers;
+  if (offers && typeof offers === 'object' && !Array.isArray(offers)) {
+    const o = offers as { priceCurrency?: unknown; currency?: unknown };
+    const c = o.priceCurrency ?? o.currency;
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  const nested = row.price;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const p = nested as { currency?: unknown; priceCurrency?: unknown };
+    const c = p.currency ?? p.priceCurrency;
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  for (const key of ['currency', 'priceCurrency'] as const) {
+    const c = row[key];
+    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
+  }
+  return '';
+}
+
+/**
+ * BUY-80652 / BUY-80323: keep native-currency rows for the request country.
+ * Shopify MY/SG ingest often stores USD on .myshopify / .com.my hosts.
+ * Prefer empty over leaking foreign currency.
+ */
+export function filterNativeCurrencyRows<T extends Record<string, unknown>>(
+  rows: T[],
+  country: string,
+): T[] {
+  const want = (COUNTRY_CURRENCY[country] || '').toUpperCase();
+  if (!want || rows.length === 0) return rows;
+  const nativeOrUnknown = rows.filter((r) => {
+    const cur = extractRowCurrency(r);
+    return !cur || cur === want;
+  });
+  const knownNative = nativeOrUnknown.filter((r) => extractRowCurrency(r) === want);
+  if (knownNative.length > 0) return nativeOrUnknown;
+  const mismatched = rows.some((r) => {
+    const cur = extractRowCurrency(r);
+    return cur && cur !== want;
+  });
+  if (mismatched) return [];
+  return rows;
+}
 
 // BUY-69998: Map ISO country codes to the coarse region labels agents expect
 // (sea/us/global). Without this, mcp-railway search responses surfaced
