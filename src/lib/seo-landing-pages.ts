@@ -1492,10 +1492,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
         country: config.country.toLowerCase(),
-        // BUY-72906: filter country-specific SEO snapshots to merchants/products
-        // in the page's target market. Without this, USD-priced foreign retailers
-        // (e.g. COMPUMARTS) can leak into the US retailers section.
-        deliver_to: config.country.toLowerCase(),
+        // BUY-75348 / BUY-80147: country_code reaches the same live product
+        // surface as apex probes; deliver_to can hit stale empty Redis entries.
+        country_code: config.country.toUpperCase(),
         include_unshippable: "false",
         // BUY-79277: always over-fetch so accessory demotion can still fill
         // 8 primary SKUs after earpads/cases are ranked below the fold.
@@ -1507,24 +1506,36 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // (10s degraded, total=0) on US/SG partitions and force the page onto
       // fallbackProducts. Keep searchCategory for local accessory/GPU filters.
 
-      // Route through BuyWhere's own /api/products/search route handler rather
-      // than the external product API. The route handler injects the backend
-      // API key and centralizes degraded/fallback handling, so SSR no longer
-      // depends on BUYWHERE_API_KEY being present in the server-component
-      // environment (the previous direct external call 401'd silently, which
-      // is why every SEO page fell back to static editorial products).
-      // BUY-78769: prefer loopback so SSR does not hairpin through public HTTPS
-      // (that path 8s-aborts and leaves the page on editorial /search?q= fallbacks).
-      // revalidate 60 + cache-bust header so the 15-min empty cache from the
-      // uppercase-country bug cannot keep serving 0 live /r/ cards.
-      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
-        headers: { Accept: "application/json", "x-buywhere-seo-cache": "78914" },
-        next: { revalidate: 60 },
-        signal: AbortSignal.timeout(12000),
-      });
+      // BUY-75348: SSR must render from the same product surface live probes use.
+      // Try canonical v1 first with the server API key, then fall back to the
+      // loopback Next.js proxy so a proxy/cache miss cannot hide healthy catalog rows.
+      const searchUrls = [
+        `${apiBase()}/v1/products/search?${params.toString()}`,
+        `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`,
+      ];
+      let response: Response | null = null;
+      for (const searchUrl of searchUrls) {
+        const viaV1 = searchUrl.includes("/v1/products/search");
+        try {
+          response = await fetch(searchUrl, {
+            headers: {
+              Accept: "application/json",
+              "x-buywhere-seo-cache": "75348",
+              ...(viaV1 ? apiHeaders() : {}),
+            },
+            next: { revalidate: 60 },
+            signal: AbortSignal.timeout(12000),
+          });
+          if (response.ok) break;
+          console.warn(`[seo] BUY-75348 search HTTP ${response.status} via ${viaV1 ? "v1" : "proxy"} for ${config.slug}`);
+        } catch (err) {
+          console.warn(`[seo] BUY-75348 search error via ${viaV1 ? "v1" : "proxy"} for ${config.slug}:`, err);
+          response = null;
+        }
+      }
 
-      if (!response.ok) {
-        console.warn(`[seo] search HTTP ${response.status} for ${config.slug} (q="${query}")`);
+      if (!response || !response.ok) {
+        console.warn(`[seo] search HTTP ${response?.status ?? "no-response"} for ${config.slug} (q="${query}")`);
         continue;
       }
 
@@ -1533,8 +1544,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const isDegraded = Boolean(meta?.degraded ?? data.degraded);
       const total = typeof meta?.total === "number" ? meta.total : data.total;
 
-      // Degraded/timeout response — try the next backup query
-      if (isDegraded || total === 0) {
+      // Degraded/timeout empty response — try the next backup query. A response
+      // can be flagged degraded while still carrying products; keep those rows.
+      if ((isDegraded && (total === 0 || total == null)) || total === 0) {
         console.warn(
           `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${isDegraded}, total=${total}`
         );
@@ -14073,4 +14085,3 @@ export function buildAnswerBlock(
     nextPrice: next.price,
   };
 }
-
