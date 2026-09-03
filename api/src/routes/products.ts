@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v26-b80652'; // v26 BUY-80652: never re-serve USD Shopify after native-currency isolation empties the page
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v27-b80652'; // v27 BUY-80652: smoke_rank native-currency filter (SG/MY shirt USD leak)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -347,11 +347,18 @@ async function tryTierSearch(
         [qNorm, ccSmoke, p.limit],
       );
       if (smoke.rows.length >= 5) {
+        const wantCur = (p.currency || '').toUpperCase();
         const products = smoke.rows
           .map((r: Record<string, unknown>) => buildProduct({ ...r, country_code: ccSmoke }, p.currency, p.compact))
           .filter((prod) => {
             const amt = Number((prod.price as { amount?: number } | undefined)?.amount);
-            return Number.isFinite(amt) && amt > 0;
+            if (!Number.isFinite(amt) || !(amt > 0)) return false;
+            // BUY-80652: smoke_rank snapshot is USD Shopify for SG/MY shirt.
+            if (wantCur) {
+              const cur = String((prod.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+              if (cur !== wantCur) return false;
+            }
+            return true;
           });
         if (products.length >= 5) {
           const body = buildSearchResponse(products, products.length, p.limit, p.offset, Date.now() - p.requestStart, false);
