@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import {
   buildAnswerBlock,
   buildSeoLandingSchema,
-  getSeoLandingProducts,
+  getSeoLandingProductsWithOutcome,
   resolveHeroTitle,
   type LandingProduct,
   type SeoLandingPageConfig,
@@ -137,7 +137,7 @@ export const __test__ = { buildRefreshedLabel, STALE_CATALOG_DAYS };
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
-  const products = await getSeoLandingProducts(config);
+  const { products, fetchedAt, outcome } = await getSeoLandingProductsWithOutcome(config);
   const comparison = buildComparisonRows(config, products);
   // BUY-66320: render the hero headline from the live catalog floor (when the
   // config provides a template) so the H1, JSON-LD headline, and breadcrumb
@@ -187,12 +187,24 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         category: p.category,
       })),
   });
+  const authoredIso = new Date(config.dateModified ?? config.datePublished ?? "2026-06-29").toISOString();
   const stamp = await getOrUpdatePageLastmod(
     toSiteUrl(config.canonicalPath),
     hashInputBody,
-    new Date(config.dateModified ?? config.datePublished ?? "2026-06-29").toISOString(),
+    fetchedAt || authoredIso,
+    outcome,
   );
   const checked = formatCheckedStamp(stamp);
+  if (outcome !== "live") {
+    const ageHours = Math.max(
+      0,
+      Math.round((Date.now() - Date.parse(checked.iso)) / 36e5),
+    );
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[seo] stale-served slug=${config.slug} age=${ageHours}h outcome=${outcome} previousFetchedAt=${checked.iso}`,
+    );
+  }
   // BUY-74905: thread the hash-stable ISO through the JSON-LD builder so the
   // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
   const schema = buildSeoLandingSchema(config, products, checked.iso);

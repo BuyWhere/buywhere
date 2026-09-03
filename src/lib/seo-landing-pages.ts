@@ -53,6 +53,9 @@ const INTERNAL_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ||
   BASE_URL;
 
+/** BUY-75496: last catalog-fetch health observed by getSeoLandingProductsUntracked. */
+let lastSeoFetchSawDegraded = false;
+
 // Build-time validation: warn if any SEO config has future dates in dateModified/refreshedLabel.
 // Catching these at build/test time prevents future/placeholder dates from reaching production.
 // Exported so tests can call it. (BUY-63853)
@@ -1447,7 +1450,69 @@ export async function getSeoLandingFallbackProductBySlug(
   return null;
 }
 
+export type SeoLandingFetchOutcome = "live" | "degraded" | "fallback" | "empty";
+
+export interface SeoLandingProductsWithOutcome {
+  products: LandingProduct[];
+  fetchedAt: string;
+  outcome: SeoLandingFetchOutcome;
+}
+
+/**
+ * BUY-75496: catalog snapshot plus the timestamp of the last SUCCESSFUL
+ * live fetch. Non-live outcomes never advance fetchedAt.
+ */
+export async function getSeoLandingProductsWithOutcome(
+  config: SeoLandingPageConfig,
+): Promise<SeoLandingProductsWithOutcome> {
+  const { recordFetchOutcome, getStoredFetchOutcome } = await import("@/lib/page-content-hash");
+  const canonical = toSiteUrl(config.canonicalPath);
+  const attemptIso = new Date().toISOString();
+  const authored =
+    config.dateModified ??
+    config.datePublished ??
+    "2026-06-29T00:00:00.000Z";
+
+  const products = await getSeoLandingProductsUntracked(config);
+
+  const liveCount = products.filter((p) => {
+    const href = p.href || p.affiliateUrl || "";
+    return Boolean(p.id && p.price !== null && href.includes("/r/"));
+  }).length;
+
+  const usedFallbackOnly =
+    products.length > 0 &&
+    products.every((p) => (p.id || "").startsWith("fallback") || (p.href || "").includes("/search?q="));
+
+  let outcome: SeoLandingFetchOutcome;
+  if (liveCount >= 1) {
+    outcome = "live";
+  } else if (lastSeoFetchSawDegraded && liveCount === 0) {
+    outcome = "degraded";
+  } else if (usedFallbackOnly || (products.length > 0 && liveCount === 0)) {
+    outcome = "fallback";
+  } else {
+    outcome = "empty";
+  }
+
+  const recorded = await recordFetchOutcome(canonical, outcome, attemptIso);
+  const fetchedAt =
+    outcome === "live"
+      ? attemptIso
+      : recorded.lastSuccessfulFetchedAt ?? authored;
+
+  return { products, fetchedAt, outcome };
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
+  // Back-compat shim (generateMetadata). Does not record fetch outcomes —
+  // the page render path uses getSeoLandingProductsWithOutcome so we do not
+  // double-fetch or double-write the BUY-75496 KV.
+  return getSeoLandingProductsUntracked(config);
+}
+
+async function getSeoLandingProductsUntracked(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
+  lastSeoFetchSawDegraded = false;
   const allowlistCountry = config.country as CountryCode;
   // Filter and repair fallback products up-front: country allowlist + trustcheck + image probe.
   // The static fallback list (e.g. Dyson/Philips/Xiaomi URLs in
@@ -1524,6 +1589,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       });
 
       if (!response.ok) {
+        lastSeoFetchSawDegraded = true;
         console.warn(`[seo] search HTTP ${response.status} for ${config.slug} (q="${query}")`);
         continue;
       }
@@ -1535,6 +1601,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
       // Degraded/timeout response — try the next backup query
       if (isDegraded || total === 0) {
+        lastSeoFetchSawDegraded = true;
         console.warn(
           `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${isDegraded}, total=${total}`
         );
@@ -1584,6 +1651,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         if (collected.length >= 24) break;
       }
     } catch (err) {
+      lastSeoFetchSawDegraded = true;
       console.warn(`[seo] fetch failure for ${config.slug} (q="${query}"):`, err);
       continue;
     }
