@@ -10,33 +10,30 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "coffee maker Singapore",
+  "searchQuery": "coffee maker",
   "backupQueries": [
-    "espresso machine Singapore",
-    "home coffee machine Singapore",
-    "drip coffee maker Singapore",
-    "pod coffee machine Singapore"
+    "AeroPress coffee maker",
+    "Chemex coffee maker",
+    "Moccamaster coffee maker",
+    "Ratio coffee maker",
+    "OXO cold brew coffee maker"
   ],
   "searchCategory": "coffee maker",
-  "minPrice": 80,
+  "minPrice": 25,
   "requiredProductTerms": [
-    "coffee machine",
     "coffee maker",
-    "espresso machine",
-    "espresso maker",
-    "drip coffee",
-    "pod coffee",
-    "nespresso",
-    "breville",
-    "de'longhi",
-    "delonghi",
-    "sage",
-    "philips"
+    "coffee machine",
+    "aeropress",
+    "chemex",
+    "moccamaster",
+    "ratio",
+    "oxo",
+    "technivorm"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Prices checked September 1, 2026",
+  "refreshedLabel": "Updated September 3, 2026",
   "datePublished": "2026-09-01",
-  "dateModified": "2026-09-01",
+  "dateModified": "2026-09-03",
   "productSectionTitle": "Live coffee maker prices in Singapore",
   "comparisonSectionTitle": "Which coffee maker should you actually buy in Singapore?",
   "comparisonColumns": [
@@ -145,52 +142,7 @@
       "answer": "Every 60 days, not every 180. Singapore tap water is soft but the heat and humidity still scale boilers faster than cooler climates suggest. Run a descaling cycle every 60 days using the brand's descaler and you will double the boiler's working life."
     }
   ],
-  "fallbackProducts": [
-    {
-      "id": "54500129",
-      "name": "Moka Pot, Stovetop Espresso Maker Italian Coffee Maker Coffee Pot 6 cup/10 OZ Aluminium Stovetop Camping Espresso Maker Manual Cuban Coffee Percolator for Cappuccino or Latte（black）",
-      "price": 25.99,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "href": "/r/direct/54500129",
-      "affiliateUrl": "/r/direct/54500129",
-      "brand": "",
-      "category": "coffee maker"
-    },
-    {
-      "id": "54476739",
-      "name": "Ice Drip Coffee Maker - 450ML Cold Brew Coffee Maker with Fine Mesh Filter, Slow Drip and Adjustable Water Flow (Translucent Amber)",
-      "price": 62.3,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "href": "/r/direct/54476739",
-      "affiliateUrl": "/r/direct/54476739",
-      "brand": "",
-      "category": "coffee maker"
-    },
-    {
-      "id": "55018670",
-      "name": "Moka Pot, Italian Coffee Maker, Coffee Pot 6 cup/10 OZ Stovetop Espresso Maker for Gas or Electric Ceramic Stovetop Camping Manual Cuban Coffee Percolator for Cappuccino or Latte",
-      "price": 25.99,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "href": "/r/direct/55018670",
-      "affiliateUrl": "/r/direct/55018670",
-      "brand": "",
-      "category": "coffee maker"
-    },
-    {
-      "id": "54446166",
-      "name": "Quality Turkish Coffee Pot - Turkish Coffee Maker, Chai Pot, Arabic Coffee Pot, Briki Greek Coffee Pot, Greek Briki, Cezve, Ibrik (15oz)",
-      "price": 41.65,
-      "currency": "SGD",
-      "merchant": "amazon.sg",
-      "href": "/r/direct/54446166",
-      "affiliateUrl": "/r/direct/54446166",
-      "brand": "",
-      "category": "coffee maker"
-    }
-  ],
+  "fallbackProducts": [],
   "hreflangAlternates": {
     "en-US": "/best-coffee-makers-us"
   },
