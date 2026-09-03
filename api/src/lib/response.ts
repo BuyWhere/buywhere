@@ -501,7 +501,7 @@ export interface EmptinessSignals {
 }
 
 /** Known country codes the catalog actively indexes (covers all 5 SEA + US). */
-export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID']);
+export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'TW', 'KR']);
 
 /**
  * Determine emptiness_reason + confidence + diagnostic from observed signals.

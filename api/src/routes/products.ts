@@ -1006,8 +1006,13 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
+    let listRows = dataResult.rows as Record<string, unknown>[];
+    if (countryCode === 'MY') {
+      const native = listRows.filter((row) => String(row.currency || '').toUpperCase() === 'MYR');
+      if (native.length > 0) listRows = native;
+    }
+    const data = listRows.map((row) =>
+      buildProduct(row, currency, false)
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
