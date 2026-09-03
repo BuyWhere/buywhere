@@ -23,4 +23,12 @@ describe('BUY-70498 child-table routing', () => {
     assert.match(mcp, /JOIN \$\{tierTable\} p ON p\.id = pi\.id/);
     assert.doesNotMatch(mcp, /JOIN products p ON p\.id = pi\.id/);
   });
+
+  it('BUY-80529 routes KR/TW REST search to child tables with TW ingest override', () => {
+    const products = readFileSync(new URL('../src/routes/products.ts', import.meta.url), 'utf8');
+    const countries = extractSet(products);
+    assert.ok(countries.includes('KR'));
+    assert.ok(countries.includes('TW'));
+    assert.match(products, /TW:\s*'products_partitioned_tw_ingest'/);
+  });
 });

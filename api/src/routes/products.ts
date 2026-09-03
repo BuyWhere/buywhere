@@ -40,12 +40,17 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v20-b80441'; // v20 BUY-80441: skip parent products JOIN on child FTS
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v21-b80529'; // v21 BUY-80529: KR/TW child FTS + TW ingest override
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
 // BUY-70498: child tables for TH/VN/MY/ID are empty; keep FTS on search_products.
-const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA','KR','TW']);
+// BUY-80529: postgres owns products_partitioned_tw so ingest could not GIN it.
+// Route TW FTS at the ingest-owned active copy until CONCURRENTLY lands on the live child.
+const CHILD_TABLE_OVERRIDE: Record<string, string> = {
+  TW: 'products_partitioned_tw_ingest',
+};
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -329,7 +334,7 @@ async function tryTierSearch(
   const ccUpper = (p.countryCode || '').toUpperCase();
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
   const ftsTable = useChildTable
-    ? `products_partitioned_${ccUpper.toLowerCase()}`
+    ? (CHILD_TABLE_OVERRIDE[ccUpper] || `products_partitioned_${ccUpper.toLowerCase()}`)
     : 'search_products';
   // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
   // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
@@ -837,7 +842,10 @@ router.get(
     const category = req.query.category as string | undefined;
     // BUY-77897: accept both `country_code` (canonical) and `country` (alias used by most callers)
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
-    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    let currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    if (countryCode === 'MY' && !(req.query.currency as string)) {
+      currency = 'MYR';
+    }
 
     // Sort — whitelist to safe columns, default to created_at desc
     const sortParam = (req.query.sort as string) || 'created_at';
@@ -2860,7 +2868,7 @@ router.get(
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          await client.query(`SET LOCAL statement_timeout = '8s'`);
+          await client.query(`SET LOCAL statement_timeout = '4s'`);
           const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
           await client.query('COMMIT');
           return r;
