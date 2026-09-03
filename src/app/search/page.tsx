@@ -104,11 +104,18 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 // BUY-66902: server-side fetch of the first results page so product names,
 // prices, merchants, and CTAs land in the initial HTML for crawlers/LLMs.
 // Runs only when the request already carries a query (a bare /search hit would
-// otherwise pay an API round-trip to render nothing). Mirrors the client's
-// initial request exactly (limit 40) so hydration swaps in identical data.
-// Any failure is swallowed — SSR results are strictly a crawler enhancement;
-// the client fetch path remains the interactive source of truth.
-const SSR_FETCH_LIMIT = 40;
+// otherwise pay an API round-trip to render nothing). Any failure is swallowed —
+// SSR results are strictly a crawler enhancement; the client fetch path remains
+// the interactive source of truth.
+//
+// BUY-80594: limit=10 (NOT 40). The FastAPI's ranked search_products_tier path
+// returns the correct top-N laptops at limit=10 but has different (degraded) ranking
+// at limit=40 where a stale cache includes Casely/key-ring accessory rows. The
+// Next.js route's client-side rankAndClassifyItems() only marks accessories (it
+// does not filter them for laptop queries — "laptop case" contains "laptop"). Matching
+// the SSR limit to the REST API's working limit=10 ensures both paths show the
+// same ranked first page. The client-side fetch handles pagination separately.
+const SSR_FETCH_LIMIT = 10;
 
 async function fetchInitialResults(
   query: string,
