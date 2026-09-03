@@ -1,6 +1,0 @@
-bigcommerce-store.mybigcommerce.com
-apacdemostore.mybigcommerce.com
-bigcommerce-mvp.mybigcommerce.com
-luke1.mybigcommerce.com
-indy-web-co.mybigcommerce.com
-uksandboxstore.mybigcommerce.com

@@ -1,3 +1,0 @@
--- BUY-76712 CT Shopify verified merchant insert batch
--- source=ct_shopify; products_count=0; is_active=true; safe upsert/no deletes
--- no verified new stores in this batch

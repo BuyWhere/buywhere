@@ -1,2 +1,0 @@
-SELECT COUNT(*) FROM products WHERE merchant_id='shopify_deuxcranes'; -> 38
-merchant -> ('shopify_deuxcranes', 'deuxcranes.com', 38, 'active')
