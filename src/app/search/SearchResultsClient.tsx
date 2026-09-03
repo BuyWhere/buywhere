@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ExternalLink, Search, X } from 'lucide-react';
@@ -1175,22 +1175,34 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
+function isUsableMerchantLabel(merchant: string | null | undefined): boolean {
+  const name = (merchant || '').trim();
+  if (name.length < 2) return false;
+  // Skip slug-looking / spammy labels so the CTA stays "View Deal".
+  if (/^[a-z0-9-]{16,}$/i.test(name)) return false;
+  if (/(spam|click here|http|www\.)/i.test(name)) return false;
+  return true;
+}
+
 function SearchCard({ product, currency }: { product: SearchCardProduct; currency: string }) {
+  const merchantOk = isUsableMerchantLabel(product.merchant);
+  const ctaLabel = merchantOk ? `View Deal on ${product.merchant}` : 'View Deal';
+  const ctaAria = merchantOk
+    ? `View deal: ${product.name} from ${product.merchant}`
+    : `View deal: ${product.name}`;
+
+  const onDealClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    attachProductCardClickAttribution(e);
+    captureProductCardClick({
+      href: e.currentTarget.href,
+      productId: product.id,
+      merchantId: product.merchant,
+    });
+  };
+
   return (
-    <a
+    <article
       data-testid="search-product-card"
-      href={product.href}
-      onClick={(e) => {
-        attachProductCardClickAttribution(e);
-        captureProductCardClick({
-          href: e.currentTarget.href,
-          productId: product.id,
-          merchantId: product.merchant,
-        });
-      }}
-      target="_blank"
-      rel="noopener noreferrer nofollow sponsored"
-      aria-label={`View deal: ${product.name} from ${product.merchant}`}
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
@@ -1199,28 +1211,33 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
-        <ProductGridImage
-          src={product.imageUrl || ''}
-          alt={product.name}
-          brand={product.brand}
-          merchant={product.merchant}
-          category={product.category}
-          className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
-        />
+        <a
+          href={product.href}
+          onClick={onDealClick}
+          target="_blank"
+          rel="noopener noreferrer nofollow sponsored"
+          aria-label={product.name}
+          className="relative z-10 block h-full w-full"
+        >
+          <ProductGridImage
+            src={product.imageUrl || ''}
+            alt={product.name}
+            brand={product.brand}
+            merchant={product.merchant}
+            category={product.category}
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+          />
+        </a>
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
-        {/* BUY-68743: drop the redundant "Shop ↗" pill — the merchant name
-            and verified checkmark are already conveyed by MerchantBadge on the
-            left, and the whole card wraps the deal URL, so a second visual CTA
-            at the top competed with the primary "View Deal" button below.
-            Keep MerchantBadge informational and View Deal the single CTA.
-            BUY-74691: add PlatformChip beneath the badge so the platform
-            provenance (Shopify / Shopee SG / Amazon SG) is visible but
-            visually subordinate — the merchant_name remains the primary signal. */}
+        {/* BUY-68743: MerchantBadge is informational; View Deal is the single primary CTA.
+            BUY-74691: PlatformChip is visually subordinate to merchant_name.
+            BUY-80569: outer wrapper is <article>, not <a> — nested Compare button +
+            title/image/CTA links must not sit inside a card-wide anchor. */}
         <div className="flex min-h-7 flex-col items-start gap-0.5">
           <MerchantBadge
             merchant={product.merchant}
@@ -1236,9 +1253,16 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             // BUY-75930: break-words prevents mid-specifier truncation like "2.4GH..."
             className="line-clamp-2 break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
             title={product.name}
-            aria-label={product.name}
           >
-            {product.name}
+            <a
+              href={product.href}
+              onClick={onDealClick}
+              target="_blank"
+              rel="noopener noreferrer nofollow sponsored"
+              className="hover:underline"
+            >
+              {product.name}
+            </a>
           </h2>
           {/* BUY-67977: reserve a single-line slot so cards with no brand/category
               don't collapse to 0 height and break grid row alignment. */}
@@ -1248,7 +1272,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
           </div>
         </div>
 
-        <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
+        <div className="product-card__footer mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
           {/* BUY-65455: label + price on a single baseline-aligned row so the
               numeric price is visually adjacent to the 'Current price' label
               (previously they were disconnected: a floating pill on the image
@@ -1263,13 +1287,21 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
                 its own currency. */}
             <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, currency)}</p>
           </div>
-          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
-            View Deal
-            <ExternalLink className="h-4 w-4" />
-          </span>
+          <a
+            href={product.href}
+            onClick={onDealClick}
+            target="_blank"
+            rel="noopener noreferrer nofollow sponsored"
+            aria-label={ctaAria}
+            data-testid="search-product-view-deal"
+            className="btn-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+          >
+            {ctaLabel}
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
         </div>
       </div>
-    </a>
+    </article>
   );
 }
 
