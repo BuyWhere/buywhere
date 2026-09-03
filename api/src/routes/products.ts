@@ -2547,7 +2547,7 @@ router.get(
          WHERE is_active = true
            AND country_code = $1
            AND price IS NOT NULL
-         ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
+         ORDER BY id DESC
          LIMIT $2 OFFSET $3`;
     let featuredDb = readDb();
     let result;
@@ -2561,7 +2561,14 @@ router.get(
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
+    // BUY-80411: don't cache empty results from parent table fallback (TW/KR regression)
+    // Only cache if using child table OR got actual results
+    const usedChildTable = /^[A-Z]{2}$/.test(countryCode) && LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode);
+    if (usedChildTable || products.length > 0) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
+    } else {
+      console.log(`[products:featured] SKIP CACHE for empty ${countryCode} (no child table, no results)`);
+    }
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.json(responseBody);
   })
