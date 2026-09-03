@@ -142,7 +142,40 @@
       "answer": "Every 60 days, not every 180. Singapore tap water is soft but the heat and humidity still scale boilers faster than cooler climates suggest. Run a descaling cycle every 60 days using the brand's descaler and you will double the boiler's working life."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "title": "AeroPress Original Coffee Maker",
+      "price": 25.99,
+      "currency": "SGD",
+      "merchant": "lazada_sg",
+      "href": "/r/direct/54500129",
+      "affiliateUrl": "/r/direct/54500129"
+    },
+    {
+      "title": "Philips 3000 Series Drip Coffee Maker",
+      "price": 62.3,
+      "currency": "SGD",
+      "merchant": "lazada_sg",
+      "href": "/r/direct/54476739",
+      "affiliateUrl": "/r/direct/54476739"
+    },
+    {
+      "title": "AeroPress Go Portable Coffee Maker",
+      "price": 25.99,
+      "currency": "SGD",
+      "merchant": "lazada_sg",
+      "href": "/r/direct/55018670",
+      "affiliateUrl": "/r/direct/55018670"
+    },
+    {
+      "title": "OXO Brew Compact Cold Brew Coffee Maker",
+      "price": 41.65,
+      "currency": "SGD",
+      "merchant": "lazada_sg",
+      "href": "/r/direct/54446166",
+      "affiliateUrl": "/r/direct/54446166"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-coffee-makers-us"
   },

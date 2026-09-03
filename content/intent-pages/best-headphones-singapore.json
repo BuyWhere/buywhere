@@ -142,7 +142,40 @@
       "answer": "No. AirPods rely on Apple's H1/H2 chip for seamless pairing, Find My and the spatial audio head-tracking; on Android you lose all three and the sound quality is no better than a third-party pair at half the price. Buy Sony, Bose or Sennheiser instead if your phone runs Android."
     }
   ],
-  "fallbackProducts": [],
+  "fallbackProducts": [
+    {
+      "title": "Edifier WH700NB Wireless ANC Headphones",
+      "price": 89,
+      "currency": "SGD",
+      "merchant": "courts_sg",
+      "href": "/r/direct/62297839",
+      "affiliateUrl": "/r/direct/62297839"
+    },
+    {
+      "title": "Sony WH-CH720N Wireless Noise Cancelling Headphones",
+      "price": 219,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "href": "/r/direct/61342684",
+      "affiliateUrl": "/r/direct/61342684"
+    },
+    {
+      "title": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones",
+      "price": 519,
+      "currency": "SGD",
+      "merchant": "fairprice",
+      "href": "/r/direct/61270029",
+      "affiliateUrl": "/r/direct/61270029"
+    },
+    {
+      "title": "JBL Tune 770NC Wireless Over-Ear Headphones",
+      "price": 169.9,
+      "currency": "SGD",
+      "merchant": "fairprice_sg",
+      "href": "/r/direct/59502928",
+      "affiliateUrl": "/r/direct/59502928"
+    }
+  ],
   "hreflangAlternates": {
     "en-US": "/best-headphones-us"
   },
