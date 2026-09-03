@@ -915,7 +915,7 @@ router.get(
     // BUY-80467: SEA child tables (VN/TH/PH/MY) avoid the parent `products` table's
     // inflated pg_class.reltuples (395M, partition overlap). Child reltuples are
     // accurate (VN=0, TH=69, PH=1412, MY=343) and prevent bogus total on /v1/products.
-    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'VN', 'TH', 'PH', 'MY']);
+    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'VN', 'TH', 'PH']);
     const LIST_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
