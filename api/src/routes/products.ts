@@ -54,6 +54,14 @@ const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
+// BUY-80685: SKU/keyword-famous queries lose FTS gold when equal-weight RRF
+// lets low-rank semantic neighbors outscore exact FTS hits. Default 2× FTS
+// weight; env HYBRID_RRF_FTS_WEIGHT can retune without a deploy.
+const HYBRID_RRF_FTS_WEIGHT = Math.max(1, Number(process.env.HYBRID_RRF_FTS_WEIGHT) || 2);
+const HYBRID_RRF_SEMANTIC_WEIGHT = Math.max(0, Number(process.env.HYBRID_RRF_SEMANTIC_WEIGHT) || 1);
+// If FTS returned any of the first N ranks, those IDs must appear in the
+// hybrid page before purely-semantic neighbors (keyword-bias floor).
+const HYBRID_FTS_FLOOR_RANKS = Math.max(1, Number(process.env.HYBRID_FTS_FLOOR_RANKS) || 10);
 
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
@@ -687,16 +695,26 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
   const ftsRank = new Map(ftsIds.map((id, idx) => [id, idx + 1]));
   const semanticRank = new Map(semanticIds.map((id, idx) => [id, idx + 1]));
   const allIds = new Set([...ftsIds, ...semanticIds]);
+  const missing = VECTOR_CANDIDATE_CAP + 1;
 
-  return [...allIds]
+  const scored = [...allIds]
     .map((id) => ({
       id,
-      score: 1 / (HYBRID_RRF_K + (ftsRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)) +
-        1 / (HYBRID_RRF_K + (semanticRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)),
+      ftsR: ftsRank.get(id) ?? missing,
+      score:
+        HYBRID_RRF_FTS_WEIGHT / (HYBRID_RRF_K + (ftsRank.get(id) ?? missing)) +
+        HYBRID_RRF_SEMANTIC_WEIGHT / (HYBRID_RRF_K + (semanticRank.get(id) ?? missing)),
     }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((entry) => entry.id);
+    .sort((a, b) => b.score - a.score);
+
+  // Keyword-bias floor (BUY-80685): keep the top-N FTS hits in the hybrid
+  // window even when semantic neighbors outscore them. Preserve FTS order
+  // for the floor, then fill from weighted RRF without duplicates.
+  const floorN = Math.min(HYBRID_FTS_FLOOR_RANKS, ftsIds.length, limit);
+  const floorIds = ftsIds.slice(0, floorN);
+  const seen = new Set(floorIds);
+  const rest = scored.map((e) => e.id).filter((id) => !seen.has(id));
+  return [...floorIds, ...rest].slice(0, limit);
 }
 
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
@@ -1798,7 +1816,8 @@ router.get(
             }
 
             let rankedCandidateIds = filteredSemanticIds;
-            if (searchMode === 'hybrid') {
+            const needFtsArm = searchMode === 'hybrid' || (searchMode === 'semantic' && filteredSemanticIds.length === 0);
+            if (needFtsArm) {
               const ftsCandidates = await client.query<{ id: string }>(
                 `WITH fts_cand AS MATERIALIZED (
                    SELECT id, search_vector
@@ -1814,11 +1833,19 @@ router.get(
                  SELECT id FROM fts_top`,
                 searchParams
               );
-              rankedCandidateIds = mergeRrfCandidateIds(
-                ftsCandidates.rows.map((row) => row.id),
-                filteredSemanticIds,
-                candidateCap
-              );
+              const ftsIds = ftsCandidates.rows.map((row) => row.id);
+              if (searchMode === 'hybrid') {
+                rankedCandidateIds = mergeRrfCandidateIds(
+                  ftsIds,
+                  filteredSemanticIds,
+                  candidateCap
+                );
+              } else if (filteredSemanticIds.length === 0 && ftsIds.length > 0) {
+                // BUY-80685: SKU queries with no in-scope embeddings (AirPods Pro 2
+                // @ 11:24Z n=0) must not empty-out vs keyword. Fail-open to FTS so
+                // semantic coverage ≥ 1 when the catalog has keyword hits.
+                rankedCandidateIds = ftsIds;
+              }
             }
 
             total = rankedCandidateIds.length;

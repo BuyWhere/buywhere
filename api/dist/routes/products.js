@@ -37,7 +37,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v12-b77812'; // BUY-77812: skip LIKE/regex fallbacks on child FTS
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v17-b80215'; // BUY-80215: skip empty semantic-cache hits so SG head terms re-query FTS
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -50,6 +50,14 @@ const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
+// BUY-80685: SKU/keyword-famous queries lose FTS gold when equal-weight RRF
+// lets low-rank semantic neighbors outscore exact FTS hits. Default 2× FTS
+// weight; env HYBRID_RRF_FTS_WEIGHT can retune without a deploy.
+const HYBRID_RRF_FTS_WEIGHT = Math.max(1, Number(process.env.HYBRID_RRF_FTS_WEIGHT) || 2);
+const HYBRID_RRF_SEMANTIC_WEIGHT = Math.max(0, Number(process.env.HYBRID_RRF_SEMANTIC_WEIGHT) || 1);
+// If FTS returned any of the first N ranks, those IDs must appear in the
+// hybrid page before purely-semantic neighbors (keyword-bias floor).
+const HYBRID_FTS_FLOOR_RANKS = Math.max(1, Number(process.env.HYBRID_FTS_FLOOR_RANKS) || 10);
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
 // Bitmap Heap Scan on the partial GIN index uses up to 64MB per query, and
@@ -341,10 +349,17 @@ async function tryTierSearch(req, res, p) {
     const orIdx = i;
     params.push(tsOr);
     i++; // $2 = OR lexeme string
-    // BUY-79497: always filter by currency when one is available, even without price bounds.
-    // The tier path previously only filtered currency when price bounds were present,
-    // allowing USD rows to leak into SG results for broad queries.
-    if (p.currency) {
+    // BUY-79497: do NOT AND currency on child-table FTS. products_partitioned_sg
+    // GIN + currency = SGD returns empty for nike/earbuds (planner / column
+    // mismatch vs Shopify USD labelled SG). Isolate currency in the JS
+    // post-filter below. Keep SQL currency only on the parent search_products
+    // table (and when the caller passed explicit price bounds).
+    if (p.currency && !useChildTable) {
+        conds.push(`sp.currency = $${i}`);
+        params.push(p.currency);
+        i++;
+    }
+    else if (p.currency && (p.minPrice != null || p.maxPrice != null)) {
         conds.push(`sp.currency = $${i}`);
         params.push(p.currency);
         i++;
@@ -414,8 +429,9 @@ async function tryTierSearch(req, res, p) {
     const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
     const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
     const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
+    // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
     const limitIdx = i;
-    params.push(p.limit + 1);
+    params.push(Math.min((p.limit + 1) * 8, 80));
     i++;
     const offsetIdx = i;
     params.push(p.offset);
@@ -458,8 +474,8 @@ async function tryTierSearch(req, res, p) {
     // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
     const phoneAccessoryPenalty = `
     CASE
-      WHEN lower(sp.title) ~* '\\mphone\\M'
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter)\\M'
+      WHEN lower(sp.title) ~* '\\m(phone|iphone)\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
       THEN 0.15 ELSE 1.0
     END`;
@@ -663,10 +679,32 @@ async function tryTierSearch(req, res, p) {
             return true;
         const hasMore = rows.length > p.limit;
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
+        const isolateCur = !!(p.countryCode && p.currency);
+        const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
+        const products = pageRows
+            .map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact))
+            .filter((prod) => {
+            if (!wantCur)
+                return true;
+            const cur = String(prod.price?.currency || '').toUpperCase();
+            // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
+            return cur === wantCur;
+        });
+        // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
+        // matched but the currency post-filter emptied the page. Archive for
+        // head terms (iphone) times out at ~8s → emptiness_reason=api_error
+        // even though products_partitioned_sg has live iPhone rows (USD
+        // Shopify labelled SG). Serve the child hits without currency
+        // isolation — leaking USD is a truthful in-market listing; api_error
+        // is not. BUY-79497 archive fallback stays for empty child FTS only.
+        let served = products;
+        if (useChildTable && wantCur && served.length === 0) {
+            served = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
+        }
+        const productsOut = served;
         // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-        const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
-        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore);
+        const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
+        const responseBody = (0, response_1.buildSearchResponse)(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit);
         responseBody.source = 'search_products_tier';
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
@@ -711,15 +749,23 @@ function mergeRrfCandidateIds(ftsIds, semanticIds, limit) {
     const ftsRank = new Map(ftsIds.map((id, idx) => [id, idx + 1]));
     const semanticRank = new Map(semanticIds.map((id, idx) => [id, idx + 1]));
     const allIds = new Set([...ftsIds, ...semanticIds]);
-    return [...allIds]
+    const missing = VECTOR_CANDIDATE_CAP + 1;
+    const scored = [...allIds]
         .map((id) => ({
         id,
-        score: 1 / (HYBRID_RRF_K + (ftsRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)) +
-            1 / (HYBRID_RRF_K + (semanticRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)),
+        ftsR: ftsRank.get(id) ?? missing,
+        score: HYBRID_RRF_FTS_WEIGHT / (HYBRID_RRF_K + (ftsRank.get(id) ?? missing)) +
+            HYBRID_RRF_SEMANTIC_WEIGHT / (HYBRID_RRF_K + (semanticRank.get(id) ?? missing)),
     }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((entry) => entry.id);
+        .sort((a, b) => b.score - a.score);
+    // Keyword-bias floor (BUY-80685): keep the top-N FTS hits in the hybrid
+    // window even when semantic neighbors outscore them. Preserve FTS order
+    // for the floor, then fill from weighted RRF without duplicates.
+    const floorN = Math.min(HYBRID_FTS_FLOOR_RANKS, ftsIds.length, limit);
+    const floorIds = ftsIds.slice(0, floorN);
+    const seen = new Set(floorIds);
+    const rest = scored.map((e) => e.id).filter((id) => !seen.has(id));
+    return [...floorIds, ...rest].slice(0, limit);
 }
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
 // USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
@@ -871,7 +917,8 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLimit, (0
         : 'products';
     // Keep SELECT/ORDER references stable while swapping the physical table.
     const TABLE_ALIAS = 'products';
-    const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
+    // BUY-79816: add sku for cross-merchant image fallback (manufacturer_image_url would require join to canonical table)
+    const SELECT_COLUMNS = `${TABLE_ALIAS}.id, ${TABLE_ALIAS}.sku AS source_id, ${TABLE_ALIAS}.sku, ${TABLE_ALIAS}.source AS domain, ${TABLE_ALIAS}.url,
                 NULL::text AS affiliate_url,
                 ${TABLE_ALIAS}.title, ${TABLE_ALIAS}.price, ${TABLE_ALIAS}.currency, ${TABLE_ALIAS}.image_url, ${TABLE_ALIAS}.metadata, ${TABLE_ALIAS}.updated_at,
                 ${TABLE_ALIAS}.region, ${TABLE_ALIAS}.country_code, ${TABLE_ALIAS}.created_at, ${TABLE_ALIAS}.description, ${TABLE_ALIAS}.brand, ${TABLE_ALIAS}.mpn, ${TABLE_ALIAS}.gtin,
@@ -881,9 +928,13 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLimit, (0
     // 7e9 catchup rows that are the actual newest updated_at. idx_products_country_code
     // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US
     // still use id DESC on the PK (ids there are monotonic snowflakes).
+    // BUY-80193: default updated_at DESC walks idx_products_updated_at and
+    // filters country. AU/JP/MY/TH/TW/VN/PH/KR are sparse in that index and
+    // hit the 8s statement_timeout (HTTP 500). Child SG/US keep PK id DESC.
+    // Other countries: no ORDER BY so idx_products_active_country can LIMIT.
     const orderBy = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `ORDER BY ${TABLE_ALIAS}.id DESC`
-        : `ORDER BY ${TABLE_ALIAS}.updated_at DESC`;
+        : '';
     // BUY-77835: route the heavy catalog list query to the read replica (when
     // healthy) so it does not compete with interactive /v1/products/search on
     // the saturated primary. readDb() falls back to primary if replica is not
@@ -963,7 +1014,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLimit, (0
 // Query params: q, domain, region, country, category, category_id, category_path,
 //               brand, merchant_id, availability, min_price, max_price,
 //               currency, limit, offset, page, fields, sort, sort_by, source_page, compact
-router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), asyncHandler(async (req, res) => {
+router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.allowAnonymous, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), asyncHandler(async (req, res) => {
     // BUY-33987: hard ceiling on the entire request. Even if the per-statement
     // `SET LOCAL statement_timeout` races with the pool's on-connect
     // `SET statement_timeout = 30000`, the response will fire at 5s and the
@@ -1064,17 +1115,33 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
             if (Array.isArray(cachedProducts) && cachedProducts.length === 0 && parsed?.meta && !parsed.meta.emptiness_reason) {
                 Object.assign(parsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
             }
-            (0, instrumentation_1.recordProductViewsBulk)({
-                productIds: cachedProducts
-                    .map((product) => product.id)
-                    .filter(Boolean),
-                source: 'products.search.cache',
-                queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
-                req,
+            // BUY-79497: skip cached pages that still leak the wrong currency
+            // (pre-v13 Redis served SG country_code + USD Shopify).
+            const wantCur = countryCode ? (currency || '').toUpperCase() : '';
+            const cachedLeak = wantCur && Array.isArray(cachedProducts) && cachedProducts.some((p) => {
+                const price = p.price;
+                const cur = (price && typeof price === 'object' && price !== null && 'currency' in price)
+                    ? String(price.currency || '').toUpperCase()
+                    : String(p.currency || '').toUpperCase();
+                return cur && cur !== wantCur;
             });
-            res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
-            res.set('X-Cache', 'HIT');
-            return res.json(parsed);
+            const cachedEmpty = Array.isArray(cachedProducts) && cachedProducts.length === 0;
+            if (cachedLeak || cachedEmpty) {
+                res.locals.cacheHit = false;
+            }
+            else {
+                (0, instrumentation_1.recordProductViewsBulk)({
+                    productIds: cachedProducts
+                        .map((product) => product.id)
+                        .filter(Boolean),
+                    source: 'products.search.cache',
+                    queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+                    req,
+                });
+                res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+                res.set('X-Cache', 'HIT');
+                return res.json(parsed);
+            }
         }
         // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
         // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
@@ -1091,18 +1158,23 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
             res.locals.semVec = semVec;
             res.locals.semCacheKey = cacheKey;
             if (semHit) {
-                res.locals.cacheHit = true;
                 const semParsed = JSON.parse(semHit.body);
-                semParsed.cached = true;
-                semParsed.semantic_cache = true;
-                semParsed.response_time_ms = Date.now() - requestStart;
                 const semProducts = semParsed.products || semParsed.results || semParsed.data || [];
-                if (Array.isArray(semProducts) && semProducts.length === 0 && semParsed?.meta && !semParsed.meta.emptiness_reason) {
-                    Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
+                const semEmpty = Array.isArray(semProducts) && semProducts.length === 0;
+                // BUY-80215: empty semantic hits fossilize no_match for SG head terms
+                // (iphone) even when products_partitioned_sg has priced SKUs.
+                if (semEmpty) {
+                    res.locals.cacheHit = false;
                 }
-                res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
-                res.set('X-Cache', 'HIT-SEMANTIC');
-                return res.json(semParsed);
+                else {
+                    res.locals.cacheHit = true;
+                    semParsed.cached = true;
+                    semParsed.semantic_cache = true;
+                    semParsed.response_time_ms = Date.now() - requestStart;
+                    res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+                    res.set('X-Cache', 'HIT-SEMANTIC');
+                    return res.json(semParsed);
+                }
             }
         }
     }
@@ -1177,16 +1249,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
         baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams = [];
     let baseIdx = 1;
-    // BUY-79497: always filter by currency when one is requested/inferred, even without price bounds.
-    // The `OR country_code IS NULL` fallback on line 1162 previously allowed cross-currency rows
-    // (e.g. USD Shopify) to leak into SG results. Hardening currency here closes that gap.
-    if (currency) {
-        baseConditions.push(`currency = $${baseIdx}`);
-        baseParams.push(currency);
-        baseIdx++;
-    }
-    else if (minPrice !== undefined || maxPrice !== undefined) {
-        // Preserve existing behavior: currency filter only when price bounds are present.
+    // BUY-79497: keep SQL currency AND only for explicit price bounds. A hard
+    // currency predicate on the 97M-row archive times out / returns empty for
+    // SG head terms (child GIN is USD Shopify; parent SGD is amazon.sg via
+    // region/source, not currency-first). Isolate currency after fetch.
+    if (minPrice !== undefined || maxPrice !== undefined) {
         baseConditions.push(`currency = $${baseIdx}`);
         baseParams.push(currency);
         baseIdx++;
@@ -1418,7 +1485,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
-        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+        const wantCur = countryCode ? (currency || '').toUpperCase() : '';
+        const fallbackProducts = dataResult.rows
+            .map((row) => (0, response_1.buildProduct)(row, currency, compact))
+            .filter((prod) => {
+            if (!wantCur)
+                return true;
+            const cur = String(prod.price?.currency || '').toUpperCase();
+            return cur === wantCur;
+        });
         const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore);
         annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
         config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1731,7 +1806,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
                         filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
                     }
                     let rankedCandidateIds = filteredSemanticIds;
-                    if (searchMode === 'hybrid') {
+                    const needFtsArm = searchMode === 'hybrid' || (searchMode === 'semantic' && filteredSemanticIds.length === 0);
+                    if (needFtsArm) {
                         const ftsCandidates = await client.query(`WITH fts_cand AS MATERIALIZED (
                    SELECT id, search_vector
                    FROM products
@@ -1744,7 +1820,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
                    LIMIT 200
                  )
                  SELECT id FROM fts_top`, searchParams);
-                        rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
+                        const ftsIds = ftsCandidates.rows.map((row) => row.id);
+                        if (searchMode === 'hybrid') {
+                            rankedCandidateIds = mergeRrfCandidateIds(ftsIds, filteredSemanticIds, candidateCap);
+                        }
+                        else if (filteredSemanticIds.length === 0 && ftsIds.length > 0) {
+                            // BUY-80685: SKU queries with no in-scope embeddings (AirPods Pro 2
+                            // @ 11:24Z n=0) must not empty-out vs keyword. Fail-open to FTS so
+                            // semantic coverage ≥ 1 when the catalog has keyword hits.
+                            rankedCandidateIds = ftsIds;
+                        }
                     }
                     total = rankedCandidateIds.length;
                     hasMore = total > offset + limit;
@@ -1891,7 +1976,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
         dataResult.rows = dataResult.rows.slice(0, limit);
     }
     const responseTimeMs = Date.now() - requestStart;
-    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    const wantCur = countryCode ? (currency || '').toUpperCase() : '';
+    const products = dataResult.rows
+        .map((row) => (0, response_1.buildProduct)(row, currency, compact))
+        .filter((prod) => {
+        if (!wantCur)
+            return true;
+        const cur = String(prod.price?.currency || '').toUpperCase();
+        return cur === wantCur;
+    });
     // BUY-52290: pre-compute before field-selection so IDs are never stripped.
     // Use the full products array (not filteredProducts) so no IDs are lost.
     res.locals.returnedProductIds = products.map((p) => p.id).filter(Boolean).slice(0, 100);
@@ -1968,7 +2061,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateLim
 const DEALS_QUERY_TIMEOUT_MS = 4500;
 const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 const DEALS_SAMPLE_CAP = 5000; // max candidates to sample for deals
-router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
+router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.allowAnonymous, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const countryCode = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
@@ -2151,7 +2244,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     res.json(responseBody);
 }));
 // GET /v1/products/compare?ids=id1,id2,id3
-router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.compare'), asyncHandler(async (req, res) => {
+router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.allowAnonymous, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.compare'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const ids = (req.query.ids || '').split(',').filter(Boolean).slice(0, 10);
     if (ids.length < 2) {
@@ -2479,7 +2572,15 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateL
     // BUY-77920: wrap readDb() in try/catch so the endpoint falls back to primary
     // if the replica is unreachable rather than 500-ing at the LB timeout.
     // BUY-78910: SELECT category_path so buildProduct can populate cat_path.
-    const LIVE_FEATURED_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    // BUY-79827: MY/TH/PH/ID/VN/AU/GB/CA featured was hitting the 413GB parent
+    // (`ORDER BY updated_at DESC`) and 500'ing at the LB ~8s timeout. Route
+    // every ISO market to its child partition + id DESC (same plan as SG/US).
+    // Missing-table / timeout falls back below rather than 500.
+    const LIVE_FEATURED_CHILD_COUNTRIES = new Set([
+        'SG', 'US', 'MY', 'TH', 'PH', 'ID', 'VN', 'AU', 'GB', 'CA', 'JP', 'DE', 'UK',
+        // BUY-80256: TW featured 500'd — ORDER BY updated_at on parent times out.
+        'TW', 'KR',
+    ]);
     const FEATURED_TABLE = /^[A-Z]{2}$/.test(countryCode) && LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
         : 'products';
@@ -2497,24 +2598,103 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.checkRateL
            AND price IS NOT NULL
          ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
          LIMIT $2 OFFSET $3`;
+    // BUY-79500: deduplicate Shopify variant rows so a single product does not
+    // occupy every slot in the featured carousel. Shopify stores one row per
+    // variant (size/color), all sharing metadata.product_id. We fetch a multiple
+    // of the requested limit, keep the first (most recent) variant of each
+    // product, and apply offset/slice on the distinct-product stream.
+    const DEDUP_INITIAL_MULTIPLIER = 5;
+    const DEDUP_MAX_FETCH = 500;
+    let fetchLimit = Math.min(limit * DEDUP_INITIAL_MULTIPLIER, DEDUP_MAX_FETCH);
+    let fetchOffset = 0;
+    const seenProductKeys = new Set();
+    const distinctRows = [];
     let featuredDb = (0, readReplica_1.readDb)();
-    let result;
-    try {
-        result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
+    function dedupKey(row) {
+        const meta = row.metadata || {};
+        const productId = meta?.product_id;
+        // Shopify variants share metadata.product_id; non-Shopify sources generally
+        // have one SKU per product, so source_id (aliased sku) is a safe fallback.
+        return productId ? `pid:${productId}` : `sku:${row.source_id}`;
     }
-    catch (err) {
-        console.warn(`[products:featured] readDb() query failed, falling back to primary: ${err.message}`);
-        featuredDb = config_1.db;
-        result = await featuredDb.query(featuredSql, [countryCode, limit, offset]);
+    while (distinctRows.length < offset + limit && fetchLimit <= DEDUP_MAX_FETCH) {
+        let result;
+        async function runFeatured(pool) {
+            // SET LOCAL only sticks inside a transaction. Pool.query() auto-commits
+            // each statement, so a bare SET LOCAL is a no-op and the 8s cap never
+            // fires. BEGIN/COMMIT (or a checked-out client) is required.
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query(`SET LOCAL statement_timeout = '8s'`);
+                const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+                await client.query('COMMIT');
+                return r;
+            }
+            catch (err) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { /* ignore */ }
+                throw err;
+            }
+            finally {
+                client.release();
+            }
+        }
+        try {
+            result = await runFeatured(featuredDb);
+        }
+        catch (err) {
+            const code = err?.code;
+            // Missing child partition (42P01) — retry against parent products.
+            if (code === '42P01' && FEATURED_TABLE !== 'products') {
+                console.warn(`[products:featured] ${FEATURED_TABLE} missing, falling back to products`);
+            }
+            if (fetchOffset === 0) {
+                console.warn(`[products:featured] readDb() query failed, falling back to primary: ${err.message}`);
+                featuredDb = config_1.db;
+                try {
+                    result = await runFeatured(featuredDb);
+                }
+                catch (err2) {
+                    // BUY-80256: do not 500 the public carousel when both replica+primary
+                    // time out (TW/KR parent scan). Return empty degraded envelope.
+                    console.warn(`[products:featured] primary also failed for ${countryCode}: ${err2.message}`);
+                    const degraded = (0, response_1.buildSearchResponse)([], 0, limit, offset, Date.now() - start, true);
+                    res.set('Cache-Control', 'public, max-age=15');
+                    return res.json(degraded);
+                }
+            }
+            else {
+                break;
+            }
+        }
+        if (result.rows.length === 0)
+            break;
+        for (const row of result.rows) {
+            const key = dedupKey(row);
+            if (!seenProductKeys.has(key)) {
+                seenProductKeys.add(key);
+                distinctRows.push(row);
+                if (distinctRows.length >= offset + limit)
+                    break;
+            }
+        }
+        if (distinctRows.length >= offset + limit)
+            break;
+        fetchOffset += result.rows.length;
+        fetchLimit = Math.min(fetchLimit * 2, DEDUP_MAX_FETCH);
     }
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    const pagedRows = distinctRows.slice(offset, offset + limit);
+    const products = pagedRows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.json(responseBody);
 }));
 // GET /v1/products/:id
-router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {
+router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.allowAnonymous, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {

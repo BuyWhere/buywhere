@@ -754,9 +754,12 @@ describe('NL search queries — response correctness', () => {
     const body = await res.json();
 
     assert.equal(res.status, 200);
-    assert.equal(embedQueryMock.mock.calls.length, 1);
-    assert.equal(vectorQueryMock.mock.calls.length, 1);
-    assert.deepEqual(responseResults(body).map((product) => product.id).slice(0, 3), ['2', '1', '3']);
+    assert.ok(embedQueryMock.mock.calls.length >= 1);
+    assert.ok(vectorQueryMock.mock.calls.length >= 1);
+    // BUY-80685: keyword-bias floor keeps top FTS hits ahead of purely-semantic
+    // neighbors. FTS order is [1, 2]; semantic contributes 3 after the floor.
+    assert.deepEqual(responseResults(body).map((product) => product.id).slice(0, 3), ['1', '2', '3']);
+    assert.ok(responseResults(body).length >= 2, 'hybrid must keep FTS SKU coverage');
 
     // BUY-74181: fts_top ORDER BY is parenthesized around the rank expression
     // (`ORDER BY (ts_rank(search_vector, ...) * amazon_mult) DESC`), so the
@@ -769,6 +772,89 @@ describe('NL search queries — response correctness', () => {
     assert.ok(sql.includes('fts_cand'), 'Hybrid FTS should use bounded fts_cand CTE');
     assert.ok(sql.includes('LIMIT 200'), 'Hybrid FTS gather should be limited to CANDIDATE_CAP=200 candidates');
     assert.ok(sql.includes('fts_top'), 'Hybrid FTS ranking should be confined to fts_top');
+  });
+
+  it('BUY-80685 hybrid keeps all FTS SKU hits even when semantic neighbors dominate RRF', async () => {
+    process.env.FLOWAI_EMBED_API_KEY = 'test-flow-key';
+    config.vectorDb = { query: vectorQueryMock };
+    // 8 semantic-only neighbors that would outrank FTS under equal-weight RRF
+    // if they also appeared in a later FTS window — here they are semantic-only.
+    const semanticOnly = Array.from({ length: 8 }, (_, i) => String(100 + i));
+    vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
+      rows: semanticOnly.map((product_id) => ({ product_id })),
+    }));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::bigint[]) AND')) {
+        return Promise.resolve({ rows: semanticOnly.map((id) => ({ id })) });
+      }
+      if (typeof sql === 'string' && /ORDER BY \(?ts_rank\(search_vector/.test(sql)) {
+        return Promise.resolve({ rows: [{ id: 'sku-a' }, { id: 'sku-b' }, { id: 'sku-c' }, { id: 'sku-d' }, { id: 'sku-e' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
+        const ids = ['sku-a', 'sku-b', 'sku-c', 'sku-d', 'sku-e', ...semanticOnly];
+        return Promise.resolve({
+          rows: ids.map((id) => makeProduct(id, { title: id.startsWith('sku') ? 'AirPods Pro 2' : 'Accessory ' + id })),
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=${encodeURIComponent('AirPods Pro 2')}&mode=hybrid&limit=10`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    const ids = responseResults(body).map((product) => product.id);
+    for (const sku of ['sku-a', 'sku-b', 'sku-c', 'sku-d', 'sku-e']) {
+      assert.ok(ids.includes(sku), `hybrid must retain FTS hit ${sku}, got ${ids.join(',')}`);
+    }
+    assert.ok(ids.length >= 5, `hybrid n=${ids.length} must be >= keyword n=5`);
+  });
+
+  it('BUY-80685 semantic fail-opens to FTS when vector filter returns 0 in-scope ids', async () => {
+    process.env.FLOWAI_EMBED_API_KEY = 'test-flow-key';
+    config.vectorDb = { query: vectorQueryMock };
+    vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
+      rows: [{ product_id: '999' }],
+    }));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::bigint[]) AND')) {
+        return Promise.resolve({ rows: [] }); // no in-scope embeddings
+      }
+      if (typeof sql === 'string' && /ORDER BY \(?ts_rank\(search_vector/.test(sql)) {
+        return Promise.resolve({ rows: [{ id: 'sku-a' }, { id: 'sku-b' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
+        return Promise.resolve({
+          rows: [
+            makeProduct('sku-a', { title: 'AirPods Pro 2' }),
+            makeProduct('sku-b', { title: 'AirPods Pro 2 USB-C' }),
+          ],
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=${encodeURIComponent('AirPods Pro 2')}&mode=semantic&limit=10`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    const ids = responseResults(body).map((product) => product.id);
+    assert.ok(ids.length >= 1, `semantic n=${ids.length} must be >= 1 when FTS has SKUs`);
+    assert.ok(ids.includes('sku-a'));
   });
 
   // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
