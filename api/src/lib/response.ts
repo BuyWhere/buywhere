@@ -5,7 +5,7 @@ import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 import { getCachedFxRates } from './fxRatesLoader';
 import type { MerchantMapEntry } from './merchantLookup';
 export const CURRENCY_RATES: Record<string, number> = {
-  USD: 1, SGD: 0.74, TWD: 0.031, KRW: 0.00075, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
+  USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
 
 // BUY-73753: include every active market code so the LIST/SIMILAR/DEALS
@@ -16,62 +16,6 @@ export const CURRENCY_RATES: Record<string, number> = {
 // the union of the openapi /mcp enum, the fleet onboarding targets, and
 // the BUY-73330 gate probe; expand deliberately (any value absent here
 // silently returns zero rows + a 30s seq-scan timeout).
-export const COUNTRY_CURRENCY: Record<string, string> = {
-  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
-  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
-  TW: 'TWD', KR: 'KRW',
-  // Single-currency regions stored under EUR/USD on the catalog:
-  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
-};
-
-/** BUY-80323: nested REST/MCP price currency (offers.priceCurrency, price.currency, row.currency). */
-export function extractRowCurrency(row: Record<string, unknown> | null | undefined): string {
-  if (!row) return '';
-  const offers = row.offers;
-  if (offers && typeof offers === 'object' && !Array.isArray(offers)) {
-    const o = offers as { priceCurrency?: unknown; currency?: unknown };
-    const c = o.priceCurrency ?? o.currency;
-    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
-  }
-  const nested = row.price;
-  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-    const p = nested as { currency?: unknown; priceCurrency?: unknown };
-    const c = p.currency ?? p.priceCurrency;
-    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
-  }
-  for (const key of ['currency', 'priceCurrency'] as const) {
-    const c = row[key];
-    if (typeof c === 'string' && c.trim()) return c.trim().toUpperCase();
-  }
-  return '';
-}
-
-/**
- * BUY-80323: keep native-currency rows for the request country.
- * Shopify MY/SG ingest often stores USD on .com.my hosts (machines.com.my AppleCare 149 USD).
- * Prefer empty over leaking foreign currency. Unknown/empty currency is kept only
- * when mixed with native rows (cannot prove a mismatch).
- */
-export function filterNativeCurrencyRows<T extends Record<string, unknown>>(
-  rows: T[],
-  country: string,
-): T[] {
-  const want = (COUNTRY_CURRENCY[country] || '').toUpperCase();
-  if (!want || rows.length === 0) return rows;
-  const nativeOrUnknown = rows.filter((r) => {
-    const cur = extractRowCurrency(r);
-    return !cur || cur === want;
-  });
-  const knownNative = nativeOrUnknown.filter((r) => extractRowCurrency(r) === want);
-  if (knownNative.length > 0) return nativeOrUnknown;
-  const mismatched = rows.some((r) => {
-    const cur = extractRowCurrency(r);
-    return cur && cur !== want;
-  });
-  if (mismatched) return [];
-  return rows;
-}
-
 /** BUY-79642: flatten nested REST `{amount,currency}` or numeric/string prices. */
 export function extractNumericPrice(raw: unknown): number | null {
   if (raw == null) return null;
@@ -86,6 +30,13 @@ export function extractNumericPrice(raw: unknown): number | null {
   }
   return null;
 }
+
+export const COUNTRY_CURRENCY: Record<string, string> = {
+  SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
+  // Single-currency regions stored under EUR/USD on the catalog:
+  FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
+};
 
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:
@@ -204,7 +155,11 @@ export function buildProduct(
     keyHash?: string | null;
   } | null,
 ): CanonicalProduct {
-  const currency = (row.currency as string) || defaultCurrency;
+  // BUY-80679: use the market's canonical currency as the authoritative value.
+  // The DB `currency` column is unreliable (partitions carry SGD contamination from
+  // the SG/US ingest era). `row.currency` must NOT override the market-default
+  // — otherwise MY serves SGD, TH serves SGD, GB serves USD, etc.
+  const currency = defaultCurrency;
   const amount = extractNumericPrice(row.price);
 
   // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
@@ -501,7 +456,7 @@ export interface EmptinessSignals {
 }
 
 /** Known country codes the catalog actively indexes (covers all 5 SEA + US). */
-export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID', 'TW', 'KR']);
+export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID']);
 
 /**
  * Determine emptiness_reason + confidence + diagnostic from observed signals.
@@ -536,13 +491,9 @@ export function deriveEmptiness(signals: EmptinessSignals): {
   // BUY-74597: timeout / auth failure / circuit open / upstream exception take
   // precedence over other empty-result heuristics. They always return
   // status=degraded, confidence=low, and a stage diagnostic.
-  // BUY-79931: timeout is degraded_kind only. P2.6 emptiness_reason enum
-  // is locked (no_data|no_match|api_error|quota|region_unsupported|
-  // category_unsupported|deliver_to_missing|invalid_deliver_to). Timeouts
-  // and infra failures map to api_error so REST and MCP share a class.
   if (signals.degradedKind === 'timeout' || signals.degradedKind === 'partial_timeout') {
     return {
-      emptiness_reason: 'api_error',
+      emptiness_reason: signals.degradedKind,
       confidence: 'low',
       diagnostic: {
         engine_status: 'degraded',
@@ -552,12 +503,12 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         timed_out_stage: signals.timedOutStage ?? null,
         ...baseDiag,
       },
-      degraded_kind: signals.degradedKind === 'partial_timeout' ? 'partial_timeout' : 'timeout',
+      degraded_kind: signals.degradedKind,
     };
   }
   if (signals.degradedKind === 'auth_failure') {
     return {
-      emptiness_reason: 'api_error',
+      emptiness_reason: 'auth_failure',
       confidence: 'low',
       diagnostic: {
         engine_status: 'error',
