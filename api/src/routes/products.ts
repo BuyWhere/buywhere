@@ -355,7 +355,7 @@ async function tryTierSearch(
           });
         if (products.length >= 5) {
           const body = buildSearchResponse(products, products.length, p.limit, p.offset, Date.now() - p.requestStart, false);
-          (body as Record<string, unknown>).source = 'search_products_smoke_rank';
+          (body as unknown as Record<string, unknown>).source = 'search_products_smoke_rank';
           redis.set(p.cacheKey, JSON.stringify(body), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
           res.set('X-Search-Tier', 'smoke-rank');
           res.json(body);
