@@ -1,0 +1,156 @@
+{
+  "slug": "macbook-air-m4-vs-macbook-pro-singapore",
+  "title": "MacBook Air M4 vs MacBook Pro in Singapore (2026) — which to buy",
+  "description": "MacBook Air M4 vs MacBook Pro compared for Singapore shoppers in 2026: when the Air's portability beats the Pro's power, with live SGD prices from Apple, Challenger, Gain City and Amazon.sg, plus advice on which MacBook makes sense for your workflow and budget.",
+  "heroEyebrow": "Singapore MacBook comparison",
+  "heroTitle": "MacBook Air M4 vs MacBook Pro in Singapore (2026) — which should you buy",
+  "heroTitleTemplate": "MacBook Air M4 vs MacBook Pro in Singapore (2026) — from {floorPrice} today",
+  "heroBody": "Singapore's MacBook market offers both the Air and Pro through Apple Authorised Resellers, the Apple Online Store and marketplace sellers, and the choice between them depends less on which is newer and more on what you actually do with a laptop. The MacBook Air M4 is thinner, lighter and more affordable, while the MacBook Pro with M4 or M4 Pro delivers more processing cores, a superior XDR display with ProMotion, additional ports and louder speakers. For Singaporeans the decision typically boils down to whether the Pro's extra screen quality and performance justify the premium, especially when compared against the convenience of the Air's slim profile for daily commutes on the MRT. This page pulls live Singapore listings so you can compare current prices side by side in Singapore dollars.",
+  "inboundLinks": [
+    "/best-macbooks-singapore",
+    "/cheapest-macbook-air-m4-singapore"
+  ],
+  "canonicalPath": "/macbook-air-m4-vs-macbook-pro-singapore",
+  "country": "SG",
+  "currency": "SGD",
+  "locale": "en_SG",
+  "searchQuery": "MacBook Air Singapore",
+  "backupQueries": [
+    "MacBook Pro Singapore",
+    "Apple MacBook Singapore",
+    "MacBook Air M4"
+  ],
+  "minPrice": 1200,
+  "requiredProductTerms": [
+    "macbook",
+    "apple",
+    "laptop"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Prices checked September 3, 2026",
+  "datePublished": "2026-09-03",
+  "dateModified": "2026-09-03",
+  "productSectionTitle": "Live MacBook Air and MacBook Pro prices in Singapore",
+  "comparisonSectionTitle": "MacBook Air M4 vs MacBook Pro — at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "MacBook Air M4",
+    "MacBook Pro (M4/M4 Pro)"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Starting price",
+      "values": [
+        "From ~S$1,499 (13-inch, M4)",
+        "From ~S$2,799 (14-inch, M4)"
+      ]
+    },
+    {
+      "label": "Display",
+      "values": [
+        "13.6-inch Liquid Retina, 60 Hz, 500 nits",
+        "14.2 or 16.2-inch Liquid Retina XDR, ProMotion 120 Hz, up to 1,000 nits"
+      ]
+    },
+    {
+      "label": "CPU and GPU",
+      "values": [
+        "M4: 10-core CPU, 8-core GPU",
+        "M4: 10-core CPU, 10-core GPU; M4 Pro: up to 14-core CPU, 20-core GPU"
+      ]
+    },
+    {
+      "label": "Ports",
+      "values": [
+        "MagSafe 3, 2x Thunderbolt 4, headphone jack",
+        "MagSafe 3, 3x Thunderbolt 5, HDMI, SD card slot, headphone jack"
+      ]
+    },
+    {
+      "label": "Weight",
+      "values": [
+        "1.24 kg — ultra-portable",
+        "1.6 kg — heavier but sturdier build"
+      ]
+    },
+    {
+      "label": "Battery life",
+      "values": [
+        "Up to 18 hours",
+        "Up to 24 hours (16-inch Pro)"
+      ]
+    },
+    {
+      "label": "Best for",
+      "values": [
+        "Students, commuters, everyday productivity, light creative work",
+        "Professionals, video editors, developers, heavy creative workloads"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually separates the MacBook Air from the MacBook Pro",
+  "highlights": [
+    {
+      "title": "Display quality matters more in Singapore's bright offices",
+      "body": "The Pro's XDR display with ProMotion 120 Hz is noticeably smoother for scrolling and animations, and the higher peak brightness of up to 1,000 nits matters if you work near windows or commute between air-conditioned offices and outdoor heat. The Air's 500 nits Liquid Retina handles indoor work well but can feel dimmer in bright environments. If you use an external monitor at your desk, the Air's display limitation matters less."
+    },
+    {
+      "title": "Processing power for professional creative work in Singapore",
+      "body": "The M4 Pro chip available only on the Pro adds meaningful CPU and GPU cores for video rendering in DaVinci Resolve, large codebases in Xcode, 3D work in Blender and parallel tasks. The base M4 in both Air and Pro is similar in everyday performance. For browsing, documents, light photo editing in Lightroom and coding in VS Code, the Air's M4 is plenty fast."
+    },
+    {
+      "title": "Port selection for Singapore's tech ecosystem",
+      "body": "The Pro's HDMI port and SD card slot are particularly useful in Singapore where many photographers buy gear from photo retailers and videographers work with local production houses. The Air keeps it simple with two Thunderbolt ports — enough for most people but potentially limiting if you need to charge, connect a display and use external storage simultaneously."
+    },
+    {
+      "title": "Carrying a MacBook through Singapore's daily commute",
+      "body": "Weighing just 1.24 kg, the Air slips easily into a backpack or tote for the MRT commute. The Pro at 1.6 kg is still portable but feels more substantial — better suited for those who drive to work or have a permanent desk. If you walk or take public transport daily, the Air's weight advantage is real."
+    }
+  ],
+  "adviceSectionTitle": "How to pick in Singapore in 2026",
+  "advicePoints": [
+    "Pick the MacBook Air M4 if you need a laptop for everyday tasks — browsing, documents, coding, light photo work — and value portability and price over maximum performance. The Air handles most work comfortably and costs meaningfully less.",
+    "Pick the MacBook Pro if you do professional video editing, heavy development work, 3D rendering or need the best display for colour accuracy. The Pro's extra cores and better screen pay off when your work demands it.",
+    "Check the Apple Education Store first if you qualify as a student or educator — verified students and educators get meaningful discounts on both Air and Pro, and the Air with education pricing is often the best value for students in Singapore.",
+    "Buy from Apple Authorised Resellers in Singapore — Challenger, Gain City, Epicentre and iStudio — for full Singapore warranty coverage. Avoid grey market sellers on Carousell or Lazada whose prices are lower but whose units are not covered by Apple Singapore.",
+    "Consider the base M4 in the Pro before upgrading to M4 Pro — the base M4 Pro is still a significant step up from the Air in GPU cores and display quality, at a lower price than the M4 Pro configuration."
+  ],
+  "faqSectionTitle": "MacBook Air M4 vs MacBook Pro in Singapore — common questions",
+  "faqs": [
+    {
+      "question": "Is the MacBook Pro worth it over the Air in Singapore?",
+      "answer": "If you do professional creative work, development with large codebases or need the best display, yes. For everyday tasks the Air delivers 90% of the experience at roughly 55% of the price — the Pro premium is only worth paying if you actually use the extra power."
+    },
+    {
+      "question": "How much does the MacBook Pro cost more than the Air in Singapore?",
+      "answer": "The Pro starts roughly 85% higher than the Air, with the gap widening with M4 Pro configurations and higher storage. The Air is the sensible choice for most buyers."
+    },
+    {
+      "question": "Can the MacBook Air handle video editing?",
+      "answer": "Light video editing (1080p, short projects) works fine on the Air. For 4K, longer projects or heavy effects, the Pro's extra GPU cores and faster memory bandwidth make a noticeable difference in render times."
+    },
+    {
+      "question": "Which MacBook is best for students in Singapore?",
+      "answer": "The MacBook Air M4 is the best value for most students — fast enough for coursework, portable for campus life at NUS, NTU or SMU, and affordable with education pricing. Only film or design students with heavy creative workloads need the Pro."
+    },
+    {
+      "question": "Do both come with Apple warranty in Singapore?",
+      "answer": "Yes — both include a 1-year limited warranty. You can add AppleCare+ within 60 days of purchase. Apple Authorised Resellers (Challenger, Gain City, Epicentre, iStudio) support the full warranty on machines bought from them. Grey market units from unverified sellers are not covered."
+    },
+    {
+      "question": "Where is the best place to buy a MacBook in Singapore?",
+      "answer": "Apple Authorised Resellers (Challenger, Gain City, Epicentre, iStudio) and the Apple Online Store offer full warranty. Amazon.sg and LazMall sometimes run promotions but verify the seller is authorised. Avoid grey market sellers on Carousell — the price savings are not worth losing Apple warranty."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-US": "/macbook-air-m4-vs-macbook-pro-us"
+  },
+  "categoryIntro": {
+    "heading": "Why Singapore MacBook prices track RRP closely",
+    "body": "Apple controls pricing tightly in Singapore through its authorised reseller network of Challenger, Gain City, Epicentre and iStudio. The recommended retail price holds most of the year, with real savings coming from education pricing for students, seasonal promotions during Great Singapore Sale and year-end periods, and occasional clearance on previous-generation Air models. The Pro lineup rarely discounts — its professional audience values warranty and availability over price. This page reads live prices from the catalog so you see current Singapore floor prices, not outdated RRP."
+  },
+  "owner": "Surf",
+  "reviewer": "Fetch",
+  "queueRow": 217
+}
