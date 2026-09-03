@@ -15,22 +15,23 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "iPhone 17 vs iPhone 16",
+  "searchQuery": "iPhone 17",
   "backupQueries": [
-    "iPhone 17",
-    "iPhone 16",
-    "Apple iPhone"
+    "iPhone 16 Pro Max",
+    "iPhone 16 Pro",
+    "iPhone 16 Plus",
+    "Apple iPhone 16"
   ],
   "minPrice": 400,
   "requiredProductTerms": [
     "iphone",
     "apple",
-    "smartphone"
+    "unlocked"
   ],
   "excludeAccessories": true,
-  "refreshedLabel": "Updated August 30, 2026",
+  "refreshedLabel": "Updated September 3, 2026",
   "datePublished": "2026-08-25",
-  "dateModified": "2026-08-30",
+  "dateModified": "2026-09-03",
   "productSectionTitle": "Live iPhone 17 and iPhone 16 prices in the US",
   "comparisonSectionTitle": "iPhone 17 vs iPhone 16 \u2014 at a glance",
   "comparisonColumns": [
@@ -139,7 +140,7 @@
     "heading": "Why US iPhone prices shift with carrier deals",
     "body": "In the United States the cheapest iPhone is rarely the one with the lowest unlocked sticker price. Carriers subsidise phones through 24- or 36-month bill credits, Apple offers trade-in and education discounts, and retailers like Amazon, Best Buy, Walmart and Target run limited-time promos around Prime Day, back-to-school and Black Friday. That is why a static 'cheapest iPhone' article goes stale fast and why this page reads live listings instead."
   },
-  "owner": "Sol",
+  "owner": "Surf",
   "reviewer": "Hue",
-  "queueRow": 90
+  "queueRow": 218
 }
