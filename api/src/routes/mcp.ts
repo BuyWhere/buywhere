@@ -208,9 +208,10 @@ function isolateRestSearchHits(
       if (cc && cc !== expectedCc) return false;
     }
     if (expectedCur) {
-      const fromProduct = String((p.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
+      const fromProduct = extractRowCurrency(p as unknown as Record<string, unknown>);
       const cur = item.rowCurrency || fromProduct;
-      if (cur && cur !== expectedCur) return false;
+      // BUY-80652: unknown/empty currency on SG/MY Shopify is usually USD.
+      if (!cur || cur !== expectedCur) return false;
     }
     // BUY-80191: REST can still serialize {amount:null} for bad rows.
     const amt = extractNumericPrice(p.price);
@@ -293,9 +294,8 @@ async function searchProductsViaRestFallback(opts: {
       return null;
     };
 
-    // Prefer market aliases for recall, then country= if isolation empties the page
-    // (shirt SG: market= returns USD-labelled SG Shopify; country= returns SGD).
-    for (const mode of ['market', 'country'] as const) {
+    // BUY-80652: country= first. market= is the USD Shopify leak for SG/MY shirts.
+    for (const mode of ['country', 'market'] as const) {
       const rows = await fetchRows(mode);
       if (!rows || rows.length === 0) continue;
       const isolated = isolateRestSearchHits(rows, {
