@@ -1,0 +1,152 @@
+{
+  "slug": "macbook-air-m4-vs-macbook-pro-us",
+  "title": "MacBook Air M4 vs MacBook Pro in the US (2026) — which to buy",
+  "description": "MacBook Air M4 vs MacBook Pro compared for US shoppers in 2026: when the Air's portability beats the Pro's power, with live USD prices from Apple, Amazon, Best Buy and B&H, plus advice on which MacBook makes sense for your workflow and budget.",
+  "heroEyebrow": "US MacBook comparison",
+  "heroTitle": "MacBook Air M4 vs MacBook Pro in the US (2026) — which should you buy",
+  "heroTitleTemplate": "MacBook Air M4 vs MacBook Pro in the US (2026) — from {floorPrice} today",
+  "heroBody": "Apple's MacBook lineup in 2026 splits cleanly between the Air and Pro, and the choice is less about which is newer and more about what you actually do with a laptop. The MacBook Air M4 is thinner, lighter and cheaper, while the MacBook Pro with M4 or M4 Pro delivers more cores, a better display with ProMotion, more ports and louder speakers. For US shoppers the decision usually comes down to whether you need the Pro's extra screen real estate and processing power enough to pay the premium, or whether the Air's portability makes more sense for everyday work. This page pulls live US listings so you can compare current prices side by side.",
+  "inboundLinks": [
+    "/best-macbooks-us",
+    "/cheapest-macbook-air-m4-us"
+  ],
+  "canonicalPath": "/macbook-air-m4-vs-macbook-pro-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "MacBook Air",
+  "backupQueries": [
+    "MacBook Pro",
+    "Apple MacBook",
+    "MacBook Air M4"
+  ],
+  "minPrice": 800,
+  "requiredProductTerms": [
+    "macbook",
+    "apple",
+    "laptop"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Prices checked September 3, 2026",
+  "datePublished": "2026-09-03",
+  "dateModified": "2026-09-03",
+  "productSectionTitle": "Live MacBook Air and MacBook Pro prices in the US",
+  "comparisonSectionTitle": "MacBook Air M4 vs MacBook Pro — at a glance",
+  "comparisonColumns": [
+    "Spec / feature",
+    "MacBook Air M4",
+    "MacBook Pro (M4/M4 Pro)"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Starting price",
+      "values": [
+        "From ~US$1,099 (13-inch, M4)",
+        "From ~US$1,999 (14-inch, M4)"
+      ]
+    },
+    {
+      "label": "Display",
+      "values": [
+        "13.6-inch Liquid Retina, 60 Hz, 500 nits",
+        "14.2 or 16.2-inch Liquid Retina XDR, ProMotion 120 Hz, up to 1,000 nits"
+      ]
+    },
+    {
+      "label": "CPU and GPU",
+      "values": [
+        "M4: 10-core CPU, 8-core GPU",
+        "M4: 10-core CPU, 10-core GPU; M4 Pro: up to 14-core CPU, 20-core GPU"
+      ]
+    },
+    {
+      "label": "Ports",
+      "values": [
+        "MagSafe 3, 2x Thunderbolt 4, headphone jack",
+        "MagSafe 3, 3x Thunderbolt 5, HDMI, SD card slot, headphone jack"
+      ]
+    },
+    {
+      "label": "Weight",
+      "values": [
+        "2.7 lb (1.24 kg) — ultra-portable",
+        "3.5 lb (1.6 kg) — heavier but sturdier build"
+      ]
+    },
+    {
+      "label": "Battery life",
+      "values": [
+        "Up to 18 hours",
+        "Up to 24 hours (16-inch Pro)"
+      ]
+    },
+    {
+      "label": "Best for",
+      "values": [
+        "Students, commuters, everyday productivity, light creative work",
+        "Professionals, video editors, developers, heavy creative workloads"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually separates the MacBook Air from the MacBook Pro",
+  "highlights": [
+    {
+      "title": "Display quality is the biggest practical difference",
+      "body": "The Pro's XDR display with ProMotion 120 Hz is noticeably smoother for scrolling and animations, and the higher peak brightness matters if you work near windows or outdoors. The Air's 60 Hz Liquid Retina is excellent for everyday use but won't feel as premium for video work or design. If you connect an external monitor, the Air's display limitation matters less."
+    },
+    {
+      "title": "Processing power for professional workflows",
+      "body": "The M4 Pro (available only on Pro) adds more CPU and GPU cores that actually matter for video rendering, large codebases, 3D work and parallel tasks. The base M4 in both Air and Pro is similar, but the Pro can be configured higher. For browsing, documents, light photo editing and coding, the Air's M4 is plenty fast."
+    },
+    {
+      "title": "Port selection and expandability",
+      "body": "The Pro's HDMI port, SD card slot and extra Thunderbolt port mean fewer dongles for photographers and video pros. The Air keeps it simple with two Thunderbolt ports — enough for most people but limiting if you need to charge, connect a display and use peripherals simultaneously."
+    },
+    {
+      "title": "Portability vs. power trade-off",
+      "body": "The Air's thin and light design is built to be carried all day. The Pro is heavier but feels more substantial. If you commute, travel or work from coffee shops, the Air wins on comfort. If your desk is your primary workspace, the Pro's extra weight is worthwhile for the power."
+    }
+  ],
+  "adviceSectionTitle": "How to pick in the US in 2026",
+  "advicePoints": [
+    "Pick the MacBook Air M4 if you need a laptop for everyday tasks — browsing, documents, coding, light photo work — and value portability and price over maximum performance. The Air handles most work comfortably at a meaningfully lower price.",
+    "Pick the MacBook Pro if you do professional video editing, heavy development work, 3D rendering or need the best display for color accuracy. The Pro's extra cores and better screen pay off when your work demands it.",
+    "Check Apple Education Store first if you qualify — verified students and educators get discounts on both Air and Pro, and the Air with education pricing is often the best value for students.",
+    "Consider the base M4 in the Pro before upgrading to M4 Pro — the base M4 Pro is still a significant step up from the Air in GPU cores and display quality, at a lower price than the M4 Pro config.",
+    "Buy from Apple Authorized Resellers (B&H, Adorama, Best Buy, Amazon-sold-by-Apple) for full US warranty. Open-box and clearance units at B&H and Adorama can offer meaningful savings."
+  ],
+  "faqSectionTitle": "MacBook Air M4 vs MacBook Pro in the US — common questions",
+  "faqs": [
+    {
+      "question": "Is the MacBook Pro worth it over the Air in the US?",
+      "answer": "If you do professional creative work, development with large codebases or need the best display, yes. For everyday tasks the Air delivers 90% of the experience at 55% of the price — the Pro premium is only worth paying if you actually use the extra power."
+    },
+    {
+      "question": "How much does the MacBook Pro cost more than the Air in the US?",
+      "answer": "The Pro starts roughly 85% higher than the Air, with the gap widening with M4 Pro configurations and higher storage. The Air is the sensible choice for most buyers."
+    },
+    {
+      "question": "Can the MacBook Air handle video editing?",
+      "answer": "Light video editing (1080p, short projects) works fine on the Air. For 4K, longer projects or heavy effects, the Pro's extra GPU cores and faster memory bandwidth make a noticeable difference in render times."
+    },
+    {
+      "question": "Which MacBook is best for students in the US?",
+      "answer": "The MacBook Air M4 is the best value for most students — fast enough for coursework, portable for campus life, and affordable with education pricing. Only film or design students with heavy creative workloads need the Pro."
+    },
+    {
+      "question": "Do both come with Apple warranty in the US?",
+      "answer": "Yes — both include a 1-year limited warranty. You can add AppleCare+ within 60 days of purchase. Apple Authorized Resellers support the full warranty on machines bought from them."
+    }
+  ],
+  "fallbackProducts": [],
+  "hreflangAlternates": {
+    "en-SG": "/macbook-air-m4-vs-macbook-pro-singapore"
+  },
+  "categoryIntro": {
+    "heading": "Why US MacBook prices are relatively stable",
+    "body": "Apple holds MSRP tightly in the US year-round, with real savings coming from education pricing, seasonal sales on Prime Day and Black Friday, and clearance on previous-generation Air models. The Pro lineup rarely discounts — its professional audience values warranty and availability over price. This page reads live prices so you see current US floor prices, not outdated MSRP."
+  },
+  "owner": "Surf",
+  "reviewer": "Hue",
+  "queueRow": 216
+}
