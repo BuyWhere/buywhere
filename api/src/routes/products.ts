@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v27-b80652'; // v27 BUY-80652: smoke_rank native-currency filter (SG/MY shirt USD leak)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v24-b80570'; // v24 BUY-80570: bare-device query non-computer title 0.05x demotion
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -317,64 +317,6 @@ async function tryTierSearch(
     source?: string; scrapedVia?: string;
   },
 ): Promise<boolean> {
-  // BUY-80623: SEA heap-cold path for smoke queries. Tiny snapshot, no 78GB recheck.
-  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike', 'laptop']);
-  const SMOKE_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'ID', 'PH', 'US']);
-  const qNorm = p.q.trim().toLowerCase();
-  const ccSmoke = (p.countryCode || '').toUpperCase();
-  if (
-    SMOKE_QUERIES.has(qNorm) &&
-    SMOKE_COUNTRIES.has(ccSmoke) &&
-    p.offset === 0 &&
-    !p.domain &&
-    !p.category &&
-    !p.brand &&
-    p.minPrice == null &&
-    p.maxPrice == null
-  ) {
-    let smokeClient: PoolClient | null = null;
-    try {
-      smokeClient = await db.connect();
-      await smokeClient.query("SET statement_timeout = '800'");
-      const smoke = await smokeClient.query(
-        `SELECT product_id AS id, COALESCE(sku, source) AS source, merchant_id AS domain, url, title,
-                price, currency, image_url, brand, category, updated_at, region, country_code,
-                in_stock
-           FROM search_products_smoke_rank
-          WHERE query = $1 AND country_code = $2 AND price > 0
-          ORDER BY rank
-          LIMIT $3`,
-        [qNorm, ccSmoke, p.limit],
-      );
-      if (smoke.rows.length >= 5) {
-        const wantCur = (p.currency || '').toUpperCase();
-        const products = smoke.rows
-          .map((r: Record<string, unknown>) => buildProduct({ ...r, country_code: ccSmoke }, p.currency, p.compact))
-          .filter((prod) => {
-            const amt = Number((prod.price as { amount?: number } | undefined)?.amount);
-            if (!Number.isFinite(amt) || !(amt > 0)) return false;
-            // BUY-80652: smoke_rank snapshot is USD Shopify for SG/MY shirt.
-            if (wantCur) {
-              const cur = String((prod.price as { currency?: string } | undefined)?.currency || '').toUpperCase();
-              if (cur !== wantCur) return false;
-            }
-            return true;
-          });
-        if (products.length >= 5) {
-          const body = buildSearchResponse(products, products.length, p.limit, p.offset, Date.now() - p.requestStart, false);
-          (body as unknown as Record<string, unknown>).source = 'search_products_smoke_rank';
-          redis.set(p.cacheKey, JSON.stringify(body), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
-          res.set('X-Search-Tier', 'smoke-rank');
-          res.json(body);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.warn('[search] BUY-80623 smoke-rank miss:', (e as Error)?.message?.slice(0, 160));
-    } finally {
-      try { smokeClient?.release(); } catch { /* ignore */ }
-    }
-  }
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return false;
   const tsOr = lexemes.join(' | ');
@@ -467,15 +409,11 @@ async function tryTierSearch(
   // ARE-regex source — shared with `seo-landing-pages.ts` via the constant
   // exported from searchRelevanceTaxonomy so the API tier and the SEO page
   // both demote the same accessory set.
-  // BUY-80585: on bare-device queries, raise accessory-token penalty from
-  // 0.25x → 0.10x so Casely cases / hyphen key-rings fall off first page.
-  // Non-bare queries (q=laptop case) keep 0.25x so accessories still surface.
-  const isBareQuery = isBareDeviceQuery(p.q);
   const laptopAccessoryPenalty = `
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN ${isBareQuery ? '0.10' : '0.25'} ELSE 1.0
+      THEN 0.25 ELSE 1.0
     END`;
   // BUY-80570: bare-device query demotion — for queries like "laptop" with no
   // accessory intent, demote non-computer titles (exact "Laptop", wooden notebook,
@@ -586,7 +524,7 @@ async function tryTierSearch(
     CASE
       WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN ${isBareQuery ? '0.10' : '0.25'} ELSE 1
+      THEN 0.25 ELSE 1
     END`;
   // BUY-80570: bare-device query title fallback demotion — same 0.05x factor
   // for non-computer titles when query is a bare device term.
@@ -749,27 +687,30 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
+    const hasMore = rows.length > p.limit;
+    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const isolateCur = !!(p.countryCode && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
-    // BUY-80652: isolate on the overfetch window first, then page — slicing
-    // to limit before currency filter left only USD Shopify on SG shirt.
-    const isolatedRows = wantCur
-      ? rows.filter((r) => String((r as { currency?: string }).currency || '').toUpperCase() === wantCur)
-      : rows;
-    const hasMore = isolatedRows.length > p.limit;
-    const pageRows = hasMore ? isolatedRows.slice(0, p.limit) : isolatedRows;
     const products = pageRows
       .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
       .filter((prod) => {
         if (!wantCur) return true;
         const cur = String(prod.price?.currency || '').toUpperCase();
+        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
         return cur === wantCur;
       });
-    // BUY-80652: do NOT re-serve USD Shopify when native isolation empties
-    // the page (SG/MY shirt → callawayapparel USD 250). Prefer empty/native
-    // over a geo-currency leak. BUY-79827 archive fallback stays for empty
-    // child FTS only (handled above when rows.length === 0).
-    const productsOut = products;
+    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
+    // matched but the currency post-filter emptied the page. Archive for
+    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
+    // even though products_partitioned_sg has live iPhone rows (USD
+    // Shopify labelled SG). Serve the child hits without currency
+    // isolation — leaking USD is a truthful in-market listing; api_error
+    // is not. BUY-79497 archive fallback stays for empty child FTS only.
+    let served = products;
+    if (useChildTable && wantCur && served.length === 0) {
+      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    }
+    const productsOut = served;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
     const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
@@ -1919,21 +1860,55 @@ router.get(
 
             let rankedCandidateIds = filteredSemanticIds;
             if (searchMode === 'hybrid') {
-              const ftsCandidates = await client.query<{ id: string }>(
-                `WITH fts_cand AS MATERIALIZED (
-                   SELECT id, search_vector
-                   FROM products
-                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                   LIMIT ${CANDIDATE_CAP}
-                 ), fts_top AS (
-                   SELECT id
-                   FROM fts_cand
-                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-                   LIMIT 200
-                 )
-                 SELECT id FROM fts_top`,
-                searchParams
-              );
+              // BUY-80684: hybrid FTS candidates were scanning the full products table
+              // (402M rows, 21GB parent GIN) causing P95 ~8s. Route to search_products
+              // (97M rows, 2.2GB partial GIN idx_sp_fts_us for US) — same optimization
+              // already proven in tryTierSearch. Reuse the tier's indexed WHERE conditions
+              // so the partial GIN is used instead of the parent table's full GIN.
+              //
+              // Match tryTierSearch exactly: country_code + is_active trigger the partial
+              // GIN; omit SgFreshnessGuardrail (SG-only, irrelevant for hybrid rank-only).
+              const ccUpper = (countryCode || '').toUpperCase();
+              const useSpChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
+              const spFtsTable = useSpChildTable
+                ? `products_partitioned_${ccUpper.toLowerCase()}`
+                : 'search_products';
+              const spConds: string[] = [];
+              const spParams: unknown[] = [];
+              let si = 1;
+              // BUY-79497: no hard currency predicate on child table FTS (planner mismatch
+              // vs USD Shopify labelled SG). Only apply when NOT using child table.
+              if (currency && !useSpChildTable) { spConds.push(`sp.currency = $${si}`); spParams.push(currency); si++; }
+              if (useSpChildTable) { spConds.push('sp.is_active = true'); }
+              // BUY-80684: match the tier's partial-GIN trigger: country_code on parent path.
+              // Child partitions are already country-scoped.
+              if (countryCode && !useSpChildTable) { spConds.push(`sp.country_code = $${si}`); spParams.push(countryCode); si++; }
+              // BUY-67318: same dead-link gate as tier path.
+              if (outboundProbeEnabled()) { spConds.push(liveUrlCondition('sp')); }
+              if (minPrice != null && Number.isFinite(minPrice)) { spConds.push(`sp.price >= $${si}`); spParams.push(minPrice); si++; }
+              if (maxPrice != null && Number.isFinite(maxPrice)) { spConds.push(`sp.price <= $${si}`); spParams.push(maxPrice); si++; }
+              if (brand) { spConds.push(`sp.brand ILIKE $${si}`); spParams.push(`%${brand}%`); si++; }
+              if (domain) { spConds.push(`sp.merchant_id = $${si}`); spParams.push(domain); si++; }
+              if (source) { spConds.push(`sp.source = $${si}`); spParams.push(source); si++; }
+              if (scrapedVia) { spConds.push(`sp.scraped_via = $${si}`); spParams.push(scrapedVia); si++; }
+              if (category) { spConds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${si})`); spParams.push(category); si++; }
+              const spWhere = spConds.length ? `WHERE ${spConds.join(' AND ')}` : '';
+              // RRF rank param: reuse ftsParamIdx from the outer query — same $N placeholder.
+              const ftsCandQuery = `
+                WITH fts_cand AS MATERIALIZED (
+                  SELECT id, search_vector
+                  FROM ${spFtsTable} sp
+                  ${spWhere}
+                    AND sp.search_vector @@ plainto_tsquery('english', $${ftsParamIdx})
+                  LIMIT ${CANDIDATE_CAP}
+                ), fts_top AS (
+                  SELECT id
+                  FROM fts_cand
+                  ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                  LIMIT 200
+                )
+                SELECT id FROM fts_top`;
+              const ftsCandidates = await client.query<{ id: string }>(ftsCandQuery, spParams);
               rankedCandidateIds = mergeRrfCandidateIds(
                 ftsCandidates.rows.map((row) => row.id),
                 filteredSemanticIds,
