@@ -222,6 +222,12 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
   // when they appear alongside a wireless/bluetooth/foldable signal.
   'wireless keyboard', 'foldable keyboard', 'bluetooth keyboard',
+  // BUY-80550: RAM laptop mounts + key-ring/keychain accessories had zero
+  // penalized tokens so the 0.25x accessory penalty never fired (BUY-80537).
+  'mount', 'mounts', 'mounting',
+  'key ring', 'key rings', 'keyring', 'keyrings',
+  'key chain', 'key chains', 'keychain', 'keychains',
+  'lanyard', 'lanyards',
 ] as const;
 
 // Postgres ARE regex alternation source. Each token is split on whitespace
