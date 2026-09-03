@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v18-b80215'; // BUY-80215: skip empty/currency-leaky semantic-cache hits
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80415'; // BUY-80215: skip empty/currency-leaky semantic-cache hits
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -531,7 +531,7 @@ async function tryTierSearch(
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -542,7 +542,7 @@ async function tryTierSearch(
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${intentAccessoryFilter}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -608,8 +608,15 @@ async function tryTierSearch(
     if (rows.length === 0 && useChildTable) {
       // BUY-80415: SG AirPods Pro 3 units exist but search_vector is empty, so
       // FTS is 0-row. Bounded title ILIKE on the child table recovers them.
+      // Child sessions pin enable_seqscan=off for GIN; ILIKE cannot use GIN and
+      // would fail/timeout. Re-enable seqscan only for this bounded fallback.
       try {
+        await client.query('SET LOCAL enable_seqscan = on');
         rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+        if (rows.length === 0 && intentAccessoryFilter) {
+          const tokenTitleFallbackUnfiltered = tokenTitleFallbackQuery.replace(intentAccessoryFilter, '');
+          rows = (await client.query(tokenTitleFallbackUnfiltered, params)).rows;
+        }
       } catch { /* child title fallback is best-effort */ }
     }
     if (rows.length === 0) {
