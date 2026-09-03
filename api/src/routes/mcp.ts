@@ -1056,10 +1056,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
 
   // BUY-80623: SEA heap-cold path. 78GB search_products bitmap recheck cannot
   // finish inside MCP 2.5s when shared_buffers are cold. Serve the smoke
-  // query set (shirt/phone/nike/laptop × SG/MY/TH/VN/ID/PH/US) from the
+  // query set (shirt/phone/nike × SG/MY/TH/VN/ID/PH/US) from the
   // tiny search_products_smoke_rank snapshot (hourly drain refresh). Falls
   // through to FTS if the table is missing or the pair is unpopulated.
-  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike', 'laptop']);
+  const SMOKE_QUERIES = new Set(['shirt', 'phone', 'nike']);
   const SMOKE_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'ID', 'PH', 'US']);
   const qNorm = q.toLowerCase();
   if (
