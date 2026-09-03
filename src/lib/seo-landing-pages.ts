@@ -1156,8 +1156,12 @@ const GENERIC_ACCESSORY_RE =
 // BUY-79341: residual accessories that sit mid/end of title (Bagpack, " - Parts",
 // donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
 // "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
+// BUY-80705: side-table/end-table/console-table/coffee-table/nightstand are
+// furniture accessories — a laptop search returns them via FTS body/category
+// matches but they contain no existing accessory token and slip past the
+// penalty. Now explicitly matched so they are classified as accessories.
 const GENERIC_ACCESSORY_SUBSTRING_RE =
-  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
+  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|coffee\s*table|console\s*table|end\s*table|nightstand|side\s*table|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
