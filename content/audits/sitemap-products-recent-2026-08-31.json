@@ -1,0 +1,3008 @@
+{
+  "date": "2026-08-31",
+  "lastmod": "2026-08-31T23:24:35.231Z",
+  "generated_at": "2026-08-31T23:24:35.234Z",
+  "source_queue": "content/audits/midnight-indexing-queue-2026-08-31.json",
+  "entries": [
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-4t-9222976908539936534",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-6mo-9222976908539936478",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-4t-9222976908539936476",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-3t-9222976908539936473",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-24mo-9222976908539936466",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-3t-9222976908539936522",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-18mo-9222976908539936462",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-24mo-9222976908539936521",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-12mo-9222976908539936461",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-18mo-9222976908539936520",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-yellow-12mo-9222976908539936519",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-green-6mo-9222976908539936460",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-4t-9222976908539936459",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-3t-9222976908539936458",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-24mo-9222976908539936457",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-18mo-9222976908539936456",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-12mo-9222976908539936455",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-strawberry-6mo-9222976908539936454",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-4t-9222976908539936453",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-3t-9222976908539936452",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-24mo-9222976908539936451",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-18mo-9222976908539936450",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-12mo-9222976908539936449",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-lemon-6mo-9222976908539936448",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-4t-9222976908539936447",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-3t-9222976908539936446",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-24mo-9222976908539936445",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-18mo-9222976908539936444",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-12mo-9222976908539936443",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-orange-6mo-9222976908539936442",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-4t-9222976908539936441",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-3t-9222976908539936440",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-24mo-9222976908539936439",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-18mo-9222976908539936438",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-12mo-9222976908539936437",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-swim-safety-safety-raspberry-6mo-9222976908539936436",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-9-9222976908539936305",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-10-9222976908539936306",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-3-9222976908539936307",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-4-9222976908539936308",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-5-9222976908539936309",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-6-9222976908539936310",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-7-9222976908539936311",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-8-9222976908539936312",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-9-9222976908539936313",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-royal-10-9222976908539936314",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-5-9222976908539936317",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-6-9222976908539936318",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-7-9222976908539936319",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-8-9222976908539936320",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-9-9222976908539936321",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-3-9222976908539936315",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-4-9222976908539936316",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-blue-fish-10-9222976908539936328",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-1-5-oz-dips-primary-9222976908539936329",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-4t-9222976908539936016",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-shell-6m-9222976908539936017",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-shell-12m-9222976908539936018",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-shell-18m-9222976908539936019",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-shell-24m-9222976908539936020",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-shell-3t-9222976908539936021",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-blue-wave-6m-9222976908539936022",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-blue-wave-12m-9222976908539936023",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-blue-wave-18m-9222976908539936024",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-blue-wave-24m-9222976908539936025",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-blue-wave-3t-9222976908539936026",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-flower-bouquet-6mo-9222976908539936027",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-blooms-18m-9222976908539936028",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-blooms-24m-9222976908539936029",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-blooms-6m-9222976908539936030",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-blooms-12m-9222976908539936031",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-flower-bouquet-12m-9222976908539936032",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-flower-bouquet-18m-9222976908539936033",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-flower-bouquet-3t-9222976908539936034",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-flower-bouquet-4t-9222976908539936035",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-whale-league-12m-9222976908539936036",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-whale-league-3t-9222976908539936037",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-palm-flamingos-6m-9222976908539936038",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-palm-flamingos-12m-9222976908539936039",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-palm-flamingos-18m-9222976908539936040",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-palm-flamingos-24m-9222976908539936104",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-royal-blue-sharks-6m-9222976908539936105",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-royal-blue-sharks-18m-9222976908539936110",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-mint-sand-dollar-6mo-9222976908539936111",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-mint-sand-dollar-12mo-9222976908539936112",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-6mo-9222976908539936113",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-12mo-9222976908539936114",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-18mo-9222976908539936115",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-24mo-9222976908539936116",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-3t-9222976908539936117",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-prints-light-blue-dinos-4t-9222976908539936171",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-3-9222976908539936172",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-4-9222976908539936231",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-5-9222976908539936232",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-6-9222976908539936233",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-7-9222976908539936234",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-8-9222976908539936235",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-9-9222976908539936236",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-sand-dollar-10-9222976908539936237",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-3-9222976908539936238",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-4-9222976908539936239",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-5-9222976908539936240",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-6-9222976908539936241",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-7-9222976908539936242",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-socks-coral-8-9222976908539936304",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-24mo-9222976908539935751",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-3t-9222976908539935752",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-6mo-9222976908539935748",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-12mo-9222976908539935749",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-18mo-9222976908539935750",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-stripes-4t-9222976908539935753",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-6mo-9222976908539935754",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-12mo-9222976908539935755",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-18mo-9222976908539935756",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-24mo-9222976908539935757",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-3t-9222976908539935758",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-yellow-stripes-4t-9222976908539935759",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-navy-narwhal-12mo-9222976908539935760",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-navy-narwhal-5t-9222976908539935761",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-6m-9222976908539935762",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-3t-9222976908539935763",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-12m-9222976908539935764",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-18m-9222976908539935765",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-24m-9222976908539935766",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-pink-fruit-mix-4t-9222976908539935767",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-6m-9222976908539935768",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-3t-9222976908539935769",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-12m-9222976908539935770",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-18m-9222976908539935771",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-24m-9222976908539935772",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-sand-cactus-4t-9222976908539935773",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-6m-9222976908539935774",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-3t-9222976908539935775",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-12m-9222976908539935776",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-18m-9222976908539935777",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-24m-9222976908539935778",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-seafoam-reef-4t-9222976908539935779",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-navy-whale-league-18m-9222976908539935780",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-6m-9222976908539935944",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-3t-9222976908539935982",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-12m-9222976908539935983",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-18m-9222976908539935984",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-24m-9222976908539935985",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-lavender-blossom-4t-9222976908539935986",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-aqua-simple-dino-3t-9222976908539935987",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-4t-9222976908539935988",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-18m-9222976908539935989",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-12m-9222976908539935990",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-24m-9222976908539935991",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-3t-9222976908539935992",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-light-pink-watermelon-stripe-6m-9222976908539935993",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-6m-9222976908539935994",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-3t-9222976908539936013",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-12m-9222976908539936014",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-pull-up-swim-diaper-past-season-white-18m-9222976908539936015",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936049",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936151",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936153",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936155",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936157",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sandroller-9222976908539936159",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/shimano-tourney-bicycle-crankset-fc-ty301-42-34-24-teeth-for-3x6-7-8-speed-170mm-9222976908539936161",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/crossband-brown-wall-9222976908539936380",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/crossband-brown-wall-9222976908539936381",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/crossband-brown-wall-9222976908539936382",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bike-tube-set-20-24-26-27-5-29-9222976908539936383",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bike-tube-set-20-24-26-27-5-29-9222976908539936416",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bike-tube-set-20-24-26-27-5-29-9222976908539936419",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bike-tube-set-20-24-26-27-5-29-9222976908539936431",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bike-tube-set-20-24-26-27-5-29-9222976908539936434",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/racingway-9222976908539936435",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/racingway-9222976908539936471",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936474",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936475",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936477",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936479",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936480",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936481",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936482",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bowlite-9222976908539936483",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/deer-skin-leather-gloves-w-zipper-black-9222976908505252878",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/deer-skin-leather-gloves-w-zipper-black-9222976908505252879",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252880",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252881",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252882",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252883",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252884",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fingerless-deer-skin-gloves-9222976908505252885",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-w-zipper-black-9222976908505252886",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-w-zipper-black-9222976908505252887",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-w-zipper-black-9222976908505252888",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-w-zipper-black-9222976908505252889",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-w-zipper-black-9222976908505252890",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252891",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252892",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252893",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252894",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252895",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ladies-deer-skin-leather-gloves-black-9222976908505252896",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/iconoclast-men-s-leather-jacket-9222976908505252897",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/iconoclast-men-s-leather-jacket-9222976908505252898",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/iconoclast-men-s-leather-jacket-9222976908505252899",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/iconoclast-men-s-leather-jacket-9222976908505252900",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/indiana-men-s-leather-jacket-9222976908505252901",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/indiana-men-s-leather-jacket-9222976908505252902",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-turtle-journey-12-mo-9222976908539935308",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-chilenito-cactus-flower-12m-9222976908539935309",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-turtle-journey-6-mo-9222976908539935307",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-chilenito-cactus-flower-4t-9222976908539935318",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-6m-9222976908539935319",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-12m-9222976908539935320",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-18m-9222976908539935321",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-24m-9222976908539935322",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-3t-9222976908539935323",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-pink-dragon-fruit-4t-9222976908539935324",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-royal-blue-turtle-journey-6m-9222976908539935325",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-royal-blue-turtle-journey-12m-9222976908539935326",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-sand-panther-chameleon-18m-9222976908539935368",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-sand-panther-chameleon-3t-9222976908539935369",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-sand-panther-chameleon-4t-9222976908539935370",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-seafoam-hawksbill-turtle-6m-9222976908539935371",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-seafoam-hawksbill-turtle-12m-9222976908539935503",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-seafoam-sealions-6m-9222976908539935504",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-seafoam-simple-dino-12m-9222976908539935700",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-white-sea-pals-6m-9222976908539935718",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-white-sea-pals-12m-9222976908539935719",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-octopus-6mo-9222976908539935720",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-white-seashells-6mo-9222976908539935721",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-white-seashells-12mo-9222976908539935722",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-white-seashells-4t-9222976908539935723",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-sand-dollar-6mo-9222976908539935724",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-sand-dollar-12mo-9222976908539935725",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-sand-dollar-18mo-9222976908539935726",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-sand-dollar-3t-9222976908539935727",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-coral-sand-dollar-4t-9222976908539935728",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-polka-6mo-9222976908539935729",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-polka-12mo-9222976908539935730",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-polka-18mo-9222976908539935731",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-polka-3t-9222976908539935732",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-blue-polka-4t-9222976908539935733",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-6mo-9222976908539935734",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-12mo-9222976908539935735",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-18mo-9222976908539935736",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-24mo-9222976908539935737",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-3t-9222976908539935738",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-lavender-polka-4t-9222976908539935739",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-multicolor-stripes-6mo-9222976908539935740",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-multicolor-stripes-12mo-9222976908539935741",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-multicolor-stripes-18mo-9222976908539935742",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-multicolor-stripes-4t-9222976908539935743",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-mint-stripes-6mo-9222976908539935744",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-mint-stripes-12mo-9222976908539935745",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-mint-stripes-3t-9222976908539935746",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-prints-mint-stripes-4t-9222976908539935747",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-sage-turtle-12m-9222976908539935224",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-sage-turtle-18m-9222976908539935225",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-sage-turtle-3t-9222976908539935226",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-amazon-river-dolphin-6m-9222976908539935227",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-amazon-river-dolphin-12m-9222976908539935267",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-fish-geo-6m-9222976908539935268",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-fish-geo-12m-9222976908539935269",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-flamingos-12m-9222976908539935270",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-flamingos-4t-9222976908539935271",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-narwhal-18m-9222976908539935272",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-narwhal-24m-9222976908539935273",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-narwhal-4t-9222976908539935274",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-tidal-waves-18m-9222976908539935305",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-navy-tidal-waves-4t-9222976908539935306",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-coral-dino-6m-9222976908539935189",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-dinosaurs-6m-9222976908539935190",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-dinosaurs-12m-9222976908539935191",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-dinosaurs-18m-9222976908539935192",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-dinosaurs-24m-9222976908539935193",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-dinosaurs-3t-9222976908539935194",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-6m-9222976908539935195",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-12m-9222976908539935196",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-18m-9222976908539935197",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-24m-9222976908539935198",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-3t-9222976908539935199",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-mandarin-fish-4t-9222976908539935200",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-sea-celebration-6-mo-9222976908539935201",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-wavy-nautical-12m-9222976908539935202",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-wavy-nautical-18m-9222976908539935203",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-aqua-wavy-nautical-4t-9222976908539935204",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-blue-undersea-6m-9222976908539935205",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-coral-dino-12m-9222976908539935206",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-coral-dino-18m-9222976908539935207",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-coral-dino-24m-9222976908539935208",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-coral-dino-4t-9222976908539935209",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-6m-9222976908539935210",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-12m-9222976908539935211",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-18m-9222976908539935212",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-24m-9222976908539935213",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-3t-9222976908539935214",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-lavender-violets-4t-9222976908539935215",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-aqua-sea-friends-6m-9222976908539935216",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-6m-9222976908539935217",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-12m-9222976908539935218",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-18m-9222976908539935219",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-24m-9222976908539935220",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-3t-9222976908539935221",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-blue-jellyfish-4t-9222976908539935222",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diapers-past-season-prints-light-sage-turtle-6m-9222976908539935223",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-3t-9222976908539932957",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-3t-9222976908539932958",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-3t-9222976908539932959",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-4t-9222976908539932960",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-4t-9222976908539932961",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-4t-9222976908539932962",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-coral-5-9222976908539933006",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-royal-5-9222976908539933056",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-coral-7-9222976908539933058",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-coral-8-9222976908539933060",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-royal-8-9222976908539933062",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-coral-9-9222976908539933064",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-royal-9-9222976908539933065",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-coral-10-9222976908539933066",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-royal-10-9222976908539933067",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-lavender-octopus-6mo-9222976908539933068",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-lavender-octopus-4t-9222976908539933072",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-6mo-9222976908539933073",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-12mo-9222976908539933074",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-18mo-9222976908539933075",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-24mo-9222976908539933076",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-3t-9222976908539933077",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-white-turtle-floral-4t-9222976908539933078",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-6m-9222976908539933079",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-12m-9222976908539933080",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-18m-9222976908539933081",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-24m-9222976908539933082",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-3t-9222976908539933083",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-grey-stripe-4t-9222976908539933084",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-6m-9222976908539933085",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-12m-9222976908539933086",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-18m-9222976908539933087",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-24m-9222976908539933088",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-3t-9222976908539933089",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-light-pink-stripe-4t-9222976908539933090",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-6m-9222976908539933091",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-12m-9222976908539933179",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-18m-9222976908539933180",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-24m-9222976908539933181",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-3t-9222976908539933182",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-4t-9222976908539933183",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-navy-stripe-5t-9222976908539933184",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-rainbow-stripe-6m-9222976908539933294",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-rainbow-stripe-12m-9222976908539933295",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-rainbow-stripe-3t-9222976908539933296",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-past-season-stripes-rainbow-stripe-4t-9222976908539933297",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-shoes-royal-4-9222976908539932963",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-lavender-octopus-12mo-9222976908539933069",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-lavender-octopus-24mo-9222976908539933070",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-ruffle-snap-swim-diaper-lavender-octopus-3t-9222976908539933071",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-build-a-bento-blue-whale-9222976908539906082",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-build-a-bento-sea-turtle-9222976908539906083",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-build-a-bento-octopus-9222976908539906084",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-medium-build-a-bento-ocean-9222976908539906085",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-medium-build-a-bento-seafoam-9222976908539906086",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-medium-build-a-bento-reef-9222976908539906087",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-medium-build-a-bento-sand-9222976908539906088",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-platinum-silicone-food-scrubber-9222976908539906089",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-mint-0-6mo-9222976908539906090",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-mint-9-18mo-9222976908539906103",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-mint-2t-4t-9222976908539906104",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-white-0-6mo-9222976908539906105",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-white-9-18mo-9222976908539906106",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-white-2t-4t-9222976908539906107",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-lavender-0-6mo-9222976908539906108",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-lavender-9-18mo-9222976908539906109",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-lavender-2t-4t-9222976908539906110",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-royal-0-6mo-9222976908539906111",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-royal-9-18mo-9222976908539906112",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-breathable-bucket-hat-royal-2t-4t-9222976908539906113",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-white-0-6mo-9222976908539906114",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-pink-0-6mo-9222976908539906156",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-coral-0-6mo-9222976908539906157",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-royal-0-6mo-9222976908539906158",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-white-9-18mo-9222976908539906159",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-pink-9-18mo-9222976908539906235",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-coral-9-18mo-9222976908539906236",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-royal-9-18mo-9222976908539906237",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-white-2t-4t-9222976908539906238",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-pink-2t-4t-9222976908539906239",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-coral-2t-4t-9222976908539906240",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-brim-hat-royal-2t-4t-9222976908539906241",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf50-brim-sun-protection-hat-past-season-light-coral-2t-4t-9222976908539906242",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf50-brim-sun-protection-hat-past-season-light-coral-nb-6m-9222976908539906243",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf50-brim-sun-protection-hat-past-season-light-coral-9m-18m-9222976908539906244",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf50-brim-sun-protection-hat-past-season-navy-wavy-flamingos-9-18-mo-9222976908539932800",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf50-brim-sun-protection-hat-past-season-navy-wavy-flamingos-0-6-mo-9222976908539932807",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/spout-adapter-for-water-bottle-sage-9222976908539932808",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-6mo-9222976908539935077",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-6mo-9222976908539932862",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-6mo-9222976908539932888",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-12mo-9222976908539932932",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-12mo-9222976908539932933",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-12mo-9222976908539932934",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-18mo-9222976908539932935",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-18mo-9222976908539932952",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-18mo-9222976908539932953",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-white-seashells-24mo-9222976908539932954",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-blue-fish-24mo-9222976908539932955",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-mint-sand-dollar-24mo-9222976908539932956",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-flower-field-2t-4t-9222976908539905463",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-popsicles-12-24-mo-9222976908539905475",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-popsicles-2t-4t-9222976908539905476",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-watermelon-stripe-12-24-mo-9222976908539905477",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-watermelon-stripe-2t-4t-9222976908539905478",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-watercolor-butterflies-12-24-mo-9222976908539905479",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-watercolor-butterflies-2t-4t-9222976908539905480",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-swan-12-24-mo-9222976908539905481",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-swan-2t-4t-9222976908539905482",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-pirate-12-24-mo-9222976908539905483",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-pirate-2t-4t-9222976908539905484",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-dinosaurs-12-24-mo-9222976908539905485",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-dinosaurs-2t-4t-9222976908539905486",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-gray-firetruck-12-24-mo-9222976908539905487",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-gray-firetruck-2t-4t-9222976908539905488",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-llamas-12-24-mo-9222976908539905489",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-llamas-2t-4t-9222976908539905490",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-sloth-jungle-12-24-mo-9222976908539905491",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-sloth-jungle-2t-4t-9222976908539905492",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-safari-12-24-mo-9222976908539905493",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-safari-2t-4t-9222976908539905494",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-aqua-6mo-9222976908539905495",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-aqua-12mo-9222976908539905633",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-aqua-18mo-9222976908539905634",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-aqua-24mo-9222976908539905636",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-aqua-3t-9222976908539905763",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-6mo-9222976908539905764",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-12mo-9222976908539905765",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-18mo-9222976908539905766",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-24mo-9222976908539905767",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-3t-9222976908539905768",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-hot-pink-4t-9222976908539905769",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-6mo-9222976908539905770",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-12mo-9222976908539905771",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-18mo-9222976908539905772",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-24mo-9222976908539905773",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-3t-9222976908539905787",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upf-50-eco-swim-and-sun-shorts-navy-4t-9222976908539905788",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/silicone-scoop-bib-1-pack-light-sage-9222976908539905789",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/silicone-scoop-bib-1-pack-light-grapefruit-9222976908539905790",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/silicone-scoop-bib-1-pack-blueberry-9222976908539905791",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/newborn-bundle-9222976908539905792",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/baby-brush-and-comb-9222976908539905793",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-medium-trio-stainless-9222976908539905794",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-small-protein-packer-9222976908539905795",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-2-5-oz-dips-green-9222976908539905849",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-2-5-oz-dips-aqua-9222976908539905862",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-2-5-oz-dips-blue-9222976908539905863",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lunchbots-2-5-oz-dips-purple-9222976908539905864",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-build-a-bento-mantis-shrimp-9222976908539934987",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-flap-hat-safety-colors-safety-yellow-2t-4t-9222976908539904888",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-6mo-9222976908539904889",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-12mo-9222976908539904890",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-18mo-9222976908539904891",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-24mo-9222976908539904892",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-3t-9222976908539904893",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-board-shorts-with-built-in-diaper-swim-safety-safety-lemon-4t-9222976908539904894",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-6m-9222976908539904895",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-12m-9222976908539904896",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-18m-9222976908539904897",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-24m-9222976908539904953",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-3t-9222976908539904954",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-leso-hibiscus-4t-9222976908539904955",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-6m-9222976908539904956",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-12m-9222976908539905020",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-18m-9222976908539905021",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-24m-9222976908539905022",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-3t-9222976908539905023",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-batik-watamu-puffer-fish-4t-9222976908539905024",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-6m-9222976908539905025",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-12m-9222976908539905026",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-18m-9222976908539905027",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-24m-9222976908539905028",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-3t-9222976908539905029",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-turtle-floral-wax-print-4t-9222976908539905030",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-6m-9222976908539905197",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-12m-9222976908539905198",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-18m-9222976908539905199",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-24m-9222976908539905200",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-3t-9222976908539905201",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/eco-snap-swim-diaper-tea-collection-window-floral-4t-9222976908539905202",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-bee-floral-12-24-mo-9222976908539905203",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-bee-floral-2t-4t-9222976908539905204",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-dogs-12-24-mo-9222976908539905205",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-dogs-2t-4t-9222976908539905206",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-blossom-12-24-mo-9222976908539905207",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-blossom-2t-4t-9222976908539905208",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-hot-air-balloons-12-24-mo-9222976908539905209",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-hot-air-balloons-2t-4t-9222976908539905210",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-rainbows-12-24-mo-9222976908539905211",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-rainbows-2t-4t-9222976908539905212",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-cars-12-24-mo-9222976908539905213",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-aqua-cars-2t-4t-9222976908539905214",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-wildflowers-12-24-mo-9222976908539905215",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-pink-wildflowers-2t-4t-9222976908539905216",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-buglife-12-24-mo-9222976908539905217",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snap-go-easy-wear-long-sleeve-bib-green-buglife-2t-4t-9222976908539905243",
+      "lastModified": "2026-08-31T23:24:35.231Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    }
+  ]
+}

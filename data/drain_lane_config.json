@@ -1,0 +1,13 @@
+{
+  "target_insert_share_pct": 70,
+  "minimum_insert_share_pct": 40,
+  "rotation_rules": {},
+  "lanes": {
+    "scout": {"category": "discovery", "priority": 1, "source_filter": "scout", "default_budget_pct": 25, "min_budget_pct": 15, "max_budget_pct": 50},
+    "hunt2": {"category": "discovery", "priority": 2, "source_filter": "hunt2", "default_budget_pct": 20, "min_budget_pct": 10, "max_budget_pct": 35},
+    "crate": {"category": "discovery", "priority": 3, "source_filter": "crate", "default_budget_pct": 15, "min_budget_pct": 8, "max_budget_pct": 25},
+    "stock": {"category": "re_crawl", "priority": 9, "source_filter": "stock", "default_budget_pct": 20, "min_budget_pct": 5, "max_budget_pct": 30},
+    "woocommerce": {"category": "re_crawl", "priority": 8, "source_filter": "woocommerce", "default_budget_pct": 10, "min_budget_pct": 5, "max_budget_pct": 20},
+    "shopify": {"category": "re_crawl", "priority": 7, "source_filter": "shopify", "default_budget_pct": 10, "min_budget_pct": 5, "max_budget_pct": 20}
+  }
+}

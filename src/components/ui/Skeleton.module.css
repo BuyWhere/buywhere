@@ -1,0 +1,47 @@
+.skeleton {
+  display: block;
+  background-color: var(--bw-color-gray-200);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.text {
+  height: 14px;
+  border-radius: var(--bw-radius-sm);
+}
+
+.circular {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.rectangular {
+  border-radius: var(--bw-radius-md);
+  height: 100px;
+}
+
+.lastLine {
+  width: 60%;
+}
+
+.textWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bw-spacing-2);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background-color: var(--bw-color-gray-300);
+  }
+}

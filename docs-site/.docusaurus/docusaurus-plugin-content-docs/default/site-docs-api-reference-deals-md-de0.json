@@ -1,0 +1,27 @@
+{
+  "id": "api-reference/deals",
+  "title": "Deals",
+  "description": "Find products with active discounts, sorted by discount percentage (highest first).",
+  "source": "@site/docs/api-reference/deals.md",
+  "sourceDirName": "api-reference",
+  "slug": "/api-reference/deals",
+  "permalink": "/docs/api-reference/deals",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4,
+    "title": "Deals"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Categories",
+    "permalink": "/docs/api-reference/categories"
+  },
+  "next": {
+    "title": "Compare Products",
+    "permalink": "/docs/api-reference/compare"
+  }
+}

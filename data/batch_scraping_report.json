@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-08-29T23:01:25.351865+00:00",
+  "merchant_start": 0,
+  "merchant_end": 0,
+  "use_brightdata_proxy": false,
+  "proxy_zone": null,
+  "merchants": [],
+  "completed_at": "2026-08-29T23:01:25.351902+00:00",
+  "stats": {
+    "merchants_processed": 0,
+    "merchants_success": 0,
+    "merchants_failed": 0,
+    "total_products_fetched": 0,
+    "total_products_ingested": 0,
+    "total_products_failed": 0
+  }
+}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuyWhere MCP Uptime Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { font-size: 0.85rem; color: #94a3b8; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #1e293b; border-radius: 8px; padding: 20px; border: 1px solid #334155; }
+  .card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 8px; }
+  .card-value { font-size: 2rem; font-weight: 700; }
+  .card-value.green { color: #22c55e; }
+  .card-value.yellow { color: #eab308; }
+  .card-value.red { color: #ef4444; }
+  .card-sub { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+  .section-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; margin-top: 24px; }
+  .chart-container { background: #1e293b; border-radius: 8px; padding: 20px; border: 1px solid #334155; margin-bottom: 16px; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 160px; padding-top: 8px; }
+  .bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .bar { width: 100%; min-width: 4px; border-radius: 2px 2px 0 0; transition: height 0.3s; position: relative; }
+  .bar.green { background: #22c55e; }
+  .bar.yellow { background: #eab308; }
+  .bar.red { background: #ef4444; }
+  .bar.hoverable:hover { opacity: 0.8; }
+  .bar-label { font-size: 0.6rem; color: #64748b; margin-top: 4px; text-align: center; }
+  .alert-banner { background: #450a0a; border: 1px solid #ef4444; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .alert-banner h3 { color: #fca5a5; margin-bottom: 4px; }
+  .alert-banner p { color: #fecaca; font-size: 0.9rem; }
+  .latency-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+  .latency-bar { flex: 1; background: #3b82f6; border-radius: 2px 2px 0 0; min-width: 3px; transition: height 0.3s; }
+  .latency-bar:hover { opacity: 0.8; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #334155; }
+  th { color: #94a3b8; font-weight: 500; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+  td { color: #e2e8f0; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .status-badge.up { background: #166534; color: #86efac; }
+  .status-badge.down { background: #7f1d1d; color: #fca5a5; }
+  .status-badge.degraded { background: #713f12; color: #fde047; }
+  .footer { margin-top: 32px; font-size: 0.75rem; color: #475569; text-align: center; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 300px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<h1>MCP Uptime Monitor</h1>
+<p class="subtitle" id="subtitle">Loading...</p>
+
+<div id="alert-area"></div>
+
+<div class="grid" id="metrics-grid">
+  <div class="card"><div class="card-label">30-Day Uptime</div><div class="card-value" id="uptime-30d">—</div><div class="card-sub" id="uptime-30d-sub"></div></div>
+  <div class="card"><div class="card-label">5-Min Uptime</div><div class="card-value" id="uptime-5m">—</div><div class="card-sub" id="uptime-5m-sub"></div></div>
+  <div class="card"><div class="card-label">p95 Latency</div><div class="card-value" id="p95-latency">—</div><div class="card-sub" id="p95-latency-sub"></div></div>
+  <div class="card"><div class="card-label">Error Rate (30d)</div><div class="card-value" id="error-rate">—</div><div class="card-sub" id="error-rate-sub"></div></div>
+</div>
+
+<div class="section-title">Current Status</div>
+<div class="chart-container" id="current-status"></div>
+
+<div class="row">
+  <div class="col">
+    <div class="section-title">Hourly Uptime (24h)</div>
+    <div class="chart-container"><div class="bar-chart" id="hourly-chart"></div></div>
+  </div>
+  <div class="col">
+    <div class="section-title">p95 Latency Trend (24h)</div>
+    <div class="chart-container"><div class="latency-chart" id="latency-chart"></div></div>
+  </div>
+</div>
+
+<div class="section-title">Hourly Breakdown</div>
+<div class="chart-container"><table><thead><tr><th>Hour</th><th>Uptime</th><th>Checks</th><th>Avg Latency</th></tr></thead><tbody id="hourly-table"></tbody></table></div>
+
+<div class="footer" id="footer"></div>
+
+<script>
+async function fetchReport() {
+  const resp = await fetch('uptime.json?t=' + Date.now());
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+function updateDashboard(r) {
+  const genAt = new Date(r.generated_at);
+  document.getElementById('subtitle').textContent = `MCP Server: ${r.mcp_url}  ·  Updated ${genAt.toLocaleString()}`;
+
+  // Alert banner
+  const alertArea = document.getElementById('alert-area');
+  if (r.alert) {
+    alertArea.innerHTML = `<div class="alert-banner"><h3>CRITICAL: ${r.alert.message}</h3><p>Threshold: ${r.alert.threshold}% · Actual: ${r.alert.actual}% · Window: ${r.alert.window}</p></div>`;
+  } else {
+    alertArea.innerHTML = '';
+  }
+
+  // Metrics cards
+  const m30 = r.metrics_30d;
+  const m5 = r.metrics_5m;
+  setCard('uptime-30d', formatPct(m30.uptime_pct), colorForUptime(m30.uptime_pct), `${m30.total_checks} checks`);
+  setCard('uptime-5m', formatPct(m5.uptime_pct), colorForUptime(m5.uptime_pct), `${m5.total_checks} checks`);
+  setCard('p95-latency', m5.p95_latency_ms + 'ms', m5.p95_latency_ms > 500 ? 'red' : m5.p95_latency_ms > 200 ? 'yellow' : 'green', `p99: ${m5.p99_latency_ms}ms · avg: ${m5.avg_latency_ms}ms`);
+  setCard('error-rate', formatPct(m30.error_rate), m30.error_rate > 0.1 ? 'red' : m30.error_rate > 0.01 ? 'yellow' : 'green', `${m30.total_checks} checks`);
+
+  // Latest status
+  const latest = r.latest;
+  const statusEl = document.getElementById('current-status');
+  statusEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div><span class="status-badge ${latest.result}">${latest.result.toUpperCase()}</span></div>
+      <div>HTTP ${latest.http_code}</div>
+      <div>${latest.latency_ms}ms</div>
+      <div>${latest.ts}</div>
+      <div>${latest.total_products} products cataloged</div>
+    </div>
+  `;
+
+  // Hourly bar chart
+  const hourly = r.hourly_trend.slice(-24);
+  const maxUptime = 100;
+  const chartEl = document.getElementById('hourly-chart');
+  chartEl.innerHTML = hourly.map(h => {
+    const pct = h.uptime_pct;
+    const barH = Math.max(2, (pct / maxUptime) * 100);
+    const color = pct >= 99.9 ? 'green' : pct >= 99 ? 'yellow' : 'red';
+    const label = h.hour.slice(11, 16);
+    return `<div class="bar-wrapper" title="${h.hour} UTC — ${pct}% uptime, ${h.checks} checks, ${h.avg_latency_ms}ms avg"><div class="bar ${color}" style="height:${barH}%"></div><div class="bar-label">${label}</div></div>`;
+  }).join('');
+
+  // Latency trend
+  const latency = r.latency_trend.slice(-48);
+  const maxLat = Math.max(...latency.map(l => l.p95_ms), 1);
+  const latChartEl = document.getElementById('latency-chart');
+  latChartEl.innerHTML = latency.map(l => {
+    const barH = Math.max(2, (l.p95_ms / maxLat) * 100);
+    return `<div class="latency-bar" style="height:${barH}%" title="${l.ts} UTC — p95: ${l.p95_ms}ms, avg: ${l.avg_ms}ms, ${l.samples} samples"></div>`;
+  }).join('');
+
+  // Hourly table
+  const tbody = document.getElementById('hourly-table');
+  tbody.innerHTML = hourly.slice().reverse().map(h => `
+    <tr>
+      <td>${h.hour.slice(11, 16)} UTC</td>
+      <td>${formatPct(h.uptime_pct)}</td>
+      <td>${h.checks}</td>
+      <td>${h.avg_latency_ms}ms</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('footer').textContent = `BuyWhere MCP Uptime Monitor · Last updated ${genAt.toISOString()}`;
+}
+
+function setCard(id, value, colorClass, sub) {
+  const el = document.getElementById(id);
+  el.textContent = value;
+  el.className = 'card-value ' + colorClass;
+  document.getElementById(id + '-sub').textContent = sub;
+}
+
+function formatPct(v) {
+  return (v === 0 ? '0.0000' : v.toFixed(4)) + '%';
+}
+
+function colorForUptime(pct) {
+  if (pct >= 99.9) return 'green';
+  if (pct >= 99.0) return 'yellow';
+  return 'red';
+}
+
+async function refresh() {
+  try {
+    const r = await fetchReport();
+    updateDashboard(r);
+  } catch (e) {
+    document.getElementById('subtitle').textContent = 'Error loading report: ' + e.message;
+  }
+}
+
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>

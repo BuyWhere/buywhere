@@ -1,0 +1,57 @@
+{
+  "name": "BuyWhere",
+  "description": "AI-powered product search and price comparison across 40+ retailers. Find the best deals on electronics, fashion, home goods, and more across Singapore, Southeast Asia, and the US.",
+  "url": "https://buywhere.ai",
+  "version": "1.0.0",
+  "category": "shopping",
+  "platforms": ["web", "api"],
+  "features": [
+    "Product search across 5M+ products",
+    "Real-time price comparison",
+    "Price history tracking",
+    "Deal and discount discovery",
+    "Cross-border market matching",
+    "Affiliate links and attribution",
+    "AI agent-native MCP interface",
+    "Multi-retailer comparison shopping"
+  ],
+  "retailers": ["Amazon", "Shopee", "Lazada", "Target", "Home Depot", "Walmart", "Best Buy", "eBay", "Macy's", "Costco", "IKEA", "Nike", "and 30+ more"],
+  "regions": [
+    {
+      "code": "SG",
+      "name": "Singapore",
+      "retailers": ["Shopee SG", "Lazada SG", "Amazon SG", "FairPrice", "Cold Storage", "Gain City"]
+    },
+    {
+      "code": "US",
+      "name": "United States",
+      "retailers": ["Amazon US", "Walmart", "Target", "Best Buy", "Home Depot", "Costco", "eBay", "Macy's"]
+    },
+    {
+      "code": "MY",
+      "name": "Malaysia",
+      "retailers": ["Shopee MY", "Lazada MY"]
+    },
+    {
+      "code": "ID",
+      "name": "Indonesia",
+      "retailers": ["Shopee ID", "Lazada ID", "Tokopedia"]
+    },
+    {
+      "code": "TH",
+      "name": "Thailand",
+      "retailers": ["Shopee TH", "Lazada TH"]
+    },
+    {
+      "code": "PH",
+      "name": "Philippines",
+      "retailers": ["Shopee PH", "Lazada PH"]
+    },
+    {
+      "code": "VN",
+      "name": "Vietnam",
+      "retailers": ["Shopee VN", "Lazada VN"]
+    }
+  ],
+  "lastUpdated": "2026-06-18"
+}

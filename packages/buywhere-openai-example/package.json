@@ -1,0 +1,16 @@
+{
+  "name": "buywhere-openai-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "price-comparison": "npx tsx examples/price_comparison.ts"
+  },
+  "dependencies": {
+    "@buywhere/openai-tools": "^0.1.0",
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

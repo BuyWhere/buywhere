@@ -1,0 +1,261 @@
+{
+  "run_id": "b76d8343-dfd7-404a-8908-02f2646cef06",
+  "batch": "r407_batch189",
+  "validated": [
+    {
+      "domain": "ceramic-supply-inc.myshopify.com",
+      "niche": "US independent Shopify store selling ceramics pottery supplies",
+      "evidence_url": "https://ceramic-supply-inc.myshopify.com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "roadrunnerceramics-2.myshopify.com",
+      "niche": "US independent Shopify store selling ceramics pottery supplies",
+      "evidence_url": "https://cro.media/all-shopify-stores/store/roadrunnerceramics-2-myshopify-com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "lovethatglass.com",
+      "niche": "US independent Shopify store selling stained glass supplies",
+      "evidence_url": "https://www.lovethatglass.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "pickleball-is-great.myshopify.com",
+      "niche": "US independent Shopify store selling pickleball training equipment",
+      "evidence_url": "https://pickleball-is-great.myshopify.com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "coffeesection.com",
+      "niche": "US independent Shopify store selling home espresso accessories",
+      "evidence_url": "https://coffeesection.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "company-b-models-and-miniatures.myshopify.com",
+      "niche": "US independent Shopify store selling model railroad scenery supplies",
+      "evidence_url": "https://company-b-models-and-miniatures.myshopify.com/collections/trains",
+      "known_catalog": false,
+      "platform": "unknown/non-public Shopify",
+      "products_json_status": 401,
+      "products_seen": 0,
+      "route": "Hunt",
+      "blocked_reason": "products.json not public; needs rendered/manual platform probe"
+    },
+    {
+      "domain": "diamondcoretools.com",
+      "niche": "ceramics pottery supplies",
+      "evidence_url": "https://diamondcoretools.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "sanbaostudio.com",
+      "niche": "ceramics pottery supplies",
+      "evidence_url": "https://sanbaostudio.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "anythinginstainedglass.com",
+      "niche": "stained glass supplies",
+      "evidence_url": "https://anythinginstainedglass.com",
+      "known_catalog": false,
+      "platform": "unknown/non-public Shopify",
+      "products_json_status": 404,
+      "products_seen": 0,
+      "route": "Hunt",
+      "blocked_reason": "products.json not public; needs rendered/manual platform probe"
+    },
+    {
+      "domain": "swarthoutglass.com",
+      "niche": "stained glass supplies",
+      "evidence_url": "https://swarthoutglass.com",
+      "known_catalog": false,
+      "platform": null,
+      "products_json_status": null,
+      "products_seen": 0,
+      "route": null,
+      "blocked_reason": "URLError"
+    },
+    {
+      "domain": "pickleballdepot.us",
+      "niche": "pickleball equipment",
+      "evidence_url": "https://pickleballdepot.us",
+      "known_catalog": false,
+      "platform": "unknown/non-public Shopify",
+      "products_json_status": 404,
+      "products_seen": 0,
+      "route": "Hunt",
+      "blocked_reason": "products.json not public; needs rendered/manual platform probe"
+    },
+    {
+      "domain": "thirdcoastcoffee.com",
+      "niche": "coffee roaster",
+      "evidence_url": "https://thirdcoastcoffee.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "wholelattelove.com",
+      "niche": "home espresso accessories",
+      "evidence_url": "https://wholelattelove.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "sceniking.com",
+      "niche": "model railroad scenery supplies",
+      "evidence_url": "https://sceniking.com",
+      "known_catalog": false,
+      "platform": null,
+      "products_json_status": 200,
+      "products_seen": 0,
+      "route": null,
+      "blocked_reason": "JSONDecodeError"
+    }
+  ],
+  "netnew_shopify": [
+    {
+      "domain": "ceramic-supply-inc.myshopify.com",
+      "niche": "US independent Shopify store selling ceramics pottery supplies",
+      "evidence_url": "https://ceramic-supply-inc.myshopify.com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "roadrunnerceramics-2.myshopify.com",
+      "niche": "US independent Shopify store selling ceramics pottery supplies",
+      "evidence_url": "https://cro.media/all-shopify-stores/store/roadrunnerceramics-2-myshopify-com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "lovethatglass.com",
+      "niche": "US independent Shopify store selling stained glass supplies",
+      "evidence_url": "https://www.lovethatglass.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "pickleball-is-great.myshopify.com",
+      "niche": "US independent Shopify store selling pickleball training equipment",
+      "evidence_url": "https://pickleball-is-great.myshopify.com/",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "coffeesection.com",
+      "niche": "US independent Shopify store selling home espresso accessories",
+      "evidence_url": "https://coffeesection.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "diamondcoretools.com",
+      "niche": "ceramics pottery supplies",
+      "evidence_url": "https://diamondcoretools.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "sanbaostudio.com",
+      "niche": "ceramics pottery supplies",
+      "evidence_url": "https://sanbaostudio.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "thirdcoastcoffee.com",
+      "niche": "coffee roaster",
+      "evidence_url": "https://thirdcoastcoffee.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    },
+    {
+      "domain": "wholelattelove.com",
+      "niche": "home espresso accessories",
+      "evidence_url": "https://wholelattelove.com",
+      "known_catalog": false,
+      "platform": "Shopify",
+      "products_json_status": 200,
+      "products_seen": 20,
+      "route": "Shelf",
+      "blocked_reason": null
+    }
+  ]
+}

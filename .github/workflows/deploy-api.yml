@@ -1,0 +1,91 @@
+# deploy-api — plan 0.6/9.2: push-to-main deploys with smoke test + auto-rollback.
+# v2: removed secrets-in-if guards (invalid at parse time; secrets are set now).
+# Sanctioned deploy path per BUY-59936: no `railway up` from local trees.
+name: deploy-api
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api-production
+  cancel-in-progress: false
+
+env:
+  SERVICE_ID: 945e8a6d-6f89-41f1-8256-b8cc6a872a33
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Typecheck ratchet (fail only if error count increases)
+        working-directory: api
+        run: |
+          npm ci --silent
+          npx tsc --noEmit 2>&1 | tee /tmp/ts.txt || true
+          NOW=$(grep -c 'error TS' /tmp/ts.txt || true)
+          BASE=$(cat .ts-error-baseline 2>/dev/null || echo 999)
+          echo "TS errors: $NOW (baseline $BASE)"
+          if [ "$NOW" -gt "$BASE" ]; then echo "::error::TS error count increased ($BASE -> $NOW)"; exit 1; fi
+
+      - name: Trigger Railway deploy of this SHA
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sf "$GQL" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import json,sys; r=json.load(sys.stdin); errors=r.get('errors') or []; data=(r.get('data') or {}).get('serviceInstanceDeployV2'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; print(data or '', end=''); sys.exit(1 if errors or not data else 0)")
+          echo "deployment: $DID"
+          for i in $(seq 1 24); do
+            S=$(curl -sf "$GQL" -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import json,sys; r=json.load(sys.stdin); errors=r.get('errors') or []; status=((r.get('data') or {}).get('deployment') or {}).get('status'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; print(status or '', end=''); sys.exit(1 if errors or not status else 0)")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Smoke test (warm-up tolerant, hard-fail on 500)
+        env:
+          SMOKE_KEY: ${{ secrets.SMOKE_KEY }}
+        run: |
+          sleep 60
+          curl -sf https://api.buywhere.ai/health
+          for i in $(seq 1 5); do
+            BODY=$(curl -s -m 15 "https://api.buywhere.ai/v1/products/search?q=nike&limit=3" -H "Authorization: Bearer $SMOKE_KEY")
+            echo "$BODY" | grep -q '"id"' && exit 0
+            CODE=$(curl -s -m 15 -o /dev/null -w "%{http_code}" "https://api.buywhere.ai/v1/products/search?q=nike&country_code=SG&limit=1" -H "Authorization: Bearer $SMOKE_KEY")
+            [ "$CODE" = "500" ] && { echo "::error::search returning 500"; exit 1; }
+            sleep 45
+          done
+          echo "::error::search never returned results within warm-up window"; exit 1
+
+      - name: Auto-rollback on failure
+        if: failure()
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREV=$(git rev-parse HEAD~1)
+          echo "Rolling back to $PREV"
+          curl -sf "$GQL" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}"

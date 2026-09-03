@@ -1,0 +1,83 @@
+# BuyWhere
+
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications. Catalog (live at GET /v1/catalog/stats): more than 360M products from roughly 950K merchants in 80+ countries, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+
+## Catalog Coverage
+- **Total catalog**: more than 360M products from roughly 950K merchants in 80+ countries (verified live at GET /v1/catalog/stats — canonical source)
+- **Public sitemap index** (`/sitemap-merchants.xml`): ~100 SG storefront sample — discovery surface only, not the full catalog
+- Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
+- **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
+- Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
+- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime
+
+## Quick Start for Agents
+1. Get a free API key: POST https://api.buywhere.ai/v1/auth/register
+2. Search with your user's location: GET /v1/products/search?q=coffee+maker&deliver_to=SG
+3. Every product returns an availability label — filter with include_unshippable=false for only-deliverable results
+
+## REST API Endpoints
+
+### Products
+- GET /v1/products/search — Full-text product search with filters (keyword, merchant, price, category, country, currency, availability)
+- GET /v1/products/deals — Products on sale, sorted by discount percentage
+- GET /v1/products/compare?ids=id1,id2,... — Side-by-side product comparison (2-10 products)
+- GET /v1/products/:id — Get full product details by ID
+- GET /v1/products/:id/similar — Find similar products
+- GET /v1/products/:id/price-history — Historical price chart data
+- GET /v1/products/:id/prices — Price snapshots from merchant feeds
+
+### Categories
+- GET /v1/categories — List all top-level categories
+- GET /v1/categories/:slug — Get category details with subcategories and sample products
+
+### Catalog
+- GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated
+
+## MCP Server
+MCP endpoint: https://api.buywhere.ai/mcp
+Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
+
+### MCP Tools
+1. **search_products** — Full-text search with merchant, price, category, and country filters.
+2. **get_product** — Get full product details by BuyWhere product ID.
+3. **get_price** — Get current prices for a product across all available merchants.
+4. **compare_prices** — Compare 2–5 products side-by-side with price range, pros/cons, and best-value recommendation.
+5. **get_affiliate_link** — Get the click-tracked BuyWhere affiliate link for a product.
+6. **get_catalog** — List available product categories in the BuyWhere catalog.
+
+## Authentication
+
+All API endpoints (except /v1/catalog/stats) require a Bearer token:
+
+```
+Authorization: Bearer bw_live_YOUR_API_KEY
+```
+
+Get a free API key at: https://api.buywhere.ai/v1/auth/register
+
+Free tier: 1,000 calls/month. No credit card required.
+
+## Use Cases
+- AI shopping agents and price comparison assistants
+- Product discovery and deal alerts
+- Cross-merchant price intelligence
+- Market research and retail analytics
+
+## Documentation
+- API docs: https://api.buywhere.ai/docs
+- MCP guide: https://api.buywhere.ai/docs/guides/mcp
+- Pricing: https://buywhere.ai/pricing
+- GitHub: https://github.com/BuyWhere/buywhere
+- npm: https://www.npmjs.com/package/@buywhere/mcp-server
+- npm registry metadata: https://registry.npmjs.org/@buywhere%2fmcp-server
+
+## Rate Limits
+- Free: 1,000 calls/month
+- Starter: 50,000 calls/month — $9/month
+- Pro: 500,000 calls/month — $49/month
+- Enterprise: Custom limits
+
+## Company
+BuyWhere Pte. Ltd. — Singapore
+Contact: api@buywhere.ai
+Website: https://buywhere.ai

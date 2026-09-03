@@ -1,0 +1,112 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-24T10:05:37.412084+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 63.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-24T10:05:25.525Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-24T10:05:25.492158+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (37.8ms, 27379644 products)",
+      "detail": {
+        "latency_ms": 37.8,
+        "total_products": 27379644,
+        "zombie_runs": 0,
+        "running_runs": 1,
+        "stale_active_products": 11685165,
+        "runs_last_24h": {
+          "success": 0,
+          "failed": 9,
+          "total": 10
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "stock_paging_wave_b",
+            "count": 1295539,
+            "last_updated": "2026-06-23 23:33:58.503770+00:00"
+          },
+          {
+            "source": "wanderprints.com",
+            "count": 101570,
+            "last_updated": "2026-06-23 14:36:43.997087+00:00"
+          },
+          {
+            "source": "1008stores.myshopify.com",
+            "count": 84149,
+            "last_updated": "2026-06-23 16:51:28.619627+00:00"
+          },
+          {
+            "source": "levi.in",
+            "count": 78553,
+            "last_updated": "2026-06-23 12:57:32.405953+00:00"
+          },
+          {
+            "source": "exportleftovers.com",
+            "count": 76621,
+            "last_updated": "2026-06-23 21:04:12.128914+00:00"
+          },
+          {
+            "source": "everlane.com",
+            "count": 69962,
+            "last_updated": "2026-06-23 13:32:33.684586+00:00"
+          },
+          {
+            "source": "peppermayo.com",
+            "count": 42202,
+            "last_updated": "2026-06-23 11:00:55.582318+00:00"
+          },
+          {
+            "source": "junaidjamshed.com",
+            "count": 41433,
+            "last_updated": "2026-06-23 13:01:30.619664+00:00"
+          },
+          {
+            "source": "newera.mx",
+            "count": 40916,
+            "last_updated": "2026-06-23 22:17:04.036011+00:00"
+          },
+          {
+            "source": "lifeisgood.com",
+            "count": 36543,
+            "last_updated": "2026-06-23 11:20:15.352923+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-24T10:05:37.295700+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-24T10:05:37.295722+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 99.7% (7d, 538287 runs)",
+      "detail": {
+        "total": 538287,
+        "success": 536811,
+        "failed": 1445,
+        "success_rate_pct": 99.7
+      },
+      "timestamp": "2026-06-24T10:05:37.412049+00:00"
+    }
+  ]
+}

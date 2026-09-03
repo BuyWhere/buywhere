@@ -1,0 +1,37 @@
+{
+  "started_at": "2026-08-28T16:10:35.392Z",
+  "dry_run": false,
+  "steps": {
+    "gshopping_ingest": {
+      "label": "Google Shopping Feed Ingestion",
+      "status": "completed",
+      "exitCode": 0,
+      "elapsed_seconds": 60.857,
+      "output_tail": [
+        "  gs|https://www.rei.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 0",
+        "  gs|https://www.backcountry.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 202",
+        "  gs|https://www.steepandcheap.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 202",
+        "  gs|https://www.bhphotovideo.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.pcrichard.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.sweetwater.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.adorama.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 404",
+        "  gs|https://www.bandh.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.footlocker.com/feed.xml|scraped=0|ingested=0|failed=0|errors=No products parsed",
+        "  gs|https://www.finishline.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.westelm.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.cb2.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.potterybarn.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.williams-sonoma.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.gnc.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.vitaminshoppe.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 404",
+        "  gs|https://www.kogan.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.zalando.nl/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.soccer.com/feed.xml|scraped=0|ingested=0|failed=0|errors=HTTP 403",
+        "  gs|https://www.footballamerica.com/feed.xml|scraped=0|ingested=0|failed=0|errors=No products parsed"
+      ]
+    }
+  },
+  "finished_at": "2026-08-28T16:11:36.254Z",
+  "elapsed_seconds": 60.862,
+  "status": "completed"
+}
