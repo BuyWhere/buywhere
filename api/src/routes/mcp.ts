@@ -1646,8 +1646,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
       const cc = String(r.country_code || '').toUpperCase();
       if (cc && cc !== want) return false;
       if (wantCur) {
-        const cur = String(r.currency || '').toUpperCase();
-        if (cur && cur !== wantCur) return false;
+        const cur = extractRowCurrency(r);
+        // BUY-80652: unknown/empty currency is not native — drop it.
+        if (!cur || cur !== wantCur) return false;
       }
       // BUY-80191: drop unpriced rows even if SQL missed them (REST fallback /
       // cached pages / child-table nulls).
