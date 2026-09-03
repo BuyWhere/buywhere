@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ExternalLink, Search, X } from 'lucide-react';
@@ -1191,7 +1191,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     ? `View deal: ${product.name} from ${product.merchant}`
     : `View deal: ${product.name}`;
 
-  const onDealClick = (e: MouseEvent<HTMLAnchorElement>) => {
+  const onDealClick = (e: ReactMouseEvent<HTMLAnchorElement>) => {
     attachProductCardClickAttribution(e);
     captureProductCardClick({
       href: e.currentTarget.href,
