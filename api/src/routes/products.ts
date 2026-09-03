@@ -40,7 +40,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v19-b80441'; // v19 BUY-80441: in-market currency + console/TV unit ranking
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v20-b80441'; // v20 BUY-80441: skip parent products JOIN on child FTS
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -342,7 +342,12 @@ async function tryTierSearch(
   // post-rank join filter runs over the bounded top set (≤200 rows) only, so
   // the PK join to products is cheap. It fires for the same query set as
   // storageExcl (both derive from the same device/storage gates).
-  const storageJoinFilter = tierStorageExclusionNeeded(p.q)
+  // BUY-80441: Shopper-ingested SG/US units live on child partitions only
+  // (products_partitioned_sg 15 Apple iPhone 16, 2 Switch 2 consoles). An INNER
+  // JOIN to parent `products` drops those rows (parent_join=0) and the child
+  // FTS path then returns truthful empty. Skip the parent join on child tables;
+  // cand already applies deviceStorageExclusionFragment on sp.category.
+  const storageJoinFilter = (!useChildTable && tierStorageExclusionNeeded(p.q))
     ? ` JOIN products m ON m.id = sp.id AND NOT ${STORAGE_CATEGORY_SQL_TIER_JOIN}`
     : '';
 
