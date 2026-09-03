@@ -189,7 +189,7 @@ function isolateRestSearchHits(
   const products = rows.map((r) => {
     const price = r.price;
     const flattened: Record<string, unknown> = { ...r };
-    let rowCurrency = '';
+    let rowCurrency = extractRowCurrency(r);
     if (price && typeof price === 'object' && !Array.isArray(price)) {
       const p = price as { amount?: unknown; currency?: unknown };
       flattened.price = p.amount;
@@ -208,9 +208,8 @@ function isolateRestSearchHits(
       if (cc && cc !== expectedCc) return false;
     }
     if (expectedCur) {
-      const fromProduct = extractRowCurrency(p as unknown as Record<string, unknown>);
-      const cur = item.rowCurrency || fromProduct;
-      // BUY-80652: unknown/empty currency on SG/MY Shopify is usually USD.
+      // BUY-80652: REST row currency only — ignore buildProduct country default.
+      const cur = item.rowCurrency;
       if (!cur || cur !== expectedCur) return false;
     }
     // BUY-80191: REST can still serialize {amount:null} for bad rows.
