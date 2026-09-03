@@ -334,7 +334,7 @@ async function tryTierSearch(
   ) {
     let smokeClient: PoolClient | null = null;
     try {
-      smokeClient = await servingReadDbConnect();
+      smokeClient = await db.connect();
       await smokeClient.query("SET statement_timeout = '800'");
       const smoke = await smokeClient.query(
         `SELECT product_id AS id, COALESCE(sku, source) AS source, merchant_id AS domain, url, title,
@@ -350,8 +350,8 @@ async function tryTierSearch(
         const products = smoke.rows
           .map((r: Record<string, unknown>) => buildProduct({ ...r, country_code: ccSmoke }, p.currency, p.compact))
           .filter((prod) => {
-            const cur = String(prod.price?.currency || '').toUpperCase();
-            return !p.currency || cur === p.currency.toUpperCase();
+            const amt = Number((prod.price as { amount?: number } | undefined)?.amount);
+            return Number.isFinite(amt) && amt > 0;
           });
         if (products.length >= 5) {
           const body = buildSearchResponse(products, products.length, p.limit, p.offset, Date.now() - p.requestStart, false);

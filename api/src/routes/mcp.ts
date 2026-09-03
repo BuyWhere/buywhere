@@ -1078,10 +1078,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     !region
   ) {
     try {
-      const smokeClient = await servingReadDbConnect().catch((err: unknown) => {
-        if (err instanceof ReplicaUnavailableError) return acquireMcpClient();
-        throw err;
-      });
+      // Primary, not replica: table is written on sakura and may lag / miss on maglev.
+      const smokeClient = await acquireMcpClient();
       try {
         await smokeClient.query("SET statement_timeout = '800'");
         const smoke = await smokeClient.query(
