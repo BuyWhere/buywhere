@@ -82,4 +82,59 @@ test.describe('Search result card layout', () => {
       expect(cardAccessibleName.toLowerCase()).toContain('view deal');
     }
   });
+
+  // BUY-80658: first-row View Deal must sit fully inside 1440x900 with WCAG AA fill.
+  test('keeps first-row View Deal above the fold at 1440x900 with AA contrast', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const response = await page.goto('/search?q=laptop&country=us');
+    expect(response?.status()).toBeLessThan(400);
+
+    const cards = page.getByTestId('search-product-card');
+    await expect(cards.first()).toBeVisible();
+
+    const firstRow = await cards.evaluateAll((nodes) => {
+      const viewport = 900;
+      const row = [];
+      let firstTop = null;
+      for (const node of nodes) {
+        const box = node.getBoundingClientRect();
+        if (firstTop === null) firstTop = box.top;
+        if (Math.abs(box.top - firstTop) > 24) break;
+        if (box.top >= viewport) break;
+        row.push(node);
+      }
+      return row.map((node) => {
+        const cta = node.querySelector('[data-testid="search-product-view-deal"]');
+        const box = cta?.getBoundingClientRect();
+        const styles = cta ? getComputedStyle(cta) : null;
+        return {
+          tag: cta?.tagName ?? null,
+          href: cta?.getAttribute('href') ?? '',
+          target: cta?.getAttribute('target') ?? '',
+          rel: cta?.getAttribute('rel') ?? '',
+          top: box?.top ?? -1,
+          bottom: box?.bottom ?? -1,
+          left: box?.left ?? -1,
+          right: box?.right ?? -1,
+          bg: styles?.backgroundColor ?? '',
+          color: styles?.color ?? '',
+        };
+      });
+    });
+
+    expect(firstRow.length).toBeGreaterThan(0);
+    for (const cta of firstRow) {
+      expect(cta.tag).toBe('A');
+      expect(cta.href).toMatch(/\/r\/direct\//);
+      expect(cta.target).toBe('_blank');
+      expect(cta.rel).toMatch(/sponsored/);
+      expect(cta.rel).toMatch(/nofollow/);
+      expect(cta.top).toBeGreaterThanOrEqual(0);
+      expect(cta.bottom).toBeLessThanOrEqual(900);
+      expect(cta.left).toBeGreaterThanOrEqual(0);
+      expect(cta.right).toBeLessThanOrEqual(1440);
+      // amber-700 (#b45309) on white text is ~5.5:1 — reject leftover amber-500.
+      expect(cta.bg).not.toMatch(/rgb\(245,\s*158,\s*11\)/);
+    }
+  });
 });
