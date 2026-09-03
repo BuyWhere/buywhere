@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS 
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, NON_COMPUTER_TITLE_PG_RE_SOURCE, isBareDeviceQuery } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -40,12 +40,17 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v23-b80550'; // v23 BUY-80550: co-occurrence 0.10x penalty + compound accessory aliases
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v24-b80570'; // v24 BUY-80570: bare-device query non-computer title 0.05x demotion
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
 // BUY-70498: child tables for TH/VN/MY/ID are empty; keep FTS on search_products.
-const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
+const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA','KR','TW']);
+// BUY-80529: postgres owns products_partitioned_tw so ingest could not GIN it.
+// Route TW FTS at the ingest-owned active copy until CONCURRENTLY lands on the live child.
+const CHILD_TABLE_OVERRIDE: Record<string, string> = {
+  TW: 'products_partitioned_tw_ingest',
+};
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -329,7 +334,7 @@ async function tryTierSearch(
   const ccUpper = (p.countryCode || '').toUpperCase();
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
   const ftsTable = useChildTable
-    ? `products_partitioned_${ccUpper.toLowerCase()}`
+    ? (CHILD_TABLE_OVERRIDE[ccUpper] || `products_partitioned_${ccUpper.toLowerCase()}`)
     : 'search_products';
   // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
   // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
@@ -342,7 +347,12 @@ async function tryTierSearch(
   // post-rank join filter runs over the bounded top set (≤200 rows) only, so
   // the PK join to products is cheap. It fires for the same query set as
   // storageExcl (both derive from the same device/storage gates).
-  const storageJoinFilter = tierStorageExclusionNeeded(p.q)
+  // BUY-80441: Shopper-ingested SG/US units live on child partitions only
+  // (products_partitioned_sg 15 Apple iPhone 16, 2 Switch 2 consoles). An INNER
+  // JOIN to parent `products` drops those rows (parent_join=0) and the child
+  // FTS path then returns truthful empty. Skip the parent join on child tables;
+  // cand already applies deviceStorageExclusionFragment on sp.category.
+  const storageJoinFilter = (!useChildTable && tierStorageExclusionNeeded(p.q))
     ? ` JOIN products m ON m.id = sp.id AND NOT ${STORAGE_CATEGORY_SQL_TIER_JOIN}`
     : '';
 
@@ -389,6 +399,14 @@ async function tryTierSearch(
   const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+  // BUY-80441: device-unit queries must not fill the cand LIMIT with pouches/cases.
+  const qLower = p.q.toLowerCase();
+  const isDeviceUnitQuery = /\b(iphone|airpods|nintendo|switch|\btv\b|oled|qled|google tv|smart tv)\b/.test(qLower)
+    || /\b(43|50|55|65).{0,8}(inch|in)\b/.test(qLower)
+    || /\bbudget tv\b/.test(qLower);
+  const deviceAccessoryCandExcl = isDeviceUnitQuery
+    ? ` AND NOT (lower(sp.title) ~* '\\m(case|cover|pouch|holder|stand|mount|skin|sleeve|protector|charger|cable|adapter|screen protector|belt pouch|silicone|wallet|tempered glass)\\M')`
+    : '';
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
@@ -415,10 +433,14 @@ async function tryTierSearch(
   //   - Title or category contains an accessory token (no device co-occurrence)
   //     in the title → 0.25x (keep pre-existing accessory-only penalty).
   //   - No accessory match → 1.0x.
+  // BUY-80570: bare-device query (q=laptop, single token, no accessory intent)
+  //     + non-computer title pattern (exact "Laptop", wooden notebook, FSX listing)
+  //     → 0.05x. Does NOT fire for long-tail queries (e.g. "wooden laptop stand").
   // BUY-80550: bagpack/briefcase/pouch added to LAPTOP_ACCESSORY_SOFT_TOKENS;
   // compound forms can't match via bare bag/case/pouch tokens due to \m\M
   // word-boundary constraints.
   const deviceTokenRE = String.raw`\m(laptop|notebook|macbook|chromebook)\M`;
+  const isBareQuery = isBareDeviceQuery(p.q);
   const laptopAccessoryPenalty = `
     CASE
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
@@ -427,6 +449,7 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}' THEN 0.05` : ''}
       ELSE 1.0
     END`;
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -457,13 +480,40 @@ async function tryTierSearch(
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-80441: prefer in-market currency (SGD on SG child) over USD cross-list pouches.
+  const inMarketCurrencyBoost = `
+    CASE
+      WHEN $${i} = '' THEN 1.0
+      WHEN upper(sp.currency) = upper($${i}) THEN 3.0
+      ELSE 0.35
+    END`;
+  params.push(p.currency || '');
+  i++;
+  const consoleTvAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(case|cover|pouch|holder|stand|mount|skin|sleeve|protector|charger|cable|adapter|screen protector|belt pouch)\\M'
+        AND lower(sp.title) ~* '\\m(switch|nintendo|tv|iphone|airpods)\\M'
+      THEN 0.12 ELSE 1.0
+    END`;
+  const consoleUnitBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(nintendo switch 2 console|nintendo switch 2|switch 2 console)\\M'
+        AND lower(sp.title) !~* '\\m(case|cover|pouch|skin|game)\\M'
+      THEN 4.0 ELSE 1.0
+    END`;
+  const tvUnitBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(led tv|google tv|smart tv|oled tv|qled tv|43.?inch|55.?inch)\\M'
+        AND lower(sp.title) !~* '\\m(wall mount|bracket|remote|cover)\\M'
+      THEN 3.5 ELSE 1.0
+    END`;
   // BUY-77644: project the columns needed for ranking into the cand CTE so the
   // top CTE can rank against the bounded candidate set without a second join to
   // search_products. The old plan joined search_products in top (BUY-54980) which
   // forced 1000 PK lookups and blew the 4s tier timeout for broad terms like
   // `s24 case` (~3.6s). Selecting title/category/source/price/updated_at in cand
   // keeps the same ranking semantics in ~40-110ms.
-  const rankCols = `title, category, source, price, updated_at`;
+  const rankCols = `title, category, source, price, updated_at, currency`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
@@ -482,7 +532,11 @@ async function tryTierSearch(
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${inMarketCurrencyBoost.replace(/sp\./g, 'c.')}) *
+            (${consoleTvAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${consoleUnitBoost.replace(/sp\./g, 'c.')}) *
+            (${tvUnitBoost.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -502,6 +556,7 @@ async function tryTierSearch(
   // `LAPTOP_ACCESSORY_SOFT_TOKENS` (searchRelevanceTaxonomy.ts) and
   // `LAPTOP_ACCESSORY_RE` (seo-landing-pages.ts).
   // BUY-80550: co-occurrence tiers mirror mkQuery's laptopAccessoryPenalty.
+  // BUY-80570: same bare-device non-computer title 0.05x tier.
   const laptopAccessoryPenaltyTitle = `
     CASE
       WHEN lower(sp.title) ~* '${deviceTokenRE}'
@@ -510,6 +565,7 @@ async function tryTierSearch(
       WHEN lower(sp.title) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
         OR lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25
+      ${isBareQuery ? `WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}' THEN 0.05` : ''}
       ELSE 1
     END`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
@@ -524,7 +580,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -535,7 +591,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${inMarketCurrencyBoost}) * (${consoleTvAccessoryPenalty}) * (${consoleUnitBoost}) * (${tvUnitBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -579,7 +635,7 @@ async function tryTierSearch(
     // BUY-77812: always lead with FTS. The phone-category regex scan on
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    let rows = (await client.query(mkQuery(andMatch, deviceAccessoryCandExcl), params)).rows;
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
@@ -597,7 +653,7 @@ async function tryTierSearch(
       // Single-lexeme head terms keep the OR fallback because their posting lists are
       // smaller and the archive path is already fast for them.
       if (rows.length === 0 && lexemes.length === 1) {
-        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+        rows = (await client.query(mkQuery(orMatch, deviceAccessoryCandExcl), params)).rows;   // recall fallback
       }
       if (!skipSlowFallbacks) {
         if (rows.length === 0 && isGenericPhoneQuery) {
@@ -666,6 +722,7 @@ async function tryTierSearch(
     // Shopify labelled SG). Serve the child hits without currency
     // isolation — leaking USD is a truthful in-market listing; api_error
     // is not. BUY-79497 archive fallback stays for empty child FTS only.
+    // BUY-80441: Only leak mismatched currency when the in-currency page is empty.
     let served = products;
     if (useChildTable && wantCur && served.length === 0) {
       served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
@@ -814,7 +871,10 @@ router.get(
     const category = req.query.category as string | undefined;
     // BUY-77897: accept both `country_code` (canonical) and `country` (alias used by most callers)
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
-    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    let currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    if (countryCode === 'MY' && !(req.query.currency as string)) {
+      currency = 'MYR';
+    }
 
     // Sort — whitelist to safe columns, default to created_at desc
     const sortParam = (req.query.sort as string) || 'created_at';
@@ -884,7 +944,7 @@ router.get(
     // BUY-80467: SEA child tables (VN/TH/PH/MY) avoid the parent `products` table's
     // inflated pg_class.reltuples (395M, partition overlap). Child reltuples are
     // accurate (VN=0, TH=69, PH=1412, MY=343) and prevent bogus total on /v1/products.
-    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'VN', 'TH', 'PH', 'MY']);
+    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'VN', 'TH', 'PH']);
     const LIST_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
@@ -975,8 +1035,13 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
+    let listRows = dataResult.rows as Record<string, unknown>[];
+    if (countryCode === 'MY') {
+      const native = listRows.filter((row) => String(row.currency || '').toUpperCase() === 'MYR');
+      if (native.length > 0) listRows = native;
+    }
+    const data = listRows.map((row) =>
+      buildProduct(row, currency, false)
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
@@ -2837,7 +2902,7 @@ router.get(
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          await client.query(`SET LOCAL statement_timeout = '8s'`);
+          await client.query(`SET LOCAL statement_timeout = '4s'`);
           const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
           await client.query('COMMIT');
           return r;
