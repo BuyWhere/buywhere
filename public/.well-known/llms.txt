@@ -8,7 +8,7 @@ BuyWhere is an agent-native product catalog API for AI agents and LLM applicatio
 - Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
 - **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
 - Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
-- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime
+- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime target (live history: https://status.buywhere.ai)
 
 ## Quick Start for Agents
 1. Get a free API key: POST https://api.buywhere.ai/v1/auth/register

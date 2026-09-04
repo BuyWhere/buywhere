@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { redis, catalogDb } from '../config';
+import { redis, catalogDb, vectorDb } from '../config';
 import { readDb, replicaStatus } from '../lib/readReplica';
 import { agentIndexMiddleware } from '../middleware/agentHeaders';
 
@@ -354,6 +354,42 @@ router.get('/categories', async (_req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('[catalog/categories] error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// GET /v1/catalog/embedding-evidence — versioned, read-only evidence surface for
+// external observers (bwbench EMBEDDING-BACKFILL claim): row counts by model
+// version, index state, and store size, measured live per request. No caching
+// beyond 60s — the point is that an observer can recompute our claims.
+router.get('/embedding-evidence', async (_req: Request, res: Response) => {
+  try {
+    if (!vectorDb) { res.status(503).json({ error: 'vector store unavailable' }); return; }
+    const cached = await redis.get('catalog:embedding-evidence:v1').catch(() => null);
+    if (cached) { res.setHeader('Content-Type', 'application/json'); res.send(cached); return; }
+    const [byVer, idx, size] = await Promise.all([
+      vectorDb.query(`SELECT model_ver, count(*)::bigint AS rows FROM product_embeddings GROUP BY 1 ORDER BY 2 DESC`),
+      vectorDb.query(`SELECT indexname FROM pg_indexes WHERE tablename = 'product_embeddings'`),
+      vectorDb.query(`SELECT pg_database_size(current_database())::bigint AS bytes`),
+    ]);
+    const body = JSON.stringify({
+      version: 'v1',
+      measured_at: new Date().toISOString(),
+      metric_definitions: {
+        rows: 'count(*) on product_embeddings grouped by model_ver, live',
+        store_bytes: 'pg_database_size on the vector store',
+        indexes: 'pg_indexes on product_embeddings',
+      },
+      rows_by_model_version: byVer.rows,
+      indexes: idx.rows.map((r: { indexname: string }) => r.indexname),
+      store_bytes: Number(size.rows[0]?.bytes ?? 0),
+    });
+    await redis.set('catalog:embedding-evidence:v1', body, 'EX', 60).catch(() => {});
+    res.setHeader('Content-Type', 'application/json');
+    res.send(body);
+  } catch (err) {
+    console.warn('[catalog/embedding-evidence] failed', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
