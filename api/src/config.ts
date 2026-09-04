@@ -31,9 +31,14 @@ export const db = new Pool({
 // planner regressions.
 const replicaStatementTimeout = parseInt(process.env.REPLICA_STATEMENT_TIMEOUT || '60000');
 
-export const replicaDb: Pool | null = process.env.REPLICA_DATABASE_URL
+// 09-04 cutover: the GCP read replica is retired; SOURCE_DATABASE_URL (the
+// catalog primary, set only at cutover) takes its place as the embed read
+// source. REPLICA_DATABASE_URL is honored if present for compatibility but
+// must never be re-set — see the one-writer ruling.
+const EMBED_SOURCE_URL = process.env.SOURCE_DATABASE_URL || process.env.REPLICA_DATABASE_URL || '';
+export const replicaDb: Pool | null = EMBED_SOURCE_URL
   ? new Pool({
-      connectionString: process.env.REPLICA_DATABASE_URL,
+      connectionString: EMBED_SOURCE_URL,
       max: parseInt(process.env.PG_POOL_MAX || '20'),
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
