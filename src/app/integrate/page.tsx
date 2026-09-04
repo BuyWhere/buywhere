@@ -147,7 +147,7 @@ export default function IntegratePage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across 950,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), list_categories (browse available categories), and find_best_price (cheapest current listing across 950,000+ merchants)."
+          text: "BuyWhere exposes 13 MCP tools. Read (v1): search_products, get_product, compare_products, get_deals, list_categories, find_best_price, find_similar. Read (v2, structured results): search_products_v2, get_product_v2, compare_products_v2, get_deals_v2, find_best_price_v2. Write: ingest_products (authenticated merchants). Live inventory: tools/list on the MCP endpoint."
         }
       },
       {
@@ -259,7 +259,7 @@ export default function IntegratePage() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Agents-first setup</p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">Agents: zero-human setup</h2>
             <p className="mt-4 text-lg leading-relaxed text-slate-600">
-              Register an agent directly and get an API key in the JSON response. 10,000 requests/day free.
+              Register an agent directly and get an API key in the JSON response. Free tier: 10 requests/minute, 10,000 requests/day.
             </p>
           </div>
           <div className="rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
@@ -281,7 +281,7 @@ export default function IntegratePage() {
               MCP tools
             </p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">
-              6 tools available via MCP
+              13 tools available via MCP
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-slate-600">
               Each tool maps to a BuyWhere API endpoint. The MCP server handles
