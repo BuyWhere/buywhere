@@ -72,19 +72,39 @@ async function fetchDocumentEmbeddings(texts: string[], apiKey: string): Promise
  * BUY-76567: Embed a single query text via Flow AI for search-time use.
  * Returns a vector string suitable for pgvector (<=> operator).
  */
+// Query-embed timeout budget (v2 flip amendment A3, 2026-09-04): a search request's
+// embed leg must fail FAST and HONESTLY. Without an abort, a hanging embed rides the
+// whole 15s handler watchdog and surfaces as a degraded-200 'handler_timeout' — true
+// but unhelpful. 300ms is generous for one short string; exhaustion throws a named
+// error so the caller can set fallback_reason='embed_timeout' (a distinct honesty
+// case, produced deliberately in tests — a failure case that cannot be produced
+// proves nothing).
+const QUERY_EMBED_TIMEOUT_MS = Number(process.env.QUERY_EMBED_TIMEOUT_MS ?? 300);
+
 async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const res = await fetch(FLOWAI_EMBED_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'flow-embed-1',
-      input: [truncate(text)],
-      dimensions: EMBED_DIM,
-    }),
-  });
+  const ac = new AbortController();
+  const killer = setTimeout(() => ac.abort(), QUERY_EMBED_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(FLOWAI_EMBED_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'flow-embed-1',
+        input: [truncate(text)],
+        dimensions: EMBED_DIM,
+      }),
+      signal: ac.signal,
+    });
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw new Error('embed_timeout');
+    throw err;
+  } finally {
+    clearTimeout(killer);
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Flow AI API ${res.status}: ${body}`);

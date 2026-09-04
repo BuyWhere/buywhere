@@ -773,7 +773,8 @@ async function tryTierSearch(
   }
 }
 
-async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
+type QueryEmbedResult = { vector: string | null; failure?: 'embed_timeout' | 'query_embed_failed' };
+async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<QueryEmbedResult> {
   try {
     // v2 (restored 2026-09-03): FLOWAI_EMBED_API_KEY -> flow-embed-1 (1024-dim, matches
     // embedding_v2). Distinct cache prefix keeps 512-dim gemini vectors separate.
@@ -781,14 +782,17 @@ async function getCachedQueryEmbedding(query: string, geminiKey: string): Promis
     const ver = flowKey ? 'v2' : 'v1';
     const embedKey = `qembed:${ver}:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
-    if (cached) return cached;
+    if (cached) return { vector: cached };
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
     const vector = await embedQuery(query, flowKey || geminiKey);
     await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
-    return vector;
+    return { vector };
   } catch (err) {
     console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
-    return null;
+    // A timeout is not an outage: name the failure so the honesty fields can.
+    // Returned per-call (never module state — concurrent searches must not
+    // cross-contaminate each other's fallback_reason).
+    return { vector: null, failure: (err as Error).message === 'embed_timeout' ? 'embed_timeout' as const : 'query_embed_failed' as const };
   }
 }
 
@@ -1260,7 +1264,7 @@ router.get(
         const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
         let semVec: string | null = null;
         const semGk = process.env.GEMINI_API_KEY ?? '';
-        if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
+        if (semGk) semVec = (await getCachedQueryEmbedding(q, semGk)).vector;
         const semHit = await semLookup(redis, semScope, qNorm, semVec);
         res.locals.semScope = semScope;
         res.locals.semQNorm = qNorm;
@@ -1907,8 +1911,9 @@ router.get(
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
-        if (!queryVector) modeExec.fallback_reason = 'query_embed_failed';
+        const embedRes = await getCachedQueryEmbedding(q, geminiKey);
+        const queryVector = embedRes.vector;
+        if (!queryVector) modeExec.fallback_reason = embedRes.failure ?? 'query_embed_failed';
         if (queryVector) {
           try {
             // BUY-63271: mark a savepoint before any local (client) queries so a statement
