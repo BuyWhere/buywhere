@@ -107,6 +107,11 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
+      // "which code is actually running" must be a GET, not an assumption. Railway
+      // injects RAILWAY_GIT_COMMIT_SHA at build; absent (local dev) it says so
+      // honestly instead of pretending. Retires the prod==main guesswork class
+      // (same fix as Flow's healthz fingerprint, 2026-09-04).
+      commit: (process.env.RAILWAY_GIT_COMMIT_SHA ?? 'unknown').slice(0, 9),
       fix: 'BUY-80177-sea-failfast',
     });
   });
