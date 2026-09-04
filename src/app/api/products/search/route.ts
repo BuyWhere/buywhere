@@ -8,7 +8,7 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'query', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable', 'region']);
+const ALLOWED_PARAMS = new Set(['q', 'query', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable', 'region', 'mode']);
 // BUY-69727: Full device-query + storage-category detection for client-side demotion.
 // Mirrors the isDeviceQuery / isStorageQuery logic from api/src/lib/searchRelevanceTaxonomy.ts
 // to ensure all-words scanning (not just first word).

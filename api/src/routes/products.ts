@@ -51,6 +51,12 @@ const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
 const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
+// ISO-3166-1 alpha-2 (+ EU/UK aliases kept for existing integrators). A syntactically
+// valid but nonexistent code (XX, ZZ) must 400, not silently return global results.
+const ISO_3166_ALPHA2 = new Set('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW EU UK'.split(' '));
+const FIXTURE_MERCHANT_EXCLUSION =
+  "(merchant_id !~ '^shopify_buy[0-9]+_crate$' AND merchant_id !~ '(^|[_-])(test|demo|sandbox|staging)([_-]|$)')";
+
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
@@ -208,6 +214,7 @@ async function tryIdentifierLookup(
     // BUY-79353: domain filter should match merchant_id (actual retailer), not source (feed origin).
     if (p.domain) { conds.push(`sp.merchant_id = $${i}`); params.push(p.domain); i++; }
     conds.push(`sp.is_active = true`);
+  conds.push(FIXTURE_MERCHANT_EXCLUSION.replace(/merchant_id/g, 'sp.merchant_id'));
     conds.push(`sp.price > 0`);
     // BUY-67318: same dead-link gate on identifier-lookup path.
     if (outboundProbeEnabled()) {
@@ -365,6 +372,7 @@ async function tryTierSearch(
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (useChildTable) { conds.push('sp.is_active = true'); }
+  conds.push(FIXTURE_MERCHANT_EXCLUSION.replace(/merchant_id/g, 'sp.merchant_id'));
   // BUY-67318: same dead-link gate on the tier path. Child tables inherit
   // the `url_status` columns from the parent partition.
   if (outboundProbeEnabled()) {
@@ -785,7 +793,7 @@ async function getCachedQueryEmbedding(query: string, geminiKey: string): Promis
     if (cached) return { vector: cached };
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
     const vector = await embedQuery(query, flowKey || geminiKey);
-    await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
+    await redis.set(embedKey, vector, 'EX', 86400).catch(() => {});
     return { vector };
   } catch (err) {
     console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
@@ -1178,6 +1186,7 @@ router.get(
       }
       for (const [f, v] of [['country_code', req.query.country_code], ['country', req.query.country], ['cc', req.query.cc], ['deliver_to', req.query.deliver_to]] as const) {
         if (v !== undefined && !/^[A-Za-z]{2}$/.test(String(v))) verrs.push({ field: f, issue: 'must be a 2-letter ISO country code' });
+        else if (v !== undefined && !ISO_3166_ALPHA2.has(String(v).toUpperCase())) verrs.push({ field: f, issue: 'is not a recognized ISO-3166 country code' });
       }
       const vMin = req.query.min_price !== undefined ? Number(req.query.min_price) : undefined;
       const vMax = req.query.max_price !== undefined ? Number(req.query.max_price) : undefined;
@@ -1339,7 +1348,10 @@ router.get(
       if (handled) return;
     }
 
-    const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    const baseConditions: string[] = ['is_active = true', 'price > 0',
+      // Internal fixture merchants must never reach ranking (BWEXT-20464093):
+      // deploy crates and test/demo/staging shops won implausible best-price picks.
+      FIXTURE_MERCHANT_EXCLUSION];
     // BUY-67318: when the outbound probe flag is on, exclude confirmed-dead
     // (HTTP 404/410) URLs from search results so we never surface a buy button
     // pointing at a dead retailer page. No-op when PROBE_OUTBOUND_LINKS is
@@ -1986,7 +1998,12 @@ router.get(
               // Child partitions are already country-scoped.
               if (countryCode && !useSpChildTable) { spConds.push(`sp.country_code = $${si}`); spParams.push(countryCode); si++; }
               // BUY-67318: same dead-link gate as tier path.
-              if (outboundProbeEnabled()) { spConds.push(liveUrlCondition('sp')); }
+              // BUY-80926: url_status exists on the US/SG child partitions but NOT on
+              // search_products — with only deliver_to set, ccUpper is empty, the query
+              // routes to search_products and threw (caught as fallback_reason=vector_error,
+              // killing hybrid entirely). Gate on the child table; candidates from the
+              // ungated path are still dead-link-filtered by the products-side conditions.
+              if (outboundProbeEnabled() && useSpChildTable) { spConds.push(liveUrlCondition('sp')); }
               if (minPrice != null && Number.isFinite(minPrice)) { spConds.push(`sp.price >= $${si}`); spParams.push(minPrice); si++; }
               if (maxPrice != null && Number.isFinite(maxPrice)) { spConds.push(`sp.price <= $${si}`); spParams.push(maxPrice); si++; }
               if (brand) { spConds.push(`sp.brand ILIKE $${si}`); spParams.push(`%${brand}%`); si++; }

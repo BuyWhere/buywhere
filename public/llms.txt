@@ -37,10 +37,20 @@ BuyWhere is an agent-native product catalog API for AI agents and LLM applicatio
 MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
-### MCP Tools
-Read tools (v1): search_products, get_product, compare_products, get_deals, list_categories, find_best_price, find_similar.
-Read tools (v2, structured results): search_products_v2, get_product_v2, compare_products_v2, get_deals_v2, find_best_price_v2.
-Write tool: ingest_products (authenticated merchants only).
+### MCP Tools (13 total, from the live tools/list registry)
+- search_products
+- get_product
+- compare_products
+- get_deals
+- list_categories
+- find_best_price
+- find_similar
+- search_products_v2
+- get_product_v2
+- compare_products_v2
+- get_deals_v2
+- find_best_price_v2
+- ingest_products (write; authenticated merchants only)
 1. **search_products / search_products_v2** — Full-text, semantic, or hybrid search with merchant, price, category, country, and deliver_to filters.
 2. **get_product / get_product_v2** — Full product details by BuyWhere product ID.
 3. **compare_products / compare_products_v2** — Compare 2-5 products side-by-side.
@@ -60,7 +70,7 @@ Authorization: Bearer bw_live_YOUR_API_KEY
 
 Get a free API key at: https://api.buywhere.ai/v1/auth/register
 
-Free tier: 10,000 requests/day. No credit card required.
+Free tier: 10 requests/minute, 10,000 requests/day. No credit card required.
 
 ## Use Cases
 - AI shopping agents and price comparison assistants
@@ -77,7 +87,7 @@ Free tier: 10,000 requests/day. No credit card required.
 - npm registry metadata: https://registry.npmjs.org/@buywhere%2fmcp-server
 
 ## Rate Limits
-- Free: 10,000 requests/day
+- Free: 10 requests/minute, 10,000 requests/day
 - Starter: 50,000 calls/month — $9/month
 - Pro: 500,000 calls/month — $49/month
 - Enterprise: Custom limits
