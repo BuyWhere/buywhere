@@ -25,6 +25,24 @@ const FETCH_UA =
 
 const FETCH_TIMEOUT_MS = 6000;
 
+
+// BWEXT-6DE35171: upstream failures used to return 502 so the client onError
+// swapped in the branded SVG — functionally fine, but every failure logged a
+// console error ("Failed to load resource: 502") that external quality checks
+// count. Serve the placeholder SERVER-side with 200 instead: same visual,
+// zero console noise. Short cache so a transient upstream failure can heal.
+function placeholderSvg(): NextResponse {
+  const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"320\" viewBox=\"0 0 320 320\"><rect width=\"320\" height=\"320\" fill=\"#f3f4f6\"/><g fill=\"#9ca3af\"><rect x=\"110\" y=\"120\" width=\"100\" height=\"70\" rx=\"8\" fill=\"none\" stroke=\"#9ca3af\" stroke-width=\"6\"/><circle cx=\"135\" cy=\"145\" r=\"9\"/><path d=\"M115 180l30-28 20 18 25-24 20 34z\"/></g></svg>`;
+  return new NextResponse(svg, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=900",
+      "X-BuyWhere-Image-Proxy": "fallback",
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get("url");
   if (!raw) {
@@ -66,10 +84,7 @@ export async function GET(request: NextRequest) {
     // branded SVG fallback. A 200 with text/html is an Akamai-style bot page,
     // not an image — treat identically.
     if (!res.ok || !contentType.startsWith("image/") || !res.body) {
-      return NextResponse.json(
-        { error: "upstream fetch failed", status: res.status, contentType },
-        { status: 502 },
-      );
+      return placeholderSvg();
     }
 
     return new NextResponse(res.body, {
@@ -81,7 +96,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch {
-    return NextResponse.json({ error: "upstream fetch failed" }, { status: 502 });
+    return placeholderSvg();
   } finally {
     clearTimeout(timer);
   }

@@ -17,12 +17,27 @@ interface Deal {
 
 async function getDeals(): Promise<Deal[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/v1/deals`, {
+    // BWEXT-2E39756C: this fetched a site-relative /api/v1/deals that has never
+    // existed (404 -> silent []) — six consecutive external-benchmark failures.
+    // The real endpoint is the API host's /v1/products/deals, shape {data:[...]}.
+    const apiBase = (process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'https://api.buywhere.ai').replace(/\/$/, '');
+    const res = await fetch(`${apiBase}/v1/products/deals?deliver_to=SG&limit=24`, {
       next: { revalidate: 900 },
     });
     if (!res.ok) return [];
-    return res.json();
+    const body = await res.json();
+    const items = Array.isArray(body?.data) ? body.data : [];
+    return items.map((p: Record<string, unknown>) => ({
+      slug: String(p.id),
+      name: String(p.title ?? p.name ?? ''),
+      price: (p.price as { amount?: number })?.amount ?? (typeof p.price === 'number' ? p.price : 0),
+      original_price: (p.original_price as number) ?? 0,
+      discount_percent: (p.discount_pct as number) ?? 0,
+      retailer: String(p.merchant_name ?? p.merchant ?? p.merchant_id ?? ''),
+      url: String(p.click_url ?? p.url ?? ''),
+      image_url: p.image_url ? String(p.image_url) : undefined,
+      in_stock: p.availability !== 'unavailable',
+    }));
   } catch {
     return [];
   }

@@ -2379,6 +2379,7 @@ router.get(
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
+      dealConditions.push(FIXTURE_MERCHANT_EXCLUSION);
       dealConditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $${dealIdx}`);
     }
     dealParams.push(minDiscount);
