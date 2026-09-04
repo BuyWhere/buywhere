@@ -2375,17 +2375,16 @@ router.get(
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
+    // Fixture exclusion + plausibility bounds apply in BOTH branches — the first
+    // fix landed only in the else-leg while prod uses the generated column,
+    // so a $2M gag listing kept headlining /deals (BWEXT-552F936D).
+    dealConditions.push(FIXTURE_MERCHANT_EXCLUSION);
+    dealConditions.push(`(metadata->>'original_price')::numeric <= price * 10`);
+    dealConditions.push(`(metadata->>'original_price')::numeric < 500000`);
     if (useDiscountCol) {
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
-      dealConditions.push(FIXTURE_MERCHANT_EXCLUSION);
-      // Price-plausibility bounds (BWEXT-552F936D): corrupt original_price
-      // metadata (e.g. $153,131 "was" on a $38 item, or a $2M gag listing)
-      // otherwise wins the discount sort and headlines /deals. A real deal is
-      // at most 90% off; anything steeper is bad data, not a bargain.
-      dealConditions.push(`(metadata->>'original_price')::numeric <= price * 10`);
-      dealConditions.push(`(metadata->>'original_price')::numeric < 500000`);
       dealConditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $${dealIdx}`);
     }
     dealParams.push(minDiscount);
