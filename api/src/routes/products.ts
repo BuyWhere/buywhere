@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS 
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, isDeviceUnitQuery, deviceUnitAccessoryExclusionFragment, isBareDeviceQuery, NON_COMPUTER_TITLE_PG_RE_SOURCE, BARE_DEVICE_QUERY_TOKENS } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, isDeviceUnitQuery, deviceUnitAccessoryExclusionFragment, deviceUnitAccessoryExclusionFragmentProducts, isBareDeviceQuery, NON_COMPUTER_TITLE_PG_RE_SOURCE, BARE_DEVICE_QUERY_TOKENS } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -1375,6 +1375,10 @@ router.get(
     // queries. Unqualified `category` matches the unaliased `products` table.
     const storageExclProducts = deviceStorageExclusionFragmentProducts(q);
     if (storageExclProducts) baseConditions.push(`1 = 1${storageExclProducts}`);
+    // BWEXT-9DFD3159: unit-query accessory exclusion on the products-side paths
+    // (base FTS, hybrid candidates, semantic post-filter all flow through
+    // baseConditions). Tier already applies its sp-qualified twin.
+    if (isDeviceUnitQuery(q)) baseConditions.push(`1 = 1${deviceUnitAccessoryExclusionFragmentProducts()}`);
     const baseParams: unknown[] = [];
     let baseIdx = 1;
     // BUY-79497: keep SQL currency AND only for explicit price bounds. A hard

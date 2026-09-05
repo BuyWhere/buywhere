@@ -247,6 +247,14 @@ export const LAPTOP_ACCESSORY_PG_RE_SOURCE = LAPTOP_ACCESSORY_SOFT_TOKENS
 export const DEVICE_UNIT_QUERY_TOKENS = [
   'iphone', 'airpod', 'airpods', 'pixel', 'galaxy',
   'ps5', 'playstation',
+  // BWEXT-9DFD3159/CF59D741 (2026-09-05): the external benchmark's worst
+  // exact-product fixtures were exactly the families missing here — apple
+  // watch 90% accessory contamination, kindle 90%, sony xm5 70%, dyson 20-30%.
+  // A unit query for any of these should never rank a case/strap/filter first.
+  'watch', 'smartwatch', 'kindle', 'paperwhite', 'nintendo', 'dyson', 'airwrap',
+  'garmin', 'fenix', 'quietcomfort', 'headphone', 'headphones', 'earbuds',
+  'vacuum', 'purifier', 'toothbrush', 'stroller', 'keyboard', 'monitor',
+  'tablet', 'ipad', 'camera', 'drone', 'printer', 'blender', 'kettle',
 ] as const;
 
 export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
@@ -257,15 +265,32 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'eartips', 'silicone', 'replacement', 'left earbud', 'right earbud',
   'earbuds only', 'earbud only', 'wallet', 'folio', 'tempered',
   'mp4', 'dualsense', 'controller', 'controllers',
+  // 2026-09-05 fixture-driven additions (each seen winning a top rank for an
+  // exact-product query in the external benchmark):
+  'band', 'bands', 'watch strap', 'screen protector', 'camera protector',
+  'glass film', 'protective film', 'filter', 'filters', 'refill', 'refills',
+  'brush head', 'brush heads', 'attachment', 'attachments', 'sleeve', 'sleeves',
+  'bag for', 'carry bag', 'carrying bag', 'usb hub', 'hub for', 'dock for',
+  'grip', 'grips', 'keycap', 'keycaps', 'wrist rest', 'mouse pad', 'mousepad',
+  'cleaner for', 'cleaning kit', 'remote for', 'stand for', 'mount for',
 ] as const;
 
-export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE = DEVICE_UNIT_ACCESSORY_SOFT_TOKENS
+// 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
+// a real "Apple Watch Series 10 Titanium Case with Sport Band" IS the watch.
+// Accessories announce themselves grammatically: either "<accessory> ... for/fits/
+// compatible ..." or the title LEADS with the accessory word ("Case for...",
+// "2x Screen Protector..."). Match those constructions, not the vocabulary.
+const ACCESSORY_TOKEN_ALTERNATION = DEVICE_UNIT_ACCESSORY_SOFT_TOKENS
   .map((t) => {
     const parts = t.split(/\s+/);
     return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
   })
-  .map((re) => `\\m(?:${re})\\M`)
   .join('|');
+export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
+  // P1: accessory word within ~40 chars before a for/fits/compatible connector
+  `\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M[^,|]{0,40}\\m(?:for|fits?|compatible)\\M` +
+  // P2: title leads with (count-prefixed) accessory word
+  `|^\\W*(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
 
 function queryTokens(q: string): string[] {
   return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -286,6 +311,13 @@ export function isDeviceUnitQuery(q: string): boolean {
 
 export function deviceUnitAccessoryExclusionFragment(): string {
   return ` AND NOT (lower(sp.title) ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}')`;
+}
+
+// Same exclusion for the products-table (base/FTS/hybrid) paths — the tier-only
+// wiring was why exact-model queries riding the ranked-FTS path (multi-word ANDs
+// like "iphone 16 pro") still surfaced 70-90% accessories (BWEXT-9DFD3159).
+export function deviceUnitAccessoryExclusionFragmentProducts(): string {
+  return ` AND NOT (lower(title) ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}')`;
 }
 
 // BUY-80570: demote non-computer titles for bare device queries
