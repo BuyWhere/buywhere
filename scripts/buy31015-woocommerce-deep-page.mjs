@@ -58,6 +58,8 @@ const runStats = {
   rowsFailed: 0,
   batches: 0,
   ingestErrors: 0,
+  // BUY-81096: error-code histogram so next debug run is one grep, not 4 hours of archaeology.
+  errorCodes: {} as Record<string, number>,
 };
 function nowIso() { return new Date().toISOString(); }
 
@@ -278,6 +280,24 @@ async function ingestBatch(products, opts = {}) {
         runStats.rowsInserted += (r.rows_inserted || 0);
         runStats.rowsUpdated += (r.rows_updated || 0);
         runStats.rowsFailed += (r.rows_failed || 0);
+
+        // BUY-81096: tally per-row error codes so next debug run is one grep.
+        // Previously only the count was recorded — the codes were discarded,
+        // making failures invisible until a human compared rows_failed to
+        // rows_inserted+rows_updated and noticed the gap.
+        if (Array.isArray(r.errors)) {
+          for (const e of r.errors) {
+            const code = e.code || 'unknown';
+            runStats.errorCodes[code] = (runStats.errorCodes[code] || 0) + 1;
+          }
+          // Log top-3 codes so the log file is immediately readable.
+          const topCodes = Object.entries(runStats.errorCodes)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([code, n]) => `${code}=${n}`)
+            .join(' ');
+          if (topCodes) info('ingest error histogram', { top: topCodes });
+        }
         return;
       }
       if (res.status === 429) {
@@ -331,6 +351,8 @@ async function writeStatus() {
     phase: 'tick',
     reason: 'worker_heartbeat',
     processId: process.pid,
+    // BUY-81096: error code histogram for supervisor + alert dashboards.
+    errorCodes: { ...runStats.errorCodes },
   };
   try {
     writeJsonAtomic(STATUS_FILE, status);
@@ -448,6 +470,8 @@ async function run() {
       rowsUpdated: runStats.rowsUpdated,
       rowsFailed: runStats.rowsFailed,
       rowsPerHour: status.rowsPerHour,
+      // BUY-81096: error code histogram so operators can see failure reasons at a glance.
+      errorCodes: runStats.errorCodes,
     });
   }
 }
