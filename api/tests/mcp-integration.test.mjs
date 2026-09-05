@@ -71,7 +71,14 @@ function defaultQueryHandler(sql, params) {
       rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 }), makeProduct('2', { title: 'Office Laptop', price: 899 })],
     });
   }
-  if (typeof sql === 'string' && sql.includes('category_path')) {
+  // 2026-09-05: this branch matched the bare substring `category_path`, which the
+  // product-search SELECT lists legitimately contain (p.category_path / sp.category_path
+  // are output columns). It therefore swallowed the real search queries and returned
+  // CATEGORY rows to them — 0 products — which is why search_products, the `query`
+  // alias and find_best_price have failed every CI run. The genuine category listing
+  // is `SELECT category_path[1] AS slug ... COUNT(*) AS product_count`, so match the
+  // aggregate alias, not the column name.
+  if (typeof sql === 'string' && sql.includes('AS product_count')) {
     return Promise.resolve({ rows: [{ slug: 'electronics', name: 'Electronics', product_count: '150' }] });
   }
   return Promise.resolve({
@@ -450,16 +457,20 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
         return Promise.resolve({ rows: [] });
       }
       // Mock returns rows in price-ASC order (as the real query does).
+      // 2026-09-05: currency is USD, matching country_code US. These rows were
+      // SGD-on-US — precisely the mislabelling BUY-80323's native-currency filter
+      // rejects — so every row was dropped before ranking and best_price came back
+      // null. The fixture contradicted the test's own USD reasoning below.
       // Scam listings come first (cheap), then real listings.
       return Promise.resolve({
         rows: [
           // Scam giveaway junk — should be REJECTED by the outlier guard.
-          { id: 'scam1', title: 'Anker 165W Power Bank giveaway', price: '0.97', currency: 'SGD', domain: 'thegiveawayguys.co.uk', url: 'https://x.com/scam1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
-          { id: 'scam2', title: 'Anker Power Bank $1 deal', price: '1.00', currency: 'SGD', domain: 'shady-store.com', url: 'https://x.com/scam2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'scam1', title: 'Anker 165W Power Bank giveaway', price: '0.97', currency: 'USD', domain: 'thegiveawayguys.co.uk', url: 'https://x.com/scam1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'scam2', title: 'Anker Power Bank $1 deal', price: '1.00', currency: 'USD', domain: 'shady-store.com', url: 'https://x.com/scam2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
           // Legitimate listings in price-ASC order.
-          { id: 'real3', title: 'Anker 325 Power Bank', price: '29.99', currency: 'SGD', domain: 'walmart.com', url: 'https://x.com/real3', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
-          { id: 'real2', title: 'Anker PowerCore 20000mAh', price: '49.99', currency: 'SGD', domain: 'amazon.com', url: 'https://x.com/real2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
-          { id: 'real1', title: 'Anker 737 Power Bank 24000mAh', price: '109.99', currency: 'SGD', domain: 'bestbuy.com', url: 'https://x.com/real1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'real3', title: 'Anker 325 Power Bank', price: '29.99', currency: 'USD', domain: 'walmart.com', url: 'https://x.com/real3', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'real2', title: 'Anker PowerCore 20000mAh', price: '49.99', currency: 'USD', domain: 'amazon.com', url: 'https://x.com/real2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'real1', title: 'Anker 737 Power Bank 24000mAh', price: '109.99', currency: 'USD', domain: 'bestbuy.com', url: 'https://x.com/real1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
         ],
       });
     });
