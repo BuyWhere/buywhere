@@ -273,6 +273,10 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'bag for', 'carry bag', 'carrying bag', 'usb hub', 'hub for', 'dock for',
   'grip', 'grips', 'keycap', 'keycaps', 'wrist rest', 'mouse pad', 'mousepad',
   'cleaner for', 'cleaning kit', 'remote for', 'stand for', 'mount for',
+  // Non-English accessory vocabulary observed ranking #1 for exact-product
+  // queries (Vietnamese case-for, French dock/sleeve, Spanish/German cases):
+  'ốp lưng', 'op lung', 'bao da', 'coque', 'étui', 'etui', 'housse',
+  'connecteur', 'funda', 'carcasa', 'hülle', 'hulle', 'schutzhülle',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
@@ -289,8 +293,12 @@ const ACCESSORY_TOKEN_ALTERNATION = DEVICE_UNIT_ACCESSORY_SOFT_TOKENS
 export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // P1: accessory word within ~40 chars before a for/fits/compatible connector
   `\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M[^,|]{0,40}\\m(?:for|fits?|compatible)\\M` +
-  // P2: title leads with (count-prefixed) accessory word
-  `|^\\W*(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
+  // P1r: connector BEFORE the accessory word ("Kindle Compatible Case & Cover")
+  `|\\m(?:fits?|compatible)\\M[^,|]{0,40}\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  // P2: title leads with the accessory within the first ~3 words — catches
+  // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
+  // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
+  `|^\\W*(?:[\\w&.'-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
 
 function queryTokens(q: string): string[] {
   return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
