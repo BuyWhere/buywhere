@@ -198,6 +198,7 @@ async function tryIdentifierLookup(
     id: IdentifierDetection; countryCode?: string; currency: string; limit: number; offset: number;
     minPrice?: number; maxPrice?: number; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
+  requestedMode?: string | null;
     deliverTo?: string; includeUnshippable?: boolean;
   },
 ): Promise<boolean> {
@@ -322,6 +323,7 @@ async function tryTierSearch(
     compact: boolean; requestStart: number; cacheKey: string;
     deliverTo?: string; includeUnshippable?: boolean;
     source?: string; scrapedVia?: string;
+    requestedMode?: string | null;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -724,7 +726,7 @@ async function tryTierSearch(
         if (res.headersSent) return true;
         const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
-        emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
+        emptyBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
         res.set('X-Search-Tier', '1');
@@ -762,7 +764,7 @@ async function tryTierSearch(
     const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
-    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
+    responseBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
@@ -1348,6 +1350,7 @@ router.get(
         category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable,
         source, scrapedVia,
+        requestedMode: rawMode ?? null,
       });
       if (handled) return;
     }
