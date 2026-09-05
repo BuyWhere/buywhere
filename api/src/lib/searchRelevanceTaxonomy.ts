@@ -298,7 +298,7 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // P2: title leads with the accessory within the first ~3 words — catches
   // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
   // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
-  `|^\\W*(?:[\\w&.'-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
+  `|^\\W*(?:[\\w&.-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
 
 function queryTokens(q: string): string[] {
   return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
