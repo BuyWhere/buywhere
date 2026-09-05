@@ -44,6 +44,8 @@ jobs:
 
       - name: Run MCP integration tests
         run: npm run test:mcp
+        env:
+          DATABASE_URL: ${{ secrets.MCP_CI_DATABASE_URL }}
 
       - name: Run API unit tests
         run: npm test
