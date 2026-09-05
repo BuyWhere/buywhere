@@ -54,8 +54,17 @@ const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 // ISO-3166-1 alpha-2 (+ EU/UK aliases kept for existing integrators). A syntactically
 // valid but nonexistent code (XX, ZZ) must 400, not silently return global results.
 const ISO_3166_ALPHA2 = new Set('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW EU UK'.split(' '));
-const FIXTURE_MERCHANT_EXCLUSION =
-  "(merchant_id !~ '^shopify_buy[0-9]+_crate$' AND merchant_id !~ '(^|[_-])(test|demo|sandbox|staging)([_-]|$)')";
+// BWEXT-20464093 round 2: the fixture identity ALSO lives in the source column —
+// the response's "merchant" field is literally `source AS domain`, so filtering
+// merchant_id alone left 34 crate contexts in the 09-05 external run (the
+// ambiguous-selector class: one concept, two columns). NULL-safe via coalesce:
+// a NULL source must not exclude the row.
+function fixtureMerchantExclusion(prefix = ''): string {
+  const cols = [`${prefix}merchant_id`, `${prefix}source`];
+  const pats = ["'^shopify_buy[0-9]+_crate$'", "'(^|[_-])(test|demo|sandbox|staging)([_-]|$)'"];
+  return '(' + cols.map((c) => pats.map((p) => `coalesce(${c},'') !~ ${p}`).join(' AND ')).join(' AND ') + ')';
+}
+const FIXTURE_MERCHANT_EXCLUSION = fixtureMerchantExclusion();
 
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
@@ -215,7 +224,7 @@ async function tryIdentifierLookup(
     // BUY-79353: domain filter should match merchant_id (actual retailer), not source (feed origin).
     if (p.domain) { conds.push(`sp.merchant_id = $${i}`); params.push(p.domain); i++; }
     conds.push(`sp.is_active = true`);
-  conds.push(FIXTURE_MERCHANT_EXCLUSION.replace(/merchant_id/g, 'sp.merchant_id'));
+  conds.push(fixtureMerchantExclusion('sp.'));
     conds.push(`sp.price > 0`);
     // BUY-67318: same dead-link gate on identifier-lookup path.
     if (outboundProbeEnabled()) {
@@ -374,7 +383,7 @@ async function tryTierSearch(
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (useChildTable) { conds.push('sp.is_active = true'); }
-  conds.push(FIXTURE_MERCHANT_EXCLUSION.replace(/merchant_id/g, 'sp.merchant_id'));
+  conds.push(fixtureMerchantExclusion('sp.'));
   // BUY-67318: same dead-link gate on the tier path. Child tables inherit
   // the `url_status` columns from the parent partition.
   if (outboundProbeEnabled()) {
