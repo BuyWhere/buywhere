@@ -182,11 +182,21 @@ export function buildProduct(
     keyHash?: string | null;
   } | null,
 ): CanonicalProduct {
-  // BUY-80679: use the market's canonical currency as the authoritative value.
-  // The DB `currency` column is unreliable (partitions carry SGD contamination from
-  // the SG/US ingest era). `row.currency` must NOT override the market-default
-  // — otherwise MY serves SGD, TH serves SGD, GB serves USD, etc.
-  const currency = defaultCurrency;
+  // BUY-80679 revisited (2026-09-05, BWEXT-78A3634B): stamping defaultCurrency over
+  // EVERY row threw away truth — verified against the store: newegg rows are USD and
+  // datablitz PHP in both products and search_products, yet responses labeled them
+  // SGD (a PHP 45,950 price served as SGD dollars). The contamination BUY-80679
+  // feared has a precise signature — SGD stamped on a row whose country_code is not
+  // SG (the SG/US ingest era bug) — so distrust exactly that case, not the column:
+  //   1. row currency, unless it is the contamination signature;
+  //   2. the row country's canonical currency;
+  //   3. the market default (old behavior) as last resort.
+  const rowCur = extractRowCurrency(row);
+  const rowCc = ((row.country_code as string) || '').toUpperCase();
+  const contaminated = rowCur === 'SGD' && rowCc !== '' && rowCc !== 'SG';
+  const currency = (rowCur && !contaminated ? rowCur : null)
+    || (rowCc && COUNTRY_CURRENCY[rowCc])
+    || defaultCurrency;
   const amount = extractNumericPrice(row.price);
 
   // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.

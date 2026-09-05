@@ -1150,9 +1150,13 @@ router.get(
     const countryCode = explicitCountry || cc; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
-    // Infer default currency from country_code when not explicitly provided.
-    // Price filters (min_price/max_price) apply in this inferred currency.
-    const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
+    // Infer default currency from country_code, else from deliver_to (the buyer's
+    // market — BWEXT-78A3634B: deliver_to=US with no country used to default the
+    // whole response shape to SGD), else SGD. Price filters apply in this currency.
+    const dtForCurrency = ((req.query.deliver_to as string) || '').toUpperCase();
+    const currency = (req.query.currency as string)
+      || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : null)
+      || (dtForCurrency ? (COUNTRY_CURRENCY[dtForCurrency] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const rawPage = parseInt((req.query.page as string) || '0');
     const rawOffset = parseInt((req.query.offset as string) || '0');
