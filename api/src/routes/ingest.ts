@@ -410,6 +410,15 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   const priceCheck = validatePrice(p.price, priceCurrency);
   if (priceCheck.verdict === 'hard_reject') {
     // BUY-81096: distinct code so scrapers can histogram hard_reject vs outlier.
+    // The code is returned in the response body only, which is ephemeral -- the
+    // outlier branch below logs but this one did not, so the rejections we most
+    // needed to count were the ones leaving no trace. Log with a stable prefix so
+    // hard_reject can be counted server-side, independent of which scraper build
+    // is running and immune to the insert/update mode confound in lane metrics.
+    console.warn(
+      `[ingest] price hard_reject: source=${source} sku=${sku} ` +
+      `price=${p.price} ${priceCurrency} — ${priceCheck.reason}`
+    );
     return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_hard_reject') };
   }
   if (priceCheck.verdict === 'outlier') {
