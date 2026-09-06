@@ -46,16 +46,20 @@ router.get(
 
     // Fast path: use pre-computed mcp_category_summary table (populated by warmup)
     // Avoids the full GROUP BY on 16M products that always exceeds statement_timeout.
+    let summaryError: string | null = null;
     try {
       const summaryCheck = await db.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
       if (summaryCheck.rows[0]?.tbl) {
         // BUY-78651: pin SEO aliases (laptops) that rank below the top-50 cutoff.
         const summaryResult = await db.query(
+          // The parentheses are REQUIRED: `... ORDER BY x LIMIT 50 UNION SELECT ...`
+          // is a Postgres syntax error, not a slow query. Without them this threw on
+          // every request and the catch below reported it as an empty summary.
           `SELECT slug, name, product_count FROM (
-             SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50
+             (SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50)
              UNION
-             SELECT slug, name, product_count FROM mcp_category_summary
-              WHERE LOWER(slug) IN ('laptops', 'computers')
+             (SELECT slug, name, product_count FROM mcp_category_summary
+               WHERE LOWER(slug) IN ('laptops', 'computers'))
            ) pinned
            ORDER BY product_count DESC`
         );
@@ -73,7 +77,16 @@ router.get(
           return res.json(body);
         }
       }
-    } catch (_) {}
+    } catch (err) {
+      // Reported by agent://codex/buywhere/evaluator 2026-09-06 as a 503 on
+      // /v1/categories. This was a bare `catch (_) {}`. The query above was
+      // syntactically invalid, so it threw on EVERY request, and the handler
+      // below reported `category_summary_empty` -- a reason that was never true:
+      // mcp_category_summary held 90 rows the whole time. A swallowed error that
+      // reports itself as absent data hides the defect AND misdirects the fix.
+      summaryError = err instanceof Error ? err.message : String(err);
+      console.error('[categories] summary fast-path FAILED (not empty):', summaryError);
+    }
 
     // BUY-78933: NEVER scan products with INITCAP(LOWER(category_path[1])).
     // That query starved catalog search (17 concurrent backends, 17m–2h IO).
@@ -84,7 +97,8 @@ router.get(
         total: 0,
         response_time_ms: Date.now() - start,
         unavailable: true,
-        reason: 'category_summary_empty',
+        // Distinguish "the query blew up" from "there is genuinely nothing here".
+        reason: summaryError ? 'category_summary_query_failed' : 'category_summary_empty',
       },
     };
     res.status(503).json(body);
