@@ -409,7 +409,8 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
   const priceCurrency = typeof p.currency === 'string' ? p.currency : 'SGD';
   const priceCheck = validatePrice(p.price, priceCurrency);
   if (priceCheck.verdict === 'hard_reject') {
-    return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_outlier') };
+    // BUY-81096: distinct code so scrapers can histogram hard_reject vs outlier.
+    return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_hard_reject') };
   }
   if (priceCheck.verdict === 'outlier') {
     console.warn(`[ingest] price outlier: sku=${sku} price=${p.price} ${priceCurrency} — ${priceCheck.reason}`);

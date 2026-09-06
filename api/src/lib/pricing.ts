@@ -23,18 +23,19 @@ export const MAX_PRICE = 50_000;
  * prices outside are flagged as price_outlier and returned as ingest
  * errors so the scraper can be fixed.
  */
-export const PRICE_BANDS: Record<string, { warnLow: number; warnHigh: number }> = {
-  USD: { warnLow: 0.50, warnHigh: 15_000 },
-  SGD: { warnLow: 0.50, warnHigh: 20_000 },
-  GBP: { warnLow: 0.40, warnHigh: 12_000 },
-  EUR: { warnLow: 0.45, warnHigh: 14_000 },
-  AUD: { warnLow: 0.75, warnHigh: 22_000 },
-  JPY: { warnLow: 10, warnHigh: 5_000_000 },
-  MYR: { warnLow: 2, warnHigh: 65_000 },
-  PHP: { warnLow: 25, warnHigh: 800_000 },
-  THB: { warnLow: 15, warnHigh: 500_000 },
-  IDR: { warnLow: 1_500, warnHigh: 750_000_000 },
-  KRW: { warnLow: 500, warnHigh: 70_000_000 },
+export const PRICE_BANDS: Record<string, { warnLow: number; warnHigh: number; hardHigh: number }> = {
+  USD: { warnLow: 0.50, warnHigh: 15_000, hardHigh: 75_000 },
+  SGD: { warnLow: 0.50, warnHigh: 20_000, hardHigh: 100_000 },
+  GBP: { warnLow: 0.40, warnHigh: 12_000, hardHigh: 60_000 },
+  EUR: { warnLow: 0.45, warnHigh: 14_000, hardHigh: 70_000 },
+  AUD: { warnLow: 0.75, warnHigh: 22_000, hardHigh: 110_000 },
+  JPY: { warnLow: 10, warnHigh: 5_000_000, hardHigh: 25_000_000 },
+  MYR: { warnLow: 2, warnHigh: 65_000, hardHigh: 325_000 },
+  PHP: { warnLow: 25, warnHigh: 800_000, hardHigh: 4_000_000 },
+  THB: { warnLow: 15, warnHigh: 500_000, hardHigh: 2_500_000 },
+  IDR: { warnLow: 1_500, warnHigh: 750_000_000, hardHigh: 3_750_000_000 },
+  KRW: { warnLow: 500, warnHigh: 70_000_000, hardHigh: 350_000_000 },
+  VND: { warnLow: 500, warnHigh: 80_000_000, hardHigh: 400_000_000 }, // BUY-81096
 };
 
 export type PriceVerdict = 'ok' | 'hard_reject' | 'outlier';
@@ -55,12 +56,26 @@ export function validatePrice(price: number, currency?: string): PriceCheckResul
   if (price < MIN_PRICE) {
     return { verdict: 'hard_reject', reason: `price ${price} is below minimum ${MIN_PRICE}` };
   }
-  if (price > MAX_PRICE) {
+
+  // BUY-81096: resolve currency BEFORE applying any ceiling. The flat
+  // MAX_PRICE is USD-denominated; applying it first silently hard-rejected
+  // SEA inventory whose local-unit prices are numerically large
+  // (250,000 IDR is about USD 15, not 250,000 dollars).
+  const cur = (currency || 'SGD').toUpperCase();
+  const band = PRICE_BANDS[cur];
+
+  if (band) {
+    if (price > band.hardHigh) {
+      return {
+        verdict: 'hard_reject',
+        reason: `price ${price} ${cur} exceeds hard ceiling ${band.hardHigh} ${cur}`,
+      };
+    }
+  } else if (price > MAX_PRICE) {
+    // No band for this currency -- fall back to the flat ceiling.
     return { verdict: 'hard_reject', reason: `price ${price} exceeds maximum ${MAX_PRICE}` };
   }
 
-  const cur = (currency || 'SGD').toUpperCase();
-  const band = PRICE_BANDS[cur];
   if (band) {
     if (price < band.warnLow) {
       return {
