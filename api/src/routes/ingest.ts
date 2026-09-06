@@ -969,6 +969,30 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       }
     }
 
+    // Per-batch rejection histogram. Most validation rejections (missing sku,
+    // merchant_id, title, non-numeric price, missing url) return an error code
+    // and log NOTHING -- the reason lives only in the response body, which the
+    // scraper discards. A merchant rejecting 239 of 243 rows was therefore
+    // undiagnosable. One aggregated line per batch instead of one per product
+    // keeps volume proportional to batches, not to rows.
+    if (errors.length > 0) {
+      const rejectMerchant =
+        (Array.isArray(req.body?.products) && req.body.products.length > 0
+          ? (req.body.products[0] as Record<string, unknown>)?.merchant_id
+          : undefined) ?? 'unknown';
+      const byCode: Record<string, number> = {};
+      for (const e of errors) { const c = e.code ?? 'unknown'; byCode[c] = (byCode[c] ?? 0) + 1; }
+      const hist = Object.entries(byCode)
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, n]) => `${c}=${n}`)
+        .join(' ');
+      console.warn(
+        `[ingest] reject histogram: source=${source} merchant=${rejectMerchant} ` +
+        `batch=${Array.isArray(req.body?.products) ? req.body.products.length : 0} ` +
+        `failed=${rowsFailed} ${hist}`
+      );
+    }
+
     const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
     if (runId !== null) {
       await withDbRetry(
