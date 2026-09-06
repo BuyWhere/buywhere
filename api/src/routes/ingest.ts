@@ -416,7 +416,12 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
     // hard_reject can be counted server-side, independent of which scraper build
     // is running and immune to the insert/update mode confound in lane metrics.
     console.warn(
-      `[ingest] price hard_reject: source=${source} sku=${sku} ` +
+      // merchant_id included so the price=0 population can be attributed:
+      // some upstream merchants publish "0" in their own Store API ("contact
+      // for price"), in which case rejection is CORRECT and the loss is not
+      // recoverable. Without the merchant we cannot separate those from a
+      // genuine parse failure, and the two imply opposite actions.
+      `[ingest] price hard_reject: source=${source} merchant=${p.merchant_id} sku=${sku} ` +
       `price=${p.price} ${priceCurrency} — ${priceCheck.reason}`
     );
     return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_hard_reject') };
