@@ -13996,7 +13996,13 @@ export function buildAnswerBlock(
   products: LandingProduct[],
   checked: { iso: string; text: string },
 ): AnswerBlock | null {
-  const priced = products
+  // BUY-81043: Filter out accessories to match what the cards display.
+  // Without this, degraded API responses (returning accessories like $2 filters/pads)
+  // cause the answer block to show wrong prices like "US$99–US$00" instead of
+  // the actual cheapest product prices shown in cards.
+  const primaries = products.filter((p) => !isGenericAccessoryProduct(p));
+
+  const priced = primaries
     .map((p) => ({
       merchant: shortMerchant(p.merchant || "BuyWhere seller"),
       price: p.price !== null && p.price !== undefined && Number.isFinite(Number(p.price))
