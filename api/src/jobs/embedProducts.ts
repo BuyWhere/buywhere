@@ -123,41 +123,34 @@ async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number
  * BUY-60368: Fetch the existing `product_embeddings` hash set from `vectorDb`
  * so `runEmbedBatch` can filter stale rows without a cross-database JOIN.
  *
- * The replica (`sourceDb`) does not know about `product_embeddings`. We
- * load a `(product_id, text_hash)` map from `vectorDb` once per run; the
- * map is bounded by the product catalog (~127M products in `products`,
- * each with at most one row in `product_embeddings`). For very large
- * catalogs this should be tightened to a recent / priority window — but
- * the current pgvector setup fits the full set in memory comfortably.
+ * The replica (`sourceDb`) does not know about `product_embeddings`. We look
+ * up `(product_id, text_hash)` for EXACTLY the candidate ids of this tick.
  *
- * Returns an empty map when `vectorDb` is unreachable; in that case the
- * caller falls back to "everything is candidate" so a transient vectordb
- * outage cannot silently freeze the embed pipeline.
+ * BUY-81150: this used to pre-load the entire table into a Map once per run.
+ * At 15.5M embedded rows that query exceeded the statement timeout, and the
+ * handler swallowed the error and returned an EMPTY map -- so every candidate
+ * looked unembedded, the hash gate skipped nothing, `processed` was never 0,
+ * `zero_ticks` never incremented, and the partition never parked. The worker
+ * re-embedded the same rows forever while the ON CONFLICT guard
+ * (`text_hash != EXCLUDED.text_hash`) silently discarded every write.
+ *
+ * Scoped to the tick's candidate ids on the primary key this cannot time out,
+ * so a failure now means the vector DB is genuinely unreachable. We therefore
+ * fail CLOSED: throw, abort the tick, embed nothing. Paying to recompute
+ * vectors we already hold is strictly worse than skipping a tick.
  */
-async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
+async function loadVectorHashes(vectorDb: Pool, productIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  try {
-    // BUY-76567: check embedding_v2 first (new 1024-dim pipeline); fall back
-    // to embedding (old 512-dim) for products not yet migrated.
-    const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
-      // BUY-76567 fix (2026-08-29): only rows that already carry a 1024-dim
-      // vector count as up to date. The old COALESCE fell back to the Gemini
-      // row's hash, so all 6.4M legacy products were skipped forever and
-      // semantic search could never gain coverage.
-      `SELECT product_id, text_hash FROM product_embeddings WHERE embedding_v2 IS NOT NULL`
-    );
-    for (const r of rows) out.set(r.product_id, r.text_hash);
-  } catch (err) {
-    // embedding_v2 column may not exist yet; fall back to old column
-    try {
-      const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
-        `SELECT product_id, text_hash FROM product_embeddings`
-      );
-      for (const r of rows) out.set(r.product_id, r.text_hash);
-    } catch (err2) {
-      console.warn('[embed] Could not pre-load vector hashes; treating all products as candidates:', err2);
-    }
-  }
+  if (productIds.length === 0) return out;
+
+  const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
+    `SELECT product_id, text_hash
+       FROM product_embeddings
+      WHERE product_id = ANY($1::bigint[])
+        AND embedding_v2 IS NOT NULL`,
+    [productIds]
+  );
+  for (const r of rows) out.set(String(r.product_id), r.text_hash);
   return out;
 }
 
@@ -205,12 +198,6 @@ export async function runEmbedBatch(
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
   let nextWatermark: Date | null = null;
-
-  // Pull the existing hash set from vectorDb. Failure is non-fatal: we
-  // fall back to "every candidate is unembedded" rather than aborting
-  // the entire tick.
-  const vectorHashes = await loadVectorHashes(vectorDb);
-  console.log(`[embed] Loaded ${vectorHashes.size} existing embeddings from vectordb`);
 
   let candidates: Array<{ id: string; title: string; description: string | null; price: number | null; updated_at: Date }>;
 
@@ -276,6 +263,11 @@ export async function runEmbedBatch(
     console.log('[embed] Nothing to embed this run');
     return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0, nextWatermark };
   }
+
+  // BUY-81150: look up hashes for THIS tick's candidates only. Fails closed --
+  // an unreachable vector DB aborts the tick instead of re-embedding the world.
+  const vectorHashes = await loadVectorHashes(vectorDb, candidates.map(c => String(c.id)));
+  console.log(`[embed] Hash-gate: ${vectorHashes.size} of ${candidates.length} candidates already embedded`);
 
   // Hash-gate filter (mirrors the original LEFT JOIN semantics):
   //   - product not in vectorDb           → embed
