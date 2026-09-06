@@ -22,13 +22,23 @@ export const MAX_PRICE = 50_000;
  * Per-currency warning bands.  Prices inside the band are accepted;
  * prices outside are flagged as price_outlier and returned as ingest
  * errors so the scraper can be fixed.
+ *
+ * BUY-81096 follow-up: currencies near USD parity (USD/SGD/GBP/EUR/AUD) keep the
+ * pre-existing flat 50,000 ceiling. The original defect was a USD-denominated cap
+ * applied to currencies whose units are worth far less; it never affected these,
+ * and deriving their ceiling as warnHigh*5 silently LOOSENED five controls that
+ * were not broken. Measured: 32 USD rows above 50,000 created in two days (max
+ * 180,999), of which 31 sit in the 50k-75k band a raised USD ceiling would newly
+ * admit. Most are rupee amounts wearing a USD label -- a currency ATTRIBUTION
+ * defect a ceiling cannot fix and must not be widened for. Only high-unit
+ * currencies get a derived (warnHigh*5) ceiling.
  */
 export const PRICE_BANDS: Record<string, { warnLow: number; warnHigh: number; hardHigh: number }> = {
-  USD: { warnLow: 0.50, warnHigh: 15_000, hardHigh: 75_000 },
-  SGD: { warnLow: 0.50, warnHigh: 20_000, hardHigh: 100_000 },
-  GBP: { warnLow: 0.40, warnHigh: 12_000, hardHigh: 60_000 },
-  EUR: { warnLow: 0.45, warnHigh: 14_000, hardHigh: 70_000 },
-  AUD: { warnLow: 0.75, warnHigh: 22_000, hardHigh: 110_000 },
+  USD: { warnLow: 0.50, warnHigh: 15_000, hardHigh: 50_000 },
+  SGD: { warnLow: 0.50, warnHigh: 20_000, hardHigh: 50_000 },
+  GBP: { warnLow: 0.40, warnHigh: 12_000, hardHigh: 50_000 },
+  EUR: { warnLow: 0.45, warnHigh: 14_000, hardHigh: 50_000 },
+  AUD: { warnLow: 0.75, warnHigh: 22_000, hardHigh: 50_000 },
   JPY: { warnLow: 10, warnHigh: 5_000_000, hardHigh: 25_000_000 },
   MYR: { warnLow: 2, warnHigh: 65_000, hardHigh: 325_000 },
   PHP: { warnLow: 25, warnHigh: 800_000, hardHigh: 4_000_000 },
