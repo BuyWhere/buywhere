@@ -2521,11 +2521,13 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     compactCatalogCards: true,
     backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
-    // the editorial Roomba i3 EVO sale price ($199–$249). v2: raise the floor
-    // from $130 to $199 — the original $130 floor let Tecbot S1 at $119.99 and
-    // Tecbot S3 Pro at $129.99 displace honest fallback products. Hero
-    // explicitly names the $199 anchor; the floor must match it.
-    minPrice: 199,
+    // the editorial Roomba i3 EVO sale price ($199–$249). v4 (BUY-81157): the
+    // $199 floor filtered out the Roborock Q7 Max at $159.99 — the most
+    // relevant affordable robot vacuum in the US catalog for this page's audience.
+    // Lower the floor to $99 so Wyze ($99.98) and Roborock Q7 ($159.99) pass
+    // the filter. Products under ~$30 fail downstream image-URL validation, so
+    // the effective floor stays honest.
+    minPrice: 99,
     // v2: hero names "Roomba", "Roborock", and retailers "Amazon, Best Buy,
     // Walmart, Costco". Tighten requiredProductTerms so the live card set
     // actually reflects those named brands/retailers rather than Tecbot /
