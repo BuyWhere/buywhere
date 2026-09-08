@@ -10,6 +10,7 @@ import {
   getSeoLandingProducts,
   getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
+  isCompleteAirPurifier,
   isGenericAccessoryProduct,
   packPrimaryFirstFold,
   resolveHeroTitle,
@@ -1562,7 +1563,7 @@ test("BUY-79133: robot-vacuums/headphones/oled-tvs US queries are catalog-aligne
   assert.equal(headphones.backupQueries?.[0]?.toLowerCase(), "noise cancelling headphones");
   assert.match(oled.searchQuery.toLowerCase(), /oled/);
   const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
-  assert.ok(source.includes("BUY-79843 keeping priced product"), "image-probe fail must graft curated CDN photos");
+  assert.ok(source.includes("BUY-79241 keeping priced product"), "image-probe fail must keep priced /r/direct cards");
   const synthetic = /\bProduct [A-E]\b/;
   for (const p of robot.fallbackProducts ?? []) {
     assert.equal(synthetic.test(p.name), false, `robot fallback still synthetic: ${p.name}`);
@@ -1690,6 +1691,75 @@ test("BUY-79277: accessory demotion ranks earpads below primary headphones", () 
   const firstAccessoryIdx = ordered.findIndex((p) => isGenericAccessoryProduct(p));
   assert.ok(firstPrimaryIdx < firstAccessoryIdx, "all primaries must rank above accessories");
   assert.equal(seoLandingPages["best-headphones-us"].excludeAccessories, true);
+});
+
+test("BUY-81042: air-purifier replacement filters are accessories, not floor SKUs", () => {
+  const filter = {
+    id: "f",
+    name: "LEVOIT Core 300S and Core 300 HEPA Air Purifier Filter Original, with Highly Efficient Activated Carbon Filter",
+    price: 51,
+    currency: "SGD",
+    merchant: "Amazon",
+    imageUrl: "https://images.example/f.jpg",
+    href: "/r/direct/f",
+    brand: "LEVOIT",
+    category: "Air Purifiers",
+  } as LandingProduct;
+  const peco = {
+    id: "p",
+    name: "Air Mini Replacement PECO-HEPA Filter Compatible with Molekule Tri-Power Air Mini",
+    price: 56,
+    currency: "SGD",
+    merchant: "Amazon.Sg",
+    imageUrl: "https://images.example/p.jpg",
+    href: "/r/direct/p",
+    brand: "Molekule",
+    category: "Air Purifiers",
+  } as LandingProduct;
+  const unit = {
+    id: "u",
+    name: "Xiaomi Smart Air Purifier 4",
+    price: 249,
+    currency: "SGD",
+    merchant: "Shopee",
+    imageUrl: "https://images.example/u.jpg",
+    href: "/r/direct/u",
+    brand: "Xiaomi",
+    category: "Air Purifiers",
+  } as LandingProduct;
+  const levoitMini = {
+    id: "m",
+    name: "LEVOIT Core Mini Air Purifier For Coverage Area 183 Sq Ft, H13 Truehepa Filter",
+    price: 89,
+    currency: "SGD",
+    merchant: "Amazon.Sg",
+    imageUrl: "https://images.example/m.jpg",
+    href: "/r/direct/m",
+    brand: "LEVOIT",
+    category: "Air Purifiers",
+  } as LandingProduct;
+
+  assert.equal(isGenericAccessoryProduct(filter), true, "Levoit replacement filter");
+  assert.equal(isGenericAccessoryProduct(peco), true, "Molekule PECO-HEPA filter");
+  assert.equal(isGenericAccessoryProduct(unit), false, "Xiaomi unit is primary");
+  assert.equal(isGenericAccessoryProduct(levoitMini), false, "Levoit Core Mini unit is primary");
+  assert.equal(isCompleteAirPurifier(filter), false);
+  assert.equal(isCompleteAirPurifier(peco), false);
+  assert.equal(isCompleteAirPurifier(unit), true);
+  assert.equal(isCompleteAirPurifier(levoitMini), true);
+  assert.equal(seoLandingPages["air-purifier-singapore"].excludeAccessories, true);
+  assert.equal(seoLandingPages["air-purifier-singapore"].minPrice, 180);
+
+  const mixed = [filter, peco, unit, levoitMini];
+  const block = buildAnswerBlock(
+    seoLandingPages["air-purifier-singapore"],
+    mixed,
+    { iso: "2026-09-08T00:00:00.000Z", text: "September 8, 2026" },
+  );
+  assert.ok(block, "answer block from primary SKUs");
+  assert.match(block!.text, /S\$89/);
+  assert.doesNotMatch(block!.text, /S\$51/);
+  assert.doesNotMatch(block!.text, /S\$56/);
 });
 
 test("BUY-79341: bagpack/mount and MacBook PARTS demote below primary laptops", () => {

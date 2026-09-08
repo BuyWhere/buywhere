@@ -1156,8 +1156,12 @@ const GENERIC_ACCESSORY_RE =
 // BUY-79341: residual accessories that sit mid/end of title (Bagpack, " - Parts",
 // donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
 // "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
+// BUY-80705: side-table/end-table/console-table/coffee-table/nightstand are
+// furniture accessories — a laptop search returns them via FTS body/category
+// matches but they contain no existing accessory token and slip past the
+// penalty. Now explicitly matched so they are classified as accessories.
 const GENERIC_ACCESSORY_SUBSTRING_RE =
-  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
+  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|coffee\s*table|console\s*table|end\s*table|nightstand|side\s*table|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare|replacement\s+(?:peco[- ])?hepa\s+filter|replacement\s+filter|hepa\s+air\s+purifier\s+filter|air\s+purifier\s+filter(?:s)?(?:\s+original)?)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
@@ -1361,6 +1365,15 @@ export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "br
   );
 }
 
+const AIR_PURIFIER_UNIT_RE = /\b(?:air\s+purifiers?|purifier(?:\s+cool|\s+hot[\s+]+cool)?|plasmacluster|airtouch)\b/i;
+const AIR_PURIFIER_ACCESSORY_RE =
+  /\b(?:replacement\s+(?:peco[- ]?hepa\s+)?filter(?:s)?|(?:hepa|peco|carbon|pre)[- ]?filter(?:s)?(?:\s+(?:compatible\s+with|for|original)\b)|air\s+purifier\s+filter(?:s)?(?:\s+original)?|filter(?:s)?\s+(?:compatible\s+with|for)\b|compatible\s+with\s+(?:molekule|dyson|xiaomi|levoit|philips|coway|sterra|blueair)|filter(?:s)?\s+pack|multi[- ]?pack\s+(?:of\s+)?(?:filter|hepa))\b/i;
+
+export function isCompleteAirPurifier(product: Pick<LandingProduct, "name" | "brand" | "category">) {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return AIR_PURIFIER_UNIT_RE.test(text) && !AIR_PURIFIER_ACCESSORY_RE.test(text) && !PRODUCT_ACCESSORY_RE.test(text);
+}
+
 function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
   if (!config.excludeAccessories) return false;
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
@@ -1368,6 +1381,10 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
   // packPrimaryFirstFold, not hard-dropped here. Dropping them at collect time
   // starved /best-laptops-us and /cheapest-macbook-pro-singapore below the
   // 8-card gate after the residual accessories were the priced hits.
+  // BUY-81042: air-purifier landings drop replacement filters (not units).
+  if (config.slug === "air-purifier-singapore" || config.searchCategory === "air_purifiers") {
+    return !isCompleteAirPurifier(product);
+  }
   if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
   if (config.searchCategory === "gaming_laptops") {
     // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
@@ -1837,28 +1854,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
     if (fallbackImage) {
       const fallbackFp = await fingerprintRemoteImage(fallbackImage);
-      verified.push({ ...product, imageUrl: viaImageProxy(fallbackImage) ?? fallbackImage });
+      verified.push({ ...product, imageUrl: fallbackImage });
       qualityById.set(product.id, { passed: true, reason: "fallback", fingerprint: fallbackFp });
     } else {
-      // BUY-79843: graft a curated merchant CDN photo from fallbackProducts
-      // (Dyson/Philips/Xiaomi/Sharp/Sterra for air-purifier-singapore) instead
-      // of keeping a null imageUrl that SSR-paints as an inline SVG wireframe.
-      const wideFallbacks = fallback.filter(
-        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
-      );
-      const match = wideFallbacks.find((fb) => {
-        const a = (fb.name || "").toLowerCase();
-        const b = (product.name || "").toLowerCase();
-        const brandOk = !fb.brand || !product.brand || fb.brand.toLowerCase() === product.brand.toLowerCase();
-        return brandOk && (a.includes(b.slice(0, 12)) || b.includes(a.slice(0, 12)));
-      }) || wideFallbacks[verified.length] || wideFallbacks[0];
+      // No fallback available - check if we should keep the card anyway
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
-      if (constructibleRedirect && match?.imageUrl) {
-        const grafted = viaImageProxy(match.imageUrl) ?? match.imageUrl;
-        verified.push({ ...product, imageUrl: grafted });
-        qualityById.set(product.id, { passed: true, reason: "curated_fallback", fingerprint: grafted });
+      if (constructibleRedirect) {
+        // Keep the card but with null image (empty-image treatment)
+        verified.push({ ...product, imageUrl: null });
         console.warn(
-          `[seo] BUY-79843 keeping priced product ${product.id} on ${config.slug} with curated fallback photo`,
+          `[seo] BUY-79816 keeping product ${product.id} on ${config.slug} with null image after fallback chain exhausted`
         );
       } else {
         console.warn(
@@ -1873,8 +1878,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const seenFingerprints = new Set<string>();
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
-    if (!product.imageUrl || product.imageUrl.startsWith("data:image/svg")) {
-      // BUY-79843: omit wireframe / photo-less cards from the snapshot grid.
+    if (!product.imageUrl) {
+      dedupedProducts.push(product);
       continue;
     }
     const fp = qualityById.get(product.id)?.fingerprint || null;
@@ -1903,14 +1908,10 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (finalVerified.some(p => p.id === product.id)) continue;
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
-      const wideFallbacks = fallback.filter(
-        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
-      );
-      const match = wideFallbacks[finalVerified.length] || wideFallbacks[0];
-      if (!match?.imageUrl) continue;
-      finalVerified.push({ ...product, imageUrl: viaImageProxy(match.imageUrl) ?? match.imageUrl });
+      // Add with null image
+      finalVerified.push({ ...product, imageUrl: null });
       console.warn(
-        `[seo] BUY-79843 adding product ${product.id} with curated photo to meet minimum cards`,
+        `[seo] BUY-79816 adding fallback product ${product.id} to meet minimum cards`,
       );
     }
   }
@@ -2342,8 +2343,12 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     locale: "en_SG",
     searchQuery: "air purifier Singapore",
     backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
-    minPrice: 50,
-    requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
+    // BUY-81042: S$50 let replacement filters (S$51 Levoit / S$56 Molekule)
+    // become the cheapest "air purifier". Real units on this page start ~S$249.
+    minPrice: 180,
+    excludeAccessories: true,
+    searchCategory: "air_purifiers",
+    requiredProductTerms: ["air purifier", "purifier", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
     comparisonColumns: ["Model", "Price", "Coverage", "Filter", "Best For"],
@@ -14270,7 +14275,11 @@ export function buildAnswerBlock(
   products: LandingProduct[],
   checked: { iso: string; text: string },
 ): AnswerBlock | null {
-  const priced = products
+  // BUY-81042: cheapest-answer must ignore replacement filters / accessories
+  // so "cheapest air purifier" is a unit, not a HEPA cartridge.
+  const forFloor = products.filter((p) => !isGenericAccessoryProduct(p));
+  const floorSource = forFloor.length >= 2 ? forFloor : products;
+  const priced = floorSource
     .map((p) => ({
       merchant: shortMerchant(p.merchant || "BuyWhere seller"),
       price: p.price !== null && p.price !== undefined && Number.isFinite(Number(p.price))

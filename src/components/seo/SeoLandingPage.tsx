@@ -251,18 +251,30 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               // still must not render fallbackProducts (BUY-79133).
               null
             ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {(products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).map((product) => (
-                  // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
-                ))}
-              </div>
+              // BUY-80551: filter products without images from the visible grid.
+              // Products without real photos are excluded from the first-viewport
+              // grid to prevent "Photo unavailable" placeholders. The full list
+              // (including no-image products) still goes to JSON-LD schema.
+              <>
+                {(() => {
+                  const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).filter((p) => p.imageUrl);
+                  if (displayProducts.length === 0) return null;
+                  return (
+                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+                      {displayProducts.map((product) => (
+                        // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
+                        <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         </section>
 
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
