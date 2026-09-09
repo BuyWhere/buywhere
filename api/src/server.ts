@@ -84,7 +84,17 @@ export function createApp() {
     res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
-  app.use(express.json({ limit: '10mb' }));
+  // BUY OOM 2026-09-08/09: the API died twice with "Reached heap limit", both
+  // times during peak ingest, both stacks inside JSON.parse. A 10MB body expands
+  // to many times that as a live object graph, so a handful of concurrent ingest
+  // batches exhausted a ~1GB heap on their own.
+  //
+  // 4MB is sized from the actual batch shape: INGEST_BATCH_LIMIT defaults to 1000
+  // products at roughly 1-2KB of JSON each, so a full batch is ~1-2MB. 4MB leaves
+  // 2x headroom while more than halving the worst case. Clients sending larger
+  // bodies now get a 413 telling them to split, instead of contributing to an OOM
+  // that takes the whole public API down for everyone.
+  app.use(express.json({ limit: process.env.INGEST_BODY_LIMIT || '4mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(compression());
 
