@@ -1,0 +1,127 @@
+name: BuyWhere MCP Tools
+description: BuyWhere MCP server for AI agents - product search, price comparison, and deals across Southeast Asia and US markets
+owner: BuyWhere
+homepage: https://buywhere.ai
+repository: https://github.com/buywhere/buywhere-site
+package_url: https://www.npmjs.com/package/@buywhere/mcp-tools
+license: MIT
+languages:
+  - TypeScript
+  - Python
+  - JavaScript
+  - Go
+  - REST API
+categories:
+  - e-commerce
+  - product-search
+  - price-comparison
+  - shopping
+  - deals
+features:
+  - Product search across multiple regions (SG, MY, TH, PH, VN, ID, US)
+  - Cross-merchant price comparison
+  - Deal discovery with discount filtering
+  - Category browsing
+  - Product details lookup
+tools:
+  - name: search_products
+    description: Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.).
+    parameters:
+      q:
+        type: string
+        required: true
+        description: Keyword search query (e.g., "mechanical keyboard", "iphone 15 case")
+      country_code:
+        type: string
+        required: false
+        enum: [SG, US, VN, TH, MY]
+        description: Filter by ISO country code (SG, US, VN, TH, MY)
+      domain:
+        type: string
+        required: false
+        description: Filter by merchant platform (e.g. lazada, shopee, amazon)
+      min_price:
+        type: number
+        required: false
+        description: Minimum price filter
+      max_price:
+        type: number
+        required: false
+        description: Maximum price filter
+      limit:
+        type: integer
+        required: false
+        description: "Number of results (max 100, default 20)"
+  - name: get_product
+    description: Get a specific product by its ID, including full details and current price.
+    parameters:
+      id:
+        type: string
+        required: true
+        description: Product UUID
+  - name: compare_products
+    description: Compare multiple products side-by-side. Returns price, brand, rating, and category for each.
+    parameters:
+      ids:
+        type: array
+        items:
+          type: string
+        required: true
+        description: Array of product IDs to compare (2-10)
+  - name: get_deals
+    description: Get discounted products sorted by discount percentage. Returns products with original price and discount percentage.
+    parameters:
+      min_discount:
+        type: number
+        required: false
+        description: Minimum discount percentage (default 10)
+      country:
+        type: string
+        required: false
+        description: Filter by ISO country code (SG, US, VN, MY)
+      limit:
+        type: integer
+        required: false
+        description: "Number of results (max 100, default 20)"
+  - name: list_categories
+    description: List top-level product categories available in the BuyWhere catalog.
+    parameters: {}
+installation:
+  npx: npx @buywhere/mcp-tools
+  # npm: npm install @buywhere/mcp-tools  # TODO: Publish to npm first
+  manual:
+    - Install the Model Context Protocol SDK
+    - Import createBuyWhereMCPServer from '@buywhere/mcp-tools'
+    - Initialize with your BuyWhere API key
+configuration:
+  required:
+    - apiKey: Your BuyWhere API key (bw_live_xxxx or bw_free_xxxx)
+  optional:
+    - baseUrl: Custom API base URL (defaults to https://api.buywhere.ai)
+usage_example: |
+  import { createBuyWhereMCPServer } from '@buywhere/mcp-tools';
+  
+  const server = createBuyWhereMCPServer({
+    apiKey: process.env.BUYWHERE_API_KEY
+  });
+supported_platforms:
+  - Claude Desktop
+  - Cursor AI
+  - VS Code Copilot
+  - Smithery
+  - Other MCP-compatible clients
+analytics:
+  regions_covered:
+    - Singapore (SG)
+    - Malaysia (MY)
+    - Thailand (TH)
+    - Philippines (PH)
+    - Vietnam (VN)
+    - Indonesia (ID)
+    - United States (US)
+  data_points:
+    - Product listings
+    - Merchant prices
+    - Discount deals
+    - Category taxonomy
+    - User reviews and ratings

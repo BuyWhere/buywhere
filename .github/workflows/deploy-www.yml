@@ -1,0 +1,109 @@
+# deploy-www — push-to-main deploys buywhere.ai with smoke test + auto-rollback.
+# Mirrors deploy-api.yml: trigger Railway by commit SHA via GraphQL, never local `railway up`.
+name: deploy-www
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'content/**'
+      - 'public/**'
+      - 'tests/e2e/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'tailwind.config.*'
+      - 'postcss.config.*'
+      - 'site.Dockerfile'
+      - 'railway.json'
+      - '.github/workflows/deploy-www.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-www-production
+  cancel-in-progress: false
+
+env:
+  SERVICE_ID: f426a218-bbf2-408f-91f4-e6527efa8788
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  SITE_URL: https://buywhere.ai
+  GQL: https://backboard.railway.com/graphql/v2
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-65234)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+      - uses: actions/checkout@v4
+      - name: Governance rule #10 — no production mock data (BUY-60872)
+        run: bash scripts/guard-production-mock-data.sh
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [guard]
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Trigger Railway deploy of this SHA
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sf "$GQL" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import json,sys; r=json.load(sys.stdin); errors=r.get('errors') or []; data=(r.get('data') or {}).get('serviceInstanceDeployV2'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; print(data or '', end=''); sys.exit(1 if errors or not data else 0)")
+          echo "deployment: $DID"
+          for i in $(seq 1 24); do
+            S=$(curl -sf "$GQL" -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import json,sys; r=json.load(sys.stdin); errors=r.get('errors') or []; status=((r.get('data') or {}).get('deployment') or {}).get('status'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; print(status or '', end=''); sys.exit(1 if errors or not status else 0)")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Smoke test (homepage and API canary)
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$SITE_URL/" || echo "000")
+            echo "GET / -> HTTP $HTTP (attempt $i)"
+            [ "$HTTP" = "200" ] && break
+            [ "$i" = "12" ] && exit 1
+            sleep 10
+          done
+
+          # Use standing monitoring key (BUY-72823: never mint throwaway prod keys in CI)
+          SEARCH=$(curl -sS --max-time 20 "https://api.buywhere.ai/v1/products/search?q=nike&limit=1" \
+            -H "Authorization: Bearer ${{ secrets.BUYWHERE_MONITORING_KEY }}")
+          echo "$SEARCH" | grep -Eq '"(results|products|data)"|"id"'
+
+      - name: Auto-rollback on failure
+        if: failure()
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREV=$(git rev-parse HEAD~1)
+          echo "Rolling back to $PREV"
+          curl -sf "$GQL" \
+            -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}"

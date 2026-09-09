@@ -1,0 +1,200 @@
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260625T083504Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T083504Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260625T083712Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T083712Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260625T083928Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T083928Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260625T084004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T084004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260625T084211Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T084211Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260625T084419Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T084419Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260625T084504Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260625T084504Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T073503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T073503Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T073710Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T073710Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T073919Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T073919Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T074004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T074210Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074210Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T074417Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074417Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T074503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074503Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T074713Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074713Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T074920Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T074920Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T075004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T075215Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075215Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T075421Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075421Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T075504Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075504Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T075710Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075710Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T075916Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T075916Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T080003Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T080003Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T080210Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T080210Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T080417Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T080417Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T080503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T080503Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T081004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T081210Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081210Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T081423Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081423Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T081503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081503Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T081710Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081710Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T081917Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T081917Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T082004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T082211Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082211Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T082417Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082417Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T082503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082503Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T082710Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082710Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T082917Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T082917Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T083004Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T083004Z.log
+[scraper_scheduler] [restart=0] completed cleanly (rc=0)
+[scraper_scheduler] [restart=1] starting at 20260626T083211Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T083211Z.log
+[scraper_scheduler] [restart=1] completed cleanly (rc=0)
+[scraper_scheduler] [restart=2] starting at 20260626T083417Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T083417Z.log
+[scraper_scheduler] Starting continuous mode for platform=carousell_sg
+[scraper_scheduler]   run_budget=14400s, max_restarts=50
+[scraper_scheduler]   WORKSPACE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+[scraper_scheduler] [restart=0] starting at 20260626T083503Z
+[scraper_scheduler]   cmd: /usr/bin/python3 -m scrapers.carousell_sg --scrape-only --concurrency 6 --batch-size 50 --page-limit 5 --output-dir /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg
+[scraper_scheduler]   log: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/logs/carousell_sg_scheduler_20260626T083503Z.log

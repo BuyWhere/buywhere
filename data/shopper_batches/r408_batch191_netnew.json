@@ -1,0 +1,258 @@
+{
+  "run_id": "81ae2a2f-48a6-4e01-92fc-7ef9771a16ef",
+  "batch": "r408_batch191",
+  "timestamp": "2026-08-26T124635Z",
+  "niches_queried": [
+    "candle_making",
+    "beekeeping",
+    "printmaking",
+    "fly_fishing",
+    "homebrew_supplies",
+    "leathercraft"
+  ],
+  "raw_discoveries": {
+    "candle_making": [
+      "aromatic-apothecary-supply.myshopify.com",
+      "living-on-a-dime-shop.myshopify.com",
+      "candlebuilders.com",
+      "nurturehandmade.com"
+    ],
+    "beekeeping": [
+      "deserethivesupply.com",
+      "dadant.com",
+      "thebeesupply.com",
+      "betterbee.com",
+      "mountainsweethoney.com",
+      "blueskybeesupply.com",
+      "blythewoodbeecompany.com",
+      "beetreeacres.com",
+      "hillsidebees.com",
+      "backyardhive.com"
+    ],
+    "printmaking": [
+      "linoit.com",
+      "micronpens.com",
+      "speedballart.com",
+      "danielsmith.com",
+      "gamblincolors.com",
+      "legionpaper.com",
+      "nzprintstudio.com",
+      "etchinglab.com"
+    ],
+    "fly_fishing": [
+      "tridentflyfishing.com",
+      "loonoutdoors.com",
+      "mrfc.com",
+      "forgottencoastflycompany.com",
+      "jacksonholeflycompany.com",
+      "ascentflyfishing.com",
+      "simmsfishing.com",
+      "muskyshop.com"
+    ],
+    "homebrew_supplies": [
+      "www.midwestsupplies.com",
+      "www.hopcraftsupply.com",
+      "bencomoshomebrewsupply.beer",
+      "northeastwinemaking.com",
+      "bacchus-and-barleycorn.myshopify.com",
+      "mainbrew.com",
+      "www.wildwesthomebrewsupply.com",
+      "www.graintoglass.ca",
+      "www.keystonehomebrew.com",
+      "homebrewing.org"
+    ],
+    "leathercraft": [
+      "weaverleathersupply.com",
+      "realeather.com",
+      "artisanleathersupply.com",
+      "stecksstore.com",
+      "tandyleather.com",
+      "makersleathersupply.com",
+      "wutaleather.com",
+      "rmleathersupply.com"
+    ]
+  },
+  "validated_shopify": [
+    {
+      "domain": "aromatic-apothecary-supply.myshopify.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "candle_making"
+    },
+    {
+      "domain": "living-on-a-dime-shop.myshopify.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "candle_making"
+    },
+    {
+      "domain": "candlebuilders.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "candle_making"
+    },
+    {
+      "domain": "nurturehandmade.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "candle_making"
+    },
+    {
+      "domain": "thebeesupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "beekeeping"
+    },
+    {
+      "domain": "blueskybeesupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "beekeeping"
+    },
+    {
+      "domain": "blythewoodbeecompany.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "beekeeping"
+    },
+    {
+      "domain": "backyardhive.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "beekeeping"
+    },
+    {
+      "domain": "tridentflyfishing.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "loonoutdoors.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "mrfc.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "forgottencoastflycompany.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "jacksonholeflycompany.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "ascentflyfishing.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "simmsfishing.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "muskyshop.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "fly_fishing"
+    },
+    {
+      "domain": "www.hopcraftsupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "bencomoshomebrewsupply.beer",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "northeastwinemaking.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "bacchus-and-barleycorn.myshopify.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "mainbrew.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "www.graintoglass.ca",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "homebrewing.org",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "homebrew_supplies"
+    },
+    {
+      "domain": "weaverleathersupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "realeather.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "artisanleathersupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "tandyleather.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "makersleathersupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "wutaleather.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    },
+    {
+      "domain": "rmleathersupply.com",
+      "shopify_status": "200",
+      "is_shopify": true,
+      "niche": "leathercraft"
+    }
+  ],
+  "total_validated": 30
+}

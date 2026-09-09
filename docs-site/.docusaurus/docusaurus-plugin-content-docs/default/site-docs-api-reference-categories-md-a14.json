@@ -1,0 +1,27 @@
+{
+  "id": "api-reference/categories",
+  "title": "Categories",
+  "description": "List Categories",
+  "source": "@site/docs/api-reference/categories.md",
+  "sourceDirName": "api-reference",
+  "slug": "/api-reference/categories",
+  "permalink": "/docs/api-reference/categories",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "title": "Categories"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Get Product",
+    "permalink": "/docs/api-reference/get-product"
+  },
+  "next": {
+    "title": "Deals",
+    "permalink": "/docs/api-reference/deals"
+  }
+}

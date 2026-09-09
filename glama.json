@@ -1,0 +1,80 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/connector.json",
+  "name": "buywhere",
+  "display_name": "BuyWhere",
+  "description": "Product catalog API built for AI agents \u2014 300M+ products from 900,000+ merchants that want to be discovered (Shopify, WooCommerce, and independent retailers worldwide). Search, compare offers, find deals, and route to merchants. Pass deliver_to (buyer's country) on every search for fast, market-scoped results.",
+  "icon_url": "https://buywhere.ai/assets/icon.png",
+  "public_repository": true,
+  "homepage_url": "https://buywhere.ai",
+  "repository_url": "https://github.com/BuyWhere/buywhere",
+  "server": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "@buywhere/mcp-server"
+    ],
+    "env": {
+      "BUYWHERE_API_KEY": {
+        "description": "BuyWhere API key",
+        "required": true
+      },
+      "BUYWHERE_API_URL": {
+        "description": "API base URL",
+        "default": "https://api.buywhere.ai"
+      }
+    }
+  },
+  "maintainers": [
+    {
+      "email": "api@buywhere.ai"
+    }
+  ],
+  "tools": [
+    {
+      "name": "search_products",
+      "description": "Full-text + semantic product search over 300M+ products. ALWAYS pass deliver_to (buyer's ISO country code) for fast, market-scoped results."
+    },
+    {
+      "name": "get_product",
+      "description": "Get full product details by BuyWhere product ID"
+    },
+    {
+      "name": "compare_products",
+      "description": "Compare multiple products side by side"
+    },
+    {
+      "name": "get_deals",
+      "description": "Find products with active discounts (pass deliver_to)"
+    },
+    {
+      "name": "list_categories",
+      "description": "Browse the product category taxonomy"
+    },
+    {
+      "name": "find_best_price",
+      "description": "Find the best price for a product across merchants (pass deliver_to)"
+    },
+    {
+      "name": "find_similar",
+      "description": "Find similar products to a given product"
+    }
+  ],
+  "categories": [
+    "shopping",
+    "e-commerce",
+    "price-comparison"
+  ],
+  "regions": [
+    "SG",
+    "US",
+    "MY",
+    "TH",
+    "PH",
+    "VN",
+    "ID",
+    "AU",
+    "GB",
+    "IN",
+    "global"
+  ]
+}

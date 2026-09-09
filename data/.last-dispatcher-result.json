@@ -1,0 +1,31 @@
+{
+  "hourStart": "2026-08-30T03:00:00.000Z",
+  "target": 150000,
+  "metrics": {
+    "hour_start": "2026-08-30T03:00:00.000Z",
+    "n_tup_ins": "20950877",
+    "n_tup_upd": "39072473",
+    "n_live_tup": "378361485",
+    "live_count": null,
+    "ing_runs": 5,
+    "ing_inserted": "20659",
+    "ing_updated": "55245",
+    "delta_ins_from_stats": "67323",
+    "delta_upd_from_stats": "269418",
+    "stat_reset_detected": false,
+    "live_count_delta": null,
+    "n_live_tup_delta": "44618",
+    "stats_mismatch_detected": false,
+    "stats_mismatch_reason": null,
+    "cycle_marker_inserted": 0,
+    "cycle_marker_cycles": 0
+  },
+  "decision": {
+    "verdict": "FAIL",
+    "value": 67323,
+    "source": "delta_ins_from_stats",
+    "reason": "delta_ins_from_stats 67,323 < 150,000 and no v6 guard met target"
+  },
+  "shouldFileFailureTicket": true,
+  "report": "# HOURLY THROUGHPUT REPORT — 20260830T03Z (v6.4)\n\n- Verdict: **FAIL**\n- Target: 150,000 inserts/hour\n- Decision source: delta_ins_from_stats\n- Decision reason: delta_ins_from_stats 67,323 < 150,000 and no v6 guard met target\n- delta_ins_from_stats: 67,323 (44.9%)\n- n_live_tup_delta: 44,618\n- live_count_delta: NULL\n- ingestion_runs.ing_inserted: 20,659 (observability only unless delta_ins_from_stats is NULL)\n- stats_mismatch_detected: false\n- stat_reset_detected: false\n- cycle_marker_inserted: 0 (0.0%)\n- cycle_marker_cycles: 0\n"
+}

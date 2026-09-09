@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "profile": "smoke",
+    "target": "https://api.buywhere.ai",
+    "mcpUrl": "https://api.buywhere.ai/mcp",
+    "timestamp": "2026-08-08T00:29:50.395Z",
+    "rampUp": 10,
+    "hold": 30,
+    "rampDown": 10,
+    "targetRps": 5,
+    "thresholds": {
+      "p99Ms": 1000,
+      "errorRate": 0.05
+    },
+    "productIdsSeeded": 6
+  },
+  "summary": {
+    "totalRequests": 194,
+    "successes": 0,
+    "errors": 194,
+    "errorRate": 1,
+    "thresholdsPassed": {
+      "p99": true,
+      "err": false
+    },
+    "overallPass": false
+  },
+  "byScenario": {
+    "search": {
+      "count": 92,
+      "avg": 9.34,
+      "p50": 6.61,
+      "p95": 16.72,
+      "p99": 116.21,
+      "max": 116.21,
+      "min": 4.55,
+      "statusCodes": {
+        "401": 92
+      },
+      "holdP99": 116.21,
+      "holdP95": 10.38
+    },
+    "product": {
+      "count": 48,
+      "avg": 7.86,
+      "p50": 6.82,
+      "p95": 11.25,
+      "p99": 44.46,
+      "max": 44.46,
+      "min": 5.04,
+      "statusCodes": {
+        "401": 48
+      },
+      "holdP99": 44.46,
+      "holdP95": 11.39
+    },
+    "mcp": {
+      "count": 54,
+      "avg": 1,
+      "p50": 1,
+      "p95": 1,
+      "p99": 1,
+      "max": 1,
+      "min": 1,
+      "statusCodes": {
+        "401": 54
+      },
+      "holdP99": 1,
+      "holdP95": 1
+    }
+  },
+  "byStage": {
+    "rampUp": {
+      "count": 24
+    },
+    "hold": {
+      "count": 146
+    },
+    "rampDown": {
+      "count": 24
+    }
+  }
+}

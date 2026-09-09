@@ -1,0 +1,11 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+const dir = '/home/paperclip/buywhere/buy77019-repro';
+const files = readdirSync(dir).filter(f => f.startsWith('probe-2026')).sort();
+const probe = JSON.parse(readFileSync(join(dir, files[files.length-1]), 'utf8'));
+console.log('top-level keys:', Object.keys(probe));
+console.log('tests keys:', Object.keys(probe.tests).slice(0,5));
+const r = probe.tests.search_products_SG;
+console.log('--- search_products_SG ---');
+console.log('keys at r:', Object.keys(r));
+console.log(JSON.stringify(r, null, 2).slice(0, 1500));

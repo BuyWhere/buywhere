@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY api/package.json ./
+RUN npm install --production=false
+
+COPY api/tsconfig.json ./
+COPY api/src/ ./src/
+
+RUN npm run build
+
+# Remove dev deps
+RUN npm prune --production
+
+EXPOSE 8081
+
+CMD ["node", "dist/mcp-server.js"]

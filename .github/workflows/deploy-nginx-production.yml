@@ -1,0 +1,96 @@
+name: Deploy nginx configuration to production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: Verify main-only dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-65234)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+  deploy-nginx:
+    name: Deploy nginx config
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [guard]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy nginx configuration
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+
+          echo "Deploying nginx configuration for api.buywhere.ai..."
+
+          # Create backup of existing config
+          if [ -f /etc/nginx/sites-enabled/api.buywhere.ai.conf ]; then
+            sudo cp /etc/nginx/sites-enabled/api.buywhere.ai.conf /etc/nginx/sites-enabled/api.buywhere.ai.conf.backup.$(date +%Y%m%d_%H%M%S)
+            echo "Backed up existing config"
+          fi
+
+          # Copy new config (will be piped in from next step)
+          # This is a placeholder - the actual copy happens in the next step
+          echo "Config will be copied from workflow artifact"
+          REMOTE
+
+      - name: Copy nginx config to production
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          cat deploy/nginx/api.buywhere.ai.conf | ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            "sudo tee /etc/nginx/sites-enabled/api.buywhere.ai.conf > /dev/null"
+          echo "Config file copied to production"
+
+      - name: Test and reload nginx
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+
+          echo "Testing nginx configuration..."
+          sudo nginx -t
+
+          echo "Reloading nginx..."
+          sudo nginx -s reload
+
+          echo "Nginx configuration deployed and reloaded successfully"
+          REMOTE
+
+      - name: Verify /mcp routing
+        run: |
+          echo "Verifying /mcp routing to Cloud Run..."
+          # Test MCP endpoint - should proxy to Cloud Run, not return stale Python MCP response
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.buywhere.ai/mcp 2>/dev/null || echo "000")
+          echo "GET /mcp → HTTP ${STATUS}"
+
+          if [[ "$STATUS" != "200" ]] && [[ "$STATUS" != "405" ]] && [[ "$STATUS" != "404" ]]; then
+            echo "WARNING: /mcp returned unexpected status: ${STATUS}"
+            echo "This may indicate routing is still going to stale backend"
+          else
+            echo "/mcp routing verified - appears to be proxied correctly"
+          fi

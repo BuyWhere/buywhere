@@ -1,0 +1,112 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-26T03:15:04.808332+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 40.6ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-26T03:15:01.592Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-26T03:15:01.553404+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (28.5ms, 27832977 products)",
+      "detail": {
+        "latency_ms": 28.5,
+        "total_products": 27832977,
+        "zombie_runs": 0,
+        "running_runs": 1,
+        "stale_active_products": 17442144,
+        "runs_last_24h": {
+          "success": 0,
+          "failed": 19,
+          "total": 20
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "chewy_us",
+            "count": 115173,
+            "last_updated": "2026-06-26 03:15:01.894375+00:00"
+          },
+          {
+            "source": "shopify",
+            "count": 53862,
+            "last_updated": "2026-06-26 02:01:53.532937+00:00"
+          },
+          {
+            "source": "scout_gh_wave2_2026_06_25",
+            "count": 44334,
+            "last_updated": "2026-06-25 23:05:53.164144+00:00"
+          },
+          {
+            "source": "scout_gh_2026_06_25",
+            "count": 43477,
+            "last_updated": "2026-06-25 21:13:22.847228+00:00"
+          },
+          {
+            "source": "spoonflower.com",
+            "count": 38535,
+            "last_updated": "2026-06-26 00:46:55.025299+00:00"
+          },
+          {
+            "source": "supertails.com",
+            "count": 30111,
+            "last_updated": "2026-06-25 10:06:34.209062+00:00"
+          },
+          {
+            "source": "frankiesbikinis.com",
+            "count": 25372,
+            "last_updated": "2026-06-25 22:01:11.477332+00:00"
+          },
+          {
+            "source": "scout_gh_wave4_2026_06_26",
+            "count": 16963,
+            "last_updated": "2026-06-26 01:28:56.048891+00:00"
+          },
+          {
+            "source": "scout_gh_wave3_2026_06_26",
+            "count": 12964,
+            "last_updated": "2026-06-26 01:28:56.048891+00:00"
+          },
+          {
+            "source": "allbirds.com",
+            "count": 4812,
+            "last_updated": "2026-06-25 10:28:40.028749+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-26T03:15:04.696670+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-26T03:15:04.696689+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 99.8% (7d, 532211 runs)",
+      "detail": {
+        "total": 532211,
+        "success": 531088,
+        "failed": 1118,
+        "success_rate_pct": 99.8
+      },
+      "timestamp": "2026-06-26T03:15:04.808305+00:00"
+    }
+  ]
+}

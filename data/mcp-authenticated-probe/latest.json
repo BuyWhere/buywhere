@@ -1,0 +1,11 @@
+{
+  "probe": "buywhere-authenticated-mcp",
+  "startedAt": "2026-05-16T02:41:40.263Z",
+  "completedAt": "2026-05-16T02:41:40.263Z",
+  "baseUrl": "https://api.buywhere.ai/mcp",
+  "status": "failed",
+  "schemaValid": false,
+  "errorRate": 1,
+  "error": "Missing API key. Set BUYWHERE_MCP_API_KEY, MCP_TESTING_API_KEY, or BUYWHERE_API_KEY.",
+  "context": {}
+}

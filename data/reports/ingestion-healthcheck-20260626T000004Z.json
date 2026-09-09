@@ -1,0 +1,112 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-26T00:00:04.187448+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 104.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-26T00:00:01.978Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-26T00:00:01.950452+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (50.9ms, 27722109 products)",
+      "detail": {
+        "latency_ms": 50.9,
+        "total_products": 27722109,
+        "zombie_runs": 0,
+        "running_runs": 1,
+        "stale_active_products": 17182347,
+        "runs_last_24h": {
+          "success": 0,
+          "failed": 14,
+          "total": 15
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "chewy_us",
+            "count": 92389,
+            "last_updated": "2026-06-26 00:00:01.001666+00:00"
+          },
+          {
+            "source": "scout_gh_wave2_2026_06_25",
+            "count": 44334,
+            "last_updated": "2026-06-25 23:05:53.164144+00:00"
+          },
+          {
+            "source": "scout_gh_2026_06_25",
+            "count": 43477,
+            "last_updated": "2026-06-25 21:13:22.847228+00:00"
+          },
+          {
+            "source": "spoonflower.com",
+            "count": 36422,
+            "last_updated": "2026-06-25 23:59:22.021578+00:00"
+          },
+          {
+            "source": "supertails.com",
+            "count": 30111,
+            "last_updated": "2026-06-25 10:06:34.209062+00:00"
+          },
+          {
+            "source": "frankiesbikinis.com",
+            "count": 25372,
+            "last_updated": "2026-06-25 22:01:11.477332+00:00"
+          },
+          {
+            "source": "allbirds.com",
+            "count": 4812,
+            "last_updated": "2026-06-25 10:28:40.028749+00:00"
+          },
+          {
+            "source": "autozone_sitemap",
+            "count": 2500,
+            "last_updated": "2026-06-25 03:18:58.713426+00:00"
+          },
+          {
+            "source": "shopify",
+            "count": 1313,
+            "last_updated": "2026-06-25 10:08:12.348020+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 524,
+            "last_updated": "2026-06-25 14:16:58.240018+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-26T00:00:04.069168+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-26T00:00:04.069195+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 99.8% (7d, 532901 runs)",
+      "detail": {
+        "total": 532901,
+        "success": 531759,
+        "failed": 1136,
+        "success_rate_pct": 99.8
+      },
+      "timestamp": "2026-06-26T00:00:04.187420+00:00"
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+name: Deploy site to production
+
+# Deploys the buywhere.ai site to Railway.
+#
+# Why this exists (BUY-46772):
+#   * Railway's GitHub auto-deploy for the `buywhere` site service was not firing
+#     reliably — the service had NO deployment trigger configured, so merges to
+#     `main` silently never reached production (the 24-day "merged-but-not-live"
+#     backlog Reed flagged).
+#   * The previous version of this workflow SSH'd to a production VM that no longer
+#     exists (the site runs on Railway), so the "Deploy site to production" button
+#     was a dead path.
+#
+# This workflow is now the single, reliable deploy mechanism for the site:
+#   * It runs automatically on every push to `main` (no manual API call needed).
+#   * It deploys via `railway up` against the site service, matching the pattern
+#     already used by deploy-railway.yml for buywhere-api.
+#   * Railway builds the image from railway.json (DOCKERFILE -> site.Dockerfile).
+#
+# Required secret: RAILWAY_TOKEN (same project token used by deploy-railway.yml).
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_e2e:
+        description: 'Skip post-deploy Playwright e2e smoke (emergency deploys only)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Serialize deploys so two merges in quick succession can't race each other.
+concurrency:
+  group: buywhere-site-railway-production
+  cancel-in-progress: false
+
+env:
+  # Railway `buywhere` site service, production environment (BUY-46772).
+  RAILWAY_SERVICE_ID: f426a218-bbf2-408f-91f4-e6527efa8788
+  RAILWAY_ENVIRONMENT_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  SITE_URL: https://buywhere.ai
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Deploy: push the current commit to Railway and wait for it to go live.
+  # `railway up --ci` blocks until the build + deploy completes and exits
+  # non-zero on failure, so a red workflow == a failed deploy.
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy site to Railway
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-64967 postmortem)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (this 410'd the whole July blog catch-up batch on 2026-07-29)."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway (build + wait)
+        env:
+          # This secret is an account/workspace token. Railway CLI expects
+          # account tokens in RAILWAY_API_TOKEN; RAILWAY_TOKEN is only for
+          # project tokens and fails with "Invalid RAILWAY_TOKEN" here.
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          echo "Deploying ${GITHUB_SHA} to Railway site service ${RAILWAY_SERVICE_ID}..."
+          railway up \
+            --project "$RAILWAY_PROJECT_ID" \
+            --service "$RAILWAY_SERVICE_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --ci
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "=== Smoke testing ${SITE_URL} ==="
+          # Homepage must serve 200. Retry for cold-start latency — a freshly
+          # started Railway container can take a few seconds to accept traffic.
+          ok=0
+          for i in $(seq 1 20); do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SITE_URL}/" || echo "000")
+            echo "GET / -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then ok=1; break; fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "ERROR: homepage did not return 200 after deploy"
+            exit 1
+          fi
+
+          # Content-level health endpoint must report status ok (not degraded/down).
+          # This endpoint runs several internal sub-fetches (homepage keyword +
+          # static assets), so it is slow on a cold container — retry rather than
+          # hard-failing on the first attempt. Each curl is guarded with `|| echo`
+          # so a transient timeout can't trip `set -e` mid-loop.
+          health_ok=0
+          HEALTH_JSON=""
+          for i in $(seq 1 12); do
+            HEALTH_JSON=$(curl -fsS --max-time 30 "${SITE_URL}/api/health/site" || echo "")
+            STATUS=$(printf '%s' "$HEALTH_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "GET /api/health/site -> status='${STATUS}' (attempt ${i})"
+            if [ "$STATUS" = "ok" ]; then health_ok=1; break; fi
+            sleep 10
+          done
+          if [ "$health_ok" != "1" ]; then
+            echo "ERROR: /api/health/site never reported status=ok after deploy"
+            echo "${HEALTH_JSON}"
+            exit 1
+          fi
+          echo "Site healthy after deploy (status=ok)"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Post-deploy e2e: Playwright smoke against the freshly-deployed production
+  # site. Skippable on manual dispatch for emergency deploys.
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: Post-deploy e2e smoke (Playwright)
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests against production
+        env:
+          PLAYWRIGHT_BASE_URL: https://buywhere.ai
+        run: npx playwright test tests/e2e/site-smoke.spec.ts --project=chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-playwright-report
+          path: playwright-report/
+          retention-days: 14

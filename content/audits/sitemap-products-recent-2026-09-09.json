@@ -1,0 +1,3008 @@
+{
+  "date": "2026-09-09",
+  "lastmod": "2026-09-09T12:13:42.182Z",
+  "generated_at": "2026-09-09T12:13:42.185Z",
+  "source_queue": "content/audits/midnight-indexing-queue-2026-09-09.json",
+  "entries": [
+    {
+      "url": "https://buywhere.ai/products/us/candle-warmer-lamp-with-timer-and-dimmer-adjustable-wax-melt-lamp-9222976908793581909",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/three-trees-logo-trucker-hat-9222976908793581869",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/forest-supply-co-masthead-tee-9222976908793581870",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pill-desk-tray-9222976908793581871",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-mini-basketball-hoop-9222976908793581872",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/golf-tournament-sign-9222976908793581873",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/king-size-bed-frame-9222976908793581874",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cookie-coffee-table-9222976908793581875",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ring-box-9222976908793581876",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bear-head-9222976908793581877",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-coffee-table-9222976908793581878",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/montessori-book-shelf-9222976908793581879",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/entry-shelf-and-coat-rack-9222976908793581880",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/modern-birdhouse-9222976908793581881",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/geometric-coasters-9222976908793581882",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hexagonal-valet-tray-9222976908793581883",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/angled-book-display-shelf-9222976908793581884",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-bench-9222976908793581885",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/small-cookie-table-9222976908793581886",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rustic-farmhouse-dining-table-9222976908793581887",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/charlotte-skyline-9222976908793581888",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-size-dog-crates-9222976908793581889",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-coffee-table-with-brass-insert-9222976908793581890",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-bench-9222976908793581891",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-bench-9222976908793581892",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cookie-coffee-table-9222976908793581893",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ten-degree-bench-9222976908793581894",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cutter-bench-9222976908793581895",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/live-edge-serving-board-9222976908793581896",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/small-pill-desk-tray-9222976908793581897",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pill-serving-board-9222976908793581898",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/valet-tray-with-lid-9222976908793581899",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/valet-tray-9222976908793581900",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/serving-board-with-low-brass-handles-9222976908793581901",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/serving-board-with-rectangle-brass-handles-9222976908793581902",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/handle-serving-board-9222976908793581903",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/handle-serving-board-9222976908793581904",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/serving-board-with-brass-inset-9222976908793581905",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-serving-board-with-rounded-handles-9222976908793581906",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/long-handle-serving-board-9222976908793581907",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/three-trees-logo-tee-9222976908793581908",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-antique-brass-lever-snap-hook-zinc-9222976908793579347",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-16-black-trigger-swivel-snap-hook-zinc-alloy-9222976908793579348",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-16-gold-1-7-16-trigger-swivel-snap-hook-zinc-alloy-9222976908793579346",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-round-drive-punch-9222976908793577136",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-bag-maker-punch-bundles-9222976908793577137",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-oblong-punch-9222976908793577138",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-round-strap-end-punch-9222976908793577139",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-belt-making-punch-bundles-for-1-1-4-and-1-1-2-belts-9222976908793577140",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-round-strap-end-punch-bundle-5-sizes-9222976908793577141",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-english-point-strap-end-punch-bundle-5-sizes-9222976908793577142",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-multi-size-strap-end-punch-2-50-mm-9222976908793577143",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-round-drive-punch-bundle-10-sizes-9222976908793577144",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-oblong-punch-bundle-5-sizes-9222976908793577145",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-english-point-strap-end-punch-9222976908793577146",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/make-the-perfect-tote-bag-9222976908793577148",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sleigh-bell-door-hanger-9222976908793577149",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/shearling-leather-dye-applicators-9222976908793577150",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/digital-tattooling-art-patterns-instant-download-9222976908793577152",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/continuous-sprayer-500-ml-9222976908793577154",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/jeremiah-watt-round-knife-9222976908793577155",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/jeremiah-watt-half-head-round-knife-9222976908793577156",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/japanese-edge-applicator-9222976908793577157",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mellowtan-chrome-tanned-leather-side-by-thiele-tanning-4-to-5-oz-9222976908793577158",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-5-16-swing-lock-clasp-zinc-alloy-9222976908793577160",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hardware-mystery-packs-9222976908793577162",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-303-leather-sewing-machine-fundamentals-class-09-24-26-9222976908793577165",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tooled-cow-skull-t-shirt-9222976908793577166",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tooled-highland-cow-t-shirt-9222976908793577167",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/wooden-stirrups-overshoe-angled-9222976908793577169",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-buffalo-suede-9222976908793577170",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-alum-tanned-burgundy-latigo-double-back-5-7-oz-9222976908793577171",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/deluxe-mini-punch-set-9222976908793577172",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tab-holster-pattern-master-pack-by-slickbald-custom-leather-9222976908793577173",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/snubby-pattern-pack-9222976908793577174",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-luna-leather-9222976908793577176",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/luna-leather-2-3-oz-9222976908793577177",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-burnt-chiptan-american-bison-leather-9222976908793577178",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/burnt-chiptan-american-bison-leather-3-4-oz-9222976908793577179",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/full-size-semi-auto-holster-template-with-double-stack-mag-9222976908793577180",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-leather-rifle-sling-template-9222976908793577181",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/medium-semi-auto-double-stack-holster-template-9222976908793577182",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-frame-revolver-holster-template-9222976908793577183",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/j-frame-revolver-template-9222976908793577184",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/heritage-barkeep-holster-template-9222976908793577185",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/compact-semi-auto-double-stack-holster-template-9222976908793577186",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1911-holster-template-9222976908793577187",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/quebracho-tanned-leather-shoulders-9222976908793577189",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/quebracho-tanned-leather-sides-9222976908793577190",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-hermann-oak-strap-sides-cypress-9222976908793577192",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hermann-oak-strap-sides-cypress-9222976908793577193",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-leather-balm-with-atom-wax-neutral-9222976908793577194",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/classic-nylon-webbing-1-1-2-9222976908793577196",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rifle-sling-guitar-strap-kit-9222976908793577197",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-leather-supply-round-punch-set-9222976908793577198",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/40-mm-hot-stamping-foil-9222976908793577199",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-pro-dye-9222976908793577200",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/book-tote-downloadable-pattern-9222976908793577202",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chrome-plated-steel-martingale-chain-9222976908793577203",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-metal-horizontal-replacement-slide-for-blevins-buckle-9222976908793577204",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-covered-vertical-replacement-slide-for-blevins-buckle-9222976908793577205",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/aluminum-all-metal-horizontal-blevins-buckle-9222976908793577206",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-1-2-leather-covered-vertical-blevins-buckle-9222976908793577207",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-leather-covered-vertical-blevins-buckle-9222976908793577208",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/beveled-saddle-d-ring-9222976908793577209",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/long-flat-saddle-d-ring-stainless-steel-9222976908793577210",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/flat-saddle-d-ring-stainless-steel-9222976908793577211",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/multi-use-strap-end-punch-9222976908793577212",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/renaissance-faire-pouch-kit-9222976908793577213",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/economy-harness-leather-side-13-15-oz-russet-9222976908793577214",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/economy-skirting-leather-side-13-15-oz-9222976908793577215",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sheps-100-pure-neatsfoot-oil-9222976908793577216",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sheps-neatslene-harness-oil-9222976908793577217",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/circle-purse-downloadable-pattern-9222976908793577218",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/olfa-18mm-l-2-classic-heavy-duty-utility-knife-with-rubber-inset-9222976908793577219",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/drum-stick-pouch-downloadable-pattern-9222976908793577220",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-low-voc-deglazer-9222976908793577221",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-low-voc-dye-reducer-9222976908793577222",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rifle-sleeve-and-fringe-downloadable-pattern-9222976908793577223",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-bottle-holder-pattern-leather-craft-pattern-for-diy-bottle-holder-9222976908793577224",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/american-bison-leather-side-3-4-oz-brown-9222976908793577225",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/boot-hook-die-for-c-1567-9222976908793577226",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-leathercraft-cement-9222976908793577227",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/c-s-osborne-split-head-rawhide-hammer-replacement-faces-9222976908793577228",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hinged-arm-guards-downloadable-pattern-9222976908793577229",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/15s4-loop-staples-pack-of-100-9222976908793577230",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cs-osborne-split-head-rawhide-hammer-9222976908793577231",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/interchangeable-diamond-stitching-chisel-sets-9222976908793577232",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-around-saddle-tree-9222976908793577233",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/american-bison-leather-side-9222976908793577234",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/maine-thread-twisted-wax-cord-9222976908793577235",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/coastal-leather-2-3-oz-9222976908793577236",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/illusion-chrome-tanned-leather-2-3-oz-9222976908793577237",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-floral-9222976908793577238",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hermann-oak-a-grade-veg-tanned-strap-sides-9222976908793577239",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/wooden-belt-jig-9222976908793577240",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-woven-cognac-9222976908793577241",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-southwest-9222976908793577242",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-ostrich-cognac-9222976908793577243",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-western-floral-9222976908793577244",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-croc-9222976908793577245",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mini-cowhide-3-4-oz-assorted-9222976908793577246",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/toko-pro-burnishing-gum-clear-9222976908793577247",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-for-belts-buckle-end-9222976908793577248",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-for-belts-english-point-billet-end-9222976908793577249",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-for-belts-round-billet-end-9222976908793577250",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-mini-plumas-brown-9222976908793577251",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-cowboy-tool-pink-9222976908793577252",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-purple-croc-9222976908793577253",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-aztec-turquoise-brown-9222976908793577254",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-aztec-rio-9222976908793577255",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-luces-full-grain-leather-4-5-oz-9222976908793577256",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-exotic-embossed-leather-3-4-oz-9222976908793577257",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-mini-plumas-brown-9222976908793577258",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-cowboy-tool-pink-9222976908793577259",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-purple-croc-9222976908793577260",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-aztec-turquoise-brown-9222976908793577261",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-aztec-rio-9222976908793577262",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/luces-full-grain-leather-4-5-oz-9222976908793577263",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/exotic-embossed-leather-3-4-oz-9222976908793577264",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/western-christmas-ornament-kit-9222976908793577265",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/christmas-ornament-kit-9222976908793577266",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/whole-hide-assorted-colors-2-3-oz-9222976908793577267",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/decorative-line-24-snap-9222976908793577268",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barry-king-tapered-head-maul-9222976908793577269",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-16-antique-silver-bolt-swivel-snap-hook-zinc-alloy-9222976908793577270",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-carbon-fiber-print-9222976908793577271",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tattooling-art-kit-9222976908793577272",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hermann-oak-english-bridle-belt-blank-10-12-oz-1-1-2-60-65-9222976908793577273",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pro-modeling-tool-9222976908793577274",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/embossed-leather-2-3-oz-carbon-fiber-print-9222976908793577275",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ray-holes-saddle-butter-9222976908793577276",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-rtc-sheridan-resist-and-finish-9222976908793577277",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-1-saddle-oil-with-added-protection-9222976908793577278",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-rudy-s-conditioner-and-finish-9222976908793577279",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-1-saddle-oil-9222976908793577280",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-leather-finish-9222976908793577281",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bee-natural-leathercare-leather-amore-9222976908793577282",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/caps-for-104-tubular-rivets-9222976908793577283",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/elkrun-chap-leather-3-4-oz-9222976908793577284",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/santa-rosa-oily-pull-up-leather-3-4-oz-9222976908793577285",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bumblechutes-leather-nectar-natural-leather-conditioner-and-protector-9222976908793577286",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/beginner-leather-tattooling-machine-cartridge-9222976908793577287",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-piece-beveler-tip-cartridge-set-for-leather-tattooling-machine-9222976908793577288",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-set-minimalist-wallet-9222976908793577289",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-set-bifold-wallet-9222976908793577290",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-american-bison-leather-side-9222976908793577291",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/brush-only-for-t-1189-large-cement-pot-9222976908793577292",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/western-crunch-water-buffalo-leather-panel-9222976908793577293",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-buffalo-leather-panels-9222976908793577294",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/veg-tanned-leather-panel-9222976908793577295",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/brahma-webb-super-soft-grip-black-7-8-9222976908793577296",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-hermann-oak-bridle-leather-sides-9222976908793577297",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-upholstery-buffalo-leather-buffalo-leather-for-upholstery-2-3-oz-9222976908793577298",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-upholstery-leather-distressed-leather-for-upholstery-2-3-oz-9222976908793577299",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-upholstery-leather-modern-leather-for-upholstery-2-3-oz-9222976908793577300",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upholstery-buffalo-leather-buffalo-leather-for-upholstery-2-3-oz-9222976908793577301",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upholstery-leather-distressed-leather-for-upholstery-2-3-oz-9222976908793577302",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/upholstery-leather-modern-leather-for-upholstery-2-3-oz-9222976908793577303",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tokonole-burnishing-gum-9222976908793577304",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/round-button-hole-punch-9222976908793577305",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-sample-packet-9222976908793577306",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-leather-supply-x-21-grams-tattooling-sticker-9222976908793577307",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-lace-pack-rust-5-16-9222976908793577308",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-lace-pack-chocolate-1-8-9222976908793577309",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/ez-care-blade-sharpening-kit-abrasive-cloth-and-wood-board-for-polishing-leather-working-tools-9222976908793577310",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-natural-strap-belt-blank-8-9-oz-65-96-9222976908793577311",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/s-18-all-purpose-cement-9222976908793577312",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-chahinleather-hot-stuffed-harness-leather-sides-9222976908793577313",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/jasper-chrome-pull-up-leather-4-5-oz-9222976908793577314",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-buffalo-leather-single-bends-9222976908793577315",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7-16-antique-silver-tubular-rivet-310-7-16-as-9222976908793577316",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-coastal-leather-2-3-oz-9222976908793577317",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/loop-anvil-guide-and-knob-set-9222976908793577318",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-machinery-stand-9222976908793577319",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-leather-supply-leather-balm-9222976908793577320",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-16-antique-silver-tubular-rivet-steel-9222976908793577321",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/8mm-nickel-spike-stud-zinc-alloy-pk10-9222976908793577322",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/8mm-brass-spike-stud-zinc-alloy-pk10-9222976908793577323",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/8mm-antique-brass-spike-stud-zinc-alloy-9222976908793577324",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/creasing-service-9222976908793577325",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/roller-guide-9222976908793577326",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/book-binding-kit-9222976908793577327",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hermann-oak-veg-tan-belly-natural-9222976908793577328",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-woven-brown-9222976908793577329",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-southwest-9222976908793577330",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-ostrich-brown-9222976908793577331",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-western-floral-9222976908793577332",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-croc-9222976908793577333",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cowboy-hat-9222976908793577334",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-horseshoe-9222976908793577335",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cactus-9222976908793577336",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cowboy-boot-9222976908793577337",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-star-9222976908793577338",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cross-9222976908793577339",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-santa-9222976908793577340",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-bell-9222976908793577341",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-stocking-9222976908793577342",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-scissors-9222976908793577343",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-tattooling-machine-9222976908793577344",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-illusion-leather-2-3-oz-9222976908793577345",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-embossed-leather-2-3-oz-floral-9222976908793577346",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/natural-veg-tan-leather-remnants-9222976908793577347",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-hermann-oak-a-grade-veg-tanned-strap-sides-9222976908793577348",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/yuma-holster-pattern-pack-by-will-ghormley-9222976908793577349",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-cypress-double-shoulders-4-to-5-oz-9222976908793577350",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-veg-tanned-saddle-shearling-natural-9222976908793577351",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-veg-tanned-saddle-shearling-rich-golden-9222976908793577352",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-wool-on-synthetic-backing-rich-golden-60-w-9222976908793577353",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-synthetic-leather-9222976908793577354",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-neoprene-sheet-black-9222976908793577355",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-100-polyester-felt-9222976908793577356",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-cordura-9222976908793577357",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-rubberized-conveyor-belting-black-9222976908793577358",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-merino-wool-9222976908793577359",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-synthetic-saddle-fleece-heavy-weight-9222976908793577360",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-microfiber-9222976908793577361",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-waxed-canvas-10-oz-9222976908793577362",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-natural-cork-with-fabric-backing-9222976908793577363",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-nickel-plated-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577364",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-natural-strap-belly-remnants-9222976908793577365",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-natural-strap-bellies-9222976908793577366",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/merino-wool-9222976908793577367",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rubberized-conveyor-belting-black-9222976908793577368",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/exact-touch-edge-paint-9222976908793577369",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/culture-battles-victim-or-victor-your-choice-9222976908793577370",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rotary-cutter-replacement-blades-9222976908793577371",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rotary-cutter-9222976908793577372",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-chahinleather-english-bridle-sides-9222976908793577373",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-duck-canvas-10-oz-9222976908793577374",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/c-s-osborne-edge-tool-9222976908793577375",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/custom-polycarb-leather-cutting-dies-9222976908793577376",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-round-key-fob-9222976908793577377",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cow-tag-9222976908793577378",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-oval-earring-9222976908793577379",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-leaf-earring-9222976908793577380",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-bar-earring-9222976908793577381",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-tapered-point-earring-9222976908793577382",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-tapered-round-earring-9222976908793577383",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polycarb-cutting-die-cowhide-coaster-9222976908793577384",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bottle-holder-kit-9222976908793577385",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/presser-foot-for-weaver-303-sewing-machine-9222976908793577386",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/whole-horse-fly-net-black-9222976908793577387",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-veg-tanned-v-cut-double-shoulders-9222976908793577388",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/adhesive-tape-measure-9222976908793577389",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/redrock-waxy-pull-up-leather-9222976908793577390",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/olfa-43-mm-scraper-replacement-blades-9222976908793577391",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/olfa-multi-purpose-scraper-with-adjustable-head-9222976908793577392",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-cowboy-pull-up-leather-side-5-to-6-oz-9222976908793577393",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-hoof-dressing-quart-9222976908793577394",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/clear-leather-sealer-9222976908793577395",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-tuff-kote-9222976908793577396",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/belt-pattern-pack-2-by-jim-linnell-9222976908793577397",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/heart-patterns-by-jim-linnell-9222976908793577398",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/montana-influenced-patterns-by-jim-linnell-9222976908793577399",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/angelus-glow-in-the-dark-paint-green-glow-1-oz-9222976908793577400",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finished-luggage-tag-9222976908793577401",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-journal-kit-9222976908793577402",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/round-key-fob-leather-pieces-25-pk-9222976908793577403",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/floral-buckle-and-loop-set-brown-iron-5-8-9222976908793577404",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/floral-buckle-and-loop-set-brown-iron-3-4-9222976908793577405",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/floral-buckle-and-loop-set-stainless-steel-3-4-9222976908793577406",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/floral-buckle-and-loop-set-stainless-steel-5-8-9222976908793577407",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/crescent-pouch-pattern-pack-9222976908793577408",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/plain-hame-clip-9222976908793577409",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/halter-slide-np-9222976908793577410",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mckinney-rein-hook-ss-9222976908793577411",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1382-footman-loop-sb-9222976908793577412",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/beveled-hame-clip-ss-9222976908793577413",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/268-rein-hook-plate-ss-9222976908793577414",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/195-fancy-ball-rein-hook-ss-9222976908793577415",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/158-colorado-pad-bridge-ss-9222976908793577416",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/rein-hook-ss-9222976908793577417",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pug-seat-9222976908793577418",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-english-bridle-leather-single-shoulder-12-13-oz-9222976908793577419",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/61-snap-stainless-steel-1-1-2-9222976908793577420",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/35-plastic-ring-white-7-8-9222976908793577421",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/small-double-cap-jiffy-rivets-11-mm-9222976908793577422",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-single-cap-jiffy-rivets-9222976908793577423",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/large-double-cap-jiffy-rivets-9222976908793577424",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-marking-pen-9222976908793577425",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cowboy-pull-up-leather-side-5-to-6-oz-9222976908793577426",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/oakwood-leather-conditioner-9222976908793577427",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/wristlet-pattern-pack-9222976908793577428",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/punch-sharpener-9222976908793577429",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/refillable-dye-marker-9222976908793577430",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/heart-mini-2d-stamping-tool-9222976908793577431",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cartridge-belts-pattern-by-will-ghormley-9222976908793577432",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lone-star-holster-pattern-by-will-ghormley-9222976908793577433",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-shuttle-cover-for-master-tool-cub-9222976908793577434",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-machine-key-for-master-tool-creaser-and-embosser-9222976908793577435",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-alloy-steel-dowel-pin-for-master-tool-creaser-and-embosser-9222976908793577436",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-clamping-shaft-collar-for-master-tool-creaser-and-embosser-9222976908793577437",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-firmer-9222976908793577438",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5016-oval-swivel-scissor-snap-9222976908793577439",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-nickel-plated-cast-double-loop-d-ring-zinc-alloy-9222976908793577440",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finished-leather-belt-blank-8-9-oz-9222976908793577441",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/assorted-metallic-lambskins-2-oz-9222976908793577442",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/cypress-double-shoulders-4-to-5-oz-9222976908793577443",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/finished-leather-belt-loop-9222976908793577444",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/basic-swivel-knife-blade-9222976908793577445",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/acrylic-ruler-9222976908793577446",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stitching-awl-thread-reel-9222976908793577447",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stitching-awl-replacement-needles-9222976908793577448",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/stitching-awl-kit-9222976908793577449",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/club-mini-2d-stamping-tool-9222976908793577450",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/spade-mini-2d-stamping-tool-9222976908793577451",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/diamond-mini-2d-stamping-tool-9222976908793577452",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/fiebing-s-water-protector-10-5-oz-9222976908793577453",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/duck-canvas-10-oz-9222976908793577454",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/weaver-leather-supply-egift-card-9222976908793577455",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/star-stamping-tool-z785-large-9222976908793577456",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/star-stamping-tool-o54-small-9222976908793577457",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/background-stamping-tool-a889-9222976908793577458",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/veiner-stamping-tool-v462-small-9222976908793577459",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/figure-carving-stamping-tool-f900-large-9222976908793577460",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/figure-carving-stamping-tool-f896-medium-9222976908793577461",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/figure-carving-stamping-tool-f926-9222976908793577462",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/figure-carving-stamping-tool-f901-9222976908793577463",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pear-shader-stamping-tool-p208-large-9222976908793577464",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/oak-leaf-stamping-tool-9222976908793577465",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mulefoot-stamping-tool-rounded-9222976908793577466",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/triangle-figure-carving-stamping-tool-9222976908793577467",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/seeder-stamping-tool-9222976908793577468",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barge-glue-9222976908793577469",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/washers-9222976908793577470",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/saddle-screws-9222976908793577471",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hermann-oak-bridle-leather-sides-9222976908793577472",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/synthetic-stirrups-9222976908793577473",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/water-buffalo-leather-crazy-horse-side-9222976908793577474",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-hat-patch-9222976908793577475",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-bobbin-9222976908793577476",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/41mm-birkenstock-soft-suede-footbed-9222976908793577477",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/38mm-birkenstock-soft-suede-footbed-9222976908793577478",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/39mm-classic-birkenstock-lined-footbed-9222976908793577479",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/44mm-birkenstock-dark-suede-footbed-9222976908793577480",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/42mm-birkenstock-dark-suede-footbed-9222976908793577481",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/44mm-birkenstock-soft-suede-footbed-9222976908793577482",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/42mm-birkenstock-soft-suede-footbed-9222976908793577483",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/39mm-birkenstock-soft-suede-footbed-9222976908793577484",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/40mm-birkenstock-soft-suede-footbed-9222976908793577485",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/41mm-birkenstock-dark-suede-footbed-9222976908793577486",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/43mm-birkenstock-soft-suede-footbed-9222976908793577487",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/40mm-classic-birkenstock-lined-footbed-9222976908793577488",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/38mm-classic-birkenstock-lined-footbed-9222976908793577489",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/43mm-birkenstock-dark-suede-footbed-9222976908793577490",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/roller-guide-for-weaver-303-sewing-machine-9222976908793577491",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/thread-cutterz-ceramic-peel-n-stick-thread-cutter-9222976908793577492",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-stop-for-brass-type-holder-9222976908793577493",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-western-crunch-water-buffalo-leather-4-5-oz-9222976908793577494",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/natural-rawhide-covered-stirrups-9222976908793577495",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-starter-gig-9222976908793577496",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/replacement-shuttle-for-aluminum-master-tool-cub-and-weaver-205-9222976908793577497",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-hot-stuffed-harness-leather-sides-9222976908793577498",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/safety-cutting-ruler-9222976908793577499",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-english-bridle-backs-9222976908793577500",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-english-bridle-sides-9222976908793577501",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-english-bridle-double-bends-9222976908793577502",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hydbond-leather-patch-adhesive-9222976908793577503",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sample-chrome-tanned-water-buffalo-leather-2-to-3-oz-9222976908793577504",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/master-tool-cub-manual-leather-sewing-machine-aluminum-9222976908793577505",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-matte-black-lever-swivel-snap-hook-zinc-alloy-pk4-9222976908793577506",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-shiny-gold-lever-swivel-snap-hook-zinc-alloy-pk4-9222976908793577507",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-antique-brass-lever-swivel-snap-hook-zinc-alloy-pk4-9222976908793577508",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-shiny-nickel-lever-swivel-snap-hook-zinc-alloy-pk4-9222976908793577509",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-3-8-guide-pin-spring-frame-accessory-zinc-alloy-9222976908793577510",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lamb-goat-hides-assorted-colors-1-2-oz-9222976908793577511",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/chahinleather-english-bridle-leather-belly-12-13-oz-9222976908793577512",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-4-shiny-nickel-rectangular-concave-ring-zinc-alloy-9222976908793577513",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-nickel-single-cap-jiffy-rivets-100ct-9222976908793577514",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-black-single-cap-jiffy-rivets-100ct-9222976908793577515",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-brass-single-cap-jiffy-rivets-100ct-9222976908793577516",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-antique-brass-single-cap-jiffy-rivets-100ct-9222976908793577517",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-brass-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577518",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-nickel-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577519",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-black-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577520",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-5mm-antique-brass-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577521",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-brass-concave-stop-hinge-zinc-alloy-9222976908793577522",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-nickel-thin-welded-d-ring-steel-9222976908793577523",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-1-2-black-cam-lever-buckle-plastic-9222976908793577524",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-1-2-santa-belt-buckle-buckle-only-solid-brass-9222976908793577525",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/40mm-black-ball-bearing-wheel-only-plastic-9222976908793577526",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-antique-brass-spring-gate-round-ring-zinc-alloy-9222976908793577527",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/10-facile-hexagonal-frame-with-nickel-hinges-steel-9222976908793577528",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-8-rustic-rose-gold-screw-together-eyelet-solid-brass-9222976908793577529",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-1-4-brushed-nickel-clip-on-heel-bar-twist-reverse-buckle-zinc-alloy-9222976908793577530",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-8-black-screw-together-eyelet-solid-brass-9222976908793577531",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7-16-antique-silver-rivet-cap-steel-9222976908793577532",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-1-2-brass-plated-hinge-zinc-alloy-9222976908793577533",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/8mm-shiny-nickel-collar-button-press-stud-solid-brass-9222976908793577534",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-nickel-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577535",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-black-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577536",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-brass-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577537",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-black-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577538",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-antique-brass-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577539",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-antique-brass-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577540",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-8-nickel-open-hole-chicago-screw-solid-brass-pk10-9222976908793577541",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-8-black-open-hole-chicago-screw-solid-brass-pk10-9222976908793577542",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-8-brass-open-hole-chicago-screw-solid-brass-pk10-9222976908793577543",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-8-antique-brass-open-hole-chicago-screw-solid-brass-pk10-9222976908793577544",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-4-brass-open-hole-chicago-screw-solid-brass-pk10-9222976908793577545",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-4-nickel-open-hole-chicago-screw-solid-brass-pk10-9222976908793577546",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-4-black-open-hole-chicago-screw-solid-brass-pk10-9222976908793577547",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-4-antique-brass-open-hole-chicago-screw-solid-brass-pk10-9222976908793577548",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-stage-pull-handle-steel-9222976908793577549",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/handle-system-with-10-in-extended-length-9222976908793577550",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/3-3-4-acrylic-business-card-tag-acrylic-9222976908793577551",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-black-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577552",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-nickel-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577553",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9-4mm-brass-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577554",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-black-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577555",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-antique-brass-double-cap-jiffy-rivets-solid-brass-100ct-9222976908793577556",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-brass-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577557",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-brass-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577558",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-antique-brass-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577559",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-black-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577560",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-nickel-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577561",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-brass-single-cap-jiffy-rivet-solid-brass-100ct-9222976908793577562",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-nickel-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577563",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-antique-brass-single-cap-jiffy-rivets-solid-brass-100ct-9222976908793577564",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-brown-handle-with-brass-hardware-leather-9222976908793577565",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/6-black-handle-with-brass-hardware-leather-9222976908793577566",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-8-antique-brass-screw-together-eyelet-solid-brass-9222976908793577567",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-8-antique-nickel-screw-together-eyelet-solid-brass-9222976908793577568",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/5-8-rustic-black-screw-together-eyelet-solid-brass-9222976908793577569",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-matte-black-tuck-catch-steel-9222976908793577570",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-3-4-matte-black-swing-lock-clasp-zinc-alloy-9222976908793577571",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-nickel-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577572",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-black-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577573",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-brass-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577574",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/7mm-antique-brass-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577575",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/1-1-8-black-turn-lock-zinc-alloy-9222976908793577576",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/2-7-16-antique-brass-latch-lock-drawbolt-steel-9222976908793577577",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/110mm-grey-quiet-inline-skate-wheel-plastic-9222976908793577578",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/10-16-nickel-split-rivet-steel-24-pk-9222976908793577579",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/10mm-black-double-cap-jiffy-rivet-iron-pk100-9222976908793577580",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/otb-jiffy-rivet-box-jiffy-box-9222976908793577581",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-nickel-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577582",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-brass-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577583",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-antique-brass-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577584",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-black-double-cap-jiffy-rivet-solid-brass-100ct-9222976908793577585",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-brass-single-cap-jiffy-rivet-solid-brass-100pk-9222976908793577586",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-nickel-single-cap-jiffy-rivet-solid-brass-100pk-9222976908793577587",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-black-single-cap-jiffy-rivet-solid-brass-100pk-9222976908793577588",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/50mm-green-ball-bearing-inline-skate-wheel-plastic-9222976908793577589",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/9mm-antique-brass-single-cap-jiffy-rivet-solid-brass-100pk-9222976908793577590",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/50mm-blue-ball-bearing-inline-skate-wheel-plastic-9222976908793577591",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/100mm-black-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577592",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/100mm-green-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577593",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/100mm-white-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577594",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/80mm-green-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577595",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/100mm-blue-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577596",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/80mm-black-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577597",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/80mm-blue-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577598",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/80mm-white-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577599",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/76mm-green-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577600",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/76mm-black-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577601",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/76mm-white-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577602",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/68mm-green-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577603",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/76mm-blue-in-line-skate-wheel-with-led-lights-polyurethane-9222976908793577604",
+      "lastModified": "2026-09-09T12:13:42.182Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    }
+  ]
+}

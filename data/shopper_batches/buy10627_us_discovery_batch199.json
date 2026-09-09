@@ -1,0 +1,439 @@
+{
+  "batch": 199,
+  "date": "2026-08-27T01:49:52.103733",
+  "total": 43,
+  "merchants": [
+    {
+      "domain": "cheesemaking.com",
+      "feed_url": "https://cheesemaking.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "kombucha.com",
+      "feed_url": "https://kombucha.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "claystudio.shop",
+      "feed_url": "https://claystudio.shop/products.json",
+      "platform": "Shopify",
+      "vertical": "home_goods",
+      "products_count": 3,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "sourdoughstarter.com",
+      "feed_url": "https://sourdoughstarter.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 9,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "hemp.co",
+      "feed_url": "https://hemp.co/products.json",
+      "platform": "Shopify",
+      "vertical": "general",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "sourdoughstarter.co",
+      "feed_url": "https://sourdoughstarter.co/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 10,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "localhoney.com",
+      "feed_url": "https://localhoney.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 9,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "bathbombs.com",
+      "feed_url": "https://bathbombs.com/products.json",
+      "platform": "Shopify",
+      "vertical": "beauty",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "ukelele.co",
+      "feed_url": "https://ukelele.co/products.json",
+      "platform": "Shopify",
+      "vertical": "general",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "balm.co",
+      "feed_url": "https://balm.co/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "carved.com",
+      "feed_url": "https://carved.com/products.json",
+      "platform": "Shopify",
+      "vertical": "general",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "honeybee.shop",
+      "feed_url": "https://honeybee.shop/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "woodcraft.com",
+      "feed_url": "https://woodcraft.com/products.json",
+      "platform": "Shopify",
+      "vertical": "home_goods",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "leathersupply.com",
+      "feed_url": "https://leathersupply.com/products.json",
+      "platform": "Shopify",
+      "vertical": "home_goods",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "yarn.com",
+      "feed_url": "https://yarn.com/products.json",
+      "platform": "Shopify",
+      "vertical": "home_goods",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "oliveoil.co",
+      "feed_url": "https://oliveoil.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "chocolate.com",
+      "feed_url": "https://chocolate.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "balsamic.shop",
+      "feed_url": "https://balsamic.shop/products.json",
+      "platform": "WooCommerce",
+      "vertical": "general",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "roaster.co",
+      "feed_url": "https://roaster.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "teashop.com",
+      "feed_url": "https://teashop.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 26,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "chocolateshop.co",
+      "feed_url": "https://chocolateshop.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "teashop.co",
+      "feed_url": "https://teashop.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "chocolate.co",
+      "feed_url": "https://chocolate.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "icecream.co",
+      "feed_url": "https://icecream.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "nutbutter.com",
+      "feed_url": "https://nutbutter.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "cookies.com",
+      "feed_url": "https://cookies.com/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "peanutbutter.co",
+      "feed_url": "https://peanutbutter.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "granola.co",
+      "feed_url": "https://granola.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "localhoney.co",
+      "feed_url": "https://localhoney.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "maple.com",
+      "feed_url": "https://maple.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "pie.shop",
+      "feed_url": "https://pie.shop/products.json",
+      "platform": "WooCommerce",
+      "vertical": "general",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "bonbon.shop",
+      "feed_url": "https://bonbon.shop/products.json",
+      "platform": "WooCommerce",
+      "vertical": "general",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "bbqsauce.com",
+      "feed_url": "https://bbqsauce.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "icecream.com",
+      "feed_url": "https://icecream.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "rawhoney.shop",
+      "feed_url": "https://rawhoney.shop/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "mustard.shop",
+      "feed_url": "https://mustard.shop/products.json",
+      "platform": "Shopify",
+      "vertical": "food",
+      "products_count": 30,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "beeproducts.com",
+      "feed_url": "https://beeproducts.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "almondbutter.com",
+      "feed_url": "https://almondbutter.com/products.json",
+      "platform": "WooCommerce",
+      "vertical": "general",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "candy.co",
+      "feed_url": "https://candy.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "pantry.co",
+      "feed_url": "https://pantry.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "oliveoil.shop",
+      "feed_url": "https://oliveoil.shop/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "nutbutter.co",
+      "feed_url": "https://nutbutter.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    },
+    {
+      "domain": "oatmeal.co",
+      "feed_url": "https://oatmeal.co/products.json",
+      "platform": "WooCommerce",
+      "vertical": "food",
+      "products_count": -1,
+      "country": "US",
+      "region": "general",
+      "status": "validated"
+    }
+  ],
+  "deduped_from": 43,
+  "deduped_note": "deduped by domain during Dash scrape"
+}

@@ -1,0 +1,147 @@
+version: '3.9'
+
+# BuyWhere API stack — includes PgBouncer connection pooler (BUY-1841)
+# PgBouncer sits between the Node API and PostgreSQL to cap DB connections
+# at 20 while allowing up to 200 concurrent API clients.
+
+services:
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      # Connect to external catalog DB (buywhere-api-db-1)
+      DB_USER: buywhere
+      DB_PASSWORD: buywhere
+      DB_HOST: buywhere-api-db-1
+      DB_PORT: "5432"
+      DB_NAME: catalog
+      # Pooling
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "100"
+      MIN_POOL_SIZE: "50"
+      # Auth — md5 matches postgres pg_hba.conf default
+      AUTH_TYPE: md5
+      SERVER_RESET_QUERY: "DISCARD ALL"
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    ports:
+      - "5436:5432"
+    networks:
+      - default
+      - buywhere-api
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # ports:
+    #   Expose on 6380 to avoid conflict with openclaw-redis on 127.0.0.1:6379
+    #   - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node dist/migrate.js
+    environment:
+      # Migrations run directly against catalog DB (not through PgBouncer)
+      DATABASE_URL: postgresql://buywhere:buywhere@buywhere-api-db-1:5432/catalog
+    networks:
+      - default
+      - buywhere-api
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # API traffic direct to catalog DB (PgBouncer SCRAM compat issue — BUY-3283)
+      DATABASE_URL: postgresql://buywhere:buywhere@buywhere-api-db-1:5432/catalog
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      PORT: "3000"
+      API_BASE_URL: https://api.buywhere.ai
+      # Paperclip JWT auth (BUY-8065) — verify agent tokens
+      PAPERCLIP_API_URL: ${PAPERCLIP_API_URL:-https://api.paperclip.ai}
+      # Sentry error tracking (BUY-3415) — set via AWS Secrets Manager in prod
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      # AWS SES (email verification — BUY-8736)
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL:-noreply@buywhere.ai}
+      # Awin affiliate programme (BUY-6873) — set via secrets manager in prod
+      AWIN_PUBLISHER_ID: ${AWIN_PUBLISHER_ID:-}
+      AWIN_ADVERTISER_IDS: ${AWIN_ADVERTISER_IDS:-}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - default
+      - buywhere-api
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node dist/mcp-server.js
+    environment:
+      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MCP_PORT: "8081"
+      PORT: "8081"
+      API_BASE_URL: https://api.buywhere.ai
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Nightly price-refresh job (BUY-2274) — runs daily at 03:00 SGT (19:00 UTC)
+  price-refresh-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node dist/jobs/priceRefreshRunner.js
+    environment:
+      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Kai's targeted-refresh endpoint — set when endpoint is confirmed (BUY-2274)
+      # SCRAPER_REFRESH_URL: http://scraper-api:8080/v1/refresh
+      # Override schedule: REFRESH_HOUR_UTC=19, REFRESH_MIN_UTC=0 (03:00 SGT)
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+networks:
+  buywhere-api:
+    external: true
+    name: buywhere-api_default

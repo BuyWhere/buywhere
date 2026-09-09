@@ -1,0 +1,62 @@
+:root {
+  --bw-color-primary: #4f46e5;
+  --bw-color-primary-hover: #4338ca;
+  --bw-color-primary-light: #eef2ff;
+  --bw-color-secondary: #6b7280;
+  --bw-color-secondary-hover: #4b5563;
+  --bw-color-ghost: transparent;
+  --bw-color-ghost-hover: #f3f4f6;
+  --bw-color-success: #10b981;
+  --bw-color-warning: #f59e0b;
+  --bw-color-error: #ef4444;
+  --bw-color-info: #3b82f6;
+
+  --bw-color-gray-50: #f9fafb;
+  --bw-color-gray-100: #f3f4f6;
+  --bw-color-gray-200: #e5e7eb;
+  --bw-color-gray-300: #d1d5db;
+  --bw-color-gray-400: #9ca3af;
+  --bw-color-gray-500: #6b7280;
+  --bw-color-gray-600: #4b5563;
+  --bw-color-gray-700: #374151;
+  --bw-color-gray-900: #111827;
+  --bw-color-white: #ffffff;
+
+  --bw-spacing-1: 4px;
+  --bw-spacing-2: 8px;
+  --bw-spacing-3: 12px;
+  --bw-spacing-4: 16px;
+  --bw-spacing-5: 20px;
+  --bw-spacing-6: 24px;
+  --bw-spacing-8: 32px;
+  --bw-spacing-10: 40px;
+  --bw-spacing-12: 48px;
+
+  --bw-radius-sm: 4px;
+  --bw-radius-md: 8px;
+  --bw-radius-lg: 12px;
+  --bw-radius-full: 9999px;
+
+  --bw-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --bw-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --bw-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  --bw-font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bw-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --bw-transition-fast: 150ms ease;
+  --bw-transition-normal: 200ms ease;
+
+  /* Price-specific tokens */
+  --bw-price-primary: #10b981;           /* Best price */
+  --bw-price-secondary: #6b7280;         /* Regular price */
+  --bw-price-disabled: #d1d5db;          /* Unavailable price */
+  --bw-price-savings: #ef4444;           /* Savings highlight */
+  --bw-price-badge: #3b82f6;             /* Sale/best price badge */
+
+  /* Spec-specific tokens */
+  --bw-spec-primary: #1f2937;            /* Primary spec labels */
+  --bw-spec-secondary: #6b7280;          /* Secondary spec values */
+  --bw-spec-muted: #9ca3af;              /* Less important specs */
+  --bw-spec-divider: #e5e7eb;            /* Section dividers */
+}

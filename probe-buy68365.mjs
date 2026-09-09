@@ -1,0 +1,24 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) BuyWhereBot/1.0' });
+const page = await ctx.newPage();
+const url = 'https://buywhere.ai/search?q=gaming%20laptop&country=us';
+const responses = [];
+page.on('response', r => { if (r.status() >= 400 || r.url().includes('/search') || r.url().includes('/api')) responses.push({ url: r.url(), status: r.status() }); });
+await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+await page.waitForTimeout(3000);
+const apiCalls = responses.filter(r => r.url.includes('/search') || r.url.includes('/api'));
+console.log('api calls:');
+apiCalls.slice(0, 20).forEach(r => console.log(' ', r.status, r.url.slice(0, 200)));
+console.log('---');
+const hasProductCard = await page.$$eval('[class*="product" i], [class*="card" i], article, a', els => els.length);
+console.log('product-card-ish elements:', hasProductCard);
+// Try to find any rendered h1/h2/h3
+const headings = await page.$$eval('h1, h2, h3, h4', els => els.map(e => e.textContent?.trim().slice(0, 80)).filter(Boolean));
+console.log('headings:');
+headings.slice(0, 30).forEach(h => console.log(' ', h));
+console.log('---');
+const bodyText = await page.evaluate(() => document.body.innerText.slice(0, 4000));
+console.log('bodyText snippet:');
+console.log(bodyText);
+await browser.close();

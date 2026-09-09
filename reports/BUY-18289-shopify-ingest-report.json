@@ -1,0 +1,299 @@
+{
+  "started_at": "2026-05-16T01:47:17.289668+00:00",
+  "merchant_start": 0,
+  "merchant_end": 39,
+  "merchants": [
+    {
+      "domain": "peppermayo.com",
+      "status": "success",
+      "fetched": 2500,
+      "transformed": 2499,
+      "ingested": 2499,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "tigermist.com",
+      "status": "success",
+      "fetched": 1259,
+      "transformed": 1259,
+      "ingested": 1259,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "meshki.com",
+      "status": "success",
+      "fetched": 1921,
+      "transformed": 1920,
+      "ingested": 1920,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "bassike.com",
+      "status": "success",
+      "fetched": 762,
+      "transformed": 762,
+      "ingested": 762,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "showpo.com",
+      "status": "success",
+      "fetched": 2500,
+      "transformed": 2500,
+      "ingested": 2500,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "frankandoak.com",
+      "status": "success",
+      "fetched": 56,
+      "transformed": 56,
+      "ingested": 56,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "reigningchamp.com",
+      "status": "success",
+      "fetched": 674,
+      "transformed": 674,
+      "ingested": 674,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "encircled.ca",
+      "status": "success",
+      "fetched": 74,
+      "transformed": 74,
+      "ingested": 74,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "saje.com",
+      "status": "success",
+      "fetched": 387,
+      "transformed": 380,
+      "ingested": 380,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "sugarcosmetics.com",
+      "status": "success",
+      "fetched": 286,
+      "transformed": 281,
+      "ingested": 281,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "plumgoodness.com",
+      "status": "success",
+      "fetched": 372,
+      "transformed": 372,
+      "ingested": 372,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "graze.com",
+      "status": "success",
+      "fetched": 12,
+      "transformed": 12,
+      "ingested": 12,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "heckfood.co.uk",
+      "status": "success",
+      "fetched": 26,
+      "transformed": 26,
+      "ingested": 26,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "diretodasfabricas.com.br",
+      "status": "success",
+      "fetched": 79,
+      "transformed": 79,
+      "ingested": 79,
+      "failed": 0,
+      "last_error": null
+    },
+    {
+      "domain": "baseblu.com",
+      "status": "success",
+      "fetched": 2000,
+      "transformed": 2000,
+      "ingested": 0,
+      "failed": 2000,
+      "last_error": {
+        "http_code": null,
+        "status": "failed",
+        "error": ""
+      }
+    },
+    {
+      "domain": "colehaan.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "instantpot.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "colourpop.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "jackery.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "toysrus.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "kyliecosmetics.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "aldoshoes.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "champion.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "molekule.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "lacolors.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "cosori.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "jansport.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "baretraps.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "ravpower.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "wyze.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "aukey.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "modells.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "peterthomasroth.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "physiciansformula.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "morphebrushes.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "jeffreestarcosmetics.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "beautyblender.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "bbox.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    },
+    {
+      "domain": "chumbak.com",
+      "status": "no_products",
+      "fetched": 0,
+      "ingested": 0
+    }
+  ],
+  "completed_at": "2026-05-16T01:52:13.267660+00:00",
+  "stats": {
+    "merchants_processed": 15,
+    "merchants_success": 15,
+    "merchants_failed": 24,
+    "total_products_fetched": 12908,
+    "total_products_ingested": 10894,
+    "total_products_failed": 2000
+  }
+}

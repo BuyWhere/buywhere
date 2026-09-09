@@ -1,0 +1,139 @@
+{
+  "runTimestamp": "2026-08-18T18:11:01.005Z",
+  "deploySha": "ee56197",
+  "deployTime": "Tue Aug 18 2026",
+  "selectorSetFile": "/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/repo/buywhere/data/eval/vidmee-buy70779-selectors.json",
+  "outputFile": "/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/repo/buywhere/data/eval/vidmee-buy70779-rerun/vidmee-buy70779-rerun-2026-08-18T18-11-00.json",
+  "totalUrls": 6,
+  "passedGate": 0,
+  "failedGate": 0,
+  "totalIssues": 0,
+  "issues": [
+    {
+      "entry": {
+        "id": "70779-selector-01",
+        "url": "https://buywhere.ai",
+        "selector": "button.btn-outline-developer",
+        "description": "Secondary CTA — developer button contrast",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_95451ef8906d9d67845c7e43.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181115Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=2e30d8165d2eb8ccf9542da8996fcaf42e11f1a5cb601a7a452b3e78100db4ce\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".hero-badge\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 524,\n          \"y\": 178,\n          \"width\": 424,\n          \"height\": 34\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Synchronize static badge and body copy figures with live telemetry metrics or dynamically bind the merchant count.\",\n      \"description\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"fingerprint\": \"4cb75031af2deab8\",\n      \"agent_action\": \"Update hero badge markup from '238,000+ merchants' to dynamically render or reflect '865K+ merchants' to match the live stats bar.\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"category\": \"accessibility\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \"a.btn-secondary, button.btn-outline\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 825,\n          \"y\": 656,\n          \"width\": 162,\n          \"height\": 68\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Increase the border opacity or lightness to ensure clear visual affordance against the #4338ca background.\",\n      \"description\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"fingerprint\": \"60cd98f10675def1\",\n      \"agent_action\": \"Change the border style on the developer CTA button to 'border: 1.5px solid rgba(255, 255, 255, 0.4);' and add a slight \n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 14822,
+        "parsed": null
+      },
+      "gateResult": null
+    },
+    {
+      "entry": {
+        "id": "70779-selector-02",
+        "url": "https://buywhere.ai",
+        "selector": ".text-gray-400",
+        "description": "Gray utility text — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_95451ef8906d9d67845c7e43.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181120Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=ac608e5767fae72604d8e2819854c65fd5f5a93c4a8bda1ced00ce98a2a6d181\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".hero-badge\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 524,\n          \"y\": 178,\n          \"width\": 424,\n          \"height\": 34\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Synchronize static badge and body copy figures with live telemetry metrics or dynamically bind the merchant count.\",\n      \"description\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"fingerprint\": \"4cb75031af2deab8\",\n      \"agent_action\": \"Update hero badge markup from '238,000+ merchants' to dynamically render or reflect '865K+ merchants' to match the live stats bar.\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"category\": \"accessibility\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \"a.btn-secondary, button.btn-outline\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 825,\n          \"y\": 656,\n          \"width\": 162,\n          \"height\": 68\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Increase the border opacity or lightness to ensure clear visual affordance against the #4338ca background.\",\n      \"description\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"fingerprint\": \"60cd98f10675def1\",\n      \"agent_action\": \"Change the border style on the developer CTA button to 'border: 1.5px solid rgba(255, 255, 255, 0.4);' and add a slight \n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 4532,
+        "parsed": null
+      },
+      "gateResult": null
+    },
+    {
+      "entry": {
+        "id": "70779-selector-03",
+        "url": "https://buywhere.ai",
+        "selector": ".text-indigo-200",
+        "description": "Indigo-200 on indigo background — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_95451ef8906d9d67845c7e43.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181124Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=7e80f99c668ebe3d97539d45bcfae21715fbe02fe88c11423aaf0538173e2953\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".hero-badge\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 524,\n          \"y\": 178,\n          \"width\": 424,\n          \"height\": 34\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Synchronize static badge and body copy figures with live telemetry metrics or dynamically bind the merchant count.\",\n      \"description\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"fingerprint\": \"4cb75031af2deab8\",\n      \"agent_action\": \"Update hero badge markup from '238,000+ merchants' to dynamically render or reflect '865K+ merchants' to match the live stats bar.\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"category\": \"accessibility\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \"a.btn-secondary, button.btn-outline\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 825,\n          \"y\": 656,\n          \"width\": 162,\n          \"height\": 68\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Increase the border opacity or lightness to ensure clear visual affordance against the #4338ca background.\",\n      \"description\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"fingerprint\": \"60cd98f10675def1\",\n      \"agent_action\": \"Change the border style on the developer CTA button to 'border: 1.5px solid rgba(255, 255, 255, 0.4);' and add a slight \n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 7944,
+        "parsed": null
+      },
+      "gateResult": null
+    },
+    {
+      "entry": {
+        "id": "70779-selector-04",
+        "url": "https://buywhere.ai",
+        "selector": ".ml-2",
+        "description": "Margin utility — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_95451ef8906d9d67845c7e43.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181132Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=b98831c82ad8646b288dd8153203b0bc28d2ccbf2c0b781472d20233d6371007\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".hero-badge\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 524,\n          \"y\": 178,\n          \"width\": 424,\n          \"height\": 34\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Synchronize static badge and body copy figures with live telemetry metrics or dynamically bind the merchant count.\",\n      \"description\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"fingerprint\": \"4cb75031af2deab8\",\n      \"agent_action\": \"Update hero badge markup from '238,000+ merchants' to dynamically render or reflect '865K+ merchants' to match the live stats bar.\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"category\": \"accessibility\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \"a.btn-secondary, button.btn-outline\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 825,\n          \"y\": 656,\n          \"width\": 162,\n          \"height\": 68\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Increase the border opacity or lightness to ensure clear visual affordance against the #4338ca background.\",\n      \"description\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"fingerprint\": \"60cd98f10675def1\",\n      \"agent_action\": \"Change the border style on the developer CTA button to 'border: 1.5px solid rgba(255, 255, 255, 0.4);' and add a slight \n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 4600,
+        "parsed": null
+      },
+      "gateResult": null
+    },
+    {
+      "entry": {
+        "id": "70779-selector-05",
+        "url": "https://buywhere.ai/laptop-singapore",
+        "selector": ".bg-slate-100",
+        "description": "Merchant badge muted gray on slate — contrast check",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai/laptop-singapore",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_458f65c2a293c03c66a64015.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181144Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=bb44da89765c49d4af6aaf3ca25803b914121ac9c0f791926a59533a765ef7f1\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Near-duplicate product cards rendered side-by-side in the live catalog snapshot with minor string formatting differences.\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".catalog-grid .product-card:nth-child(2)\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 165,\n          \"y\": 605,\n          \"width\": 1130,\n          \"height\": 265\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Deduplicate product items in the query result or group variants by merchant/model SKU to avoid presenting redundant listings side-by-side.\",\n      \"description\": \"Near-duplicate product cards rendered side-by-side in the live catalog snapshot with minor string formatting differences.\",\n      \"fingerprint\": \"e5870f8de081ea3f\",\n      \"agent_action\": \"Apply a distinct deduplication filter in the catalog query by normalized product title and retailer ID: `products.filter((item, index, self) => index === self.findIndex(t => t.normalizedSku === item.normalizedSku))`\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Inconsistent casing for country abbreviation in the merchant CTA buttons ('Buy at Harvey Norman Sg' instead of 'SG').\",\n      \"category\": \"typography\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".product-card__cta\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 250,\n          \"y\": 802,\n          \"width\": 340,\n          \"height\": 52\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Standardize retailer country code capitalization to uppercase 'SG' matching the badge above.\",\n      \"description\": \"Inconsistent casing for country abbreviation in the merchant CTA buttons ('Buy at Harvey Norman Sg' instead of 'SG').\",\n      \"fingerprint\": \"776d29aee0e788f1\",\n      \"agent_action\": \"Update button label formatting template to use `Buy at ${merchantName} ${countryCode.toUpperCase()}` instead of title-cased country abbrev\n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 14441,
+        "parsed": null
+      },
+      "gateResult": null
+    },
+    {
+      "entry": {
+        "id": "70779-selector-06",
+        "url": "https://buywhere.ai",
+        "selector": ".text-gray-600",
+        "description": "Merchant badge fallback — BUY-60877 fix target",
+        "originalFlag": "color-contrast",
+        "originalCategory": "color",
+        "status": "known-false-positive",
+        "reRunHistory": []
+      },
+      "inspectResult": {
+        "url": "https://buywhere.ai",
+        "stdout": "{\n  \"url\": \"https://b6a1b2b6bcbd4011ffe40a3cc540b1b0.r2.cloudflarestorage.com/vidmee/9f2cbdd5-c077-45df-bb37-d9346512aac1/vidmee_ss_95451ef8906d9d67845c7e43.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=016f0bec50e2d0370a1894cf1c4402aa%2F20260818%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260818T181151Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=83a055dd958874f8a1f90bf041647b1d1e17786afceb568ab3196e5f3837f7e8\",\n  \"issues\": [\n    {\n      \"id\": \"issue_1\",\n      \"title\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"category\": \"content\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \".hero-badge\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 524,\n          \"y\": 178,\n          \"width\": 424,\n          \"height\": 34\n        }\n      },\n      \"severity\": \"medium\",\n      \"suggestion\": \"Synchronize static badge and body copy figures with live telemetry metrics or dynamically bind the merchant count.\",\n      \"description\": \"Metric discrepancy between the hero badge text ('238,000+ merchants') and the live statistics ticker at the bottom ('865.4K MERCHANTS').\",\n      \"fingerprint\": \"4cb75031af2deab8\",\n      \"agent_action\": \"Update hero badge markup from '238,000+ merchants' to dynamically render or reflect '865K+ merchants' to match the live stats bar.\"\n    },\n    {\n      \"id\": \"issue_2\",\n      \"title\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"category\": \"accessibility\",\n      \"evidence\": {\n        \"axe_rule\": null,\n        \"dom_selector\": \"a.btn-secondary, button.btn-outline\",\n        \"console_error\": null,\n        \"screenshot_region\": {\n          \"x\": 825,\n          \"y\": 656,\n          \"width\": 162,\n          \"height\": 68\n        }\n      },\n      \"severity\": \"low\",\n      \"suggestion\": \"Increase the border opacity or lightness to ensure clear visual affordance against the #4338ca background.\",\n      \"description\": \"Secondary outline button ('For developers \\u2192') has a low-contrast border against the saturated indigo background, reducing visibility of its interactive bounds.\",\n      \"fingerprint\": \"60cd98f10675def1\",\n      \"agent_action\": \"Change the border style on the developer CTA button to 'border: 1.5px solid rgba(255, 255, 255, 0.4);' and add a slight \n",
+        "stderr": "",
+        "status": "success",
+        "elapsed_ms": 4858,
+        "parsed": null
+      },
+      "gateResult": null
+    }
+  ]
+}

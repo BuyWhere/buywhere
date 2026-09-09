@@ -1,0 +1,177 @@
+{
+  "slug": "best-mechanical-keyboards-us",
+  "title": "Best Mechanical Keyboards in the US (2026) — Live Prices Compared",
+  "description": "Compare live US mechanical keyboard prices from Amazon, Best Buy and manufacturer stores. Linear vs tactile vs clicky, wireless vs wired, with honest size and switch advice — no invented specs.",
+  "heroEyebrow": "US mechanical keyboard buying guide",
+  "heroTitle": "Best mechanical keyboards in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best mechanical keyboards in the US — from {floorPrice} today",
+  "heroBody": "Mechanical keyboards in the US split less by RGB and more by size and switch: full-size with a numpad for spreadsheets, TKL for desk space, 75% and 65% for travel, plus hot-swap boards if you want to change switches later. Wireless 2.4 GHz is table stakes for desk setups in 2026; Bluetooth-only boards still drop polling for gaming. This page reads live US catalog listings so you can see which layouts are actually in stock and what authorised sellers are asking today, instead of a static list that froze last year's group-buy prices.",
+  "canonicalPath": "/best-mechanical-keyboards-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "mechanical keyboard",
+  "backupQueries": [
+    "Keychron mechanical keyboard",
+    "Logitech MX Mechanical",
+    "Corsair mechanical keyboard"
+  ],
+  "minPrice": 40,
+  "requiredProductTerms": [
+    "keyboard",
+    "mechanical",
+    "keychron",
+    "logitech",
+    "corsair"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live mechanical keyboard prices in the US",
+  "comparisonSectionTitle": "Which layout to buy",
+  "comparisonColumns": [
+    "Layout",
+    "Keys kept",
+    "Best for",
+    "Skip if"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Full-size",
+      "values": [
+        "Numpad included",
+        "Finance, CAD, data entry",
+        "Desk depth is already tight"
+      ]
+    },
+    {
+      "label": "TKL (tenkeyless)",
+      "values": [
+        "No numpad",
+        "Gaming + writing mix",
+        "You live in Excel all day"
+      ]
+    },
+    {
+      "label": "75% / 65%",
+      "values": [
+        "Arrows kept or squeezed",
+        "Small desks and travel",
+        "You need dedicated F-row or numpad"
+      ]
+    },
+    {
+      "label": "Hot-swap wireless",
+      "values": [
+        "Swappable switches",
+        "Tinkerers who will try linears then tactiles",
+        "You want a sealed office board and nothing else"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually changes between boards",
+  "highlights": [
+    {
+      "title": "Switch feel is not RGB",
+      "body": "Linear switches are smooth and quiet-ish; tactile have a bump; clicky are loud. Office desks usually want linear or silent tactile. Listings that hide the switch name are harder to return."
+    },
+    {
+      "title": "Wireless that is not laggy",
+      "body": "2.4 GHz dongles are still more reliable than Bluetooth for typing-plus-gaming. Bluetooth is fine for a second machine. Confirm both if you dock a laptop and a desktop."
+    },
+    {
+      "title": "Hot-swap vs soldered",
+      "body": "Hot-swap sockets let you change switches without a soldering iron. Cheaper boards solder the switches in. If you are not sure about feel, hot-swap is the safer first board."
+    }
+  ],
+  "adviceSectionTitle": "How to pick without overpaying",
+  "advicePoints": [
+    "Buy the layout that matches your desk, not the one with the most keys on the box.",
+    "If you share an office, skip clicky switches even if the listing looks cheaper.",
+    "Prefer authorised Amazon and manufacturer-store listings; grey-market 'optical' clones often skip QMK/VIA support they advertise.",
+    "A wrist rest is optional; a board that does not ping (case foam or gasket mount) is more useful than extras in the box.",
+    "Check whether replacement keycaps are ANSI US. ISO UK kits show up in US search results and will not match your muscle memory."
+  ],
+  "faqSectionTitle": "Mechanical keyboards in the US — common questions",
+  "faqs": [
+    {
+      "question": "Are membrane office keyboards obsolete?",
+      "answer": "No. If you only type emails, a membrane board is quieter and cheaper. Mechanical is for people who care about travel distance and want to replace switches or keycaps."
+    },
+    {
+      "question": "Is Keychron still the default first board?",
+      "answer": "Keychron, Logitech and Corsair dominate authorised US listings in 2026. Keychron is the usual hot-swap recommendation; Logitech if you already live in MX software; Corsair if you want a gaming ecosystem. Unknown Amazon-house brands with no firmware page are disposable."
+    },
+    {
+      "question": "Do I need a numpad?",
+      "answer": "Only if you type numbers all day. Otherwise a TKL or 75% gives you mouse space, which most US desks are short on."
+    },
+    {
+      "question": "Should I wait for a sale?",
+      "answer": "Keyboard prices move with Prime Day and back-to-school. This page tracks live listings; we do not invent a 'usual' street price in the copy."
+    }
+  ],
+  "fallbackProducts": [
+    {
+      "id": "36993306",
+      "name": "Redragon K589 Shrapnel RGB Backlit Low Profile Wired Mechanical Gaming Keyboard 104 Keys Anti-ghosting Mechanical Keyboard with Linear & Quiet Red Switches",
+      "price": 3290,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/K589_01.jpg?v=1696933755",
+      "href": "/r/direct/36993306",
+      "affiliateUrl": "/r/direct/36993306",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36993321",
+      "name": "Redragon K617 FIZZ 60% Wired RGB Gaming Keyboard, 61 Keys Compact Mechanical Keyboard w/ White & Pink Mixed-Colored Keycaps, Linear Red Switch, Pro Driver Support",
+      "price": 1550,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/K617_02.jpg?v=1696946581",
+      "href": "/r/direct/36993321",
+      "affiliateUrl": "/r/direct/36993321",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36993307",
+      "name": "Redragon K587 MAGIC-WAND 87 Keys Compact RGB TKL Mechanical Gaming Keyboard, Type-C Keyboard with 9 Onboard Macro Keys, Detachable Wrist Rest",
+      "price": 2590,
+      "currency": "USD",
+      "merchant": "compumarts.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0622/7050/5109/products/Redragon-K587-MAGIC_03.jpg?v=1668597585",
+      "href": "/r/direct/36993307",
+      "affiliateUrl": "/r/direct/36993307",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "36572718",
+      "name": "REDMAGIC Mechanical Keyboard",
+      "price": 236,
+      "currency": "USD",
+      "merchant": "redmagic.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0574/5619/7679/products/1_7eb079db-9bc5-492e-8958-1fef9de88746.png?v=1757909216",
+      "href": "/r/direct/36572718",
+      "affiliateUrl": "/r/direct/36572718",
+      "brand": "",
+      "category": ""
+    }
+  ],
+  "hreflangAlternates": {},
+  "inboundLinks": [
+    "/best-4k-monitors-us",
+    "/best-gaming-monitors-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US keyboard listings are noisy",
+    "body": "Search for 'mechanical keyboard' returns full kits, barebones, keycap sets and office membranes mis-tagged as mechanical. Platform campaigns dump last year's RGB boards, then authorised Keychron and Logitech prices snap back. A static 2025 list cannot tell you which layout is in stock with the switch you want this week, which is why this page is wired to live catalog search."
+  },
+  "owner": "Buzz",
+  "reviewer": "Hue",
+  "queueRow": 0
+}

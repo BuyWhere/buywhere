@@ -1,0 +1,173 @@
+name: WooCommerce Deep-page Lane Supervisor (BUY-31015)
+
+# Every 8 minutes: check via the supervisor --check, restart via --restart.
+# Reports cycle count, progress, and lane health metrics.
+#
+# Lane:          woocommerce_deep
+# Supervisor:    scripts/buy31015-deep-page-supervisor.mjs
+# Worker:        scripts/buy31015-woocommerce-deep-page.mjs
+# Keepalive:     scripts/buy31015-deep-page-keepalive.sh
+# State:         data/buy31015-deep-page-keep-alive-state.json
+# Status:        data/buy31015-deep-page-status.json
+
+on:
+  schedule:
+    - cron: '*/8 * * * *'
+  workflow_dispatch:
+
+jobs:
+  supervisor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Supervisor tick
+        id: supervisor
+        env:
+          REPO_ROOT: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+        run: |
+          set -euo pipefail
+          ROOT="$REPO_ROOT"
+          SCRIPT_DIR="$ROOT/scripts"
+          DATA_DIR="$ROOT/data"
+          SUPERVISOR="$SCRIPT_DIR/buy31015-deep-page-supervisor.mjs"
+          TICK_STATE="$DATA_DIR/buy31015-deep-page-keep-alive-state.json"
+          STATUS_FILE="$DATA_DIR/buy31015-deep-page-status.json"
+          PIDFILE="$DATA_DIR/.buy31015-deep-page.pid"
+          TICKLOG="$DATA_DIR/buy31015-supervisor-tick.log"
+          TS() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+          say() { echo "[$(TS)] $*" | tee -a "$TICKLOG"; }
+          mkdir -p "$DATA_DIR"
+
+          # ---- 1. Read keep-alive tick state ----
+          KEEPALIVE_STATUS="unknown"; CYCLE="?"; ROWS_INGESTED="?"
+          ROWS_PER_HOUR="?"; MERCHANTS_DISCOVERED="?"; TOTAL_MERCHANTS="?"
+          TICK_PID="?"; HB_AGE_SEC=-1
+
+          if [ -f "$TICK_STATE" ]; then
+            eval "$(python3 - "$TICK_STATE" 2>/dev/null <<'PY'
+import json,sys
+from datetime import timezone,datetime as dt
+d=json.load(open(sys.argv[1]))
+print(f"KEEPALIVE_STATUS={d.get('alive_status','unknown')}")
+print(f"CYCLE={d.get('cycle','?')}")
+print(f"ROWS_INGESTED={d.get('rows_ingested','?')}")
+print(f"ROWS_PER_HOUR={d.get('rows_per_hour','?')}")
+print(f"MERCHANTS_DISCOVERED={d.get('merchants_discovered',d.get('merchants_visited','?'))}")
+print(f"TOTAL_MERCHANTS={d.get('total_merchants','?')}")
+print(f"TICK_PID={d.get('pid','?')}")
+ts=d.get('ts','')
+if ts:
+  dt_parsed=dt.fromisoformat(ts.replace('Z','+00:00'))
+  age=int((dt.now(timezone.utc)-dt_parsed).total_seconds())
+  print(f"HB_AGE_SEC={age}")
+else:
+  print("HB_AGE_SEC=-1")
+PY
+)" || true
+          fi
+
+say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_DISCOVERED/$TOTAL_MERCHANTS pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
+
+          # ---- 2. Liveness check via supervisor --check ----
+          ALIVE_PID=0; CHECK_OUTPUT=""
+          if CHECK_OUTPUT="$(cd "$ROOT" && node "$SUPERVISOR" --check 2>&1)"; then
+            ALIVE_PID="$(printf '%s\n' "$CHECK_OUTPUT" | grep -oP 'pid=\K[0-9]+' | head -1)"
+            say "check: $(echo "$CHECK_OUTPUT" | head -1)"
+          else
+            say "check: not running ($(echo "$CHECK_OUTPUT" | head -1))"
+          fi
+
+          FRESH="no"
+          if [ "$HB_AGE_SEC" -ge 0 ] && [ "$HB_AGE_SEC" -le 120 ]; then
+            FRESH="yes"
+          fi
+          # ---- 3. Read worker status for progress reporting ----
+          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS_DISCOVERED=""; STATUS_TOTAL_MERCHANTS=""; STATUS_MERCHANT_DISCOVERY_PROGRESS=""
+          if [ -f "$STATUS_FILE" ]; then
+            eval "$(python3 - "$STATUS_FILE" 2>/dev/null <<'PYSTAT'
+import json,sys
+d=json.load(open(sys.argv[1]))
+print(f"STATUS_CYCLE={d.get('cycle','?')}")
+print(f"STATUS_ROWS={d.get('rowsInserted',0)+d.get('rowsUpdated',0)}")
+print(f"STATUS_RPH={d.get('rowsPerHour',0)}")
+print(f"STATUS_MERCHANTS_DISCOVERED={d.get('discoveredMerchants',d.get('merchantsVisited',0))}")
+print(f"STATUS_TOTAL_MERCHANTS={d.get('totalMerchants', d.get('merchantsVisited',0))}")
+discovered=int(d.get('discoveredMerchants',d.get('merchantsVisited',0)) or 0)
+total=int(d.get('totalMerchants',d.get('merchantsVisited',0)) or 0)
+prog=d.get('merchantDiscoveryProgress')
+if prog is None: prog=int((discovered*100/total)) if total>0 else 0
+print(f"STATUS_MERCHANT_DISCOVERY_PROGRESS={prog}")
+PYSTAT
+)" || true
+          fi
+          if [ -z "$STATUS_CYCLE" ]; then
+            STATUS_CYCLE="$CYCLE"; STATUS_ROWS="$ROWS_INGESTED"
+            STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS_DISCOVERED="$MERCHANTS_DISCOVERED"; STATUS_TOTAL_MERCHANTS="$TOTAL_MERCHANTS"; STATUS_MERCHANT_DISCOVERY_PROGRESS="$MERCHANT_DISCOVERY_PROGRESS"
+          fi
+
+          # ---- 4. Branch on liveness ----
+          if [ "$KEEPALIVE_STATUS" = "RUNNING" ] && [ "$FRESH" = "yes" ]; then
+            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS_DISCOVERED/$STATUS_TOTAL_MERCHANTS progress=$STATUS_MERCHANT_DISCOVERY_PROGRESS% hb_age=${HB_AGE_SEC}s"
+            echo "status=alive" >> "$GITHUB_OUTPUT"
+            echo "pid=${ALIVE_PID:-$TICK_PID}" >> "$GITHUB_OUTPUT"
+          else
+            say "dead/stalled: keepalive=$KEEPALIVE_STATUS hb_age=${HB_AGE_SEC}s -- restarting via supervisor --restart"
+            if [ -f "$PIDFILE" ]; then
+              OLD_PID="$(cut -d'|' -f1 "$PIDFILE" 2>/dev/null | tr -d ' ')"
+              if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+                kill "$OLD_PID" 2>/dev/null || true; sleep 1
+                kill -9 "$OLD_PID" 2>/dev/null || true
+              fi
+              rm -f "$PIDFILE"
+            fi
+            RESTART_OUTPUT="$(cd "$ROOT" && node "$SUPERVISOR" --restart 2>&1)" || true
+            NEW_PID="$(printf '%s\n' "$RESTART_OUTPUT" | grep -oP 'pid=\K[0-9]+' | head -1)"
+            say "restarted: newpid=${NEW_PID:-unknown} cycle=$STATUS_CYCLE rows=$STATUS_ROWS"
+            echo "status=respawned" >> "$GITHUB_OUTPUT"
+            echo "pid=${NEW_PID:-0}" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "cycle=$STATUS_CYCLE" >> "$GITHUB_OUTPUT"
+          echo "rows_ingested=$STATUS_ROWS" >> "$GITHUB_OUTPUT"
+          echo "rows_per_hour=$STATUS_RPH" >> "$GITHUB_OUTPUT"
+          echo "merchants_discovered=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
+          echo "total_merchants=$STATUS_TOTAL_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "merchant_discovery_progress=$STATUS_MERCHANT_DISCOVERY_PROGRESS" >> "$GITHUB_OUTPUT"
+          echo "merchants_visited=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
+          echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
+          echo "keepalive_status=$KEEPALIVE_STATUS" >> "$GITHUB_OUTPUT"
+      - name: Upload supervisor tick log
+        uses: actions/upload-artifact@v4
+        with:
+          name: buy31015-supervisor-tick-log
+          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy31015-supervisor-tick.log
+          retention-days: 3
+        if: always()
+
+      - name: Upload keep-alive state snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: buy31015-keep-alive-state
+          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy31015-deep-page-keep-alive-state.json
+          retention-days: 1
+        if: always()
+
+      - name: Report lane health
+        if: success()
+        run: |
+          echo "BUY-31015 WooCommerce Deep-page Lane Supervisor tick complete."
+          echo "status=${{ steps.supervisor.outputs.status }}"
+          echo "cycle=${{ steps.supervisor.outputs.cycle }}"
+          echo "rows_ingested=${{ steps.supervisor.outputs.rows_ingested }}"
+          echo "rows_per_hour=${{ steps.supervisor.outputs.rows_per_hour }}"
+          echo "merchants_discovered=${{ steps.supervisor.outputs.merchants_discovered }}"
+          echo "total_merchants=${{ steps.supervisor.outputs.total_merchants }}"
+          echo "merchant_discovery_progress=${{ steps.supervisor.outputs.merchant_discovery_progress }}"
+          echo "merchants_visited=${{ steps.supervisor.outputs.merchants_visited }}"
+          echo "pid=${{ steps.supervisor.outputs.pid }}"
+          echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
+          echo "keepalive_status=${{ steps.supervisor.outputs.keepalive_status }}"

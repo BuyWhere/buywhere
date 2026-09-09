@@ -1,0 +1,11 @@
+{
+  "date": "2026-08-31",
+  "queue_size": 500,
+  "override_size": 500,
+  "override_path": "content/audits/sitemap-lastmod-override-2026-08-31.json",
+  "recent_path": "content/audits/sitemap-products-recent-2026-08-31.json",
+  "audit_path": "content/audits/sitemap-lastmod-audit-2026-08-31.json",
+  "generated_at": "2026-08-31T23:24:35.234Z",
+  "lastmod": "2026-08-31T23:24:35.231Z",
+  "queue_path": "content/audits/midnight-indexing-queue-2026-08-31.json"
+}

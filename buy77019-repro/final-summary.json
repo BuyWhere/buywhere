@@ -1,0 +1,205 @@
+{
+  "probe_ts_utc": "2026-08-29T02:11:02.065Z",
+  "file": "probe-20260829T021102Z.json",
+  "warmup_ms": {
+    "SG": 1367,
+    "US": 16969
+  },
+  "by_market": {
+    "SG": {
+      "search_products": {
+        "ms": 796,
+        "status": 200,
+        "ok": true,
+        "dataLen": 200,
+        "code": 200
+      },
+      "fbp_correct_q": {
+        "ms": 318,
+        "status": 200,
+        "ok": true,
+        "dataLen": null,
+        "code": 200
+      },
+      "fbp_wrong_query": {
+        "ms": 21,
+        "status": 200,
+        "ok": true,
+        "code": 200
+      },
+      "get_deals": {
+        "ms": 79,
+        "status": 200,
+        "ok": true,
+        "dataLen": 5,
+        "code": 200
+      }
+    },
+    "US": {
+      "search_products": {
+        "ms": 443,
+        "status": 200,
+        "ok": true,
+        "dataLen": 200,
+        "code": 200
+      },
+      "fbp_correct_q": {
+        "ms": 137,
+        "status": 200,
+        "ok": true,
+        "dataLen": null,
+        "code": 200
+      },
+      "fbp_wrong_query": {
+        "ms": 12,
+        "status": 200,
+        "ok": true,
+        "code": 200
+      },
+      "get_deals": {
+        "ms": 76,
+        "status": 200,
+        "ok": true,
+        "dataLen": 5,
+        "code": 200
+      }
+    },
+    "MY": {
+      "search_products": {
+        "ms": 12063,
+        "status": 200,
+        "ok": true,
+        "dataLen": 162,
+        "code": 200
+      },
+      "fbp_correct_q": {
+        "ms": 138,
+        "status": 200,
+        "ok": true,
+        "dataLen": null,
+        "code": 200
+      },
+      "fbp_wrong_query": {
+        "ms": 15,
+        "status": 200,
+        "ok": true,
+        "code": 200
+      },
+      "get_deals": {
+        "ms": 70,
+        "status": 200,
+        "ok": true,
+        "dataLen": 0,
+        "code": 200
+      }
+    },
+    "TH": {
+      "search_products": {
+        "ms": 1779,
+        "status": 200,
+        "ok": true,
+        "dataLen": 45,
+        "code": 200
+      },
+      "fbp_correct_q": {
+        "ms": 54,
+        "status": 200,
+        "ok": true,
+        "dataLen": null,
+        "code": 200
+      },
+      "fbp_wrong_query": {
+        "ms": 10,
+        "status": 200,
+        "ok": true,
+        "code": 200
+      },
+      "get_deals": {
+        "ms": 49,
+        "status": 200,
+        "ok": true,
+        "dataLen": 5,
+        "code": 200
+      }
+    },
+    "VN": {
+      "search_products": {
+        "ms": 2044,
+        "status": 200,
+        "ok": true,
+        "dataLen": 84,
+        "code": 200
+      },
+      "fbp_correct_q": {
+        "ms": 26,
+        "status": 200,
+        "ok": true,
+        "dataLen": null,
+        "code": 200
+      },
+      "fbp_wrong_query": {
+        "ms": 34,
+        "status": 200,
+        "ok": true,
+        "code": 200
+      },
+      "get_deals": {
+        "ms": 38,
+        "status": 200,
+        "ok": true,
+        "dataLen": 5,
+        "code": 200
+      }
+    }
+  },
+  "rollup": {
+    "search_products": {
+      "markets_total": 5,
+      "markets_ok": 5,
+      "p50_ms": 1779,
+      "p95_ms": 12063,
+      "total_dataLen": 691,
+      "all_200": true,
+      "any_zero": false,
+      "any_timeout": false
+    },
+    "fbp_correct_q": {
+      "markets_total": 5,
+      "markets_ok": 5,
+      "p50_ms": 137,
+      "p95_ms": 318,
+      "total_dataLen": 0,
+      "all_200": true,
+      "any_zero": false,
+      "any_timeout": false
+    },
+    "fbp_wrong_query": {
+      "markets_total": 5,
+      "markets_ok": 5,
+      "p50_ms": 15,
+      "p95_ms": 34,
+      "total_dataLen": 0,
+      "all_200": true,
+      "any_zero": false,
+      "any_timeout": false
+    },
+    "get_deals": {
+      "markets_total": 5,
+      "markets_ok": 5,
+      "p50_ms": 70,
+      "p95_ms": 79,
+      "total_dataLen": 20,
+      "all_200": true,
+      "any_zero": true,
+      "any_timeout": false
+    }
+  },
+  "verdict": {
+    "any_tool_down": false,
+    "any_market_down": false,
+    "any_tool_empty": true,
+    "any_tool_timeout": false,
+    "cart_claim_holds": false,
+    "probe_conclusion": "ALL 5 MARKETS, ALL 3 TOOLS RESPONDING 200 IN <20s. NOT a SEV-1. Cart's '0/5 PASS' is probe methodology (cold-cache + wrong-param shape for find_best_price: API uses `q`, not `query`)."
+  }
+}

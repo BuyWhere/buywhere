@@ -1,0 +1,178 @@
+{
+  "slug": "best-soundbars-us",
+  "title": "Best Soundbars in the US (2026) — Live Prices Compared",
+  "description": "Compare live US soundbar prices from Amazon, Best Buy and Walmart. 3.1 vs 5.1 vs Dolby Atmos bars, with honest buying advice on HDMI eARC, subwoofers and room size — no invented specs.",
+  "heroEyebrow": "US soundbar buying guide",
+  "heroTitle": "Best soundbars in the US — 2026 live price comparison",
+  "heroTitleTemplate": "Best soundbars in the US — from {floorPrice} today",
+  "heroBody": "A soundbar is the fastest upgrade from tinny TV speakers, but US listings mix compact 2.0 bars, 3.1 bars with a wireless sub, 5.1 kits with surrounds, and Dolby Atmos up-firing models that only make sense in a room with a ceiling to bounce off. In 2026 the useful filter is HDMI eARC, a real subwoofer (not a fake 'bass radiator' in the bar), and whether the kit is sold as a complete set. This page reads live US catalog prices so you can see which of those configurations is actually in stock today instead of a roundup frozen to last Black Friday.",
+  "canonicalPath": "/best-soundbars-us",
+  "country": "US",
+  "currency": "USD",
+  "locale": "en_US",
+  "searchQuery": "soundbar",
+  "backupQueries": [
+    "Samsung soundbar",
+    "Sony soundbar",
+    "Vizio soundbar"
+  ],
+  "minPrice": 80,
+  "requiredProductTerms": [
+    "soundbar",
+    "sound bar",
+    "samsung",
+    "sony",
+    "vizio",
+    "bose"
+  ],
+  "excludeAccessories": true,
+  "refreshedLabel": "Updated September 1, 2026",
+  "datePublished": "2026-09-01",
+  "dateModified": "2026-09-01",
+  "productSectionTitle": "Live soundbar prices in the US",
+  "comparisonSectionTitle": "Which soundbar kit to buy",
+  "comparisonColumns": [
+    "Kit",
+    "What you get",
+    "Best room",
+    "Skip if"
+  ],
+  "comparisonRows": [
+    {
+      "label": "Compact 2.0 / 2.1",
+      "values": [
+        "Bar only, maybe a slim sub",
+        "Apartments and bedrooms",
+        "You want movie-level bass"
+      ]
+    },
+    {
+      "label": "3.1 with wireless sub",
+      "values": [
+        "Centre + dedicated sub",
+        "Living rooms under ~250 sq ft",
+        "You need true surround behind the sofa"
+      ]
+    },
+    {
+      "label": "5.1 kit",
+      "values": [
+        "Rear speakers included",
+        "Dedicated TV rooms",
+        "You cannot run rears or a wireless kit"
+      ]
+    },
+    {
+      "label": "Dolby Atmos up-firing",
+      "values": [
+        "Height channels via ceiling bounce",
+        "Rooms with a flat ceiling",
+        "You sit in an open plan with no ceiling bounce"
+      ]
+    }
+  ],
+  "highlightSectionTitle": "What actually changes between bars",
+  "highlights": [
+    {
+      "title": "HDMI eARC vs optical",
+      "body": "eARC carries lossless formats from a 4K TV. Optical-only bars clip you to compressed audio. If the listing does not mention HDMI eARC, treat it as a dialogue-clarity gadget, not a home-theatre kit."
+    },
+    {
+      "title": "The subwoofer is the product",
+      "body": "A wireless sub does the heavy lifting for movies. Bars that advertise 'built-in bass' without a separate sub will rattle at high volume. Check that the sub is in the box, not sold as an extra."
+    },
+    {
+      "title": "Atmos needs a ceiling",
+      "body": "Up-firing drivers bounce off a ceiling. In a loft or very high ceiling they do almost nothing. Rear speakers still matter more than height channels for most US living rooms."
+    }
+  ],
+  "adviceSectionTitle": "How to pick without overpaying",
+  "advicePoints": [
+    "Match the kit to the room, not the channel-count on the box. Channel inflation is the oldest soundbar marketing trick.",
+    "Confirm HDMI eARC on both the bar and your TV before paying for lossless codecs you cannot pass through.",
+    "Prefer authorised Amazon, Best Buy and Walmart listings; marketplace 'open box' bars often miss the sub or rears.",
+    "If you already own a receiver and speakers, a soundbar is a downgrade — this page is for TV-only setups.",
+    "Measure the TV stand. A 3.1 bar that overhangs the screen looks worse than a cheaper compact bar that fits."
+  ],
+  "faqSectionTitle": "Soundbars in the US — common questions",
+  "faqs": [
+    {
+      "question": "Do I need Dolby Atmos?",
+      "answer": "Only if your TV passes Atmos over eARC and the room has a ceiling the up-firing drivers can use. For dialogue and sports, a 3.1 bar with a real sub is the better spend."
+    },
+    {
+      "question": "Will a soundbar work with any TV?",
+      "answer": "Almost every 2018-and-later US TV has HDMI ARC or eARC. Older sets fall back to optical and lose lossless formats. Check the TV's audio-out label before you buy."
+    },
+    {
+      "question": "Samsung, Sony, Vizio or Bose?",
+      "answer": "Those four dominate authorised US listings in 2026. Match features (eARC, sub included) rather than brand loyalty. Unknown house brands with no replacement-sub SKUs are disposable."
+    },
+    {
+      "question": "Should I wait for a sale?",
+      "answer": "Soundbar kits move hard at Prime Day and Black Friday. This page tracks live listings so you can see today's floor; we do not invent a 'usual' street price in the copy."
+    }
+  ],
+  "fallbackProducts": [
+    {
+      "id": "37400631",
+      "name": "HW-S800D/ZK 3.1.2 聲道 SOUNDBAR",
+      "price": 3990,
+      "currency": "USD",
+      "merchant": "broadwaylifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0943/8265/3728/files/ea564fb64975645854a41c34815673f0.jpg?v=1767726841",
+      "href": "/r/direct/37400631",
+      "affiliateUrl": "/r/direct/37400631",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35570984",
+      "name": "KEF XIO HIGH-END DOLBY SOUNDBAR",
+      "price": 3600,
+      "currency": "USD",
+      "merchant": "absolute-hifi-6.myshopify.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0177/0142/files/XIO-3.png?v=1759471306",
+      "href": "/r/direct/35570984",
+      "affiliateUrl": "/r/direct/35570984",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35770873",
+      "name": "boAt Aavante Aura Plus | 160W 2.1 Channel Soundbar with Bluetooth v5.4, EQ Modes & Master Remote",
+      "price": 7499,
+      "currency": "USD",
+      "merchant": "boat-lifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0057/8938/4802/files/Artboard2_40751b68-cd17-478d-93d2-ee732f5fec49.png?v=1753685658",
+      "href": "/r/direct/35770873",
+      "affiliateUrl": "/r/direct/35770873",
+      "brand": "",
+      "category": ""
+    },
+    {
+      "id": "35770876",
+      "name": "boAt Aavante 2.1 1550 Plus | 160W 2.1 Channel Soundbar with Bluetooth v5.4, EQ Modes & Master Remote",
+      "price": 5699,
+      "currency": "USD",
+      "merchant": "boat-lifestyle.com",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0057/8938/4802/files/Artboard2_40751b68-cd17-478d-93d2-ee732f5fec49.png?v=1753685658",
+      "href": "/r/direct/35770876",
+      "affiliateUrl": "/r/direct/35770876",
+      "brand": "",
+      "category": ""
+    }
+  ],
+  "hreflangAlternates": {},
+  "inboundLinks": [
+    "/best-oled-tvs-us",
+    "/best-qled-tvs-us"
+  ],
+  "categoryIntro": {
+    "heading": "Why US soundbar prices swing",
+    "body": "The same Samsung or Sony SKU is sold as a complete kit and as a bar-only listing, often with a missing sub on marketplace pages. Platform campaigns dump last year's Atmos kits for a weekend, then authorised prices snap back. A static 2025 roundup cannot tell you whether the box on sale still includes the sub, which is why this page is wired to live catalog search."
+  },
+  "owner": "Buzz",
+  "reviewer": "Hue",
+  "queueRow": 0
+}

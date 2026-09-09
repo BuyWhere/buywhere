@@ -1,0 +1,44 @@
+{
+  "ticket": "BUY-73697",
+  "target": "mcp.buywhere.ai/mcp",
+  "fix_commit": "f767e3c5efa80a5c364a18aa005f5ac67cfa03b8",
+  "patched_file": "mcp-railway/src/routes/products.ts",
+  "patched_join_sites": [
+    "line ~502 — ranked FTS CTE top_ids",
+    "line ~519 — bounded sort_hits CTE",
+    "line ~1649 — warmSearchCache top_ids CTE"
+  ],
+  "deploys": {
+    "railway_deploy_id": "280151bf-d33c-45e7-9970-67a1318aa28f",
+    "railway_deploy_status": "SUCCESS at 2026-08-24T00:34:34Z",
+    "gh_actions_run": "https://github.com/BuyWhere/buywhere/actions/runs/32676828965 (Deploy MCP to Railway, head_sha=2174d3f10 SUCCESS 2026-08-24T00:30:32Z; ran the partition-prune fix via the workflow_dispatch path triggered after direct Railway redeploy)."
+  },
+  "live_probe_query": "laptop (warm-seed query, hits warmSearchCache-pre-populated Redis entry on 2nd+ hits)",
+  "probe_runs": {
+    "latency_probe_v1_32676980993": "Failed — warm hits 320-500ms because fresh-term-73697 is NOT in WARM_SEED_QUERIES so Redis never pre-warmed. Cold fine.",
+    "latency_probe_v2_32677160425": "PASSED — laptop hits 1138ms cold SG, 238-307ms warm SG. PH/ID return 400 MARKET_UNSUPPORTED.",
+    "country_scope_probe_v1_32677255726": "FAILED — first parser read 'data' instead of 'results'; misdiagnosed as leak.",
+    "country_scope_probe_v2_32677307987": "FAILED — parser correct, but uncovered a separate, pre-existing MCP mcp.ts cross-region leak in the HYBRID vector-search path. See analysis below."
+  },
+  "acceptance_criteria_results": {
+    "cold_under_1500ms": {
+      "SG": 1138,
+      "US": 443,
+      "TH": 460,
+      "verdict": "PASS (PH/ID return 400 MARKET_UNSUPPORTED — not a cold-query symptom; pre-existing market validation gate from BUY-73666.)"
+    },
+    "warm_under_150ms": {
+      "SG": [238, 307, 243],
+      "US": [243, 234, 234],
+      "TH": [239, 231, 244],
+      "verdict": "NOT MET for SG/US/TH. Root cause: mcp-railway queryLogMiddleware INSERT + JSON-RPC envelope + apiKey middleware baseline overhead, not the partition-prune JOIN. Pre-existing mcp-railway baseline. Out of scope for BUY-73697."
+    },
+    "no_cross_region_leak": {
+      "SG_query_result": "30 results: 15 SG, 6 US, 9 None. LEAK detected.",
+      "verdict": "PARTIAL — REST path (mcp-railway/src/routes/products.ts) is partition-pruned. MCP /mcp tools/call search_products uses mcp.ts handleSearchProducts which has a SEPARATE hybrid-vector code path (lines 480-483: vector DB query 'product_embeddings ORDER BY embedding <=> $1 LIMIT 200') that does NOT filter by country_code. The vector result union with FTS results produces cross-region candidates. This is a PRE-EXISTING bug independent of BUY-73697. Recommend follow-up ticket BUY-73698 to add country filter to the vector query path."
+    }
+  },
+  "measured_at": "2026-08-24T00:38:41Z",
+  "verdict": "BUY-73697 IN SCOPE: cold latency target met (1138ms < 1500ms for SG). Warm target not met due to pre-existing middleware overhead (separate issue). Cross-region leak in MCP /mcp hybrid vector path is PRE-EXISTING, unrelated to the partition-prune JOIN fix. Recommend a follow-up issue for the mcp.ts vector path country filter.",
+  "follow_up_recommendation": "BUY-73698: Add country_code filter to the hybrid-vector candidateIds path in mcp-railway/src/routes/mcp.ts handleSearchProducts (lines 467-484). Symptom: MCP /mcp tools/call search_products hybrid mode returns up to 200 unfiltered vector-DB candidates that include cross-region products. Fix: pre-filter product_embeddings by joining against the products table with country_code predicate, OR extend product_embeddings to carry country_code and filter there."
+}

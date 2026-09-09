@@ -1,0 +1,141 @@
+# deploy-railway — deploys buywhere-api to Railway via GraphQL (BUY-47993).
+# Uses serviceInstanceDeployV2 (same pattern as deploy-www.yml) instead of
+# `railway up` CLI, which requires a different token type than the GitHub
+# secret RAILWAY_TOKEN provides. The GraphQL mutation works with project-scoped
+# tokens and triggers Railway to build from the connected GitHub repo.
+name: Deploy API to Railway
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', 'alembic/**', 'requirements.txt', 'pyproject.toml']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Railway environment to deploy to'
+        required: false
+        default: 'production'
+
+concurrency:
+  group: buywhere-api-railway-production
+  cancel-in-progress: false
+
+env:
+  SERVICE_ID: 945e8a6d-6f89-41f1-8256-b8cc6a872a33
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+
+jobs:
+  guard:
+    name: Verify main-only dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-65234)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: [guard]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Trigger Railway deploy of this SHA
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          echo "deployment: $DID"
+          for i in $(seq 1 36); do
+            S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Auto-rollback on failure
+        if: failure()
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          PREV=$(git rev-parse HEAD~1)
+          echo "Rolling back to $PREV"
+          curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}" || true
+
+      - name: Smoke test Railway endpoint
+        run: |
+          set -euo pipefail
+          echo "Waiting 30s for deploy to settle..."
+          sleep 30
+          echo "=== Smoke testing api.buywhere.ai ==="
+          for ENDPOINT in /health "/v1/ingest/health"; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://api.buywhere.ai${ENDPOINT}")
+            echo "GET $ENDPOINT → HTTP $HTTP"
+            if [[ "$ENDPOINT" == "/health" && "$HTTP" != "200" ]]; then
+              echo "ERROR: /health should return 200" && exit 1
+            fi
+            if [[ "$ENDPOINT" == "/v1/ingest/health" && "$HTTP" == "404" ]]; then
+              echo "ERROR: /v1/ingest/health returned 404 — route not deployed" && exit 1
+            fi
+          done
+
+          CATALOG_JSON=$(curl -fsS "https://api.buywhere.ai/v1/catalog/stats")
+          echo "$CATALOG_JSON" | jq '.'
+          SOURCE=$(echo "$CATALOG_JSON" | jq -r '.meta.source')
+          if [[ "$SOURCE" != "catalog_stats" && "$SOURCE" != "pg_class_fallback" ]]; then
+            echo "ERROR: catalog stats meta.source unexpected: $SOURCE"
+            exit 1
+          fi
+          echo "catalog/stats OK — source=$SOURCE"
+
+          CATEGORIES_JSON=$(curl -fsS "https://api.buywhere.ai/v1/catalog/categories")
+          echo "$CATEGORIES_JSON" | jq '{total: .meta.total, source: .meta.source, first: (.data[0] // null)}'
+          CAT_SOURCE=$(echo "$CATEGORIES_JSON" | jq -r '.meta.source')
+          CAT_TOTAL=$(echo "$CATEGORIES_JSON" | jq -r '.meta.total // 0')
+          if [[ -z "$CAT_SOURCE" || "$CAT_TOTAL" == "0" ]]; then
+            echo "ERROR: catalog/categories returned no data or missing source"
+            exit 1
+          fi
+          echo "catalog/categories OK — source=$CAT_SOURCE total=$CAT_TOTAL"
+
+          EMAIL="gha-railway-smoke-${GITHUB_RUN_ID}@buywhere.ai"
+          REGISTER_JSON=$(curl -fsS -X POST "https://api.buywhere.ai/v1/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"${EMAIL}\",\"agent_name\":\"GitHub Actions Railway Smoke\",\"agent_type\":\"github_actions\"}")
+          API_KEY=$(echo "$REGISTER_JSON" | jq -r '.api_key // empty')
+          if [[ -z "$API_KEY" ]]; then
+            echo "ERROR: failed to mint smoke-test API key"
+            echo "$REGISTER_JSON"
+            exit 1
+          fi
+
+          SEARCH_JSON=$(curl -fsS "https://api.buywhere.ai/v1/products/search?q=laptop&country_code=SG" \
+            -H "Authorization: Bearer ${API_KEY}")
+          echo "$SEARCH_JSON" | jq '{total, first: (.results[0] // null), error}'
+          SEARCH_ERROR=$(echo "$SEARCH_JSON" | jq -r '.error // empty')
+          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // 0')
+          if [[ -n "$SEARCH_ERROR" || "$SEARCH_TOTAL" == "0" ]]; then
+            echo "ERROR: search smoke test failed"
+            exit 1
+          fi
+
+          echo "Smoke tests passed"

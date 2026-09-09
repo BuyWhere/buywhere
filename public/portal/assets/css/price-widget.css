@@ -1,0 +1,364 @@
+:root {
+  --bw-widget-radius-sm: 4px;
+  --bw-widget-radius-md: 8px;
+  --bw-widget-radius-lg: 12px;
+  --bw-widget-radius-full: 9999px;
+
+  --bw-widget-color-primary: #4f46e5;
+  --bw-widget-color-primary-hover: #4338ca;
+  --bw-widget-color-primary-light: #eef2ff;
+
+  --bw-widget-color-success: #16a34a;
+  --bw-widget-color-success-light: #dcfce7;
+  --bw-widget-color-success-text: #15803d;
+
+  --bw-widget-color-danger: #dc2626;
+  --bw-widget-color-danger-light: #fee2e2;
+  --bw-widget-color-danger-text: #b91c1c;
+
+  --bw-widget-color-warning: #d97706;
+  --bw-widget-color-warning-light: #fef3c7;
+  --bw-widget-color-warning-text: #b45309;
+
+  --bw-widget-color-gray-50: #f9fafb;
+  --bw-widget-color-gray-100: #f3f4f6;
+  --bw-widget-color-gray-200: #e5e7eb;
+  --bw-widget-color-gray-300: #d1d5db;
+  --bw-widget-color-gray-400: #9ca3af;
+  --bw-widget-color-gray-500: #6b7280;
+  --bw-widget-color-gray-600: #4b5563;
+  --bw-widget-color-gray-700: #374151;
+  --bw-widget-color-gray-900: #111827;
+
+  --bw-widget-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --bw-widget-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --bw-widget-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  --bw-widget-font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.bw-widget {
+  font-family: var(--bw-widget-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--bw-widget-color-gray-900);
+}
+
+.bw-widget-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bw-widget-badge-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--bw-widget-radius-full);
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.bw-widget-badge-item:hover {
+  box-shadow: var(--bw-widget-shadow-sm);
+}
+
+.bw-widget-badge-item .bw-widget-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.bw-widget-badge-item .bw-widget-status-dot--in-stock {
+  background-color: var(--bw-widget-color-success);
+}
+
+.bw-widget-badge-item .bw-widget-status-dot--out-of-stock {
+  background-color: var(--bw-widget-color-danger);
+}
+
+.bw-widget-badge-more {
+  font-size: 12px;
+  color: var(--bw-widget-color-gray-500);
+  padding: 0 4px;
+}
+
+.bw-widget-card {
+  background: white;
+  border-radius: var(--bw-widget-radius-lg);
+  border: 1px solid var(--bw-widget-color-gray-100);
+  padding: 16px;
+}
+
+.bw-widget-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.bw-widget-card-label {
+  font-size: 14px;
+  color: var(--bw-widget-color-gray-500);
+}
+
+.bw-widget-card-status {
+  padding: 2px 8px;
+  border-radius: var(--bw-widget-radius-full);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bw-widget-card-status--in-stock {
+  background-color: var(--bw-widget-color-success-light);
+  color: var(--bw-widget-color-success-text);
+}
+
+.bw-widget-card-status--out-of-stock {
+  background-color: var(--bw-widget-color-danger-light);
+  color: var(--bw-widget-color-danger-text);
+}
+
+.bw-widget-card-price {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--bw-widget-color-primary);
+  margin-bottom: 4px;
+}
+
+.bw-widget-card-merchant {
+  font-size: 12px;
+  color: var(--bw-widget-color-gray-500);
+  margin-bottom: 12px;
+}
+
+.bw-widget-card-savings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.bw-widget-card-savings .bw-widget-price-original {
+  color: var(--bw-widget-color-gray-400);
+  text-decoration: line-through;
+}
+
+.bw-widget-card-savings .bw-widget-price-saved {
+  color: var(--bw-widget-color-success);
+  font-weight: 500;
+}
+
+.bw-widget-card-action {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background-color: var(--bw-widget-color-primary);
+  color: white;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--bw-widget-radius-md);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.bw-widget-card-action:hover {
+  background-color: var(--bw-widget-color-primary-hover);
+}
+
+.bw-widget-comparison {
+  width: 100%;
+}
+
+.bw-widget-comparison-table {
+  width: 100%;
+  font-size: 14px;
+  border-collapse: collapse;
+}
+
+.bw-widget-comparison-table thead tr {
+  border-bottom: 1px solid var(--bw-widget-color-gray-100);
+}
+
+.bw-widget-comparison-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-weight: 500;
+  color: var(--bw-widget-color-gray-500);
+}
+
+.bw-widget-comparison-table th[data-align="right"] {
+  text-align: right;
+}
+
+.bw-widget-comparison-table th[data-align="center"] {
+  text-align: center;
+}
+
+.bw-widget-comparison-table tbody tr {
+  border-bottom: 1px solid var(--bw-widget-color-gray-50);
+  transition: background-color 0.15s ease;
+}
+
+.bw-widget-comparison-table tbody tr:hover {
+  background-color: var(--bw-widget-color-gray-50);
+}
+
+.bw-widget-comparison-table td {
+  padding: 12px;
+}
+
+.bw-widget-comparison-table td[data-align="right"] {
+  text-align: right;
+}
+
+.bw-widget-comparison-table td[data-align="center"] {
+  text-align: center;
+}
+
+.bw-widget-comparison-merchant {
+  font-weight: 500;
+}
+
+.bw-widget-comparison-price {
+  font-weight: 600;
+}
+
+.bw-widget-comparison-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bw-widget-comparison-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bw-widget-comparison-status-dot--in-stock {
+  background-color: var(--bw-widget-color-success);
+}
+
+.bw-widget-comparison-status-dot--out-of-stock {
+  background-color: var(--bw-widget-color-danger);
+}
+
+.bw-widget-comparison-status-text {
+  font-size: 12px;
+  color: var(--bw-widget-color-gray-500);
+}
+
+.bw-widget-comparison-rating {
+  color: var(--bw-widget-color-warning);
+}
+
+.bw-widget-comparison-action {
+  text-align: right;
+}
+
+.bw-widget-comparison-link {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--bw-widget-color-primary);
+  background-color: transparent;
+  border-radius: var(--bw-widget-radius-sm);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.bw-widget-comparison-link:hover {
+  background-color: var(--bw-widget-color-primary-light);
+}
+
+.bw-widget-skeleton {
+  animation: bw-widget-pulse 1.5s ease-in-out infinite;
+}
+
+.bw-widget-skeleton--badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bw-widget-skeleton--card {
+  padding: 16px;
+  background: white;
+  border-radius: var(--bw-widget-radius-lg);
+  border: 1px solid var(--bw-widget-color-gray-100);
+}
+
+.bw-widget-skeleton--comparison {
+  width: 100%;
+}
+
+.bw-widget-skeleton-item {
+  background: var(--bw-widget-color-gray-200);
+  border-radius: var(--bw-widget-radius-full);
+}
+
+.bw-widget-skeleton-item--badge {
+  height: 24px;
+  width: 112px;
+}
+
+.bw-widget-skeleton-item--card-price {
+  height: 32px;
+  width: 128px;
+  margin-bottom: 8px;
+}
+
+.bw-widget-skeleton-item--card-text {
+  height: 16px;
+  width: 80px;
+  margin-bottom: 12px;
+}
+
+.bw-widget-skeleton-item--card-button {
+  height: 40px;
+  width: 100%;
+  border-radius: var(--bw-widget-radius-md);
+}
+
+.bw-widget-skeleton-item--table-row {
+  height: 48px;
+  width: 100%;
+  border-radius: 0;
+}
+
+@keyframes bw-widget-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.bw-widget-price-diff {
+  font-size: 12px;
+  color: var(--bw-widget-color-gray-400);
+}
+
+.bw-widget-error {
+  color: var(--bw-widget-color-danger);
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-widget-skeleton {
+    animation: none;
+  }
+
+  .bw-widget-skeleton-item {
+    animation: bw-widget-pulse 1.5s ease-in-out infinite;
+  }
+}

@@ -1,0 +1,12 @@
+{"ts":"2026-08-18T10:54:16.034Z","event":"no_near_miss_rows"}
+{"ts": "2026-08-18T11:04:34.679638Z", "event": "completed", "near_miss_cells": 3, "classified_failures": 0, "combinations_filed": 0, "db_timeouts": 0}
+{"ts": "2026-08-18T11:08:55.867Z", "event": "completed", "near_miss_cells": 3, "classified_failures": 0, "combinations_filed": 0, "db_timeouts": 0}
+{"ts": "2026-08-18T11:35:52.835Z", "event": "no_near_miss_rows"}
+{"ts": "2026-08-18T11:40:06.087Z", "event": "missing_catalog_db_url"}
+{"ts": "2026-08-18T11:40:14.721Z", "event": "no_near_miss_rows"}
+{"ts": "2026-08-18T11:40:50.603Z", "event": "no_near_miss_rows"}
+{"ts": "2026-08-18T11:48:46.619Z", "event": "weekly_no_combinations"}
+{"ts": "2026-08-18T12:21:55.456Z", "event": "no_near_miss_rows"}
+{"ts": "2026-08-18T12:22:10.643Z", "event": "weekly_no_combinations"}
+{"ts": "2026-08-18T12:34:55.421Z", "event": "no_near_miss_rows"}
+{"ts": "2026-08-19T00:30:02.681Z", "event": "no_near_miss_rows"}

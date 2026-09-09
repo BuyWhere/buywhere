@@ -1,0 +1,269 @@
+{
+  "probe": "mcp-canonical-20-sweep",
+  "baseUrl": "https://mcp.buywhere.ai/mcp",
+  "startedAt": "2026-07-06T07:06:40.318Z",
+  "completedAt": "2026-07-06T07:06:51.303Z",
+  "pass": 14,
+  "fail": 6,
+  "errors32603": 1,
+  "total": 20,
+  "results": [
+    {
+      "id": "search_products-0",
+      "tool": "search_products",
+      "args": {
+        "q": "laptop",
+        "country_code": "SG",
+        "limit": 3,
+        "compact": true
+      },
+      "status": 200,
+      "latencyMs": 822,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "search_products-1",
+      "tool": "search_products",
+      "args": {
+        "q": "iphone",
+        "country_code": "US",
+        "limit": 3,
+        "compact": true
+      },
+      "status": 200,
+      "latencyMs": 1727,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "search_products-2",
+      "tool": "search_products",
+      "args": {
+        "q": "shoes",
+        "country_code": "MY",
+        "limit": 3,
+        "compact": true
+      },
+      "status": 200,
+      "latencyMs": 148,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "search_products-3",
+      "tool": "search_products",
+      "args": {
+        "q": "watch",
+        "country_code": "TH",
+        "limit": 3,
+        "compact": true
+      },
+      "status": 200,
+      "latencyMs": 127,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "search_products-4",
+      "tool": "search_products",
+      "args": {
+        "q": "bag",
+        "country_code": "VN",
+        "limit": 3,
+        "compact": true
+      },
+      "status": 200,
+      "latencyMs": 2601,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "get_deals-5",
+      "tool": "get_deals",
+      "args": {
+        "country_code": "SG",
+        "limit": 5
+      },
+      "status": 200,
+      "latencyMs": 46,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "get_deals-6",
+      "tool": "get_deals",
+      "args": {
+        "country_code": "US",
+        "limit": 5
+      },
+      "status": 200,
+      "latencyMs": 68,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "get_deals-7",
+      "tool": "get_deals",
+      "args": {
+        "country_code": "MY",
+        "limit": 5
+      },
+      "status": 200,
+      "latencyMs": 45,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "get_deals-8",
+      "tool": "get_deals",
+      "args": {
+        "country_code": "TH",
+        "limit": 5
+      },
+      "status": 200,
+      "latencyMs": 4576,
+      "ok": false,
+      "error": {
+        "code": -32603,
+        "message": "Internal error",
+        "data": {
+          "envelope": {
+            "error": {
+              "code": "INTERNAL_ERROR",
+              "message": "Internal error",
+              "doc_url": "https://buywhere.ai/docs/errors#INTERNAL_ERROR"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "get_deals-9",
+      "tool": "get_deals",
+      "args": {
+        "country_code": "VN",
+        "limit": 5
+      },
+      "status": 200,
+      "latencyMs": 67,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "list_categories-10",
+      "tool": "list_categories",
+      "args": {
+        "country_code": "SG"
+      },
+      "status": 200,
+      "latencyMs": 20,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "list_categories-11",
+      "tool": "list_categories",
+      "args": {
+        "country_code": "US"
+      },
+      "status": 200,
+      "latencyMs": 64,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "list_categories-12",
+      "tool": "list_categories",
+      "args": {
+        "country_code": "MY"
+      },
+      "status": 200,
+      "latencyMs": 21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "list_categories-13",
+      "tool": "list_categories",
+      "args": {
+        "country_code": "TH"
+      },
+      "status": 200,
+      "latencyMs": 21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "list_categories-14",
+      "tool": "list_categories",
+      "args": {
+        "country_code": "VN"
+      },
+      "status": 200,
+      "latencyMs": 24,
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "find_best_price-15",
+      "tool": "find_best_price",
+      "args": {
+        "product_name": "iphone 15",
+        "country_code": "SG"
+      },
+      "status": 200,
+      "latencyMs": 142,
+      "ok": false,
+      "error": null
+    },
+    {
+      "id": "find_best_price-16",
+      "tool": "find_best_price",
+      "args": {
+        "product_name": "samsung galaxy s24",
+        "country_code": "US"
+      },
+      "status": 200,
+      "latencyMs": 114,
+      "ok": false,
+      "error": null
+    },
+    {
+      "id": "find_best_price-17",
+      "tool": "find_best_price",
+      "args": {
+        "product_name": "nintendo switch",
+        "country_code": "MY"
+      },
+      "status": 200,
+      "latencyMs": 100,
+      "ok": false,
+      "error": null
+    },
+    {
+      "id": "find_best_price-18",
+      "tool": "find_best_price",
+      "args": {
+        "product_name": "sony wh-1000xm5",
+        "country_code": "TH"
+      },
+      "status": 200,
+      "latencyMs": 108,
+      "ok": false,
+      "error": null
+    },
+    {
+      "id": "find_best_price-19",
+      "tool": "find_best_price",
+      "args": {
+        "product_name": "macbook air",
+        "country_code": "VN"
+      },
+      "status": 200,
+      "latencyMs": 124,
+      "ok": false,
+      "error": null
+    }
+  ]
+}

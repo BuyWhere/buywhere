@@ -1,0 +1,21 @@
+{
+  "issue": "BUY-77369",
+  "domain": "thehoffbrand.com",
+  "merchant_id": "thehoffbrand.com",
+  "source": "shopify_thehoffbrand_com",
+  "platform": "Shopify",
+  "timestamp": "2026-08-29T19:55:37Z",
+  "raw_products_fetched": 258,
+  "transformed_products": 258,
+  "r2_key": "shelf/thehoffbrand.com/20260829T195537Z_products.json",
+  "r2_bucket": "buywhere-data",
+  "r2_size_bytes": 1581366,
+  "ingested_rows": 258,
+  "updated_rows": 0,
+  "failed_rows": 0,
+  "deactivated_stale_rows": 5017,
+  "active_catalog_count": 258,
+  "merchant_stage": "ingested",
+  "merchant_products_count": 258,
+  "note": "Live products.json returned 258 products, far below the ~2500-3100 target. Catalog previously held 5017 stale rows from an older, much larger inventory; those have been deactivated."
+}

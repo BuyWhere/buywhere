@@ -1,0 +1,140 @@
+{
+  "batch_tag": "batch193_r391",
+  "date": "2026-08-28",
+  "issue": "BUY-76428",
+  "parent": "BUY-75577",
+  "succeeded": [
+    "pickleseh.com",
+    "preservedgoods.com",
+    "karmacollars.com",
+    "lilyandroeco.com",
+    "hookandarrow.co",
+    "sauceworksco.com",
+    "puckerbuttpeppercompany.com",
+    "thelittleherbalapothecary.com",
+    "arukahapothecary.com",
+    "troveontremont.com"
+  ],
+  "failed": [
+    [
+      "mypapergardenco.com",
+      "HTTP 403"
+    ],
+    [
+      "wildwoodsoapco.com",
+      "<urlopen error [Errno -2] Name or service not known>"
+    ],
+    [
+      "threadandhoney.co",
+      "<urlopen error [Errno -2] Name or service not known>"
+    ],
+    [
+      "beccascoffee.com",
+      "<urlopen error [Errno -2] Name or service not known>"
+    ],
+    [
+      "woodandfield.co",
+      "<urlopen error [Errno -2] Name or service not known>"
+    ],
+    [
+      "thefinishingtouch.co",
+      "Expecting value: line 1 column 1 (char 0)"
+    ],
+    [
+      "westcoastsupply.com",
+      "<urlopen error [SSL: TLSV1_UNRECOGNIZED_NAME] tlsv1 unrecognized name (_ssl.c:1000)>"
+    ]
+  ],
+  "empty": [],
+  "total_products": 3165,
+  "unique_records": 3165,
+  "dupes_skipped": 0,
+  "details": {
+    "pickleseh.com": {
+      "niche": "preserved_foods",
+      "count": 23,
+      "error": null
+    },
+    "preservedgoods.com": {
+      "niche": "preserved_foods",
+      "count": 758,
+      "error": null
+    },
+    "karmacollars.com": {
+      "niche": "dog_collars",
+      "count": 262,
+      "error": null
+    },
+    "mypapergardenco.com": {
+      "niche": "stationery",
+      "count": 0,
+      "error": "HTTP 403"
+    },
+    "lilyandroeco.com": {
+      "niche": "apothecary",
+      "count": 639,
+      "error": null
+    },
+    "hookandarrow.co": {
+      "niche": "home_goods",
+      "count": 19,
+      "error": null
+    },
+    "sauceworksco.com": {
+      "niche": "hot_sauce",
+      "count": 15,
+      "error": null
+    },
+    "puckerbuttpeppercompany.com": {
+      "niche": "hot_sauce",
+      "count": 468,
+      "error": null
+    },
+    "thelittleherbalapothecary.com": {
+      "niche": "apothecary",
+      "count": 762,
+      "error": null
+    },
+    "arukahapothecary.com": {
+      "niche": "apothecary",
+      "count": 31,
+      "error": null
+    },
+    "troveontremont.com": {
+      "niche": "home_goods",
+      "count": 188,
+      "error": null
+    },
+    "wildwoodsoapco.com": {
+      "niche": "soap",
+      "count": 0,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    "threadandhoney.co": {
+      "niche": "soap",
+      "count": 0,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    "beccascoffee.com": {
+      "niche": "coffee",
+      "count": 0,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    "woodandfield.co": {
+      "niche": "home_goods",
+      "count": 0,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    "thefinishingtouch.co": {
+      "niche": "jewelry_supplies",
+      "count": 0,
+      "error": "Expecting value: line 1 column 1 (char 0)"
+    },
+    "westcoastsupply.com": {
+      "niche": "supplies",
+      "count": 0,
+      "error": "<urlopen error [SSL: TLSV1_UNRECOGNIZED_NAME] tlsv1 unrecognized name (_ssl.c:1000)>"
+    }
+  },
+  "merged_file": "/home/paperclip/buywhere/data/shopify_batch193_r391_2026-08-28.ndjson"
+}

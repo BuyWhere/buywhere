@@ -1,0 +1,57 @@
+# BUY-73697: cross-region scope verification probe.
+# Calls search_products for each country, parses the response, and asserts every
+# product's country_code matches the requested country.
+name: BUY-73697 country scope probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MCP_URL: https://mcp.buywhere.ai
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Country-scope assertion
+        env:
+          BUYWHERE_MCP_API_KEY: ${{ secrets.BUYWHERE_MCP_API_KEY }}
+          MCP_URL: ${{ env.MCP_URL }}
+        run: |
+          set -euo pipefail
+
+          for CC in SG US TH; do
+            echo "=== $CC ==="
+            RESP=$(curl -sS --max-time 30 -X POST "${MCP_URL}/mcp" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${BUYWHERE_MCP_API_KEY}" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":\"scope-$CC\",\"method\":\"tools/call\",\"params\":{\"name\":\"search_products\",\"arguments\":{\"q\":\"laptop\",\"country_code\":\"$CC\",\"limit\":30}}}")
+            echo "$RESP" | python3 -c "
+          import json, sys
+          from collections import Counter
+          d=json.loads(sys.stdin.read())
+          text=d.get('result',{}).get('content',[{}])[0].get('text','{}')
+          try:
+            payload=json.loads(text)
+          except Exception as e:
+            print('parse-error:', e)
+            print('text-preview:', text[:300])
+            sys.exit(2)
+          prods=payload.get('results',[]) or []
+          print(f'count={len(prods)} total={payload.get(\"total\")}')
+          countries=Counter(p.get('country_code','?') for p in prods)
+          merchants=Counter(p.get('merchant','?') for p in prods)
+          print(f'country_codes={dict(countries)}')
+          print(f'merchants={dict(merchants)}')
+          for cc, n in countries.items():
+            if cc != '$CC':
+              print(f'LEAK: {n} results from country {cc} in $CC query')
+              sys.exit(1)
+          "
+          done
+          echo "All countries scope PASS"

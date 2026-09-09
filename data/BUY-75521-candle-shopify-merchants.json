@@ -1,0 +1,8 @@
+{
+  "merchants": [
+    {"domain":"aromatic-apothecary-supply.myshopify.com","source":"shopify_candle_making","merchant_id":"shopify_aromatic_apothecary_supply","country":"US","currency":"USD","source_attribution":"r408_batch191"},
+    {"domain":"living-on-a-dime-shop.myshopify.com","source":"shopify_candle_making","merchant_id":"shopify_living_on_a_dime_shop","country":"US","currency":"USD","source_attribution":"r408_batch191"},
+    {"domain":"candlebuilders.com","source":"shopify_candle_making","merchant_id":"shopify_candlebuilders","country":"US","currency":"USD","source_attribution":"r408_batch191"},
+    {"domain":"nurturehandmade.com","source":"shopify_candle_making","merchant_id":"shopify_nurturehandmade","country":"US","currency":"USD","source_attribution":"r408_batch191"}
+  ]
+}

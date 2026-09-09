@@ -1,0 +1,59 @@
+{
+  "name": "@buywhere/openai-tools",
+  "version": "0.1.0",
+  "description": "BuyWhere OpenAI function tools - product search, price comparison, and deals as OpenAI function calling tools",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/**/*.test.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "buywhere",
+    "openai",
+    "openai-tools",
+    "function-calling",
+    "product-search",
+    "price-comparison",
+    "deals",
+    "shopping",
+    "agent-sdk",
+    "ai"
+  ],
+  "author": "BuyWhere",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buywhere/buywhere-site.git",
+    "directory": "packages/buywhere-openai-tools"
+  },
+  "homepage": "https://buywhere.ai",
+  "bugs": {
+    "url": "https://github.com/buywhere/buywhere-site/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "eslint": "^8.57.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

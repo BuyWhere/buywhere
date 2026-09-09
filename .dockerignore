@@ -1,0 +1,20 @@
+# Python API - excludes root app/ so Next.js uses src/app not the Python package
+app/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Large artifacts not needed for Next.js build
+.git/
+.next-deploy/
+node_modules/
+
+# Docs and other non-frontend dirs
+docs-site/
+scraper/
+scrapers/
+tests/
+reports/
+logs/
+data/

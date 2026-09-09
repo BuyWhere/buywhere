@@ -1,0 +1,44 @@
+[
+  {
+    "domain": "diy-japanese-joinery.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 10,
+    "reason": "Looks like a small independent shop focused on Japanese woodworking instruction and tools; search results show bench chisel sets and woodworking project content."
+  },
+  {
+    "domain": "theoriginalwoodchuck.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 12,
+    "reason": "Independent-sounding storefront with a small featured collection; likely niche rather than broad general retail, though the search snippet is limited."
+  },
+  {
+    "domain": "tradetool.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 50,
+    "reason": "Shopify storefront with a tools-focused catalog; the visible products are broader than woodworking, but it still appears small and independent."
+  },
+  {
+    "domain": "knifesharpenershop.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 25,
+    "reason": "Hand-tool-adjacent specialty shop with sharpening products; less direct woodworking focus, but the storefront looks small and niche."
+  },
+  {
+    "domain": "midwest-products.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 40,
+    "reason": "Tool collection includes carving knives and similar handheld tools; the shop looks small-ish, though it is not exclusively woodworking-focused."
+  },
+  {
+    "domain": "tm-shopify053-tools.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 20,
+    "reason": "Generic hand-tools storefront on Shopify; likely small, but the search snippet does not strongly confirm woodworking specialization."
+  },
+  {
+    "domain": "diy-japanese-joinery.myshopify.com",
+    "vertical_signal": "hand-tool woodworking",
+    "products_count_estimate": 10,
+    "reason": "Strongest woodworking-hand-tool signal among the results, especially for chisels and related Japanese joinery tools."
+  }
+]
