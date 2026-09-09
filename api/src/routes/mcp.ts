@@ -1123,11 +1123,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               detailConditions.push(`region = $${detailParams.length}`);
             }
             // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
+            // BUY-80726: query tier table directly instead of 'products' - the replica
+            // only has partitioned tables, no parent 'products' table.
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code, category, category_path,
                       url_last_checked_at, url_status
-               FROM products WHERE ${detailConditions.join(' AND ')}`,
+               FROM ${ftsTable} WHERE ${detailConditions.join(' AND ')}`,
               detailParams
             );
             // Preserve ranking order
@@ -1155,11 +1157,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
             // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
+            // BUY-80726: query tier table directly instead of 'products' - the replica
+            // only has partitioned tables, no parent 'products' table.
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM ${ftsTable} WHERE id IN (${ph})`,
               tierIds
             );
             // Preserve tier ranking order
