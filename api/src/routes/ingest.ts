@@ -415,7 +415,12 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
     // needed to count were the ones leaving no trace. Log with a stable prefix so
     // hard_reject can be counted server-side, independent of which scraper build
     // is running and immune to the insert/update mode confound in lane metrics.
-    console.warn(
+    // VOLUME: price=0 is ~75% of all hard_rejects (~38k lines/hour at peak) and
+    // carries no per-row information the batch histogram does not already give.
+    // The API OOM'd on 2026-09-08 under heap pressure from high-volume per-row
+    // logging, so the cheap lines are dropped and the informative ones kept:
+    // ceiling rejections are how the .vn/USD currency mislabelling was found.
+    if (!/below minimum/.test(priceCheck.reason || '')) console.warn(
       // merchant_id included so the price=0 population can be attributed:
       // some upstream merchants publish "0" in their own Store API ("contact
       // for price"), in which case rejection is CORRECT and the loss is not

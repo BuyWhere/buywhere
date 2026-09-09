@@ -44,6 +44,28 @@ function getInsertPool(): Pool {
   return _insertPool;
 }
 
+/**
+ * Backpressure guard.
+ *
+ * These inserts are fire-and-forget: nothing awaits them. `pg.Pool` queues
+ * pending requests WITHOUT LIMIT, so when views arrive faster than `max: 5`
+ * connections can drain, the queue grows unboundedly and every entry retains
+ * its parameters, promise and closure. That is a heap leak with no ceiling.
+ *
+ * The API died of exactly this on 2026-09-08T00:14:18Z -- "FATAL ERROR:
+ * Reached heap limit Allocation failed - JavaScript heap out of memory" -- and
+ * stayed down ~14h because nothing probes the public API.
+ *
+ * Instrumentation is best-effort analytics. Dropping samples under load is the
+ * correct behaviour; taking the process down with it is not.
+ */
+const MAX_PENDING_INSERTS = 50;
+
+function insertQueueSaturated(): boolean {
+  const pool = getInsertPool() as unknown as { waitingCount?: number };
+  return (pool.waitingCount ?? 0) >= MAX_PENDING_INSERTS;
+}
+
 // ---------------------------------------------------------------------------
 // Idempotency filter — bounded LRU keyed on the dedup tuple.
 // ---------------------------------------------------------------------------
@@ -90,10 +112,11 @@ export function recordProductView(opts: {
   if (!shouldInsert('product_views', productId, callerId)) return;
 
   const queryHash = opts.queryHash ?? null;
+  if (insertQueueSaturated()) return;
   getInsertPool().query(
     `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
     [productId, opts.source, queryHash]
-  ).then(() => console.log('[instrumentation] DB write SUCCESS for ' + productId)).catch((err: Error) => {
+  ).catch((err: Error) => {
     console.warn(`[instrumentation] product_views insert failed for ${productId}: ${err.message}`);
   });
 }
@@ -115,10 +138,13 @@ export function recordProductViewsBulk(opts: {
     if (seen.has(id)) continue;
     seen.add(id);
     if (!shouldInsert('product_views', id, callerId)) continue;
+    // Re-checked EVERY iteration: one search result page can enqueue dozens of
+    // inserts, so a guard outside the loop would let a single request blow past it.
+    if (insertQueueSaturated()) return;
     getInsertPool().query(
       `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
       [id, opts.source, queryHash]
-    ).then(() => console.log('[instrumentation] DB write SUCCESS for ' + id)).catch((err: Error) => {
+    ).catch((err: Error) => {
       console.warn('[instrumentation] bulk insert failed for ' + id + ': ' + err.message);
     });
   }
