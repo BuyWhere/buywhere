@@ -12,6 +12,7 @@ import { lookupMerchantMap } from '../lib/merchantLookup';
 import { servingReadDbConnect, ReplicaUnavailableError } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import { expandDeviceFamilyTsQuery } from '../lib/searchRelevanceTaxonomy';
 import { applyFbpGeoAndHighOutlierGuard } from '../lib/fbpGeoGuard';
 import { detectIdentifier, identifierMatchPredicate } from '../lib/identifierDetector';
 import { buildClickUrl } from '../lib/instrumentation';
@@ -975,7 +976,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
   const effectiveCacheMode = useVector ? mode : 'kw';
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v14:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  const cacheKey = `fts:v15-b76552:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
   // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
   // request (embed/vector unavailable). The result must be cached under the 'kw'
   // suffix, never the requested-mode key.
@@ -1120,9 +1121,12 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
+  const ftsExpanded = expandDeviceFamilyTsQuery(q);
+  const ftsMatchQ = ftsExpanded || q;
+  const ftsMatchFn = ftsExpanded ? 'to_tsquery' : 'plainto_tsquery';
   if (q) {
-    params.push(q);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+    params.push(ftsMatchQ);
+    conditions.push(`search_vector @@ ${ftsMatchFn}('english', $${params.length})`);
   }
   if (domain) {
     params.push(domain);
@@ -1158,8 +1162,15 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
   const tierConditions: string[] = ['sp.price > 0'];
   const tierParams: unknown[] = [];
   if (q) {
+    // BUY-76552: $1 stays the raw query for ts_rank(plainto_tsquery).
+    // MATCH uses expanded device-family tsquery when present (laptop → macbook|notebook).
     tierParams.push(q);
-    tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $${tierParams.length})`);
+    if (ftsExpanded) {
+      tierParams.push(ftsMatchQ);
+      tierConditions.push(`sp.search_vector @@ to_tsquery('english', $${tierParams.length})`);
+    } else {
+      tierConditions.push(`sp.search_vector @@ plainto_tsquery('english', $1)`);
+    }
   }
   if (domain) {
     tierParams.push(domain);
@@ -1678,6 +1689,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     rows = alreadyPaged ? filtered.slice(0, limit) : filtered.slice(offset, offset + limit);
   }
 
+  // BUY-76552: if currency/country filtering reduced the result set, update total
+  // to reflect actual count, not the pre-filter overestimate from FTS. Without this
+  // we return total=N but products=[] when all FTS hits were filtered out.
+  if (country && total > rows.length) {
+    total = rows.length;
+  }
+
   // BUY-79642: SEA markets (MY/TH/VN/ID/PH) have no FAST child table; FTS on
   // search_products often 25P02/timeout → api_error in ~60ms while REST
   // /v1/products/search is independently healthy (MYR/VND hits). Previously
@@ -1701,6 +1719,10 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
     const amt = extractNumericPrice(p.price);
     return amt != null && amt > 0;
   });
+  // BUY-76552: isolation can drop every FTS/REST hit (USD-on-SG laptops). Do not
+  // keep a non-zero meta.total on an empty page — that is a lying no_match.
+  if (products.length === 0) total = 0;
+  else if (total < products.length) total = products.length;
 
   // BUY-71542 / P2.6 + BUY-72044 / P2.6A: empty-result envelope. Only build when
   // the response is genuinely empty (products.length === 0) — non-empty responses
