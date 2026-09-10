@@ -2327,7 +2327,13 @@ router.get(
     // post-cache on both paths so cached bodies stay per-request neutral.
     const deliverTo = (req.query.deliver_to as string | undefined)?.toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
-    const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    // BUY-81812: cache key bumped to v2. The discount-ceiling fix shipped correctly but
+    // /deals answers from a 3600s redis cache, so pre-fix responses (every 90%-off
+    // x10 artifact) kept being served from keys written before the deploy. The redis
+    // instance is only reachable on railway.internal, so it cannot be flushed from
+    // outside; versioning the key orphans every stale entry immediately and they age
+    // out on their own TTL. Bump this whenever the deals PREDICATE changes.
+    const cacheKey = `deals:v2:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
