@@ -299,6 +299,16 @@ export const ACCESSORY_ONLY_BRANDS = [
   'tech21', 'pitaka', 'torras', 'geekria', 'casetify', 'rhinoshield',
   'quadlock', 'popsockets', 'invisibleshield', 'zagg', 'elago',
   'urban armor gear', 'evoclear', 'evolite', 'evoarmor',
+  // 2026-09-10 second pass, each measured as the #1 result for an exact-product
+  // query AFTER the first brand list shipped:
+  //   "UAG AirPods Pro 3 Case Plasma"        -> AirPods Pro 3, rank 1
+  //   "UAG Apple Watch Case Series 10 (46mm)" -> Apple Watch Series 10, rank 1
+  //   "TORRII BODYGLASS Aluminium Camera Ring" -> iPhone 17 Pro, rank 1
+  //   "Windward - Kindle Paperwhite Case"     -> Kindle Paperwhite, rank 1
+  // I originally omitted uag as "too short to be safe". That was over-cautious:
+  // the alternation is wrapped in \m...\M word boundaries, so it cannot match
+  // inside another word. Being over-cautious cost two whole queries.
+  'uag', 'torrii', 'windward',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
@@ -320,7 +330,7 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // P2: title leads with the accessory within the first ~3 words — catches
   // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
   // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
-  `|^\\W*(?:[\\w&.-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  `|^\\W*(?:[\\w&.-]+\\s+){0,4}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
   // P3: accessory-only VENDOR anywhere in the title. These brands do not make the
   // device itself, so their presence on a device-unit query is decisive even when
   // the title carries no accessory vocabulary.
