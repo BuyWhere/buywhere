@@ -747,6 +747,22 @@ async function tryTierSearch(
         }
       } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* local pass is best-effort — global rows already in hand */ }
     }
+    // BWEXT-9DFD3159 (2026-09-10): de-duplicate by product id before responding.
+    // Every tier query LEFT JOINs affiliate_links on (product_id, merchant_id); a product
+    // with more than one affiliate row is multiplied by that join, so the same product can
+    // occupy several slots on one page. The deliver_to local-pass above de-dupes the GLOBAL
+    // rows against the local ones but never de-dupes within either set. Measured on
+    // deliver_to=SG immediately after the tier was restored: 29 rows returned, 22 distinct.
+    // Order-preserving, so ranking is untouched - this only removes repeats.
+    {
+      const seenIds = new Set<string>();
+      rows = rows.filter((r) => {
+        const id = String((r as Record<string, unknown>).id);
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      });
+    }
     await client.query('COMMIT');
     client.release();
     if (rows.length === 0) {
