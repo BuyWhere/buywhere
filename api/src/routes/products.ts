@@ -298,8 +298,12 @@ async function tryIdentifierLookup(
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+    // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
+    // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
+    // already true and thousands more rows existed - neither a real count nor an honest
+    // paging signal, but a precise number wrong by orders of magnitude. has_more carries
+    // "there are more"; total reports only what this page can account for.
+    const total = p.offset + pageRows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
@@ -808,8 +812,12 @@ async function tryTierSearch(
       served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     }
     const productsOut = served;
-    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
+    // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
+    // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
+    // already true and thousands more rows existed - neither a real count nor an honest
+    // paging signal, but a precise number wrong by orders of magnitude. has_more carries
+    // "there are more"; total reports only what this page can account for.
+    const total = p.offset + productsOut.length;
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     responseBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
@@ -2289,7 +2297,8 @@ router.get(
     if (typeof hasMore === 'undefined') {
       hasMore = dataResult.rows.length > limit;
       if (hasMore) dataResult.rows.pop();
-      total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+      // BWEXT (2026-09-11): see note above - no sentinel inflation; has_more is the signal.
+      total = offset + dataResult.rows.length;
     } else if (dataResult.rows.length > limit) {
       dataResult.rows = dataResult.rows.slice(0, limit);
     }
@@ -3562,7 +3571,8 @@ export async function warmSearchCache(): Promise<void> {
       const result = await db.query(dataQuery, params);
       const hasMore = result.rows.length > limit;
       if (hasMore) result.rows.pop();
-      const total = result.rows.length + (hasMore ? 1 : 0);
+      // BWEXT (2026-09-11): see note above - no sentinel inflation; has_more is the signal.
+      const total = result.rows.length;
 
       const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
