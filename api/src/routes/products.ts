@@ -1187,6 +1187,24 @@ router.get(
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
 
+    // BWEXT-39EA51D3 (2026-09-10): the site's own search page sends price_min, price_max
+    // and merchant, while this handler reads min_price, max_price and merchant_id. Because
+    // unknown parameters were silently ignored, those filters were SILENT NO-OPS in
+    // production: verified against live search, min_price=1000 returned 1 row while
+    // price_min=1000 returned the unfiltered baseline, and merchant_id=newegg.com filtered
+    // while merchant=newegg.com did not. A shopper setting a price filter on buywhere.ai
+    // got unfiltered results. Accept the first-party spellings as aliases so the filters
+    // actually work; the canonical name always wins if both are present.
+    for (const [alias, canonical] of [
+      ['price_min', 'min_price'],
+      ['price_max', 'max_price'],
+      ['merchant', 'merchant_id'],
+    ] as const) {
+      if (req.query[alias] !== undefined && req.query[canonical] === undefined) {
+        req.query[canonical] = req.query[alias];
+      }
+    }
+
     // BWEXT-B40E8514: invalid enum/range/pagination inputs must 400 with field-level
     // errors instead of silently clamping to a misleading 200.
     // NOTE (2026-09-03): this block was wiped once by a stale-checkout commit
@@ -1214,6 +1232,42 @@ router.get(
       if (rawModeCheck !== undefined && !VALID_SEARCH_MODES.has(rawModeCheck)) {
         verrs.push({ field: 'mode', issue: "must be one of 'keyword', 'semantic', 'hybrid'" });
       }
+      // BWEXT-39EA51D3: unknown query parameters were accepted SILENTLY. deals=true,
+      // deals=false and an invented zzzbogus=1 all returned byte-identical rows, so a
+      // caller could not tell a supported filter from a typo, and a filter that does not
+      // exist looked like a filter that found nothing. Reject with the offending field
+      // named, matching the field-level shape above.
+      //
+      // Allow-list is derived from the parameters this handler actually reads, not from
+      // documentation, so it cannot drift from behaviour.
+      //
+      // Gated by STRICT_QUERY_PARAMS (default on). Rejecting unknown parameters is a
+      // breaking change for any caller already sending junk; the flag makes rollback a
+      // variable change rather than a redeploy if a first-party surface turns out to
+      // send something unlisted.
+      if ((process.env.STRICT_QUERY_PARAMS ?? 'on') !== 'off') {
+        const SEARCH_ALLOWED_PARAMS = new Set([
+          '_tier', 'availability', 'brand', 'category', 'category_id', 'category_path',
+          'cc', 'compact', 'country', 'country_code', 'currency', 'deliver_to', 'domain',
+          'fields', 'include_unshippable', 'limit', 'max_price', 'merchant_id',
+          'min_price', 'mode', 'offset', 'page', 'q', 'query', 'region', 'scraped_via',
+          'sort', 'sort_by', 'source', 'source_page',
+          // First-party aliases normalised above.
+          'price_min', 'price_max', 'merchant',
+          // 'cursor' is sent by src/app/search/SearchResultsClient.tsx and is NOT read by
+          // this handler, which paginates on offset. Allow-listed so the site does not 400,
+          // but it is genuinely ignored and its intended semantics are unverified - do not
+          // map it to offset without confirming the client's meaning. Tracked, not silent.
+          'cursor',
+        ]);
+        const unknown = Object.keys(req.query).filter((k) => !SEARCH_ALLOWED_PARAMS.has(k));
+        if (unknown.length > 0) {
+          for (const k of unknown.slice(0, 10)) {
+            verrs.push({ field: k, issue: 'is not a supported query parameter for this endpoint' });
+          }
+        }
+      }
+
       if (verrs.length > 0) {
         res.status(400).json({ error: { code: 'invalid_request', message: 'One or more query parameters are invalid.', details: verrs } });
         return;
