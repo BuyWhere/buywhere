@@ -145,15 +145,53 @@ function extractMerchantFromUrl(url?: string | null): string | null {
 
     // Strip common subdomains and TLD suffixes to get the retailer's brand name.
     // Examples: "www.walmart.com" -> "walmart", "store.wellbots.com" -> "wellbots"
+    // BUY-81838: Also strip country TLDs including multi-part TLDs like .com.ph, .co.uk, .com.sg
+    // Order matters: strip multi-part TLDs first, then single-part
     const cleaned = hostname
       .replace(/^www\./, '')
       .replace(/^store\./, '')
       .replace(/^m\./, '')
+      .replace(/\.com\.ph$/, '')
+      .replace(/\.com\.sg$/, '')
+      .replace(/\.com\.my$/, '')
+      .replace(/\.com\.au$/, '')
+      .replace(/\.com\.br$/, '')
+      .replace(/\.com\.mx$/, '')
+      .replace(/\.com\.hk$/, '')
+      .replace(/\.com\.tw$/, '')
+      .replace(/\.co\.uk$/, '')
+      .replace(/\.co\.nz$/, '')
+      .replace(/\.co\.in$/, '')
       .replace(/\.com$/, '')
       .replace(/\.org$/, '')
       .replace(/\.net$/, '')
       .replace(/\.io$/, '')
-      .replace(/\.ai$/, '');
+      .replace(/\.ai$/, '')
+      .replace(/\.ph$/, '')
+      .replace(/\.sg$/, '')
+      .replace(/\.my$/, '')
+      .replace(/\.id$/, '')
+      .replace(/\.th$/, '')
+      .replace(/\.vn$/, '')
+      .replace(/\.hk$/, '')
+      .replace(/\.tw$/, '')
+      .replace(/\.jp$/, '')
+      .replace(/\.kr$/, '')
+      .replace(/\.in$/, '')
+      .replace(/\.au$/, '')
+      .replace(/\.nz$/, '')
+      .replace(/\.uk$/, '')
+      .replace(/\.ie$/, '')
+      .replace(/\.nl$/, '')
+      .replace(/\.de$/, '')
+      .replace(/\.fr$/, '')
+      .replace(/\.es$/, '')
+      .replace(/\.it$/, '')
+      .replace(/\.pl$/, '')
+      .replace(/\.ru$/, '')
+      .replace(/\.br$/, '')
+      .replace(/\.mx$/, '')
+      .replace(/\.ca$/, '');
 
     // Skip generic/captcha/tracking domains that aren't actual retailers.
     // BUY-72907: Also skip our own redirect domain - products with buywhere.ai
@@ -972,13 +1010,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, pathnam
     // BUY-65559: drop implausible sentinel prices to null so the card renders
     // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
     price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
-    // BUY-71638: always store the selected-country display currency so the card
-    // formats in the user's chosen country even when the API returned a row
-    // whose source-row currency was different (e.g. an SGD-priced Newegg-ish
-    // ingest row leaking into a US country filter). The numeric value is NOT
-    // FX-converted — only the displayed currency code tracks the selected
-    // country, matching the QA acceptance criterion for f369fdc9.
-    currency: fallbackCurrency,
+    // BUY-81837: show the product's native currency (merchant locale) so PHP
+    // prices display as ₱45,950 instead of $5,950 when country=US. Prior fix
+    // BUY-71638 used display currency (fallbackCurrency) which caused mismatch
+    // when products from different currencies appeared in same results.
+    currency: item.currency || item.price_currency || fallbackCurrency,
     // BUY-72907: prefer the domain extracted from the product URL (the actual
     // retailer the user would visit) over the platform-level merchant/source
     // field. A Wellbots product scraped via Shopify should show "Wellbots" from
@@ -1175,7 +1211,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
-function SearchCard({ product, currency }: { product: SearchCardProduct; currency: string }) {
+function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
       data-testid="search-product-card"
@@ -1257,11 +1293,9 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
               passes WCAG AA 4.5:1 against the white card background. */}
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            {/* BUY-71638: use the Selected-country currency for display, not the
-                per-item source currency. The QA repro (f369fdc9) was a US
-                filter showing SGD/INR/TRY prices because each row rendered
-                its own currency. */}
-            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, currency)}</p>
+            {/* BUY-81837: use the product's native currency so PHP prices display
+                as ₱45,950 instead of $5,950 when country=US. */}
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -2196,7 +2230,7 @@ export default function SearchResultsClient({
                           className="grid max-w-full gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
                         >
                           {sortedFilteredProducts.map((product) => (
-                            <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
+                            <SearchCard key={product.id} product={product} />
                           ))}
                         </div>
 
