@@ -60,8 +60,10 @@ export function ReliabilityMetrics({
     {
       label: 'Uptime',
       value: uptime,
-      sublabel: 'Last 90 days',
-      badge: 'SLA',
+      // BWEXT-C9CE3CAF: was 'Last 90 days' + 'SLA', i.e. a measured historical claim we
+      // cannot substantiate. Stated as a target with the live history as the evidence.
+      sublabel: 'Target; live history at status.buywhere.ai',
+      badge: 'Target',
       badgeColor: 'bg-indigo-100 text-indigo-700',
     },
     {

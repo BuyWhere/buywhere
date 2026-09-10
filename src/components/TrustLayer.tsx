@@ -13,9 +13,14 @@ const trustIndicators = [
   },
   {
     icon: <Shield className="w-5 h-5" />,
-    label: 'Uptime SLA',
+    // BWEXT-C9CE3CAF (2026-09-10): this asserted 99.9% MEASURED over the last 90 days.
+    // Independent observation recorded 97.204% lowest visible uptime, and our own probe
+    // history does not support 99.9% either. The acceptance criterion allows either
+    // meeting the number or revising the claim; we are revising it. It is a target, and
+    // the live component history is the evidence a reader should check.
+    label: 'Uptime target',
     value: '99.9%',
-    badge: 'Last 90 days',
+    badge: 'Live history',
     badgeColor: 'bg-indigo-100 text-indigo-700',
   },
   {
