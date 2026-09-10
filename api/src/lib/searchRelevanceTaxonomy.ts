@@ -279,6 +279,28 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'connecteur', 'funda', 'carcasa', 'hülle', 'hulle', 'schutzhülle',
 ] as const;
 
+// BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
+// accessory whose title contains NO accessory vocabulary at all. Measured live:
+// "iPhone 17 Pro" returned ten Caudabe case product-lines - Synthesis, Veil,
+// Sheath, Paragon - and "AirPods Pro 3" returned Spigen lines - Classic Fit,
+// Liquid Crystal, Rugged Armor, Spigen Vault. Nothing in those strings is an
+// accessory word; only the price ($48-75 against a $1,638 phone) gives them away.
+//
+// These vendors make cases and accessories and do not manufacture phones,
+// laptops, watches or headphones, so the BRAND itself is the signal. Deliberately
+// conservative: short or ambiguous marks (esr, uag, mous, nomad) are excluded
+// because they collide with ordinary words under \m...\M boundaries.
+//
+// Symmetry matters. These are also added to the accessory-ask opt-out in
+// isDeviceUnitQuery, so a caller searching "spigen case" still gets Spigen
+// results instead of an empty page.
+export const ACCESSORY_ONLY_BRANDS = [
+  'spigen', 'caudabe', 'otterbox', 'dbrand', 'ringke', 'supcase', 'incipio',
+  'tech21', 'pitaka', 'torras', 'geekria', 'casetify', 'rhinoshield',
+  'quadlock', 'popsockets', 'invisibleshield', 'zagg', 'elago',
+  'urban armor gear', 'evoclear', 'evolite', 'evoarmor',
+] as const;
+
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
 // a real "Apple Watch Series 10 Titanium Case with Sport Band" IS the watch.
 // Accessories announce themselves grammatically: either "<accessory> ... for/fits/
@@ -298,7 +320,11 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // P2: title leads with the accessory within the first ~3 words — catches
   // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
   // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
-  `|^\\W*(?:[\\w&.-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M`;
+  `|^\\W*(?:[\\w&.-]+\\s+){0,3}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  // P3: accessory-only VENDOR anywhere in the title. These brands do not make the
+  // device itself, so their presence on a device-unit query is decisive even when
+  // the title carries no accessory vocabulary.
+  `|\\m(?:${ACCESSORY_ONLY_BRANDS.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')).join('|')})\\M`;
 
 function queryTokens(q: string): string[] {
   return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -312,7 +338,10 @@ export function isDeviceUnitQuery(q: string): boolean {
   );
   if (!hitsUnit) return false;
   const accessoryAsk = tokens.some((t) =>
-    DEVICE_UNIT_ACCESSORY_SOFT_TOKENS.some((a) => a.split(/\s+/).includes(t)),
+    DEVICE_UNIT_ACCESSORY_SOFT_TOKENS.some((a) => a.split(/\s+/).includes(t))
+    // A caller naming an accessory-only vendor is asking FOR accessories; without
+    // this, adding those brands to the exclusion would make "spigen case" empty.
+    || ACCESSORY_ONLY_BRANDS.some((b) => b.split(/\s+/).includes(t)),
   );
   return !accessoryAsk;
 }
