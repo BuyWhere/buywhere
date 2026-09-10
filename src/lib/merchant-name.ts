@@ -117,9 +117,73 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
   const remaining = tokens.slice(start);
   if (remaining.length === 0) return value;
 
+  // BUY-81838: Strip multi-part TLDs (com.ph, com.sg, co.uk) BEFORE generic artifact
+  // stripping so we don't lose "com" before detecting the compound TLD.
+  while (
+    remaining.length >= 2 &&
+    remaining[remaining.length - 2].toLowerCase() === 'com' &&
+    REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())
+  ) {
+    remaining.pop(); // remove 'com'
+    remaining.pop(); // remove the country code
+  }
+  while (
+    remaining.length >= 2 &&
+    remaining[remaining.length - 2].toLowerCase() === 'co' &&
+    REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())
+  ) {
+    remaining.pop(); // remove 'co'
+    remaining.pop(); // remove the country code
+  }
+
+  // Strip trailing region suffixes AND domain artifacts (www, ph) BEFORE the
+  // PLATFORM_ROOTS check so that "shopify_www_datablitz_com_ph" does NOT
+  // early-return "Shopify" but instead reaches the cleaning logic and returns "DataBlitz".
+  while (
+    remaining.length > 1 &&
+    (TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase()) ||
+      remaining[remaining.length - 1].toLowerCase() === 'www' ||
+      remaining[remaining.length - 1].toLowerCase() === 'ph')
+  ) {
+    remaining.pop();
+  }
+  while (remaining.length > 1 && REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())) {
+    remaining.pop();
+  }
+
   const firstToken = remaining[0].toLowerCase();
   if (PLATFORM_ROOTS.has(firstToken)) {
-    return titleCase(remaining[0]);
+    // If only the platform root remains after stripping, return it.
+    if (remaining.length === 1) {
+      return titleCase(remaining[0]);
+    }
+    // BUY-81838: Platform root was followed by more tokens — check if they look
+    // like internal tenant/database IDs or a real merchant name.
+    // Internal ID patterns: buy-prefixed digits, digits anywhere, short all-caps, or known internal keywords.
+    const afterPlatform = remaining.slice(1);
+    const KNOWN_INTERNAL_KEYWORDS = new Set(['crate', 'scrape', 'hunt', 'stock', 'retailer', 'retail', 'ingest']);
+    const isInternalId = (tok: string) =>
+      /\d/.test(tok) ||
+      KNOWN_INTERNAL_KEYWORDS.has(tok.toLowerCase()) ||
+      (tok.length <= 5 && tok === tok.toUpperCase() && /^[A-Z]+$/.test(tok));
+    const hasRealMerchantName = afterPlatform.some(
+      (tok) => !isInternalId(tok) && tok.length > 4,
+    );
+    if (!hasRealMerchantName) {
+      // Tokens look like internal IDs (buy30620, crate, hunt2, scrape) — return just the platform
+      return titleCase(remaining[0]);
+    }
+    // Real merchant name follows the platform root — drop the platform root and strip domain artifacts
+    remaining.shift();
+    while (
+      remaining.length > 0 &&
+      (remaining[0].toLowerCase() === 'www' ||
+        remaining[0].toLowerCase() === 'shop' ||
+        remaining[0].toLowerCase() === 'store' ||
+        remaining[0].toLowerCase() === 'm')
+    ) {
+      remaining.shift();
+    }
   }
 
   // Two-token platforms like "google_shopping" must be preserved when both
@@ -131,16 +195,14 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
     }
   }
 
-  // Tail of the token list: drop trailing "Retailer" / "Com" filler so that
-  // "Shopify Wellbots Com" -> "Wellbots" and "BUY30590 Retailer Bestbuy" ->
-  // "Bestbuy" — then strip regional suffixes such as "Sg" / "Us" before alias
-  // lookup so "Decathlon Sg" renders as the retailer, not a country-tagged
-  // source identifier.
-  while (remaining.length > 1 && TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase())) {
-    remaining.pop();
-  }
-  while (remaining.length > 1 && REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())) {
-    remaining.pop();
+  // BUY-81838: Strip leading domain artifacts that appear when merchant names
+  // are derived from URLs (e.g. "www.datablitz.com.ph" slugified -> "www_datablitz_com_ph").
+  const LEADING_DOMAIN_ARTIFACTS = new Set(['www', 'store', 'shop', 'm', 'ecommerce', 'api', 'cdn']);
+  while (
+    remaining.length >= 2 &&
+    LEADING_DOMAIN_ARTIFACTS.has(remaining[0].toLowerCase())
+  ) {
+    remaining.shift();
   }
 
   // "Merchant Direct" is not a store; it is a fallback ingestion channel label.

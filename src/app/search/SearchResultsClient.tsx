@@ -146,11 +146,14 @@ function extractMerchantFromUrl(url?: string | null): string | null {
     // Strip common subdomains and TLD suffixes to get the retailer's brand name.
     // Examples: "www.walmart.com" -> "walmart", "store.wellbots.com" -> "wellbots"
     // BUY-81838: Also strip country TLDs including multi-part TLDs like .com.ph, .co.uk, .com.sg
-    // Order matters: strip multi-part TLDs first, then single-part
+    // BUY-81838: Also strip ecommerce. subdomain (common for Philippine Shopify stores).
+    // Order matters: strip generic subdomains first, then multi-part TLDs, then single-part TLDs.
     const cleaned = hostname
       .replace(/^www\./, '')
       .replace(/^store\./, '')
       .replace(/^m\./, '')
+      .replace(/^ecommerce\./, '')
+      .replace(/^shop\./, '')
       .replace(/\.com\.ph$/, '')
       .replace(/\.com\.sg$/, '')
       .replace(/\.com\.my$/, '')

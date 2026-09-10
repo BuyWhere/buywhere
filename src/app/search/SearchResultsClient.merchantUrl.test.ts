@@ -151,3 +151,55 @@ test("BUY-72907: handles URL parsing edge cases", () => {
     "Newegg",
   );
 });
+
+// BUY-81838: .ph (Philippines) TLD should be stripped from domain.
+// "www.datablitz.com.ph" → "Datablitz" (not "Www Datablitz Com Ph")
+test("BUY-81838: .ph multi-part TLD stripped from Philippine merchant domain", () => {
+  assert.equal(
+    normalizeProduct(
+      {
+        id: "1",
+        title: "HP Victus Gaming Laptop",
+        price: { amount: 45950, currency: "PHP" },
+        click_url: "https://www.datablitz.com.ph/products/hp-victus-gaming-laptop",
+        affiliate_redirect_url: "https://buywhere.ai/r/direct/1",
+        merchant: "shopify_www_datablitz_com_ph",
+      },
+      "USD",
+    ).merchant,
+    "Datablitz",
+    "expected .com.ph multi-part TLD to be stripped",
+  );
+});
+
+test("BUY-81838: .com.ph stripped from ecommerce subdomain", () => {
+  assert.equal(
+    normalizeProduct(
+      {
+        id: "2",
+        title: "HP Victus Gaming Laptop",
+        price: { amount: 45950, currency: "PHP" },
+        click_url: "https://ecommerce.datablitz.com.ph/products/hp-victus-gaming-laptop",
+      },
+      "USD",
+    ).merchant,
+    "Datablitz",
+    "expected ecommerce subdomain + .com.ph stripped",
+  );
+});
+
+test("BUY-81838: .ph bare country TLD stripped", () => {
+  assert.equal(
+    normalizeProduct(
+      {
+        id: "3",
+        title: "Product from PH merchant",
+        price: { amount: 999, currency: "PHP" },
+        click_url: "https://example.ph/product",
+      },
+      "USD",
+    ).merchant,
+    "Example",
+    "expected bare .ph TLD to be stripped",
+  );
+});
