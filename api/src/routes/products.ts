@@ -384,9 +384,23 @@ async function tryTierSearch(
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (useChildTable) { conds.push('sp.is_active = true'); }
   conds.push(fixtureMerchantExclusion('sp.'));
-  // BUY-67318: same dead-link gate on the tier path. Child tables inherit
-  // the `url_status` columns from the parent partition.
-  if (outboundProbeEnabled()) {
+  // BUY-67318: same dead-link gate on the tier path.
+  //
+  // BWEXT-9DFD3159 (2026-09-10): the original comment said "child tables inherit the
+  // url_status columns from the parent partition" — true, but `sp` is only a partition
+  // child when useChildTable is set. Otherwise ftsTable is `search_products`, a separate
+  // FTS table that inherits nothing and HAS NO url_status column. With
+  // PROBE_OUTBOUND_LINKS=1 in production, every non-child-table tier query therefore threw
+  //   column sp.url_status does not exist
+  // which the catch at the bottom of tryTierSearch swallowed, logging "[tier] fell back to
+  // archive" and returning false. Fail-open meant results still looked correct, so nothing
+  // alarmed — while the ENTIRE accessory-penalty ranking (searchRelevanceTaxonomy) never
+  // executed. Confirmed dead: no X-Search-Tier header on any query, _tier=1 and _tier=0
+  // byte-identical, 219 such errors in one log sample. This is the CRITICAL 26%/100%
+  // accessory-contamination finding.
+  //
+  // Apply the gate only where the column actually exists.
+  if (outboundProbeEnabled() && useChildTable) {
     conds.push(liveUrlCondition('sp'));
   }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
