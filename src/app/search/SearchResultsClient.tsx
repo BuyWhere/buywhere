@@ -1014,7 +1014,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, pathnam
     // prices display as ₱45,950 instead of $5,950 when country=US. Prior fix
     // BUY-71638 used display currency (fallbackCurrency) which caused mismatch
     // when products from different currencies appeared in same results.
-    currency: item.currency || item.price_currency || fallbackCurrency,
+    // The API returns currency in item.price.currency for PHP products, not at top level.
+    currency: (item.price && typeof item.price === 'object' && 'currency' in item.price ? item.price.currency : null)
+      || item.currency || item.price_currency || fallbackCurrency,
     // BUY-72907: prefer the domain extracted from the product URL (the actual
     // retailer the user would visit) over the platform-level merchant/source
     // field. A Wellbots product scraped via Shopify should show "Wellbots" from
