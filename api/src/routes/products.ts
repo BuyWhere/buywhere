@@ -608,7 +608,16 @@ async function tryTierSearch(
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}
+      -- BWEXT-9DFD3159 (2026-09-10): the OR-lexeme string ($2) is pushed into
+      -- params for every tier query, but this fallback referenced only $1. Postgres cannot
+      -- infer a type for a parameter that is never used and rejects the whole statement with
+      --   could not determine data type of parameter $2
+      -- so the tier threw, the catch swallowed it, and search silently fell back to the
+      -- archive with no accessory penalty. It only ever fired when lexemes.length === 1,
+      -- which is why single-word queries such as laptop were affected while iPhone 17 Pro
+      -- was not. Pre-existing; it stayed hidden while the url_status error killed every
+      -- tier query first. Typed no-op reference, exactly as andMatch already does.
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%') AND $${orIdx}::text IS NOT NULL${filterSql}${storageExcl}${unitAccessoryExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
