@@ -1109,6 +1109,23 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.search'),
   asyncHandler(async (req: Request, res: Response) => {
+    // BWEXT-39EA51D3 (2026-09-10): MUST run before any req.query read. The site's search
+    // page sends price_min/price_max/merchant while this handler reads
+    // min_price/max_price/merchant_id, and because unknown parameters were silently
+    // ignored those filters were SILENT NO-OPS in production. First attempt at this fix
+    // was placed lower in the handler and did nothing, because merchantId (l.1148) and
+    // minPrice/maxPrice (l.1162-63) had already been captured - deployed and verified
+    // still-broken before this correction. Canonical name always wins if both are sent.
+    for (const [alias, canonical] of [
+      ['price_min', 'min_price'],
+      ['price_max', 'max_price'],
+      ['merchant', 'merchant_id'],
+    ] as const) {
+      if (req.query[alias] !== undefined && req.query[canonical] === undefined) {
+        req.query[canonical] = req.query[alias];
+      }
+    }
+
     // BUY-33987: hard ceiling on the entire request. Even if the per-statement
     // `SET LOCAL statement_timeout` races with the pool's on-connect
     // `SET statement_timeout = 30000`, the response will fire at 5s and the
@@ -1186,24 +1203,6 @@ router.get(
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
-
-    // BWEXT-39EA51D3 (2026-09-10): the site's own search page sends price_min, price_max
-    // and merchant, while this handler reads min_price, max_price and merchant_id. Because
-    // unknown parameters were silently ignored, those filters were SILENT NO-OPS in
-    // production: verified against live search, min_price=1000 returned 1 row while
-    // price_min=1000 returned the unfiltered baseline, and merchant_id=newegg.com filtered
-    // while merchant=newegg.com did not. A shopper setting a price filter on buywhere.ai
-    // got unfiltered results. Accept the first-party spellings as aliases so the filters
-    // actually work; the canonical name always wins if both are present.
-    for (const [alias, canonical] of [
-      ['price_min', 'min_price'],
-      ['price_max', 'max_price'],
-      ['merchant', 'merchant_id'],
-    ] as const) {
-      if (req.query[alias] !== undefined && req.query[canonical] === undefined) {
-        req.query[canonical] = req.query[alias];
-      }
-    }
 
     // BWEXT-B40E8514: invalid enum/range/pagination inputs must 400 with field-level
     // errors instead of silently clamping to a misleading 200.
