@@ -1030,6 +1030,11 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
     // scraper discards. A merchant rejecting 239 of 243 rows was therefore
     // undiagnosable. One aggregated line per batch instead of one per product
     // keeps volume proportional to batches, not to rows.
+    // BUY-81810: the histogram below is the ONLY record of WHY rows failed, and it
+    // went to stdout only. ingestion_runs stored rows_failed with error_message
+    // NULL, so 'why did 2,449 products fail today' was unanswerable from SQL and
+    // took hours of log archaeology. Persist the summary onto the run row.
+    let rejectSummary: string | null = null;
     if (errors.length > 0) {
       const rejectMerchant =
         (Array.isArray(req.body?.products) && req.body.products.length > 0
@@ -1046,14 +1051,15 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         `batch=${Array.isArray(req.body?.products) ? req.body.products.length : 0} ` +
         `failed=${rowsFailed} ${hist}`
       );
+      rejectSummary = `merchant=${rejectMerchant} failed=${rowsFailed} ${hist}`.slice(0, 480);
     }
 
     const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
     if (runId !== null) {
       await withDbRetry(
         () => db.query(
-          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`,
-          [status, rowsInserted, rowsUpdated, rowsFailed, runId]
+          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, error_message = $5, finished_at = NOW() WHERE id = $6`,
+          [status, rowsInserted, rowsUpdated, rowsFailed, rejectSummary, runId]
         ),
         'mark run complete'
       ).catch(() => {});
