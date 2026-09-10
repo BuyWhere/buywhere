@@ -1871,6 +1871,11 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   const conditions: string[] = [
     `price > 0`,
     `discount_pct >= $1`,
+    // BUY-81812: the MCP deal path had NO upper plausibility bound at all, so it
+    // served 90 and 100 percent off rows that are x10 price-scale artifacts and
+    // zero-price rows. REST bounds these; MCP did not, so the two surfaces
+    // disagreed on the same fixture. Ceiling here too.
+    `discount_pct < 80`,
   ];
   const params: unknown[] = [minDiscount];
   if (currency) {

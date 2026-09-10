@@ -2399,7 +2399,20 @@ router.get(
     // fix landed only in the else-leg while prod uses the generated column,
     // so a $2M gag listing kept headlining /deals (BWEXT-552F936D).
     dealConditions.push(FIXTURE_MERCHANT_EXCLUSION);
-    dealConditions.push(`(metadata->>'original_price')::numeric <= price * 10`);
+    // BUY-81812: `<= price * 10` admits EXACTLY 10x, which is the signature of the
+    // scale artifact we actually have: 47 of 50 sampled deals had an original/price
+    // ratio of exactly 10.0 and every one reported 90 percent off. Strict `<` plus an
+    // explicit discount ceiling. /deals sorts by discount_pct DESC, so an implausible
+    // row does not merely appear - it HEADLINES, burying ~1.1M genuine 10-60 percent deals.
+    dealConditions.push(`(metadata->>'original_price')::numeric < price * 10`);
+    // Ceiling is 80, not 90. 90 removes only the provable exact-10x cluster; sampling the
+    // 80-89 band showed the same inflation (Himalaya UriCare 240ct listed at an 'original'
+    // SGD 368 against a real ~SGD 34, i.e. ~10x, surfacing as 89 percent off). Genuine deep
+    // retail discounts below 80 survive - furniture at 69 percent off is ordinary. 80 is a
+    // judgement call, deliberately conservative: for a comparison product, under-claiming a
+    // discount is recoverable and over-claiming one is not. The real fix is the
+    // metadata->>'original_price' data quality upstream; this stops us publishing it.
+    dealConditions.push(`COALESCE(discount_pct, 0) < 80`);
     dealConditions.push(`(metadata->>'original_price')::numeric < 500000`);
     if (useDiscountCol) {
       dealConditions.push(`discount_pct >= $${dealIdx}`);
