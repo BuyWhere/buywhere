@@ -37,8 +37,7 @@ BuyWhere is an agent-native product catalog API for AI agents and LLM applicatio
 MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
-### MCP Tools
-The 13 MCP tools (from the live tools/list registry):
+### MCP Tools (13 total, generated from the MCP tools/list registry)
 - search_products
 - get_product
 - compare_products
@@ -46,12 +45,12 @@ The 13 MCP tools (from the live tools/list registry):
 - list_categories
 - find_best_price
 - find_similar
+- ingest_products (write; authenticated merchants only)
 - search_products_v2
 - get_product_v2
 - compare_products_v2
 - get_deals_v2
 - find_best_price_v2
-- ingest_products
 Write tool: ingest_products (authenticated merchants only).
 1. **search_products / search_products_v2** — Full-text, semantic, or hybrid search with merchant, price, category, country, and deliver_to filters.
 2. **get_product / get_product_v2** — Full product details by BuyWhere product ID.
