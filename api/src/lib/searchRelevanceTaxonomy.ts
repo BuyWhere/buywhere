@@ -255,6 +255,11 @@ export const DEVICE_UNIT_QUERY_TOKENS = [
   'garmin', 'fenix', 'quietcomfort', 'headphone', 'headphones', 'earbuds',
   'vacuum', 'purifier', 'toothbrush', 'stroller', 'keyboard', 'monitor',
   'tablet', 'ipad', 'camera', 'drone', 'printer', 'blender', 'kettle',
+  // 2026-09-11: Sony's flagship headphones are queried by model ("Sony WH-1000XM5"),
+  // which tokenises to sony / wh / 1000xm5 and matched no family, so the exclusion
+  // never ran and a replacement aux cable ranked #2. Prefix match covers XM4/XM5/XM6
+  // and the WF- earbud line.
+  '1000xm',
 ] as const;
 
 export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
@@ -309,6 +314,9 @@ export const ACCESSORY_ONLY_BRANDS = [
   // the alternation is wrapped in \m...\M word boundaries, so it cannot match
   // inside another word. Being over-cautious cost two whole queries.
   'uag', 'torrii', 'windward',
+  // 2026-09-11: "Apple AirPods Pro 3 - SwitchEasy Defender Rugged Utility Protective
+  // Case" held ranks 9-10 for "AirPods Pro 3". SwitchEasy makes cases, not devices.
+  'switcheasy',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
@@ -336,6 +344,29 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // the title carries no accessory vocabulary.
   `|\\m(?:${ACCESSORY_ONLY_BRANDS.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')).join('|')})\\M`;
 
+// P4 (2026-09-11): the accessory is the title's LAST noun. Measured live: "Regatta -
+// Kindle Paperwhite (12th Gen) Case" held 8 of the top 10 for "Kindle Paperwhite" and
+// "Apple AirPods Pro 3 - Rugged Pop Protective Case" ranks 7-8 for "AirPods Pro 3".
+// P1-P3 miss both: no connector, the accessory word is not near the start, and the
+// vendor is not on the list. Genuine devices and bundles that end in "case" are
+// exempted by DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE.
+const TRAILING_ACCESSORY_NOUNS = [
+  'case', 'cases', 'cover', 'covers', 'sleeve', 'sleeves', 'folio', 'skin', 'skins',
+  'protector', 'protectors', 'pouch', 'shell', 'bumper',
+];
+export const DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE =
+  `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?$`;
+// "... with MagSafe Charging Case" (the AirPods themselves), "... Aluminium Case"
+// (an Apple Watch listing), "... Titanium Case with Sport Band", "Kindle ... with Cover".
+export const DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE =
+  `\\mwith\\M|\\mcharging\\s+case\\M|\\m(?:aluminium|aluminum|titanium|steel|ceramic)\\s+case\\M`;
+
+function unitAccessoryPredicate(col: string): string {
+  return `(${col} ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}'`
+    + ` OR (${col} ~* '${DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE}'`
+    + ` AND ${col} !~* '${DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE}'))`;
+}
+
 function queryTokens(q: string): string[] {
   return q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 }
@@ -347,24 +378,28 @@ export function isDeviceUnitQuery(q: string): boolean {
     DEVICE_UNIT_QUERY_TOKENS.some((fam) => t === fam || t.startsWith(fam)),
   );
   if (!hitsUnit) return false;
-  const accessoryAsk = tokens.some((t) =>
-    DEVICE_UNIT_ACCESSORY_SOFT_TOKENS.some((a) => a.split(/\s+/).includes(t))
-    // A caller naming an accessory-only vendor is asking FOR accessories; without
-    // this, adding those brands to the exclusion would make "spigen case" empty.
-    || ACCESSORY_ONLY_BRANDS.some((b) => b.split(/\s+/).includes(t)),
-  );
+  // Accessory asks are matched as whole PHRASES. Splitting multi-word entries into
+  // words made 'watch strap' turn every "watch" query into an accessory ask (so "Apple
+  // Watch Series 10" never got the exclusion and bands took ranks 1-2), 'earbuds only'
+  // did the same to "earbuds", and 'bag for' / 'stand for' to any query with "for".
+  // A caller naming an accessory-only vendor is still asking FOR accessories, so
+  // "spigen case" keeps its Spigen results.
+  const padded = ` ${tokens.join(' ')} `;
+  const asks = (list: readonly string[]) =>
+    list.some((entry) => padded.includes(` ${queryTokens(entry).join(' ')} `));
+  const accessoryAsk = asks(DEVICE_UNIT_ACCESSORY_SOFT_TOKENS) || asks(ACCESSORY_ONLY_BRANDS);
   return !accessoryAsk;
 }
 
 export function deviceUnitAccessoryExclusionFragment(): string {
-  return ` AND NOT (lower(sp.title) ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}')`;
+  return ` AND NOT ${unitAccessoryPredicate('lower(sp.title)')}`;
 }
 
 // Same exclusion for the products-table (base/FTS/hybrid) paths — the tier-only
 // wiring was why exact-model queries riding the ranked-FTS path (multi-word ANDs
 // like "iphone 16 pro") still surfaced 70-90% accessories (BWEXT-9DFD3159).
 export function deviceUnitAccessoryExclusionFragmentProducts(): string {
-  return ` AND NOT (lower(title) ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}')`;
+  return ` AND NOT ${unitAccessoryPredicate('lower(title)')}`;
 }
 
 // BUY-80570: demote non-computer titles for bare device queries
