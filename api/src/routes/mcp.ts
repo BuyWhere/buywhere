@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID, createHash } from 'crypto';
 import type { PoolClient } from 'pg';
 import { db, redis, vectorDb, PORT } from '../config';
+import { fetchFromLiveChildren } from '../lib/liveChildLookup';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -1769,6 +1770,10 @@ async function handleGetProduct(args: Record<string, unknown>, caller?: { apiKey
   } catch {
     throw { code: -32001, message: 'Product not found' };
   }
+  // BWEXT minted-ID: resolve ids that exist only in the child tables search/list serve from.
+  if (!result.rows.length) {
+    result.rows.push(...(await fetchFromLiveChildren('id, sku AS source, merchant_id AS domain, url, title, price, currency, image_url, brand, category_path, avg_rating AS rating, review_count, metadata, updated_at, region, country_code', [id.trim()])));
+  }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false, undefined, caller);
   return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
@@ -1803,6 +1808,14 @@ async function handleCompareProducts(args: Record<string, unknown>, caller?: { a
     );
   } catch {
     throw { code: -32001, message: 'Products not found' };
+  }
+  // BWEXT minted-ID: fill ids missing from `products` from the live child tables.
+  {
+    const found = new Set(result.rows.map((r: Record<string, unknown>) => String(r.id)));
+    const missing = validIds.map((x) => String(x).trim()).filter((x) => !found.has(x));
+    if (missing.length) {
+      result.rows.push(...(await fetchFromLiveChildren('id, sku AS source, merchant_id AS domain, url, title, price, currency, image_url, brand, category_path, avg_rating AS rating, review_count, metadata, updated_at, region, country_code', missing)));
+    }
   }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false, undefined, caller));
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
@@ -3018,10 +3031,17 @@ async function keywordSimilarFallback(productId: string, limit: number, reason: 
       'SELECT title, country_code, category FROM products WHERE id = $1::bigint LIMIT 1',
       [productId]
     );
-    if (ref.rowCount === 0) {
+    // BWEXT minted-ID: the base product may exist only in a live child table (an id that
+    // /v1/products or search just returned). Resolve it there before giving up.
+    let refRow = ref.rows[0] as { title: string; country_code: string | null; category: string | null } | undefined;
+    if (!refRow) {
+      const kids = await fetchFromLiveChildren('id, title, country_code, category', [productId]);
+      refRow = kids[0] as unknown as { title: string; country_code: string | null; category: string | null } | undefined;
+    }
+    if (!refRow) {
       return { data: [], meta: { total: 0, similarity: 'none', reason: 'product_not_found' } };
     }
-    const { title, country_code } = ref.rows[0];
+    const { title, country_code } = refRow;
     const params: unknown[] = [title, productId];
     // search_products carries only active rows, and has no is_active column.
     let where = "search_vector @@ plainto_tsquery('english', $1) AND id <> $2::bigint";

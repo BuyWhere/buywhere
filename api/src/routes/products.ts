@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
+import { fetchFromLiveChildren } from '../lib/liveChildLookup';
 import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey, allowAnonymous, attachQuotaHint } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
@@ -3192,6 +3193,17 @@ router.get(
       console.error('[products/:id] db query error:', err);
       res.status(500).json({ error: 'Internal server error' });
       return;
+    }
+
+    // BWEXT minted-ID: ids that /v1/products just listed can live only in a child table.
+    if (result.rows.length === 0) {
+      result.rows.push(...(await fetchFromLiveChildren(
+        `id, sku AS source_id, source AS domain, url, url_status,
+         title, price, currency, image_url, metadata, updated_at,
+         region, country_code, created_at, description, brand, mpn, gtin,
+         category_path, category, merchant_id, avg_rating, review_count`,
+        [id],
+      )));
     }
 
     if (result.rows.length === 0) {
