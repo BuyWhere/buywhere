@@ -566,6 +566,22 @@ async function ensureStrictDealsIndexes() {
     ];
 
     for (const expectedIndex of expectedIndexes) {
+      // Never build these at boot on a large table. On 2026-09-11 a deploy found them
+      // missing and ran CREATE INDEX CONCURRENTLY over the full products heap: the
+      // scan starved the catalog (deals n=0, search 10s) and failed /health/db until it
+      // was cancelled. IF NOT EXISTS only protects us while an index (even an invalid
+      // shell) exists; if anyone drops them, the next boot would repeat that outage.
+      // Build them deliberately through the ops-ddl path, or opt in explicitly.
+      if (process.env.BOOT_BUILD_DEALS_INDEXES !== '1') {
+        const present = await db.query(
+          `SELECT 1 FROM pg_class WHERE relkind = 'i' AND relname = $1`,
+          [expectedIndex.name]
+        );
+        if (present.rows.length === 0) {
+          console.warn(`[migration] ${expectedIndex.name} missing on ${expectedIndex.tableName}; not building at boot (set BOOT_BUILD_DEALS_INDEXES=1 or build via ops-ddl).`);
+        }
+        continue;
+      }
       try {
         const client = await db.connect();
         try {
