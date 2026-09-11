@@ -1615,7 +1615,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
         // BUY-79277: always over-fetch so accessory demotion can still fill
         // 8 primary SKUs after earpads/cases are ranked below the fold.
-        limit: "24",
+        // BUY-81968: limit=24 returns only ~5 country=SG rows for /laptop-singapore
+        // (mostly US newegg) and 12 country=US rows for /laptop-us (all newegg).
+        // After accessory + minPrice + country_code filtering those collapse to
+        // 0–2 valid laptops and the page falls back to editorial picks, hiding
+        // live cards above the fold. limit=32 returns 26+ country=SG rows for
+        // /laptop-singapore and 32 country=US rows for /laptop-us — enough to
+        // populate ≥4 priced live cards after accessory + minPrice filtering.
+        limit: "32",
       });
       // BUY-79810: US robot-vacuum FTS on country_code=US collapses to a 9-row
       // Wyze accessory cluster. Live named brands (Shark Best Buy, Roomba,

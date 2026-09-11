@@ -182,7 +182,10 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   try {
     const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
     assert.ok(requestedUrls.length > 0);
-    assert.ok(requestedUrls.every((url) => url.includes("limit=24")));
+    // BUY-81968: limit=32 needed so /laptop-singapore and /laptop-us return
+    // enough country=SG / country=US rows to populate ≥4 priced live cards
+    // after accessory + minPrice filtering (limit=24 collapsed to 0–2).
+    assert.ok(requestedUrls.every((url) => url.includes("limit=32")));
     // BUY-79810: US robot vacuum SSR uses query= + region=US (not q= + country=us)
     // so recall matches v1 named-brand rows. Do not send category= (planner timeout).
     assert.ok(requestedUrls.every((url) => url.includes("query=")));
@@ -245,7 +248,7 @@ test("robot-vacuum landing page uses compact, unclipped product cards with compl
   assert.match(readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8"), /url\.hostname !== "elescat\.store"/);
 });
 
-test("BUY-79277: intent pages over-fetch 24 candidates so accessory demotion can fill 8 primaries", async () => {
+test("BUY-79277: intent pages over-fetch 32 candidates so accessory demotion can fill 8 primaries", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   globalThis.fetch = async (input) => {
@@ -258,7 +261,9 @@ test("BUY-79277: intent pages over-fetch 24 candidates so accessory demotion can
 
   try {
     await getSeoLandingProducts(seoLandingPages["best-noise-canceling-headphones-us"]);
-    assert.match(requestedUrl, /limit=24/);
+    // BUY-81968: bumped limit from 24 → 32 so /laptop-singapore and /laptop-us
+    // populate ≥4 priced live cards after country/accessory/minPrice filtering.
+    assert.match(requestedUrl, /limit=32/);
   } finally {
     globalThis.fetch = originalFetch;
   }
