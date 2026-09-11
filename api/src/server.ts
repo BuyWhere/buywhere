@@ -42,6 +42,9 @@ import adminFxRefreshRouter from './routes/admin/fxRefresh';
 import adminProbesRouter from './routes/admin/probes';
 import adminMetricsTruthRouter from './routes/admin/metricsTruth';
 import { db, redis } from './config';
+// Imported (not require()d by path string) so tsc emits the JSON into dist/;
+// the runtime require found no file there and the route answered 500.
+import chatgptOpenApiSpec from './routes/chatgpt-openapi.json';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -207,7 +210,7 @@ export function createApp() {
 
   // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
   app.get('/chatgpt-openapi.json', (_req, res) => {
-    res.json(require('./routes/chatgpt-openapi.json'));
+    res.json(chatgptOpenApiSpec);
   });
 
   // AI crawler headers for public endpoints (Perplexity, GPTBot, etc.)
