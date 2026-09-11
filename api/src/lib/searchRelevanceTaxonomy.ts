@@ -357,9 +357,11 @@ const TRAILING_ACCESSORY_NOUNS = [
 export const DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE =
   `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?$`;
 // "... with MagSafe Charging Case" (the AirPods themselves), "... Aluminium Case"
-// (an Apple Watch listing), "... Titanium Case with Sport Band", "Kindle ... with Cover".
+// (an Apple Watch listing), "... Titanium Case with Sport Band", "Kindle ... with Cover",
+// and device bundles: "Nintendo Switch 2 Console - Black + Dobe Carry Case + Screen
+// Protector" (USD 179.90) is the console, found by catalog sampling before shipping.
 export const DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE =
-  `\\mwith\\M|\\mcharging\\s+case\\M|\\m(?:aluminium|aluminum|titanium|steel|ceramic)\\s+case\\M`;
+  `\\mwith\\M|\\mcharging\\s+case\\M|\\m(?:aluminium|aluminum|titanium|steel|ceramic)\\s+case\\M|\\m(?:console|bundle)\\M`;
 
 function unitAccessoryPredicate(col: string): string {
   return `(${col} ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}'`
