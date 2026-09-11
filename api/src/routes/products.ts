@@ -2467,8 +2467,8 @@ router.get(
             data: [],
             meta: {
               total: 0,
-              limit: 20,
-              offset: 0,
+              limit,
+              offset,
               response_time_ms: Date.now() - start,
               cached: false,
               degraded: true,
@@ -2520,7 +2520,7 @@ router.get(
     // judgement call, deliberately conservative: for a comparison product, under-claiming a
     // discount is recoverable and over-claiming one is not. The real fix is the
     // metadata->>'original_price' data quality upstream; this stops us publishing it.
-    dealConditions.push(`COALESCE(discount_pct, 0) < 80`);
+    dealConditions.push(`discount_pct < 80`);
     dealConditions.push(`(metadata->>'original_price')::numeric < 500000`);
     if (useDiscountCol) {
       dealConditions.push(`discount_pct >= $${dealIdx}`);
@@ -2619,6 +2619,11 @@ router.get(
       dealsClient.release();
     }
 
+    // The Express-side timeout above may already have answered with the degraded
+    // envelope. Sending again threw "Cannot set headers after they are sent" into
+    // asyncHandler (seen 7x in one window) and could still write the late body into
+    // the cache below; bail out instead.
+    if (res.headersSent) return;
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
