@@ -677,9 +677,19 @@ export async function runMigrations() {
     // archive (ops watchdogs cancel >30min CIC by design), so attempting it here
     // just failed with a lock timeout on every deploy.
     const twoCol = await db.query(
-      `SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
-        WHERE i.indrelid = 'products'::regclass AND c.relname = 'products_sku_source_unique'
-          AND i.indisunique AND i.indisvalid`);
+      `SELECT 1 FROM pg_index i
+        WHERE i.indrelid = 'products'::regclass
+          AND i.indisunique AND i.indisvalid AND i.indpred IS NULL
+          -- Match the index by its COLUMNS, not its name. The name check looked for
+          -- products_sku_source_unique while prod's index is
+          -- products_sku_source_unique_constraint, so this guard never fired and
+          -- every boot ran a non-concurrent CREATE UNIQUE INDEX over the full
+          -- products heap: a ShareLock held up to statement_timeout (5 min) per
+          -- replica, queueing every INSERT/UPDATE behind it on each deploy.
+          AND (SELECT array_agg(a.attname::text ORDER BY k.ord)
+                 FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+                 JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum)
+              = ARRAY['sku', 'source']`);
     if (twoCol.rows.length > 0) {
       console.log('[migration] products (sku, source) UNIQUE index valid — skipping 3-col build (BUY-56217 superseded 2026-07-15).');
     } else {
