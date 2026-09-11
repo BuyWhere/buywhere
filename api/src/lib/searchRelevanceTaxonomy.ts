@@ -287,6 +287,12 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   // Kindle Paperwhite" (cs), "... (11e Gen) Hoesje" (nl), "... (12th Gen) ケース" (ja).
   'pouzdro', 'obal', 'kryt', 'hoesje', 'hoes', 'ケース', 'カバー', '케이스',
   'custodia', 'capa', 'capinha', 'fodral', 'pokrowiec', 'husa', 'kılıf', 'kilif',
+  // 2026-09-11 wide probe (12 device queries x 3 markets): parts and spares that held
+  // top-10 slots - "Soft Roller Brush Bar ... Compatible with Dyson V15", "Ball Wheel for
+  // ... Cleaner Head", "Ear Pad Cushions ... Replacement Parts", "Headband Hinge Swivel".
+  'brush', 'brushes', 'roller', 'rollers', 'wheel', 'wheels', 'nozzle', 'nozzles',
+  'ear pad', 'ear pads', 'earpad', 'earpads', 'cushion', 'cushions', 'hinge', 'hinges',
+  'part', 'parts', 'charging grip',
 ] as const;
 
 // BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
@@ -322,6 +328,9 @@ export const ACCESSORY_ONLY_BRANDS = [
   // 2026-09-11: "Apple AirPods Pro 3 - SwitchEasy Defender Rugged Utility Protective
   // Case" held ranks 9-10 for "AirPods Pro 3". SwitchEasy makes cases, not devices.
   'switcheasy',
+  // Laut ("iPad Air ... Prestige Leather with Pencil Holder") and Satechi (remotes, hubs,
+  // stands) make accessories only; both held iPad Air top-10 slots in the wide probe.
+  'laut', 'satechi',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
@@ -345,6 +354,9 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
   // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
   `|^\\W*(?:[\\w&.®™’-]+\\s+){0,4}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  // P6: repair services and spare parts are never the device itself ("Sony WH-1000XM5 XM5
+  // Broken Hinge Swivel Headband Assembly Repair", "... OEM Replacement + 16-Pin Connector").
+  `|\\m(?:repair|replacement|spare\\s+parts?|oem\\s+parts?)\\M` +
   // P5: the title OPENS with "for", optionally after one brand word ("For Samsung Galaxy
   // S25 Edge 10pcs ...", "GUAYQAT for Airpods Pro 3 Case (2025), ..."). Devices are not
   // listed as "for <device>"; accessories are.
@@ -362,20 +374,24 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
 // exempted by DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE.
 const TRAILING_ACCESSORY_NOUNS = [
   'case', 'cases', 'cover', 'covers', 'sleeve', 'sleeves', 'folio', 'skin', 'skins',
-  'protector', 'protectors', 'pouch', 'shell', 'bumper',
+  'protector', 'protectors', 'pouch', 'shell', 'bumper', 'grip', 'grips', 'dock',
+  'charger', 'chargers', 'stand', 'repair', 'parts',
   // Same nouns in the storefront languages seen in results (see the soft-token list).
   'pouzdro', 'obal', 'kryt', 'hoesje', 'hoes', 'ケース', 'カバー', '케이스', 'custodia',
   'capa', 'capinha', 'fodral', 'pokrowiec', 'husa', 'kılıf', 'kilif', 'funda', 'carcasa',
   'coque', 'étui', 'etui', 'housse', 'hülle', 'hulle', 'schutzhülle',
 ];
 export const DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE =
-  `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?$`;
+  `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?(?:\\s[-–|/]\\s[\\w ]{1,20})?$`;
 // "... with MagSafe Charging Case" (the AirPods themselves), "... Aluminium Case"
 // (an Apple Watch listing), "... Titanium Case with Sport Band", "Kindle ... with Cover",
 // and device bundles: "Nintendo Switch 2 Console - Black + Dobe Carry Case + Screen
 // Protector" (USD 179.90) is the console, found by catalog sampling before shipping.
+// A spaced " + " marks a bundle too: "Apple iPhone 17 Pro Max 5G 512 GB, Deep Blue + Apple
+// iPhone MagSafe Assorted Case" and "Nintendo Switch 32GB Black + Accessories - No Charger"
+// are the device (second sampling round). P1-P3/P5 still catch plus-joined accessory sets.
 export const DEVICE_UNIT_TRAILING_EXEMPT_PG_RE_SOURCE =
-  `\\mwith\\M|\\mcharging\\s+case\\M|\\m(?:aluminium|aluminum|titanium|steel|ceramic)\\s+case\\M|\\m(?:console|bundle)\\M`;
+  `\\mwith\\M|\\mcharging\\s+case\\M|\\m(?:aluminium|aluminum|titanium|steel|ceramic)\\s+case\\M|\\m(?:console|bundle)\\M|\\s\\+\\s`;
 
 function unitAccessoryPredicate(col: string): string {
   return `(${col} ~* '${DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE}'`
