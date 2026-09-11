@@ -337,13 +337,18 @@ const ACCESSORY_TOKEN_ALTERNATION = DEVICE_UNIT_ACCESSORY_SOFT_TOKENS
   .join('|');
 export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
   // P1: accessory word within ~40 chars before a for/fits/compatible connector
-  `\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M[^,|]{0,40}\\m(?:for|fits?|compatible)\\M` +
+  // (localised connectors: "Funda para Kindle", "Coque pour", "Hülle für", "Custodia per", "Hoesje voor")
+  `\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M[^,|]{0,40}\\m(?:for|fits?|compatible|para|pour|für|fur|voor|per)\\M` +
   // P1r: connector BEFORE the accessory word ("Kindle Compatible Case & Cover")
   `|\\m(?:fits?|compatible)\\M[^,|]{0,40}\\m(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
   // P2: title leads with the accessory within the first ~3 words — catches
   // brand-prefixed accessories ("UAG Apple Watch Case..." escapes a strict
   // start anchor; "Refurbished Apple Watch ... Case with Band" at word 8 does not)
-  `|^\\W*(?:[\\w&.-]+\\s+){0,4}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  `|^\\W*(?:[\\w&.®™’-]+\\s+){0,4}(?:\\d+\\s*(?:pcs?|pack|pairs?|x)\\s+)?(?:${ACCESSORY_TOKEN_ALTERNATION})\\M` +
+  // P5: the title OPENS with "for", optionally after one brand word ("For Samsung Galaxy
+  // S25 Edge 10pcs ...", "GUAYQAT for Airpods Pro 3 Case (2025), ..."). Devices are not
+  // listed as "for <device>"; accessories are.
+  `|^\\W*(?:[\\w&.®™’-]+\\s+)?for\\s` +
   // P3: accessory-only VENDOR anywhere in the title. These brands do not make the
   // device itself, so their presence on a device-unit query is decisive even when
   // the title carries no accessory vocabulary.
