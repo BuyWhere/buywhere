@@ -338,6 +338,8 @@ async function tryTierSearch(
     deliverTo?: string; includeUnshippable?: boolean;
     source?: string; scrapedVia?: string;
     requestedMode?: string | null;
+    // False when currency is only the SGD default (no currency, country or deliver_to).
+    currencyRequested?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -382,7 +384,17 @@ async function tryTierSearch(
   // mismatch vs Shopify USD labelled SG). Isolate currency in the JS
   // post-filter below. Keep SQL currency only on the parent search_products
   // table (and when the caller passed explicit price bounds).
-  if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  // With no market in the request, currency is only the SGD default. Keep it as an SG-first
+  // SCOPE (that slice is much cleaner than the USD-heavy global table: removing it outright
+  // raised top-10 accessory contamination from 0% to 50% on AirPods Pro 3), but make it
+  // widenable: $widenIdx=true turns the filter off. When the scoped query finds nothing
+  // (Kindle Paperwhite: 2 SGD matches, both cases, vs 1,591 USD) we re-run the same indexed
+  // query widened instead of the unindexed title-LIKE fallback that hit the 4s cap.
+  let widenIdx = 0;
+  if (p.currency && !useChildTable && p.currencyRequested === false && p.minPrice == null && p.maxPrice == null) {
+    conds.push(`(sp.currency = $${i} OR $${i + 1}::boolean)`); params.push(p.currency, false); widenIdx = i + 1; i += 2;
+  }
+  else if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   else if (p.currency && (p.minPrice != null || p.maxPrice != null)) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   // Child partition already scoped to country; extra country_code predicate
   // can push the planner off the per-partition GIN onto a seq scan.
@@ -687,6 +699,10 @@ async function tryTierSearch(
     // parent table JOIN that causes 500s during ingest lock contention.
     const ftsQuery = useChildTable ? childMkQuery : mkQuery;
     let rows = (await client.query(ftsQuery(andMatch), params)).rows;
+    if (rows.length === 0 && widenIdx) {
+      params[widenIdx - 1] = true;
+      rows = (await client.query(ftsQuery(andMatch), params)).rows;
+    }
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
@@ -1477,6 +1493,7 @@ router.get(
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable,
+        currencyRequested: Boolean((req.query.currency as string) || countryCode || dtForCurrency),
         source, scrapedVia,
         requestedMode: rawMode ?? null,
       });
