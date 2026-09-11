@@ -1493,7 +1493,11 @@ router.get(
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable,
-        currencyRequested: Boolean((req.query.currency as string) || countryCode || dtForCurrency),
+        // deliver_to ranks and labels availability; it never filters (see dtIdx). Its derived
+        // currency is therefore a widenable scope, like the SGD default: strict while the
+        // market has listings, widened only when it has none (deliver_to=SG "Kindle
+        // Paperwhite": 2 SGD rows, both cases -> 4s title-LIKE timeout -> archive).
+        currencyRequested: Boolean((req.query.currency as string) || countryCode),
         source, scrapedVia,
         requestedMode: rawMode ?? null,
       });
