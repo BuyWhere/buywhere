@@ -293,6 +293,8 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'brush', 'brushes', 'roller', 'rollers', 'wheel', 'wheels', 'nozzle', 'nozzles',
   'ear pad', 'ear pads', 'earpad', 'earpads', 'cushion', 'cushions', 'hinge', 'hinges',
   'part', 'parts', 'charging grip',
+  // "14K Golden Starfish Earbud Earring for AirPods Pro 3" (AirPods Pro 3, deliver_to=US).
+  'earring', 'earrings',
 ] as const;
 
 // BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
@@ -331,6 +333,10 @@ export const ACCESSORY_ONLY_BRANDS = [
   // Laut ("iPad Air ... Prestige Leather with Pencil Holder") and Satechi (remotes, hubs,
   // stands) make accessories only; both held iPad Air top-10 slots in the wide probe.
   'laut', 'satechi',
+  // Spigen case LINES, which retailers list without the vendor name: "AirPods Pro 3
+  // Series - Urban Fit" held a deliver_to=US top-10 slot. "liquid crystal" is left out on
+  // purpose: it is also how monitor and TV titles describe an LCD.
+  'urban fit', 'rugged armor', 'core armor', 'lock fit', 'tough armor', 'thin fit',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
@@ -382,7 +388,7 @@ const TRAILING_ACCESSORY_NOUNS = [
   'coque', 'étui', 'etui', 'housse', 'hülle', 'hulle', 'schutzhülle',
 ];
 export const DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE =
-  `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?(?:\\s[-–|/]\\s[\\w ]{1,20})?$`;
+  `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?(?:\\s*[-–|/]\\s*[\\w ]{1,20})?$`;
 // "... with MagSafe Charging Case" (the AirPods themselves), "... Aluminium Case"
 // (an Apple Watch listing), "... Titanium Case with Sport Band", "Kindle ... with Cover",
 // and device bundles: "Nintendo Switch 2 Console - Black + Dobe Carry Case + Screen
