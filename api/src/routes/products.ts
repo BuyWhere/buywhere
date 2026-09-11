@@ -699,9 +699,16 @@ async function tryTierSearch(
     // parent table JOIN that causes 500s during ingest lock contention.
     const ftsQuery = useChildTable ? childMkQuery : mkQuery;
     let rows = (await client.query(ftsQuery(andMatch), params)).rows;
-    if (rows.length === 0 && widenIdx) {
+    // Widenable scope (SGD default / deliver_to-derived currency): top the page up from
+    // the widened query when the scoped market cannot fill it, keeping scoped rows first.
+    // After the accessory exclusion, "Dyson V15" has 2 genuine SGD listings; returning a
+    // 2-row page (or, at zero rows, the 4s title-LIKE timeout -> archive) serves the buyer
+    // worse than their market's rows followed by labelled rows from elsewhere.
+    if (widenIdx && rows.length <= p.limit) {
       params[widenIdx - 1] = true;
-      rows = (await client.query(ftsQuery(andMatch), params)).rows;
+      const wide = (await client.query(ftsQuery(andMatch), params)).rows;
+      const seen = new Set(rows.map((r) => String((r as Record<string, unknown>).id)));
+      rows = [...rows, ...wide.filter((r) => !seen.has(String((r as Record<string, unknown>).id)))];
     }
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
