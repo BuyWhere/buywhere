@@ -2442,7 +2442,8 @@ router.get(
     // instance is only reachable on railway.internal, so it cannot be flushed from
     // outside; versioning the key orphans every stale entry immediately and they age
     // out on their own TTL. Bump this whenever the deals PREDICATE changes.
-    const cacheKey = `deals:v2:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    // v3: market-currency consistency filter (mislabelled foreign rows excluded).
+    const cacheKey = `deals:v3:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -2541,6 +2542,21 @@ router.get(
     if (countryCode) {
       dealConditions.push(`country_code = $${dealIdx}`);
       dealParams.push(countryCode);
+      dealIdx++;
+    }
+
+    // Rows whose country_code belongs to a market with a DIFFERENT currency are
+    // mislabelled: on 2026-09-11, 58 of the top 100 SGD deals were US listings
+    // (forever21.com, ecoflow.com, ...) stored as SGD, which buildProduct then
+    // relabels USD by country, so an SG buyer's SGD deals were mostly US-dollar
+    // listings. Exclude only provably inconsistent rows; NULL or unmapped
+    // countries are kept. The data fix is upstream; this stops us serving it.
+    const foreignMarketCountries = Object.entries(COUNTRY_CURRENCY)
+      .filter(([, cur]) => cur !== currency.toUpperCase())
+      .map(([cc]) => cc);
+    if (foreignMarketCountries.length > 0) {
+      dealConditions.push(`(country_code IS NULL OR NOT (country_code = ANY($${dealIdx}::text[])))`);
+      dealParams.push(foreignMarketCountries);
       dealIdx++;
     }
 
