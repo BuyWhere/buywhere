@@ -2419,7 +2419,6 @@ router.get(
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
-    const currency = (req.query.currency as string) || 'SGD';
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const minDiscount = parseFloat((req.query.min_discount as string) || '10');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
@@ -2429,6 +2428,14 @@ router.get(
     // post-cache on both paths so cached bodies stay per-request neutral.
     const deliverTo = (req.query.deliver_to as string | undefined)?.toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
+    // Buyer market decides the currency when the caller does not name one, the same
+    // precedence search (currency > country > deliver_to) and MCP get_deals use.
+    // Defaulting to SGD regardless made deliver_to=US return SGD deals, identical to
+    // SG, and country_code=US AND currency=SGD match almost nothing.
+    const currency = (req.query.currency as string)
+      || (countryCode ? COUNTRY_CURRENCY[countryCode] : undefined)
+      || (deliverTo ? COUNTRY_CURRENCY[deliverTo] : undefined)
+      || 'SGD';
     // BUY-81812: cache key bumped to v2. The discount-ceiling fix shipped correctly but
     // /deals answers from a 3600s redis cache, so pre-fix responses (every 90%-off
     // x10 artifact) kept being served from keys written before the deploy. The redis
