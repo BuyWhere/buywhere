@@ -282,6 +282,11 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   // queries (Vietnamese case-for, French dock/sleeve, Spanish/German cases):
   'ốp lưng', 'op lung', 'bao da', 'coque', 'étui', 'etui', 'housse',
   'connecteur', 'funda', 'carcasa', 'hülle', 'hulle', 'schutzhülle',
+  // 2026-09-11: "Kindle Paperwhite" without deliver_to returned ten case listings in
+  // other languages from one vendor's localised storefronts: "Santorini - Pouzdro na
+  // Kindle Paperwhite" (cs), "... (11e Gen) Hoesje" (nl), "... (12th Gen) ケース" (ja).
+  'pouzdro', 'obal', 'kryt', 'hoesje', 'hoes', 'ケース', 'カバー', '케이스',
+  'custodia', 'capa', 'capinha', 'fodral', 'pokrowiec', 'husa', 'kılıf', 'kilif',
 ] as const;
 
 // BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
@@ -353,6 +358,10 @@ export const DEVICE_UNIT_ACCESSORY_PG_RE_SOURCE =
 const TRAILING_ACCESSORY_NOUNS = [
   'case', 'cases', 'cover', 'covers', 'sleeve', 'sleeves', 'folio', 'skin', 'skins',
   'protector', 'protectors', 'pouch', 'shell', 'bumper',
+  // Same nouns in the storefront languages seen in results (see the soft-token list).
+  'pouzdro', 'obal', 'kryt', 'hoesje', 'hoes', 'ケース', 'カバー', '케이스', 'custodia',
+  'capa', 'capinha', 'fodral', 'pokrowiec', 'husa', 'kılıf', 'kilif', 'funda', 'carcasa',
+  'coque', 'étui', 'etui', 'housse', 'hülle', 'hulle', 'schutzhülle',
 ];
 export const DEVICE_UNIT_TRAILING_ACCESSORY_PG_RE_SOURCE =
   `\\m(?:${TRAILING_ACCESSORY_NOUNS.join('|')})\\M\\W*(?:\\([^)]*\\)\\W*)?$`;
