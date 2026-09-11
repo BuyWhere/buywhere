@@ -338,8 +338,6 @@ async function tryTierSearch(
     deliverTo?: string; includeUnshippable?: boolean;
     source?: string; scrapedVia?: string;
     requestedMode?: string | null;
-    // False when currency is only the SGD default (no currency, country or deliver_to).
-    currencyRequested?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -384,15 +382,8 @@ async function tryTierSearch(
   // mismatch vs Shopify USD labelled SG). Isolate currency in the JS
   // post-filter below. Keep SQL currency only on the parent search_products
   // table (and when the caller passed explicit price bounds).
-  // 2026-09-11: with no market in the request, currency is only the SGD default. Filtering
-  // search_products to SGD then left almost nothing for most queries ("Kindle Paperwhite":
-  // 1,591 USD matches, 2 SGD, both cases), so the cand CTE came back empty, the unindexed
-  // title-LIKE fallback hit the 4s cap, and the unranked archive answered with ten case
-  // listings. The archive already returns mixed currencies for these requests; only filter
-  // by currency when the caller asked for a market or set price bounds in that currency.
-  const hasPriceBounds = p.minPrice != null || p.maxPrice != null;
-  if (p.currency && !useChildTable && (p.currencyRequested !== false || hasPriceBounds)) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
-  else if (p.currency && useChildTable && hasPriceBounds) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  else if (p.currency && (p.minPrice != null || p.maxPrice != null)) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   // Child partition already scoped to country; extra country_code predicate
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
@@ -1486,7 +1477,6 @@ router.get(
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable,
-        currencyRequested: Boolean((req.query.currency as string) || countryCode || dtForCurrency),
         source, scrapedVia,
         requestedMode: rawMode ?? null,
       });
