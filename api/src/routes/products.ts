@@ -700,6 +700,10 @@ async function tryTierSearch(
     // (SG AirPods Pro 3 units: 6 priced titles, sv NULL). Title ILIKE is
     // bounded LIMIT 1000 on the country child (~667k SG) and recovers those
     // rows without the 97M-row archive. Keep phone-category regex skipped.
+    // Set when a best-effort recall step fails (typically statement_timeout under IO
+    // load). An empty page after such a failure is "could not answer", not "no match",
+    // and must say so rather than masquerade as a successful empty result.
+    let childFallbackFailed = false;
     if (rows.length === 0 && useChildTable) {
       // Prefix LIKE 'AirPods Pro 3%' misses "Apple AirPods Pro 3".
       // enable_seqscan=off also makes LIKE fallbacks abort the 4s tx.
@@ -712,6 +716,7 @@ async function tryTierSearch(
           rows = (await client.query(titleFallbackQuery, params)).rows;
         }
       } catch {
+        childFallbackFailed = true;
         await client.query('ROLLBACK TO SAVEPOINT child_title_fb').catch(() => {});
       }
     }
@@ -777,6 +782,19 @@ async function tryTierSearch(
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
       if (useChildTable) {
         if (res.headersSent) return true;
+        if (childFallbackFailed) {
+          // The title fallback that recovers FTS misses failed, so zero rows is not
+          // evidence of no match. Answer with the same degraded envelope the handler
+          // timeout uses, under a short TTL, never as a cacheable "no match".
+          const degradedBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, true, false, restEchoDest(p.countryCode, p.deliverTo), buildRestApiErrorEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
+          degradedBody.source = 'search_products_tier';
+          degradedBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: 'tier_fallback_timeout' };
+          annotateDeliverTo(degradedBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+          redis.set(p.cacheKey, JSON.stringify(degradedBody), 'EX', SEARCH_DEGRADED_CACHE_TTL_SECONDS).catch(() => {});
+          res.set('X-Search-Tier', '1');
+          res.json(degradedBody);
+          return true;
+        }
         const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
         emptyBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
@@ -1754,8 +1772,10 @@ router.get(
           const cur = String(prod.price?.currency || '').toUpperCase();
           return cur === wantCur;
         });
+      // Only reached after the main query hit statement_timeout: an empty page here
+      // (e.g. every recovered row filtered out by currency) is a degraded answer.
       const responseBody = buildSearchResponse(
-        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
+        fallbackProducts, total, limit, offset, responseTimeMs, false, fallbackProducts.length === 0 ? true : undefined, hasMore
       );
       (responseBody as unknown as Record<string, unknown>).search_mode = { requested_mode: modeExec.requested_mode, executed_mode: 'keyword', fallback_reason: modeExec.fallback_reason ?? source };
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
