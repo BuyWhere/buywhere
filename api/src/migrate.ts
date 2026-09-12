@@ -1184,9 +1184,9 @@ export async function runMigrations() {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_market_time
+      CREATE INDEX IF NOT EXISTS idx_p95_latency_market_time
         ON monitoring.p95_latency (market, window_end DESC);
-      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_endpoint
+      CREATE INDEX IF NOT EXISTS idx_p95_latency_endpoint
         ON monitoring.p95_latency (endpoint, window_end DESC);
 
       CREATE TABLE IF NOT EXISTS monitoring.alert_history (
