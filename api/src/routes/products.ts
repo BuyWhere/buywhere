@@ -340,6 +340,9 @@ async function tryTierSearch(
     requestedMode?: string | null;
     // False when currency is only the SGD default (no currency, country or deliver_to).
     currencyRequested?: boolean;
+    // True when the currency scope comes from deliver_to alone: results stay in the
+    // buyer's currency, and an empty scope answers honestly instead of via the archive.
+    deliverToScoped?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -715,7 +718,10 @@ async function tryTierSearch(
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
     // statement_timeout → archive degraded 10s. Empty FTS (MY=343 rows, 0
     // 'phone' hits) must fail fast so we can return 200 empty, not degraded.
-    const skipSlowFallbacks = useChildTable;
+    // A deliver_to-scoped market with no FTS match must not fall into the title-LIKE
+    // scans either: on search_products they always exceed the 4s cap (see the headterm
+    // note above) and hand the request to the unranked, mixed-currency archive.
+    const skipSlowFallbacks = useChildTable || !!p.deliverToScoped;
     if (rows.length === 0 && !skipSlowFallbacks && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
@@ -803,7 +809,7 @@ async function tryTierSearch(
       // Falling through to the 97M-row archive burns the remaining handler
       // budget (8–10s degraded). Empty is the truthful answer for thin
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
-      if (useChildTable) {
+      if (useChildTable || p.deliverToScoped) {
         if (res.headersSent) return true;
         if (childFallbackFailed) {
           // The title fallback that recovers FTS misses failed, so zero rows is not
@@ -822,6 +828,12 @@ async function tryTierSearch(
         emptyBody.source = 'search_products_tier';
         emptyBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+        if (p.deliverToScoped && !useChildTable) {
+          // Decision 2026-09-12: a buyer market's results stay in that market's currency.
+          // Widening to other markets' listings was tried and reverted; say so instead.
+          (emptyBody.meta as Record<string, unknown>).hint =
+            `No listings for this query in the ${p.deliverTo} market. Results are limited to that market's currency; try another deliver_to, or omit deliver_to to search all markets.`;
+        }
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
         res.set('X-Search-Tier', '1');
         res.json(emptyBody);
@@ -1504,7 +1516,8 @@ router.get(
         // currency is therefore a widenable scope, like the SGD default: strict while the
         // market has listings, widened only when it has none (deliver_to=SG "Kindle
         // Paperwhite": 2 SGD rows, both cases -> 4s title-LIKE timeout -> archive).
-        currencyRequested: Boolean((req.query.currency as string) || countryCode),
+        currencyRequested: Boolean((req.query.currency as string) || countryCode || dtForCurrency),
+        deliverToScoped: Boolean(dtForCurrency && !countryCode && !(req.query.currency as string)),
         source, scrapedVia,
         requestedMode: rawMode ?? null,
       });
