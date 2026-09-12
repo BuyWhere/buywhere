@@ -366,7 +366,7 @@ async function tryTierSearch(
   // unit queries (iphone / airpods). Penalty-only ranking cannot recover
   // when LIMIT 200 is 100% accessories. Skip when the query itself names
   // an accessory (case, tips, charger).
-  const unitAccessoryExcl = isDeviceUnitQuery(p.q) ? deviceUnitAccessoryExclusionFragment() : '';
+  const unitAccessoryExcl = isDeviceUnitQuery(p.q) ? deviceUnitAccessoryExclusionFragment(p.q) : '';
   // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
   // writes 'home-living' for electronics) while products.metadata carries the
   // true category. The cand-CTE exclusion above cannot see metadata; this
@@ -708,11 +708,14 @@ async function tryTierSearch(
     // After the accessory exclusion, "Dyson V15" has 2 genuine SGD listings; returning a
     // 2-row page (or, at zero rows, the 4s title-LIKE timeout -> archive) serves the buyer
     // worse than their market's rows followed by labelled rows from elsewhere.
+    let scopeWidened = false;
     if (widenIdx && rows.length <= p.limit) {
       params[widenIdx - 1] = true;
       const wide = (await client.query(ftsQuery(andMatch), params)).rows;
       const seen = new Set(rows.map((r) => String((r as Record<string, unknown>).id)));
-      rows = [...rows, ...wide.filter((r) => !seen.has(String((r as Record<string, unknown>).id)))];
+      const added = wide.filter((r) => !seen.has(String((r as Record<string, unknown>).id)));
+      scopeWidened = added.length > 0;
+      rows = [...rows, ...added];
     }
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
@@ -877,6 +880,15 @@ async function tryTierSearch(
     responseBody.source = 'search_products_tier';
     responseBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+    // Disclose how the currency scope was decided (evaluator: "explicit versus inferred
+    // currency scopes and fallback disclosure"). explicit = caller named currency,
+    // country or deliver_to; inferred_default = the SGD default with no market stated;
+    // widened = that default could not fill the page and rows from other markets follow.
+    if (responseBody.meta && typeof responseBody.meta === 'object') {
+      const meta = responseBody.meta as Record<string, unknown>;
+      meta.currency = p.currency;
+      meta.currency_scope = scopeWidened ? 'widened' : (p.currencyRequested === false ? 'inferred_default' : 'explicit');
+    }
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
       const rp = p.cacheKey.split(':');
@@ -1551,7 +1563,7 @@ router.get(
     // BWEXT-9DFD3159: unit-query accessory exclusion on the products-side paths
     // (base FTS, hybrid candidates, semantic post-filter all flow through
     // baseConditions). Tier already applies its sp-qualified twin.
-    if (isDeviceUnitQuery(q)) baseConditions.push(`1 = 1${deviceUnitAccessoryExclusionFragmentProducts()}`);
+    if (isDeviceUnitQuery(q)) baseConditions.push(`1 = 1${deviceUnitAccessoryExclusionFragmentProducts(q)}`);
     // Market/currency consistency (see lib/response.ts): unqualified, like the
     // conditions above, so every consumer of baseConditions gets it.
     baseConditions.push(marketCurrencyConsistencySql(''));

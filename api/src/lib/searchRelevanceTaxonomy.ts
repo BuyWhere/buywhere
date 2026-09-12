@@ -27,7 +27,7 @@ export const DEVICE_FAMILY_TOKENS = {
   desktop: ['desktop', 'pc', 'tower', 'workstation'],
   phone: ['phone', 'iphone', 'android', 'smartphone', 'pixel'],
   tablet: ['tablet', 'ipad'],
-  console: ['playstation', 'xbox', 'nintendo', 'console'],
+  console: ['playstation', 'xbox', 'nintendo', 'console', 'ps5', 'ps4'],
   wearable: ['earbud', 'headphone', 'airpod', 'smartwatch', 'fitness'],
   // display family: the device-query set (gate 2) names `gaming monitor`, so a
   // monitor is a device-typed target for the storage exclusion. Monitors are
@@ -436,15 +436,31 @@ export function isDeviceUnitQuery(q: string): boolean {
   return !accessoryAsk;
 }
 
-export function deviceUnitAccessoryExclusionFragment(): string {
-  return ` AND NOT ${unitAccessoryPredicate('lower(sp.title)')}`;
+// Console queries: an internal SSD / NVMe / HDD / memory card is storage FOR the
+// console, never the console. Categories are unreliable ("Crucial P310 2TB ... PS5
+// Internal Gaming SSD" is filed under "electronics"), so this is a title rule, and it
+// keeps bundles that name the console ("PlayStation 5 Pro Console (2TB SSD)").
+const CONSOLE_UNIT_TOKENS = ['ps5', 'ps4', 'playstation', 'xbox', 'nintendo'];
+// A buyer asking for storage ("ps5 ssd", "switch 2 microsd") must keep it: isStorageQuery gates the rule.
+export function isConsoleUnitQuery(q: string): boolean {
+  return queryTokens(q).some((t) => CONSOLE_UNIT_TOKENS.includes(t));
+}
+const CONSOLE_STORAGE_PG_RE_SOURCE = `\\m(?:ssd|nvme|hdd|hard\\s+drive|memory\\s+card|microsd|micro\\s+sd|sd\\s+card)\\M`;
+function consoleStoragePredicate(col: string): string {
+  return `(${col} ~* '${CONSOLE_STORAGE_PG_RE_SOURCE}' AND ${col} !~* '\\mconsole\\M')`;
+}
+
+export function deviceUnitAccessoryExclusionFragment(q?: string): string {
+  return ` AND NOT ${unitAccessoryPredicate('lower(sp.title)')}`
+    + (q && isConsoleUnitQuery(q) && !isStorageQuery(q) ? ` AND NOT ${consoleStoragePredicate('lower(sp.title)')}` : '');
 }
 
 // Same exclusion for the products-table (base/FTS/hybrid) paths — the tier-only
 // wiring was why exact-model queries riding the ranked-FTS path (multi-word ANDs
 // like "iphone 16 pro") still surfaced 70-90% accessories (BWEXT-9DFD3159).
-export function deviceUnitAccessoryExclusionFragmentProducts(): string {
-  return ` AND NOT ${unitAccessoryPredicate('lower(title)')}`;
+export function deviceUnitAccessoryExclusionFragmentProducts(q?: string): string {
+  return ` AND NOT ${unitAccessoryPredicate('lower(title)')}`
+    + (q && isConsoleUnitQuery(q) && !isStorageQuery(q) ? ` AND NOT ${consoleStoragePredicate('lower(title)')}` : '');
 }
 
 // BUY-80570: demote non-computer titles for bare device queries
