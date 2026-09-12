@@ -968,11 +968,18 @@ export async function runMigrations() {
   // BUY-31040: Prevent future google-shopping source rows (owner: postgres role via API).
   // IF NOT EXISTS → idempotent; NOT VALID → skips full-table scan (0 rows exist).
   try {
-    await db.query(`
-      ALTER TABLE products
-        ADD CONSTRAINT IF NOT EXISTS products_source_no_legacy_google_shopping
-        CHECK (source <> 'google-shopping'::text) NOT VALID;
-    `);
+    // ADD CONSTRAINT has no IF NOT EXISTS form; the previous text was a syntax error on
+    // every boot. Check pg_constraint, and only add (NOT VALID, no scan) when absent.
+    const con = await db.query(
+      `SELECT 1 FROM pg_constraint WHERE conrelid = 'public.products'::regclass AND conname = 'products_source_no_legacy_google_shopping'`,
+    );
+    if (con.rows.length === 0) {
+      await db.query(`
+        ALTER TABLE products
+          ADD CONSTRAINT products_source_no_legacy_google_shopping
+          CHECK (source <> 'google-shopping'::text) NOT VALID;
+      `);
+    }
     console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
   } catch (err: any) {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
@@ -1079,7 +1086,20 @@ export async function runMigrations() {
 
   // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
   // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
+  // 2026-09-12: this block ran again for the first time since 2026-08-08 and, by
+  // DROP + CREATE TRIGGER, re-enabled a trigger that had been deliberately DISABLED
+  // on products (both replicas raced: "tuple concurrently updated"). At boot we only
+  // check that the trigger exists and report its state; creating or enabling it is a
+  // deliberate ops-ddl action.
   try {
+    const trg = await db.query(
+      `SELECT tgenabled FROM pg_trigger WHERE tgrelid = 'public.products'::regclass AND tgname = 'products_search_vector_trig'`,
+    );
+    if (trg.rows.length > 0) {
+      console.log(`[migration] search_vector trigger present (tgenabled=${trg.rows[0].tgenabled}); not recreated at boot (BUY-24284).`);
+    } else if (process.env.BOOT_CREATE_SEARCH_VECTOR_TRIGGER !== '1') {
+      console.warn('[migration] search_vector trigger MISSING on products; not created at boot (set BOOT_CREATE_SEARCH_VECTOR_TRIGGER=1 or create via ops-ddl) (BUY-24284).');
+    } else {
     const svClient = await db.connect();
     try {
       await svClient.query(`
@@ -1105,13 +1125,18 @@ export async function runMigrations() {
     } finally {
       svClient.release();
     }
+    }
   } catch (err: any) {
     console.warn(`[migration] search_vector trigger creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // Backfill NULL search_vector rows — same 6-min timeout pattern as discount_pct.
   // Non-fatal: the trigger above covers all new writes; this fixes the existing corpus.
-  try {
+  if (process.env.BOOT_SEARCH_VECTOR_BACKFILL !== '1') {
+    // A count(*) over 443M rows, then a full-table UPDATE, on every boot of every
+    // replica: the count alone ran ~50s until the catalog watchdog cancelled it.
+    console.log('[migration] search_vector backfill not run at boot (set BOOT_SEARCH_VECTOR_BACKFILL=1 to opt in).');
+  } else try {
     const backfillClient = await db.connect();
     try {
       await backfillClient.query('SET statement_timeout = 360000'); // 6 min
@@ -1175,7 +1200,9 @@ export async function runMigrations() {
         resolution_notes  TEXT
       );
 
-      CREATE INDEX IF NOT EXISTS monitoring.idx_alert_history_market_time
+      -- (index names cannot be schema-qualified; this was a syntax error that failed the
+      -- whole block on every boot)
+      CREATE INDEX IF NOT EXISTS idx_alert_history_market_time
         ON monitoring.alert_history (market, triggered_at DESC);
 
       -- Cleanup function: delete rows older than retention_days in both tables.
