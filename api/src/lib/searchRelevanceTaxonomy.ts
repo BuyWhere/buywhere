@@ -298,6 +298,8 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'part', 'parts', 'charging grip',
   // "14K Golden Starfish Earbud Earring for AirPods Pro 3" (AirPods Pro 3, deliver_to=US).
   'earring', 'earrings',
+  // "11 in 1 Action Camera Accessories Kit Compatible with GoPro Hero 13" (GoPro, top 10).
+  'accessories', 'accessory kit', 'accessories kit',
 ] as const;
 
 // BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
