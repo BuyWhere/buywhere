@@ -260,6 +260,9 @@ export const DEVICE_UNIT_QUERY_TOKENS = [
   // never ran and a replacement aux cable ranked #2. Prefix match covers XM4/XM5/XM6
   // and the WF- earbud line.
   '1000xm',
+  // Standing quality probe, first run: "MacBook Air M4" had no device family, so
+  // nothing was excluded (screen protectors, a Satechi remote, AppleCare+ in the top 10).
+  'macbook', 'gopro', 'quietcomfort',
 ] as const;
 
 export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
@@ -337,6 +340,8 @@ export const ACCESSORY_ONLY_BRANDS = [
   // Series - Urban Fit" held a deliver_to=US top-10 slot. "liquid crystal" is left out on
   // purpose: it is also how monitor and TV titles describe an LCD.
   'urban fit', 'rugged armor', 'core armor', 'lock fit', 'tough armor', 'thin fit',
+  // A service plan, never the device: "AppleCare+ for 15-inch MacBook Air (M4)".
+  'applecare',
 ] as const;
 
 // 2026-09-05 (BWEXT-9DFD3159): bare-token matching excluded GENUINE primaries —
