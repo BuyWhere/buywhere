@@ -1,4 +1,13 @@
-// Regression test for BUY-68365.
+// BUY-82111: VidMee analysis of buywhere.ai/search?q=laptop&country=US captured
+// top results including "Lacoste Laptop Bag" (fashion accessory), "OBDII USB
+// to RS232 Serial Cable Adapter" (car tool), and "Kuwaiti Merchant" (location
+// mismatch). The client-side scoring differential (+25 for not-accessory, 0 for
+// accessory) was too weak to overcome FTS rank differences. Fixes:
+//   A. Accessory penalty strengthened: -100 pts (was: withhold +25 bonus)
+//   B. Category exact-match bonus: +50 pts when category/category_path
+//      contains the query term, compensating for null-category FTS-heavy rows.
+
+
 //
 // QA found that searching "gaming laptop" on https://buywhere.ai/search
 // ranked "Seagate Firecuda 520 1TB Performance Internal Solid State Drive SSD
@@ -427,4 +436,138 @@ test("BUY-77675: short stems like 'mic' don't false-match unrelated titles", () 
   assert.equal(isAccessoryProduct(card("Microeconomics 101 Textbook", null)), false);
   assert.equal(isAccessoryProduct(card("Micro Machines Collectible Toy", null)), false);
   assert.equal(isAccessoryProduct(card("Mickey Mouse Clubhouse Toys Laptop Decal Sticker", null)), true);
+});
+
+// =============================================================================
+// BUY-82111: Lacoste Laptop Bag / OBDII cable / Kuwaiti merchant leaked into
+// the top-10 for q=laptop&country=US. The accessory penalty is now -100 pts,
+// and the category exact-match bonus is +50 pts.
+// =============================================================================
+
+test("BUY-82111: accessory penalty (-100) outweighs image+price bonus", () => {
+  // Lacoste Laptop Bag: has image + valid price, but is an accessory (-100).
+  // Real laptop: has image + valid price, not accessory (+25 bonus gone, net 0).
+  // With accessory at -100 vs laptop at 0, the gap is 100 pts — enough to
+  // overcome any FTS rank difference within the client-sort group.
+  const lacoste = card("Lacoste Laptop Bag", null, {
+    id: "lacoste",
+    price: 89.99,
+    imageUrl: "https://example.com/lacoste.jpg",
+  });
+  const lenovo = card("Lenovo G50 Laptop Intel Core i5 8GB RAM", null, {
+    id: "lenovo",
+    price: 499.99,
+    imageUrl: "https://example.com/lenovo.jpg",
+  });
+  const lacosteScore = rankProduct(lacoste, "laptop");
+  const lenovoScore = rankProduct(lenovo, "laptop");
+  assert.ok(
+    lenovoScore > lacosteScore,
+    `laptop (${lenovoScore}) must outrank laptop bag (${lacosteScore})`,
+  );
+});
+
+test("BUY-82111: category exact-match bonus (+50) fires for 'Computers' path on 'computer' query", () => {
+  // A product with category="Computers" should get +50 when q="computer".
+  const computer = card("Desktop Computer Tower", "Computers", {
+    id: "desktop",
+    price: 799.99,
+    imageUrl: "https://example.com/desktop.jpg",
+  });
+  const score = rankProduct(computer, "computer");
+  assert.ok(score >= 200, `Computers-category product should get +50 bonus; score=${score}`);
+});
+
+test("BUY-82111: category exact-match bonus fires via category_path", () => {
+  const desktop = card("Gaming Desktop PC", null, {
+    id: "desktop",
+    categoryPath: ["electronics", "computers"],
+    price: 1299.99,
+    imageUrl: "https://example.com/d.jpg",
+  });
+  const score = rankProduct(desktop, "computer");
+  assert.ok(score >= 200, `category_path containing 'computers' should get +50 bonus; score=${score}`);
+});
+
+test("BUY-82111: category exact-match bonus does NOT fire for unrelated category", () => {
+  // "Computer" query should NOT boost a fashion product.
+  const bag = card("Leather Computer Bag", "Bags", {
+    id: "bag",
+    price: 49.99,
+    imageUrl: "https://example.com/bag.jpg",
+  });
+  const score = rankProduct(bag, "computer");
+  // Score should be: +100 (image) + 50 (price) - 100 (accessory) = 50
+  assert.equal(score, 50, `fashion bag should not get category bonus; score=${score}`);
+});
+
+test("BUY-82111: OBDII cable (non-device keyword match) demoted below real laptops", () => {
+  // OBDII cable has no laptop keyword, so not accessory per se, but should
+  // still rank below real laptops for a laptop query.
+  const obdii = card("OBDII USB to RS232 Serial Cable Adapter", null, {
+    id: "obdii",
+    price: 15.99,
+    imageUrl: "https://example.com/obdii.jpg",
+  });
+  const laptop = card("ASUS Vivobook 15 Laptop Intel Core i3 8GB 256GB SSD", null, {
+    id: "asus",
+    price: 549.99,
+    imageUrl: "https://example.com/asus.jpg",
+  });
+  // obdii: +100 (image) + 50 (price) + 0 (no bonus) = 150
+  // laptop: +100 (image) + 50 (price) + 25 (not accessory) + 0 (category=null) = 175
+  const obdiiScore = rankProduct(obdii, "laptop");
+  const laptopScore = rankProduct(laptop, "laptop");
+  assert.ok(
+    laptopScore > obdiiScore,
+    `laptop (${laptopScore}) must outrank OBDII cable (${obdiiScore})`,
+  );
+});
+
+test("BUY-82111: phone outranks phone case for 'phone' query (accessory penalty guards)", () => {
+  // Regression guard: the accessory penalty must not break the pre-existing
+  // phone-vs-phone-accessory ranking. "iPhone 15 Pro Max" is not an accessory;
+  // "iPhone 15 Pro Max Protective Case" contains "case" → accessory.
+  // With the BUY-82111 scoring: phone gets +100(img)+50(price) = 150;
+  // case gets +100(img)+50(price)-100(acc)=-100(accessory) = 50.
+  // The 100-pt margin (150 vs 50) is stable and correct.
+  const phoneCase = card("iPhone 15 Pro Max Protective Case", null, {
+    id: "case",
+    price: 19.99,
+    imageUrl: "https://example.com/case.jpg",
+  });
+  const phone = card("Apple iPhone 15 Pro Max 256GB", null, {
+    id: "phone",
+    price: 1099.99,
+    imageUrl: "https://example.com/phone.jpg",
+  });
+  const phoneScore = rankProduct(phone, "phone");
+  const caseScore = rankProduct(phoneCase, "phone");
+  assert.ok(
+    phoneScore > caseScore,
+    `phone (${phoneScore}) must outrank phone case (${caseScore}) for q=phone`,
+  );
+  assert.equal(phoneScore, 150, `phone score must be 150`);
+  assert.equal(caseScore, 50, `case score must be 50`);
+});
+
+test("BUY-82111: sortProductsByRelevance orders laptop bag below real laptops", () => {
+  const items = [
+    card("Lacoste Laptop Bag", null, { id: "lacoste", price: 89.99, imageUrl: "https://example.com/l.jpg" }),
+    card("Lenovo G50 Laptop Intel Core i5 8GB RAM", null, { id: "lenovo", price: 499.99, imageUrl: "https://example.com/n.jpg" }),
+    card("ASUS Vivobook 15 Laptop", null, { id: "asus", price: 549.99, imageUrl: "https://example.com/a.jpg" }),
+    card("OBDII USB Serial Cable Adapter", null, { id: "obdii", price: 15.99, imageUrl: "https://example.com/o.jpg" }),
+  ];
+  const sorted = sortProductsByRelevance(items, "laptop");
+  const ids = sorted.map((p) => p.id);
+  // Laptop bag must NOT be in top 2.
+  assert.equal(ids[0], "lenovo", `first should be lenovo; got ${ids[0]}`);
+  assert.equal(ids[1], "asus", `second should be asus; got ${ids[1]}`);
+  // OBDII cable should be below the laptops too.
+  const obdiiIdx = ids.indexOf("obdii");
+  const laptopIndices = ["lenovo", "asus"].map((id) => ids.indexOf(id));
+  assert.ok(
+    obdiiIdx > Math.max(...laptopIndices),
+    `obdii (idx=${obdiiIdx}) should be below laptops (idx=${laptopIndices}); got order: ${ids.join(", ")}`,
+  );
 });

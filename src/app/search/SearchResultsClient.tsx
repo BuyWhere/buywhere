@@ -602,8 +602,28 @@ function rankProduct(product: SearchCardProduct, query: string = ''): number {
   if (product.imageUrl) score += 100;
   // Has valid price
   if (product.price !== null) score += 50;
-  // Not an accessory
-  if (!isAccessoryProduct(product)) score += 25;
+  // BUY-82111: Strengthen accessory penalty — deduct 100 pts for confirmed
+  // accessories rather than merely withholding the +25 bonus. The prior
+  // score differential (+25 vs 0 = 25 pts) was too small to overcome FTS
+  // rank differences between a real "Lenovo G50 Laptop" and a "Lacoste Laptop
+  // Bag" (both score ~equal on ts_rank for the "laptop" token). A 100-pt
+  // deduction ensures genuine laptops rank above accessory-heavy results.
+  if (isAccessoryProduct(product)) score -= 100;
+  // BUY-82111: Boost products whose category_path/category contains the
+  // query term (or a close synonym). When category_path is null the FTS
+  // rank carries the signal — when it is set, a direct category match
+  // is a strong primary-signal indicator worth a +50 bonus.
+  if (query) {
+    const qLower = query.toLowerCase().trim();
+    if (!qLower) return score;
+    const categoryComposite = [
+      product.category ?? '',
+      ...(product.categoryPath ?? []),
+    ].map((s) => s.toLowerCase()).join(' ');
+    if (categoryComposite && categoryComposite.includes(qLower)) {
+      score += 50;
+    }
+  }
   // BUY-68365: Demote category-vs-query mismatches on complete-device queries.
   // A "Storage" SSD must not rank among the top "gaming laptop" results even
   // when the marketing title contains "for Gaming PC Gaming Laptop Desktop".
