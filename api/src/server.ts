@@ -16,6 +16,7 @@ import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
 import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
+import adminKpiRouter from './routes/adminKpi';
 import seoPagesRouter from './routes/seoPages';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
@@ -335,6 +336,7 @@ export function createApp() {
 
   // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
   app.use('/admin/comparison-pages', adminCompareRouter);
+  app.use('/admin/kpi', adminKpiRouter);
 
   // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
   app.use('/api', clicksRouter);
