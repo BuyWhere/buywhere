@@ -269,11 +269,18 @@ BEGIN
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
   IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    -- UUID text → BIGINT: strip non-digits and cast. Non-numeric UUIDs become NULL (dropped).
+    -- UUID text -> BIGINT. A subquery is not allowed in an ALTER COLUMN ... USING
+    -- expression ("cannot use subquery in transform expression": this failed on every
+    -- boot), so the conversion lives in a function. Non-numeric values are dropped.
+    CREATE OR REPLACE FUNCTION comparison_ids_to_bigint(ids uuid[]) RETURNS bigint[]
+      LANGUAGE sql IMMUTABLE AS $f$
+        SELECT coalesce(array_agg(v::text::bigint) FILTER (WHERE v::text ~ '^[0-9]+$'), '{}'::bigint[])
+          FROM unnest(ids) AS v
+      $f$;
     ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
-      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
-                  FROM unnest(product_ids::text[]) AS v);
+      USING comparison_ids_to_bigint(product_ids);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
+    DROP FUNCTION comparison_ids_to_bigint(uuid[]);
   END IF;
 END$$;
 
