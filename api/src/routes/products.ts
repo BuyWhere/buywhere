@@ -9,7 +9,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, marketCurrencyConsistencySql } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -439,7 +439,8 @@ async function tryTierSearch(
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   // BUY-72744: exclude synthetic Amazon rows in tier search.
   const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
-  const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl;
+  const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl
+    + (useChildTable ? '' : ' AND ' + marketCurrencyConsistencySql('sp'));
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
   const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
@@ -1551,6 +1552,9 @@ router.get(
     // (base FTS, hybrid candidates, semantic post-filter all flow through
     // baseConditions). Tier already applies its sp-qualified twin.
     if (isDeviceUnitQuery(q)) baseConditions.push(`1 = 1${deviceUnitAccessoryExclusionFragmentProducts()}`);
+    // Market/currency consistency (see lib/response.ts): unqualified, like the
+    // conditions above, so every consumer of baseConditions gets it.
+    baseConditions.push(marketCurrencyConsistencySql(''));
     const baseParams: unknown[] = [];
     let baseIdx = 1;
     // BUY-79497: keep SQL currency AND only for explicit price bounds. A hard
@@ -2175,6 +2179,7 @@ router.get(
               // BUY-79497: no hard currency predicate on child table FTS (planner mismatch
               // vs USD Shopify labelled SG). Only apply when NOT using child table.
               if (currency && !useSpChildTable) { spConds.push(`sp.currency = $${si}`); spParams.push(currency); si++; }
+              if (!useSpChildTable) { spConds.push(marketCurrencyConsistencySql('sp')); }
               if (useSpChildTable) { spConds.push('sp.is_active = true'); }
               // BUY-80684: match the tier's partial-GIN trigger: country_code on parent path.
               // Child partitions are already country-scoped.

@@ -65,6 +65,18 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
 
+// A listing whose country_code belongs to a market with a DIFFERENT currency is
+// mislabelled (2026-09-11: 58 of the top 100 SGD deals were US listings stored as SGD,
+// which buildProduct then relabelled USD by country). Rows with a NULL or unmapped
+// country, or a NULL currency, are kept. A per-row CASE, cheap enough for the cand
+// CTE filter. Applied on search_products and the products archive; NOT on per-country
+// child tables, where an off-currency row is the JS post-filter's decision (BUY-79497).
+export function marketCurrencyConsistencySql(alias: string): string {
+  const a = alias ? `${alias}.` : '';
+  const whens = Object.entries(COUNTRY_CURRENCY).map(([cc, cur]) => `WHEN '${cc}' THEN '${cur}'`).join(' ');
+  return `(${a}currency IS NULL OR ${a}currency = CASE ${a}country_code ${whens} ELSE ${a}currency END)`;
+}
+
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:
 //   https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg
