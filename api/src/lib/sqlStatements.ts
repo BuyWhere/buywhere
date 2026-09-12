@@ -60,8 +60,12 @@ export function stripSqlComments(sql: string): string {
   return sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
 }
 
+// Any non-CONCURRENT index build is checked, not built, at boot. The first run of the
+// statement-level block found idx_price_history_product_recorded missing and built it
+// on a large table: 28s holding a ShareLock, then cancelled by lock_timeout, and it
+// would have retried on every boot of every replica.
 export const PRODUCTS_INDEX_RE =
-  /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?("?[\w.]+"?)\s+ON\s+(?:ONLY\s+)?(?:public\s*\.\s*)?products\b/i;
+  /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?("?[\w.]+"?)\s+ON\s+(?:ONLY\s+)?(?:public\s*\.\s*)?"?\w+"?\b/i;
 export const ADD_COLUMN_RE =
   /^\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:public\s*\.\s*)?"?(\w+)"?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"?(\w+)"?/i;
 

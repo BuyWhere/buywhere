@@ -605,7 +605,7 @@ async function runMigrationBlock(label: string, sql: string): Promise<void> {
   let ran = 0;
   let satisfied = 0;
   const failed: string[] = [];
-  const needsOpsBuild: string[] = [];
+  const needsOpsBuild: string[] = []; // any index, not only products: never built at boot
   const skipped: string[] = [];
   for (const raw of splitSqlStatements(sql)) {
     const plan = planStatement(raw);
@@ -632,13 +632,13 @@ async function runMigrationBlock(label: string, sql: string): Promise<void> {
       failed.push(`${plan.sql.replace(/\s+/g, ' ').slice(0, 80)} -> ${String(err?.message ?? err).slice(0, 140)}`);
     }
   }
-  const summary = `[migration] ${label}: ${ran} ran, ${satisfied} already satisfied, ${failed.length} failed, ${needsOpsBuild.length} products indexes not built at boot, ${skipped.length} not run at boot`;
+  const summary = `[migration] ${label}: ${ran} ran, ${satisfied} already satisfied, ${failed.length} failed, ${needsOpsBuild.length} indexes missing (not built at boot), ${skipped.length} not run at boot`;
   if (failed.length === 0 && needsOpsBuild.length === 0) console.log(summary);
   else console.warn(summary);
   for (const f of failed) console.warn(`[migration]   FAILED ${f}`);
   for (const k of skipped) console.warn(`[migration]   NOT RUN AT BOOT ${k}`);
   if (needsOpsBuild.length > 0) {
-    console.warn(`[migration]   products indexes missing (build via ops-ddl CREATE INDEX CONCURRENTLY, never at boot): ${needsOpsBuild.join(', ')}`);
+    console.warn(`[migration]   indexes missing (build via ops-ddl CREATE INDEX CONCURRENTLY, never at boot): ${needsOpsBuild.join(', ')}`);
   }
 }
 
@@ -941,10 +941,15 @@ export async function runMigrations() {
     if (verify.rows.length === 0 || verify.rows[0].is_generated !== 'ALWAYS') {
       throw new Error(`discount_pct column is missing or not GENERATED (is_generated=${verify.rows[0]?.is_generated})`);
     }
-    const countCheck = await db.query(`SELECT count(*) AS cnt FROM products WHERE discount_pct IS NOT NULL`);
-    console.log(`[migration] discount_pct non-null rows: ${countCheck.rows[0].cnt}`);
+    // A count(*) over products is cancelled by the catalog DDL watchdog after 20s
+    // ("canceling statement due to user request"); it threw here on every boot and
+    // skipped every preflight below. Existence is all this needed to show.
+    const anyRow = await db.query(`SELECT 1 FROM products WHERE discount_pct IS NOT NULL LIMIT 1`);
+    console.log(`[migration] discount_pct populated: ${anyRow.rows.length > 0}`);
   } catch (err: any) {
-    throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
+    // Not fatal to the rest of runMigrations: the preflights below (api_keys, query_log,
+    // pending-verify, merchants) are independent and must still run.
+    console.error(`[migration] discount_pct GENERATED column check failed: ${err.message?.slice(0, 200)}`);
   }
 
   // BUY-30968: Ensure api_keys columns added in BUY-29220/BUY-30073 are present even
