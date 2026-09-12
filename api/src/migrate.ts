@@ -1,4 +1,5 @@
 import { db, redis } from './config';
+import { splitSqlStatements, planStatement } from './lib/sqlStatements';
 
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -599,6 +600,48 @@ async function ensureStrictDealsIndexes() {
   }
 }
 
+// See lib/sqlStatements.ts for why blocks run one statement at a time.
+async function runMigrationBlock(label: string, sql: string): Promise<void> {
+  let ran = 0;
+  let satisfied = 0;
+  const failed: string[] = [];
+  const needsOpsBuild: string[] = [];
+  const skipped: string[] = [];
+  for (const raw of splitSqlStatements(sql)) {
+    const plan = planStatement(raw);
+    try {
+      if (plan.kind === 'skip_boot') {
+        skipped.push(`${plan.sql.replace(/\s+/g, ' ').slice(0, 80)} (${plan.reason})`);
+        continue;
+      }
+      if (plan.kind === 'products_index') {
+        const r = await db.query(`SELECT 1 FROM pg_class WHERE relkind = 'i' AND relname = $1`, [plan.name]);
+        if (r.rows.length > 0) satisfied++; else needsOpsBuild.push(plan.name);
+        continue;
+      }
+      if (plan.kind === 'add_column') {
+        const r = await db.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+          [plan.table, plan.column],
+        );
+        if (r.rows.length > 0) { satisfied++; continue; }
+      }
+      await db.query(plan.sql);
+      ran++;
+    } catch (err: any) {
+      failed.push(`${plan.sql.replace(/\s+/g, ' ').slice(0, 80)} -> ${String(err?.message ?? err).slice(0, 140)}`);
+    }
+  }
+  const summary = `[migration] ${label}: ${ran} ran, ${satisfied} already satisfied, ${failed.length} failed, ${needsOpsBuild.length} products indexes not built at boot, ${skipped.length} not run at boot`;
+  if (failed.length === 0 && needsOpsBuild.length === 0) console.log(summary);
+  else console.warn(summary);
+  for (const f of failed) console.warn(`[migration]   FAILED ${f}`);
+  for (const k of skipped) console.warn(`[migration]   NOT RUN AT BOOT ${k}`);
+  if (needsOpsBuild.length > 0) {
+    console.warn(`[migration]   products indexes missing (build via ops-ddl CREATE INDEX CONCURRENTLY, never at boot): ${needsOpsBuild.join(', ')}`);
+  }
+}
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -620,7 +663,7 @@ export async function runMigrations() {
   // the columns it reads and the probe worker must still have its append-only log.
   try {
     await db.query('SET lock_timeout = 5000');
-    await db.query(`
+    await runMigrationBlock('outbound-link health schema (BUY-67318)', `
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status TEXT NOT NULL DEFAULT 'ok';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_last_checked_at TIMESTAMPTZ;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
@@ -669,8 +712,7 @@ export async function runMigrations() {
   // Run full migration block as-is (best-effort, may fail on extensions or
   // products columns if those tables/perms don't exist yet).
   try {
-    await db.query(MIGRATION);
-    console.log('Full migration completed.');
+    await runMigrationBlock('full migration block', MIGRATION);
   } catch (err: any) {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
@@ -887,7 +929,7 @@ export async function runMigrations() {
     const client = await db.connect();
     try {
       await client.query('SET statement_timeout = 360000');
-      await client.query(DISCOUNT_PCT_DDL);
+      await runMigrationBlock('discount_pct generated column', DISCOUNT_PCT_DDL);
       console.log('[migration] discount_pct GENERATED column and index verified.');
     } finally {
       client.release();
@@ -943,6 +985,12 @@ export async function runMigrations() {
       -- 2026-08-25 (mcp-railway's INSERT omits degraded_kind, so its rows still landed).
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS job_id TEXT;
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS degraded_kind TEXT;
+      -- The INSERT in middleware/queryLog.ts also writes tier and is_internal; neither
+      -- column was ever added, so EVERY api-side query_log INSERT failed
+      -- ("column tier does not exist"), and this preflight never ran because the
+      -- discount block threw first (see runMigrationBlock).
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS tier TEXT;
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
     `);
     console.log('[migration] query_log telemetry columns ensured (BUY-62708/BUY-74173).');
   } catch (err: any) {
