@@ -275,20 +275,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 aria-label="Page metadata"
                 data-ssr-prices-checked={checked.iso}
               >
-                <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-100">✓</span>
-                  {/* BUY-74905 (directive §5): the visible "Updated <date>" pill
-                      mirrors the JSON-LD `dateModified` and the sitemap
-                      <lastmod>; all three derive from the same content hash
-                      so they move together (or not at all). When an editorial
-                      `refreshedLabel` is set we honor it as text but still
-                      record its content hash so the identity-by-content
-                      invariant holds. */}
-                  <span>
-                    Updated{" "}
-                    <time dateTime={checked.iso}>{checked.text}</time>
-                  </span>
-                </li>
+                {/* BUY-77657: removed "Updated <date>" timestamp here — it's already
+                    shown in the Quick Answer block above the fold as "Prices checked".
+                    Keeping both was redundant and created duplicate timestamp noise. */}
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>{config.country} market coverage</span>
