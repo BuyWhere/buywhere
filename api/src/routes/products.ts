@@ -2501,6 +2501,7 @@ router.get(
     const minDiscount = parseFloat((req.query.min_discount as string) || '10');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
+    const category = ((req.query.category as string | undefined) || '').trim();
 
     // F24b (2026-08-22): deals honors deliver_to like search — annotation happens
     // post-cache on both paths so cached bodies stay per-request neutral.
@@ -2521,7 +2522,7 @@ router.get(
     // outside; versioning the key orphans every stale entry immediately and they age
     // out on their own TTL. Bump this whenever the deals PREDICATE changes.
     // v3: market-currency consistency filter (mislabelled foreign rows excluded).
-    const cacheKey = `deals:v3:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    const cacheKey = `deals:v4:${currency}:${countryCode || ''}:${minDiscount}:${category}:${limit}:${offset}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -2620,6 +2621,12 @@ router.get(
     if (countryCode) {
       dealConditions.push(`country_code = $${dealIdx}`);
       dealParams.push(countryCode);
+      dealIdx++;
+    }
+    if (category) {
+      const like = '%' + category.toLowerCase().replace(/[_-]+/g, '%') + '%';
+      dealConditions.push(`(LOWER(COALESCE(category,'')) LIKE $${dealIdx} OR LOWER(COALESCE(array_to_string(category_path, ' '), '')) LIKE $${dealIdx})`);
+      dealParams.push(like);
       dealIdx++;
     }
 

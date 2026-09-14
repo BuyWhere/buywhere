@@ -1607,6 +1607,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // ("home_and_kitchen") still match real names like "home & kitchen".
   const category = (args.category as string || '').trim();
   const categoryLower = category.toLowerCase();
+  if (categoryLower) {
+    const like = '%' + categoryLower.replace(/[_-]+/g, '%') + '%';
+    params.push(like);
+    conditions.push(`(LOWER(COALESCE(category,'')) LIKE $${params.length} OR LOWER(COALESCE(array_to_string(category_path, ' '), '')) LIKE $${params.length})`);
+  }
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
@@ -1646,7 +1651,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, NULL::text[] AS category_path
+              p.category, p.category_path
        FROM ${dealsTable} p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC

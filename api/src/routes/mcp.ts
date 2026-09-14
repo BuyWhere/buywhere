@@ -1864,7 +1864,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     });
   }
 
-  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${(args.category as string || '').trim()}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:v3:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${(args.category as string || '').trim()}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1918,6 +1918,14 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   // ("home_and_kitchen") still match real names like "home & kitchen".
   const category = (args.category as string || '').trim();
   const categoryLower = category.toLowerCase();
+  // BUY-76853: filter in SQL. Post-fetch on LIMIT 200 of the global discount
+  // ranking always sampled Beauty (highest discount_pct), so category=electronics
+  // either returned empty or leftover Beauty rows.
+  if (categoryLower) {
+    const like = '%' + categoryLower.replace(/[_-]+/g, '%') + '%';
+    params.push(like);
+    conditions.push(`(LOWER(COALESCE(category,'')) LIKE $${params.length} OR LOWER(COALESCE(array_to_string(category_path, ' '), '')) LIKE $${params.length})`);
+  }
 
   const whereClause = conditions.join(' AND ');
 
@@ -1972,7 +1980,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
               p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, NULL::text[] AS category_path
+              p.category, p.category_path
        FROM search_products p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
