@@ -96,6 +96,7 @@ const TOOLS = [
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
+        category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty").' },
       },
     },
   },

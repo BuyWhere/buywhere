@@ -61,6 +61,7 @@ export const BuyWhereTools = [
           country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'ID', 'PH'], description: 'ISO country code' },
           min_discount: { type: 'number', default: 10, description: 'Minimum discount percentage (0-90)' },
           currency: { type: 'string', default: 'SGD', description: 'Currency for price display' },
+          category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty")' },
           limit: { type: 'integer', default: 20, maximum: 100, description: 'Maximum deals to return' },
           offset: { type: 'integer', default: 0, description: 'Offset for pagination' },
         },
@@ -154,6 +155,7 @@ export class BuyWhereClient {
     if (params.country_code) query.set('country_code', params.country_code as string);
     if (params.currency) query.set('currency', params.currency as string);
     if (params.min_discount !== undefined) query.set('min_discount', String(params.min_discount));
+    if (params.category) query.set('category', params.category as string);
     if (params.limit !== undefined) query.set('limit', String(params.limit));
     if (params.offset !== undefined) query.set('offset', String(params.offset));
     return this.request(`/v1/products/deals?${query.toString()}`);
