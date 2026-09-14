@@ -108,3 +108,25 @@ describe('BUY-73753: /v1/products list contract', () => {
     );
   });
 });
+
+describe('BUY-81330: featured currency + deals live children', () => {
+  const productsSource = readFileSync(new URL('../src/routes/products.ts', import.meta.url), 'utf8');
+
+  it('filters featured by country AND currency', () => {
+    const featuredRouteStart = productsSource.indexOf('// GET /v1/products/featured');
+    assert.ok(featuredRouteStart > -1, 'featured route marker not found');
+    const featuredRoute = productsSource.slice(featuredRouteStart, featuredRouteStart + 8000);
+    assert.match(featuredRoute, /AND currency = \$2/);
+    assert.match(featuredRoute, /featuredSql, \[countryCode, currency, fetchLimit, fetchOffset\]/);
+    assert.match(featuredRoute, /featured:v2:/);
+  });
+
+  it('routes deals to live child partitions and v4 cache', () => {
+    const dealsStart = productsSource.indexOf("router.get(\n  '/deals'");
+    const compareStart = productsSource.indexOf("router.get(\n  '/compare'");
+    const dealsRoute = productsSource.slice(dealsStart, compareStart);
+    assert.match(dealsRoute, /deals:v4:/);
+    assert.match(dealsRoute, /const LIVE_DEALS_CHILD_COUNTRIES = new Set\(\['SG', 'US', 'PH', 'GB'\]\)/);
+    assert.match(dealsRoute, /FROM \$\{DEALS_TABLE\}/);
+  });
+});

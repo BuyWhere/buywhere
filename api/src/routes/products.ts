@@ -2693,6 +2693,13 @@ router.get(
       const dealOffsetParam = `$${dealOffsetIdx}`;
       dealIdx++;
 
+      // BUY-81330: US/SG/PH/GB live children for deals. Parent `products`
+      // plus currency + discount_pct times out at 4.5s → empty degraded.
+      const LIVE_DEALS_CHILD_COUNTRIES = new Set(['SG', 'US', 'PH', 'GB']);
+      const DEALS_TABLE =
+        countryCode && LIVE_DEALS_CHILD_COUNTRIES.has(countryCode)
+          ? `products_partitioned_${countryCode.toLowerCase()}`
+          : 'products';
       const dealResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
@@ -2700,7 +2707,7 @@ router.get(
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
-         FROM products
+         FROM ${DEALS_TABLE}
          WHERE ${dealWhere}
          ORDER BY ${dealOrderBy}
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`,
@@ -3145,7 +3152,7 @@ router.get(
     const offset = Math.max(parseInt((req.query.offset as string) || '0'), 0);
     const compact = req.query.compact === 'true';
 
-    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `featured:v2:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -3185,6 +3192,9 @@ router.get(
     // BUY-77920: do not AND currency into ORDER BY id DESC — newest SG rows are
     // USD and the planner walks the id index for 30s. Featured is "recent
     // in-market listings", not "recent listings in the viewer's currency".
+    // BUY-81330: AND market currency. Featured was country-only, so US
+    // returned EUR latohome.com rows stamped country_code=US. Child tables
+    // are still id-ordered; currency is applied after the live-child route.
     const featuredSql = `
          SELECT id, sku AS source_id, source AS domain, url,
                 NULL::text AS affiliate_url,
@@ -3193,9 +3203,10 @@ router.get(
          FROM ${FEATURED_TABLE}
          WHERE is_active = true
            AND country_code = $1
+           AND currency = $2
            AND price IS NOT NULL
          ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
-         LIMIT $2 OFFSET $3`;
+         LIMIT $3 OFFSET $4`;
 
     // BUY-79500: deduplicate Shopify variant rows so a single product does not
     // occupy every slot in the featured carousel. Shopify stores one row per
@@ -3228,7 +3239,7 @@ router.get(
         try {
           await client.query('BEGIN');
           await client.query(`SET LOCAL statement_timeout = '8s'`);
-          const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+          const r = await client.query(featuredSql, [countryCode, currency, fetchLimit, fetchOffset]);
           await client.query('COMMIT');
           return r;
         } catch (err) {
