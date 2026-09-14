@@ -131,6 +131,10 @@ BuyWhereTools: list[dict[str, Any]] = [
                         "default": "SGD",
                         "description": "Currency for price display",
                     },
+                    "category": {
+                        "type": "string",
+                        "description": 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty")',
+                    },
                     "limit": {
                         "type": "integer",
                         "default": 20,
