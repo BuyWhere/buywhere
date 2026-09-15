@@ -220,6 +220,8 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   'charger', 'chargers', 'cable', 'cables', 'messenger', 'shell', 'shells',
   'replacement battery', 'replacement batteries', 'replacement keyboard',
   'replacement fan', 'replacement hinge', 'replacement screen',
+  // BUY-82519: diagnostic/repair kits and bags outranked computers on q=laptop.
+  'diagnostic', 'diagnostics', 'repair kit', 'tablet kit', 'pouch', 'pouches',
   // Keyboard when paired with a laptop context. Bare 'keyboard' is omitted
   // because it would match legitimate keyboards sold as laptop bundles or
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
@@ -477,27 +479,30 @@ export const BARE_DEVICE_QUERY_TOKENS = new Set<string>([
 export const NON_COMPUTER_TITLE_PATTERNS = [
   // Craft/hobby items historically in wrong categories
   'wooden notebook',
+  'wooden laptop',
   // Marketplace listings / instructions, not actual SKUs
   'fsx',
   'recommended for fsx',
   'flight simulator',
-  // Generic placeholder titles
+  // Art / merch that is not a computer
+  'laptop and tree',
+] as const;
+
+// BUY-82519: titles that are *exactly* the query word ("Laptop") are placeholders,
+// not computers. These MUST stay full-string anchors. Compiling them through
+// `\m(?:laptop)\M` would demote every real laptop title.
+export const NON_COMPUTER_EXACT_TITLE_PATTERNS = [
   '^laptop$',
   '^notebook$',
 ] as const;
 
-export const NON_COMPUTER_TITLE_PG_RE_SOURCE = NON_COMPUTER_TITLE_PATTERNS
-  .map((t) => {
-    if (t.startsWith('^') || t.endsWith('$')) {
-      // Anchor pattern — strip the anchors, already word-bounded
-      return t.replace(/\^|\$/g, '');
-    }
-    // Phrase — add word boundaries
+export const NON_COMPUTER_TITLE_PG_RE_SOURCE = [
+  ...NON_COMPUTER_TITLE_PATTERNS.map((t) => {
     const parts = t.split(/\s+/);
-    return parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
-  })
-  .map((re) => `\\m(?:${re})\\M`)
-  .join('|');
+    return `\\m(?:${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')})\\M`;
+  }),
+  ...NON_COMPUTER_EXACT_TITLE_PATTERNS,
+].join('|');
 
 /**
  * Check if query is a "bare" device query (laptop/notebook/macbook/chromebook)
