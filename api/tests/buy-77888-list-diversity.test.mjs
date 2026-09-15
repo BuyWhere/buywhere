@@ -13,7 +13,7 @@ describe('BUY-77888 list diversity', () => {
     const searchRouteStart = productsSource.indexOf('// GET /v1/products/search');
     const listRoute = productsSource.slice(listRouteStart, searchRouteStart);
     assert.match(productsSource, /const LIST_MERCHANT_CAP = 2/);
-    assert.match(productsSource, /const LIST_DIVERSITY_FETCH = 400/);
+    assert.match(productsSource, /const LIST_DIVERSITY_FETCH = 1000/);
     assert.match(listRoute, /list:v3:/);
     assert.match(listRoute, /diversifyListRows/);
     assert.match(listRoute, /applyListDiversity/);
