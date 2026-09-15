@@ -163,6 +163,33 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
   return remaining.map(titleCase).join(' ');
 }
 
+const CTA_MAX_CHARS = 18;
+
+/**
+ * BUY-82520: CTA copy on SEO product cards. Wrapping alone still clipped
+ * host-style names ("Challenger.Com") mid-word because overflow-hidden on
+ * the card shell + nowrap descendants cut "Buy at Challenger.C" / "View ".
+ * Strip a trailing TLD / host so "Challenger.Com" → "Challenger", then
+ * hard-cap length so "Buy at {label}" stays fully readable.
+ */
+export function ctaMerchantLabel(value?: string | null): string {
+  const cleaned = stripMerchantTenantSuffix(value);
+  if (!cleaned) return '';
+  const withoutHost = cleaned
+    .replace(/\.(?:com|net|org|io|co|sg|ai|store|shop)(?:\.[a-z]{2})?$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const label = withoutHost || cleaned;
+  if (label.length <= CTA_MAX_CHARS) return label;
+  const cut = label.slice(0, CTA_MAX_CHARS).replace(/[\s.-]+$/g, '');
+  return cut || label.slice(0, CTA_MAX_CHARS);
+}
+
+export function buyAtCtaLabel(value?: string | null): string {
+  const label = ctaMerchantLabel(value);
+  return label ? `Buy at ${label}` : 'Buy';
+}
+
 // Title-case every whitespace-separated word in a token, lowercasing the
 // rest. Tolerates already-mixed-case input — handles "SHOPIFY", "bestBuy",
 // and "BEST BUY" alike so the public render is always "Shopify" / "Best Buy".

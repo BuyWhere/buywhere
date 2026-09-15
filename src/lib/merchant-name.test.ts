@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+import { buyAtCtaLabel, ctaMerchantLabel, stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 // BUY-66324 — every merchant string that flows into SEO landing-page product
 // cards, comparison tables, or JSON-LD seller blocks must be cleaned through
@@ -90,4 +90,16 @@ test("BUY-72907: trailing filler + regional suffix are both stripped", () => {
   // "Decathlon Sg Com" -> "Decathlon"
   assert.equal(stripMerchantTenantSuffix("Decathlon Sg Com"), "Decathlon");
   assert.equal(stripMerchantTenantSuffix("BUY30590 RETAILER BESTBUY SG"), "Best Buy");
+});
+
+// BUY-82520 — QA: "Buy at Challenger.C" / truncated "View " on
+// /air-purifier-singapore. Shorten host-style merchant names for CTAs.
+test("BUY-82520: CTA merchant label strips TLD and stays short", () => {
+  assert.equal(ctaMerchantLabel("Challenger.Com"), "Challenger");
+  assert.equal(ctaMerchantLabel("challenger.com"), "Challenger");
+  assert.equal(ctaMerchantLabel("Amazon"), "Amazon");
+  assert.equal(buyAtCtaLabel("Challenger.Com"), "Buy at Challenger");
+  assert.equal(buyAtCtaLabel("Amazon"), "Buy at Amazon");
+  assert.ok(buyAtCtaLabel("Challenger.Com").length <= "Buy at Challenger".length + 2);
+  assert.doesNotMatch(buyAtCtaLabel("Challenger.Com"), /Challenger\.C/);
 });
