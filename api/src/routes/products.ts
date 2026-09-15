@@ -991,7 +991,7 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
 const LIST_SORT_TTL_SECONDS = 60;
 // BUY-77888: default recency browse over-fetches then caps merchants / Shopify variants
 // so a single ingest batch cannot occupy the entire first page.
-const LIST_DIVERSITY_FETCH = 400;
+const LIST_DIVERSITY_FETCH = 1000;
 const LIST_MERCHANT_CAP = 2;
 
 function listVariantKey(row: Record<string, unknown>): string {
@@ -1216,7 +1216,7 @@ router.get(
       } else {
         // BUY-77888: recency window can be one merchant for thousands of SKUs.
         // Scan batches until we fill the requested page or hit LIST_DIVERSITY_MAX_SCAN.
-        const LIST_DIVERSITY_MAX_SCAN = 2000;
+        const LIST_DIVERSITY_MAX_SCAN = 10000;
         const accumulated: Record<string, unknown>[] = [];
         let scanOffset = 0;
         let lastBatch = 0;
