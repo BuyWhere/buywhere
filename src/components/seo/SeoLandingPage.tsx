@@ -259,11 +259,11 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {(() => {
                   const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).filter((p) => p.imageUrl);
                   if (displayProducts.length === 0) return null;
+                  // BUY-82522: never force 4 cols below ~1024px. auto-fit +
+                  // minmax(240px) keeps cards ≥240px (~3 cols at 1000px, 4 at
+                  // max-w-6xl / 1280+). min(100%,240px) avoids overflow on
+                  // sub-240 viewports.
                   return (
-                    {/* BUY-82522: never force 4 cols below ~1024px. auto-fit +
-                        minmax(240px) keeps cards ≥240px (~3 cols at 1000px, 4 at
-                        max-w-6xl / 1280+). min(100%,240px) avoids overflow on
-                        sub-240 viewports. */}
                     <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))]"}>
                       {displayProducts.map((product) => (
                         // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
@@ -278,7 +278,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         </section>
 
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
