@@ -17,5 +17,6 @@ describe('BUY-77888 list diversity', () => {
     assert.match(listRoute, /list:v3:/);
     assert.match(listRoute, /diversifyListRows/);
     assert.match(listRoute, /applyListDiversity/);
+    assert.match(listRoute, /LIST_DIVERSITY_MAX_SCAN/);
   });
 });

@@ -1202,22 +1202,50 @@ router.get(
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
       const applyListDiversity = sortColumn !== 'price' && sortColumn !== 'title';
-      const fetchLimit = applyListDiversity ? LIST_DIVERSITY_FETCH : limit;
-      const fetchOffset = applyListDiversity ? 0 : offset;
-      dataResult = await listClient.query(
-        `SELECT ${SELECT_COLUMNS}
-         FROM ${LIST_TABLE} products
-         ${whereClause}
-           AND products.price IS NOT NULL
-           AND products.price > 0
-         ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, fetchLimit, fetchOffset]
-      );
-      if (applyListDiversity) {
+      if (!applyListDiversity) {
+        dataResult = await listClient.query(
+          `SELECT ${SELECT_COLUMNS}
+           FROM ${LIST_TABLE} products
+           ${whereClause}
+             AND products.price IS NOT NULL
+             AND products.price > 0
+           ${orderBy}
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, limit, offset]
+        );
+      } else {
+        // BUY-77888: recency window can be one merchant for thousands of SKUs.
+        // Scan batches until we fill the requested page or hit LIST_DIVERSITY_MAX_SCAN.
+        const LIST_DIVERSITY_MAX_SCAN = 2000;
+        const accumulated: Record<string, unknown>[] = [];
+        let scanOffset = 0;
+        let lastBatch = 0;
+        while (accumulated.length < offset + limit && scanOffset < LIST_DIVERSITY_MAX_SCAN) {
+          const batch = await listClient.query(
+            `SELECT ${SELECT_COLUMNS}
+             FROM ${LIST_TABLE} products
+             ${whereClause}
+               AND products.price IS NOT NULL
+               AND products.price > 0
+             ${orderBy}
+             LIMIT $${idx} OFFSET $${idx + 1}`,
+            [...params, LIST_DIVERSITY_FETCH, scanOffset]
+          );
+          lastBatch = batch.rows.length;
+          if (lastBatch === 0) {
+            dataResult = batch;
+            break;
+          }
+          accumulated.push(...(batch.rows as Record<string, unknown>[]));
+          dataResult = batch;
+          scanOffset += lastBatch;
+          const diversified = diversifyListRows(accumulated, 0, offset + limit);
+          if (diversified.length >= offset + limit) break;
+          if (lastBatch < LIST_DIVERSITY_FETCH) break;
+        }
         dataResult = {
-          ...dataResult,
-          rows: diversifyListRows(dataResult.rows as Record<string, unknown>[], offset, limit),
+          ...(dataResult as { rows: unknown[] }),
+          rows: diversifyListRows(accumulated, offset, limit),
         };
       }
     } finally {
