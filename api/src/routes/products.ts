@@ -991,7 +991,7 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
 const LIST_SORT_TTL_SECONDS = 60;
 // BUY-77888: default recency browse over-fetches then caps merchants / Shopify variants
 // so a single ingest batch cannot occupy the entire first page.
-const LIST_DIVERSITY_FETCH = 1000;
+const LIST_DIVERSITY_FETCH = 20000;
 const LIST_MERCHANT_CAP = 2;
 
 function listVariantKey(row: Record<string, unknown>): string {
@@ -1072,7 +1072,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v3:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v4:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -1194,14 +1194,14 @@ router.get(
     try {
       // BUY-79280: parent-table updated_at DESC for frozen children is ~50-90ms
       // on primary; keep 8s so a cold replica catch-up does not 500 the list.
+      const applyListDiversity = sortColumn !== 'price' && sortColumn !== 'title';
       await listClient.query(
-        `SET statement_timeout = '${LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
+        `SET statement_timeout = '${applyListDiversity ? '8s' : LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
       );
       // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
-      const applyListDiversity = sortColumn !== 'price' && sortColumn !== 'title';
       if (!applyListDiversity) {
         dataResult = await listClient.query(
           `SELECT ${SELECT_COLUMNS}
@@ -1214,41 +1214,41 @@ router.get(
           [...params, limit, offset]
         );
       } else {
-        // BUY-77888: recency window can be one merchant for thousands of SKUs.
-        // Scan batches until we fill the requested page or hit LIST_DIVERSITY_MAX_SCAN.
-        const LIST_DIVERSITY_MAX_SCAN = 10000;
-        const accumulated: Record<string, unknown>[] = [];
-        let scanOffset = 0;
-        let lastBatch = 0;
-        let diversifiedSoFar = 0;
-        while (diversifiedSoFar < offset + limit && scanOffset < LIST_DIVERSITY_MAX_SCAN) {
-          const batch = await listClient.query(
-            `SELECT ${SELECT_COLUMNS}
+        // BUY-77888: rank inside a recency window so one Shopify ingest cannot
+        // occupy page 1. SQL ROW_NUMBER keeps the first LIST_MERCHANT_CAP SKUs
+        // per merchant (and one Shopify variant per product_id) before LIMIT.
+        const recencyRank = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
+          ? 'products.id DESC'
+          : 'products.updated_at DESC, products.id DESC';
+        dataResult = await listClient.query(
+          `WITH recency AS (
+             SELECT ${SELECT_COLUMNS}
              FROM ${LIST_TABLE} products
              ${whereClause}
                AND products.price IS NOT NULL
                AND products.price > 0
              ${orderBy}
-             LIMIT $${idx} OFFSET $${idx + 1}`,
-            [...params, LIST_DIVERSITY_FETCH, scanOffset]
-          );
-          lastBatch = batch.rows.length;
-          if (lastBatch === 0) {
-            dataResult = batch;
-            break;
-          }
-          accumulated.push(...(batch.rows as Record<string, unknown>[]));
-          dataResult = batch;
-          scanOffset += lastBatch;
-          const diversified = diversifyListRows(accumulated, 0, offset + limit);
-          diversifiedSoFar = diversified.length;
-          if (diversifiedSoFar >= offset + limit) break;
-          if (lastBatch < LIST_DIVERSITY_FETCH) break;
-        }
-        dataResult = {
-          ...(dataResult as { rows: unknown[] }),
-          rows: diversifyListRows(accumulated, offset, limit),
-        };
+             LIMIT $${idx}
+           )
+           SELECT *
+           FROM (
+             SELECT recency.*,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY COALESCE(recency.merchant_id, recency.domain, recency.source_id::text)
+                      ORDER BY ${recencyRank.replace('products.', 'recency.')}
+                    ) AS merchant_rn,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY COALESCE(recency.metadata->>'product_id', recency.source_id::text)
+                      ORDER BY ${recencyRank.replace('products.', 'recency.')}
+                    ) AS variant_rn
+             FROM recency
+           ) ranked
+           WHERE ranked.merchant_rn <= ${LIST_MERCHANT_CAP}
+             AND ranked.variant_rn = 1
+           ORDER BY ${recencyRank.replace('products.', 'ranked.')}
+           LIMIT $${idx + 1} OFFSET $${idx + 2}`,
+          [...params, LIST_DIVERSITY_FETCH, limit, offset]
+        );
       }
     } finally {
       listClient.release(true); // release back to pool, rolling back any open transaction
