@@ -11,11 +11,19 @@ import {
   LAPTOP_ACCESSORY_SOFT_TOKENS,
   NON_COMPUTER_TITLE_PG_RE_SOURCE,
   isBareDeviceQuery,
+  isDeviceUnitQuery,
 } from "../dist/lib/searchRelevanceTaxonomy.js";
 
 test("isBareDeviceQuery treats standalone laptop as computer intent", () => {
   assert.equal(isBareDeviceQuery("laptop"), true);
   assert.equal(isBareDeviceQuery("laptop bag"), false);
+});
+
+test("BUY-82519 bare laptop is a device-unit query so cases are hard-excluded", () => {
+  assert.equal(isDeviceUnitQuery("laptop"), true);
+  assert.equal(isDeviceUnitQuery("notebook"), true);
+  assert.equal(isDeviceUnitQuery("laptop bag"), false);
+  assert.equal(isDeviceUnitQuery("laptop case"), false);
 });
 
 test("BUY-82519 accessory tokens cover bags/kits/pouches/diagnostics", () => {

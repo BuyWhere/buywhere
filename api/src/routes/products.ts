@@ -622,7 +622,7 @@ async function tryTierSearch(
   const childMkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}
       LIMIT 200
     ), top AS (
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
