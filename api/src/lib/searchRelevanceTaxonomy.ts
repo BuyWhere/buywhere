@@ -222,6 +222,7 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   'replacement fan', 'replacement hinge', 'replacement screen',
   // BUY-82519: diagnostic/repair kits and bags outranked computers on q=laptop.
   'diagnostic', 'diagnostics', 'repair kit', 'tablet kit', 'pouch', 'pouches',
+  'usb led lamp', 'led lamp', 'reading lamp', 'usb lamp',
   // Keyboard when paired with a laptop context. Bare 'keyboard' is omitted
   // because it would match legitimate keyboards sold as laptop bundles or
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
@@ -257,6 +258,11 @@ export const DEVICE_UNIT_QUERY_TOKENS = [
   'garmin', 'fenix', 'quietcomfort', 'headphone', 'headphones', 'earbuds',
   'vacuum', 'purifier', 'toothbrush', 'stroller', 'keyboard', 'monitor',
   'tablet', 'ipad', 'camera', 'drone', 'printer', 'blender', 'kettle',
+  // BUY-82519: bare q=laptop filled the cand LIMIT with cases/lamps because
+  // laptop was a DEVICE_FAMILY token but not a DEVICE_UNIT token, so the
+  // hard accessory exclusion never ran. Penalty-only ranking cannot recover
+  // a 200-row window of accessories.
+  'laptop', 'notebook', 'macbook', 'chromebook',
   // 2026-09-11: Sony's flagship headphones are queried by model ("Sony WH-1000XM5"),
   // which tokenises to sony / wh / 1000xm5 and matched no family, so the exclusion
   // never ran and a replacement aux cable ranked #2. Prefix match covers XM4/XM5/XM6
@@ -302,6 +308,9 @@ export const DEVICE_UNIT_ACCESSORY_SOFT_TOKENS = [
   'earring', 'earrings',
   // "11 in 1 Action Camera Accessories Kit Compatible with GoPro Hero 13" (GoPro, top 10).
   'accessories', 'accessory kit', 'accessories kit',
+  // BUY-82519: USB reading lamps for laptops ranked above computers.
+  'usb led lamp', 'led lamp', 'reading lamp', 'usb lamp', 'lamp', 'lamps',
+  'bag', 'bags', 'backpack', 'backpacks', 'diagnostic', 'diagnostics',
 ] as const;
 
 // BWEXT-9DFD3159 (2026-09-10): the grammatical patterns below cannot see an
