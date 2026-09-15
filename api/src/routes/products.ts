@@ -439,7 +439,33 @@ async function tryTierSearch(
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   // BUY-72744: exclude synthetic Amazon rows in tier search.
   const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
+  // BUY-82519: country=US/SG is a merchant-home-market filter, not a ranking hint.
+  // Listings often carry country_code=US while merchant_id is a foreign TLD
+  // (markenkoffer.de, blink.com.kw, *.pk). Drop those unless the user asked for
+  // that market. Keep amazon.com / *.myshopify.com (no ccTLD) untouched.
+  const cc = (p.countryCode || '').toUpperCase();
+  let merchantCountryFilter = '';
+  if (cc === 'US') {
+    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.de.%'
+      AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.com.kw'
+      AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph'
+      AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
+      AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg'
+      AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
+      AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd'
+      AND sp.merchant_id NOT ILIKE '%.lk' AND sp.merchant_id NOT ILIKE '%.com.pk'
+    ))`;
+  } else if (cc === 'SG') {
+    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw'
+      AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.com.kw'
+    ))`;
+  }
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl
+    + merchantCountryFilter
     + (useChildTable ? '' : ' AND ' + marketCurrencyConsistencySql('sp'));
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
@@ -526,6 +552,21 @@ async function tryTierSearch(
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-82519: for bare "laptop" queries, boost computer categories and
+  // demote unrelated ones (Games, Bags) even when the title contains "laptop".
+  const laptopCategoryBoost = isBareDevice ? `
+    CASE
+      WHEN lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%'
+        OR lower(sp.category) LIKE '%macbook%' OR lower(sp.category) LIKE '%computer%'
+        OR lower(sp.category) LIKE '%ultrabook%' OR lower(sp.category) LIKE '%chromebook%'
+      THEN 5.0
+      WHEN lower(sp.category) IS NOT NULL AND lower(sp.category) != ''
+        AND lower(sp.category) NOT LIKE '%laptop%' AND lower(sp.category) NOT LIKE '%notebook%'
+        AND lower(sp.category) NOT LIKE '%macbook%' AND lower(sp.category) NOT LIKE '%computer%'
+        AND lower(sp.category) NOT LIKE '%electronics%' AND lower(sp.category) NOT LIKE '%pc%'
+      THEN 0.1
+      ELSE 1.0
+    END` : '1.0';
   // BUY-77644: project the columns needed for ranking into the cand CTE so the
   // top CTE can rank against the bounded candidate set without a second join to
   // search_products. The old plan joined search_products in top (BUY-54980) which
@@ -549,6 +590,7 @@ async function tryTierSearch(
       -- The CASE expressions reference the cand alias (c.*) directly.
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
@@ -585,6 +627,7 @@ async function tryTierSearch(
     ), top AS (
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
             (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
@@ -644,7 +687,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -655,7 +698,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -1124,14 +1167,14 @@ router.get(
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    // BUY-77664: child tables for hydrated markets (SG/US) are the fast list path.
+    // BUY-77664: child tables for hydrated markets (SG/US/PH) are the fast list path.
     // BUY-79280: products_partitioned_{de,au,jp,gb} (and most other LIST children)
     // are frozen May-22 snapshots (~3k–78k rows, max id ~37M). Fresh Shopper
     // catchup (BUY-79240) landed on the parent `products` table (ids 7e9 / 9e18,
     // updated_at 2026-09-01). Routing those markets at the child table made
     // GET /v1/products p1 look 110 days stale while catalog MAX(updated_at)
     // was current. Only use a child table when it is a known live copy.
-    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'PH']);
     const LIST_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
@@ -1149,7 +1192,7 @@ router.get(
     // BUY-79280: parent `products` for DE/AU/JP/GB has mixed id spaces (legacy
     // ~37M, Shopper 7e9, snowflake 9e18). ORDER BY id DESC therefore misses the
     // 7e9 catchup rows that are the actual newest updated_at. idx_products_country_code
-    // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US
+    // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US/PH
     // still use id DESC on the PK (ids there are monotonic snowflakes).
     const orderBy = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
       ? `ORDER BY ${TABLE_ALIAS}.id DESC`
