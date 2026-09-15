@@ -989,6 +989,41 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
+// BUY-77888: default recency browse over-fetches then caps merchants / Shopify variants
+// so a single ingest batch cannot occupy the entire first page.
+const LIST_DIVERSITY_FETCH = 400;
+const LIST_MERCHANT_CAP = 2;
+
+function listVariantKey(row: Record<string, unknown>): string {
+  const meta = (row.metadata as Record<string, unknown> | null) || {};
+  const productId = meta?.product_id as string | undefined;
+  return productId ? `pid:${productId}` : `sku:${row.source_id || row.sku || row.id}`;
+}
+
+function listMerchantKey(row: Record<string, unknown>): string {
+  return String(row.merchant_id || row.domain || row.source || 'unknown');
+}
+
+function diversifyListRows(
+  rows: Record<string, unknown>[],
+  offset: number,
+  limit: number,
+): Record<string, unknown>[] {
+  const seenVariants = new Set<string>();
+  const merchantCounts = new Map<string, number>();
+  const kept: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    const variant = listVariantKey(row);
+    if (seenVariants.has(variant)) continue;
+    const merchant = listMerchantKey(row);
+    const n = merchantCounts.get(merchant) || 0;
+    if (n >= LIST_MERCHANT_CAP) continue;
+    seenVariants.add(variant);
+    merchantCounts.set(merchant, n + 1);
+    kept.push(row);
+  }
+  return kept.slice(offset, offset + limit);
+}
 
 router.get(
   '/',
@@ -1037,7 +1072,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v2:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v3:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -1166,6 +1201,9 @@ router.get(
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
+      const applyListDiversity = sortColumn !== 'price' && sortColumn !== 'title';
+      const fetchLimit = applyListDiversity ? LIST_DIVERSITY_FETCH : limit;
+      const fetchOffset = applyListDiversity ? 0 : offset;
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE} products
@@ -1174,8 +1212,14 @@ router.get(
            AND products.price > 0
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, limit, offset]
+        [...params, fetchLimit, fetchOffset]
       );
+      if (applyListDiversity) {
+        dataResult = {
+          ...dataResult,
+          rows: diversifyListRows(dataResult.rows as Record<string, unknown>[], offset, limit),
+        };
+      }
     } finally {
       listClient.release(true); // release back to pool, rolling back any open transaction
     }
