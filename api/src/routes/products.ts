@@ -991,7 +991,7 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
 const LIST_SORT_TTL_SECONDS = 60;
 // BUY-77888: default recency browse over-fetches then caps merchants / Shopify variants
 // so a single ingest batch cannot occupy the entire first page.
-const LIST_DIVERSITY_FETCH = 20000;
+const LIST_DIVERSITY_FETCH = 100000;
 const LIST_MERCHANT_CAP = 2;
 
 function listVariantKey(row: Record<string, unknown>): string {
