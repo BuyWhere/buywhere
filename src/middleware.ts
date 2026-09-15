@@ -62,11 +62,6 @@ const AGENT_DISCOVERY_HEADERS: [string, string][] = [
   ["X-LLMs-Txt", "https://api.buywhere.ai/llms.txt"],
 ];
 
-function isHtmlRequest(request: NextRequest): boolean {
-  const accept = request.headers.get("accept") ?? "";
-  return accept.includes("text/html") || accept.includes("application/xhtml+xml");
-}
-
 function applyBaselineSecurityHeaders(response: NextResponse): NextResponse {
   for (const [key, value] of BASELINE_SECURITY_HEADERS) {
     response.headers.set(key, value);

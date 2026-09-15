@@ -108,9 +108,8 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(alt).slice(0, 26) || categoryText;
-  // BUY-66324: defensive cleanup in case a caller passes a raw merchant
-  // string that bypassed `formatMerchantName` upstream.
-  const cleanedMerchant = stripMerchantTenantSuffix(merchant);
+  // BUY-66324: merchant string may need cleanup if it bypassed formatMerchantName upstream.
+  void stripMerchantTenantSuffix(merchant);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-4 text-center">
