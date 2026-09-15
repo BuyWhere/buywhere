@@ -1220,7 +1220,8 @@ router.get(
         const accumulated: Record<string, unknown>[] = [];
         let scanOffset = 0;
         let lastBatch = 0;
-        while (accumulated.length < offset + limit && scanOffset < LIST_DIVERSITY_MAX_SCAN) {
+        let diversifiedSoFar = 0;
+        while (diversifiedSoFar < offset + limit && scanOffset < LIST_DIVERSITY_MAX_SCAN) {
           const batch = await listClient.query(
             `SELECT ${SELECT_COLUMNS}
              FROM ${LIST_TABLE} products
@@ -1240,7 +1241,8 @@ router.get(
           dataResult = batch;
           scanOffset += lastBatch;
           const diversified = diversifyListRows(accumulated, 0, offset + limit);
-          if (diversified.length >= offset + limit) break;
+          diversifiedSoFar = diversified.length;
+          if (diversifiedSoFar >= offset + limit) break;
           if (lastBatch < LIST_DIVERSITY_FETCH) break;
         }
         dataResult = {
