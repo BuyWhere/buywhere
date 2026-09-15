@@ -236,7 +236,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
                 Open full search
               </Link>
             </div>
@@ -260,7 +260,11 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                   const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).filter((p) => p.imageUrl);
                   if (displayProducts.length === 0) return null;
                   return (
-                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+                    {/* BUY-82522: never force 4 cols below ~1024px. auto-fit +
+                        minmax(240px) keeps cards ≥240px (~3 cols at 1000px, 4 at
+                        max-w-6xl / 1280+). min(100%,240px) avoids overflow on
+                        sub-240 viewports. */}
+                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))]"}>
                       {displayProducts.map((product) => (
                         // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
                         <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
