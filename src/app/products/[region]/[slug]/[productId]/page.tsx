@@ -5,6 +5,7 @@ import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-lan
 import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
+import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
@@ -177,8 +178,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const product = apiProduct ?? landingProductToDetail(fallbackProduct!);
   const productName = product.name ?? product.title ?? `Product ${productId}`;
   const merchantName =
-    product.merchant_name ??
-    merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    stripMerchantTenantSuffix(product.merchant_name ?? merchantSlug) || "BuyWhere";
   const canonicalUrl = `https://buywhere.ai/products/${region}/${merchantSlug}/${productId}/`;
 
   return {
@@ -222,8 +222,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   const product = apiProduct ?? landingProductToDetail(fallbackProduct!);
   const productName = product.name ?? product.title ?? `Product ${productId}`;
   const merchantName =
-    product.merchant_name ??
-    merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    stripMerchantTenantSuffix(product.merchant_name ?? merchantSlug) || "BuyWhere";
 
   // BUY-69663: shared JSON-LD graph (Organization/WebSite publisher anchor +
   // Breadcrumb + Product with real-data-only rating rule) replaces the two
@@ -348,7 +347,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
                         })}
                     className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                   >
-                    {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}
+                    {ctaUrl ? viewAtCtaLabel(merchantName) : `View all from ${merchantName}`}
                     <span aria-hidden="true">→</span>
                   </a>
                 </div>

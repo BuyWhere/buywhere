@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
+import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 // BUY-71642: Serve the short-alias PDP /p/{id} that the catalog API emits as
 // click_url/url on search result cards. The canonical form is /products/us/{slug}/{id}.
@@ -174,14 +175,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const canonicalUrl = `https://buywhere.ai/products/us/${merchantSlug}/${id}/`;
 
   return {
-    title: `${productName} — ${product.merchant_name ?? "BuyWhere US"} | BuyWhere US`,
+    title: `${productName} — ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere US"} | BuyWhere US`,
     description: product.description
       ? product.description.slice(0, 160)
-      : `Buy ${productName} from ${product.merchant_name ?? "BuyWhere"} in the US. Compare prices and find the best deals on BuyWhere.`,
+      : `Buy ${productName} from ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere"} in the US. Compare prices and find the best deals on BuyWhere.`,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title: `${productName} — ${product.merchant_name ?? "BuyWhere US"} | BuyWhere US`,
-      description: `Buy ${productName} from ${product.merchant_name ?? "BuyWhere"} in the US.`,
+      title: `${productName} — ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere US"} | BuyWhere US`,
+      description: `Buy ${productName} from ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere"} in the US.`,
       url: canonicalUrl,
       type: "website",
       images: product.image_url
@@ -190,8 +191,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     twitter: {
       card: "summary_large_image",
-      title: `${productName} — ${product.merchant_name ?? "BuyWhere US"} | BuyWhere US`,
-      description: `Buy ${productName} from ${product.merchant_name ?? "BuyWhere"} in the US.`,
+      title: `${productName} — ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere US"} | BuyWhere US`,
+      description: `Buy ${productName} from ${stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere"} in the US.`,
       images: product.image_url ? [product.image_url] : ["/og-image.png"],
     },
     // BUY-71642 gate #5: real PDP must be indexable (not noindex)
@@ -214,7 +215,7 @@ export default async function ShortAliasProductPage({ params }: PageProps) {
   }
 
   const productName = product.name ?? product.title ?? `Product ${id}`;
-  const merchantName = product.merchant_name ?? "BuyWhere";
+  const merchantName = stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere";
   const merchantSlug = product.merchant_slug ?? "catalog";
   const pagePath = `/products/us/${merchantSlug}/${id}/`;
   const description =
@@ -344,7 +345,7 @@ export default async function ShortAliasProductPage({ params }: PageProps) {
                       : {})}
                     className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                   >
-                    {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}
+                    {ctaUrl ? viewAtCtaLabel(merchantName) : `View all from ${merchantName}`}
                     <span aria-hidden="true">→</span>
                   </a>
                 </div>

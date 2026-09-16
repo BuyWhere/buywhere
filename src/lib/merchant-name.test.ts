@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buyAtCtaLabel, ctaMerchantLabel, stripMerchantTenantSuffix } from "@/lib/merchant-name";
+import { buyAtCtaLabel, ctaMerchantLabel, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 // BUY-66324 — every merchant string that flows into SEO landing-page product
 // cards, comparison tables, or JSON-LD seller blocks must be cleaned through
@@ -102,4 +102,13 @@ test("BUY-82520: CTA merchant label strips TLD and stays short", () => {
   assert.equal(buyAtCtaLabel("Amazon"), "Buy at Amazon");
   assert.ok(buyAtCtaLabel("Challenger.Com").length <= "Buy at Challenger".length + 2);
   assert.doesNotMatch(buyAtCtaLabel("Challenger.Com"), /Challenger\.C/);
+});
+
+// BUY-82739 — PDP CTA leaked raw catalog slugs ("View at newegg_us").
+test("BUY-82739: viewAtCtaLabel formats catalog slugs", () => {
+  assert.equal(viewAtCtaLabel("newegg_us"), "View at Newegg");
+  assert.equal(viewAtCtaLabel("walmart_us"), "View at Walmart");
+  assert.equal(viewAtCtaLabel("Newegg"), "View at Newegg");
+  assert.equal(stripMerchantTenantSuffix("newegg_us"), "Newegg");
+  assert.doesNotMatch(viewAtCtaLabel("newegg_us"), /newegg_us/);
 });
