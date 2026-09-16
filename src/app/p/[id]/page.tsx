@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
-import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
+import { resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 // BUY-71642: Serve the short-alias PDP /p/{id} that the catalog API emits as
 // click_url/url on search result cards. The canonical form is /products/us/{slug}/{id}.
@@ -48,6 +48,7 @@ interface ApiProductItem {
   brand?: string | null;
   merchant?: string | null;
   merchant_name?: string | null;
+  merchant_id?: string | null;
   merchant_slug?: string | null;
   updated_at?: string | null;
   click_url?: string | null;
@@ -70,7 +71,14 @@ function mapApiProduct(item: ApiProductItem): ProductDetail {
     image_url: item.image_url ?? null,
     category: item.category ?? undefined,
     brand: item.brand ?? undefined,
-    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
+    merchant_name:
+      resolveMerchantDisplayName({
+        merchant: item.merchant,
+        merchant_name: item.merchant_name,
+        merchant_id: item.merchant_id,
+        merchant_slug: item.merchant_slug,
+        url: item.url ?? item.product_url,
+      }) || undefined,
     merchant_slug: item.merchant_slug ?? null,
     data_updated_at: item.updated_at ?? undefined,
     affiliate_redirect_url: item.affiliate_redirect_url ?? null,
