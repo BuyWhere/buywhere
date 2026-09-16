@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buyAtCtaLabel, ctaMerchantLabel, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
+import { buyAtCtaLabel, ctaMerchantLabel, resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 // BUY-66324 — every merchant string that flows into SEO landing-page product
 // cards, comparison tables, or JSON-LD seller blocks must be cleaned through
@@ -111,4 +111,32 @@ test("BUY-82739: viewAtCtaLabel formats catalog slugs", () => {
   assert.equal(viewAtCtaLabel("Newegg"), "View at Newegg");
   assert.equal(stripMerchantTenantSuffix("newegg_us"), "Newegg");
   assert.doesNotMatch(viewAtCtaLabel("newegg_us"), /newegg_us/);
+});
+
+test("BUY-82739: ingest-lane merchant yields Newegg from merchant_id/url", () => {
+  assert.equal(
+    resolveMerchantDisplayName({
+      merchant: "buy79179_targeted",
+      merchant_name: null,
+      merchant_id: "newegg.com",
+      url: "https://www.newegg.com/msi-ventus-3x-rtx-5070/p/N82E16814137891",
+    }),
+    "Newegg",
+  );
+  assert.equal(
+    viewAtCtaLabel(
+      resolveMerchantDisplayName({
+        merchant: "buy79179_targeted",
+        merchant_id: "newegg.com",
+      }),
+    ),
+    "View at Newegg",
+  );
+  assert.doesNotMatch(
+    viewAtCtaLabel(
+      resolveMerchantDisplayName({ merchant: "buy79179_targeted", merchant_id: "newegg.com" }),
+    ),
+    /Targeted|buy79179|newegg_us/i,
+  );
+  assert.equal(resolveMerchantDisplayName({ merchant: "newegg_us" }), "Newegg");
 });
