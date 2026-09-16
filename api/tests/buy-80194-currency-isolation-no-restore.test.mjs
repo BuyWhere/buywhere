@@ -41,7 +41,12 @@ describe('BUY-80194: REST tier currency isolation never restores leaks', () => {
   it('cache version bumped so pre-fix Redis pages cannot poison US/SG', () => {
     assert.match(
       source,
-      /SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v26-b82726'/,
+      /SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v27-b82726'/,
     );
+  });
+
+  it('BUY-82726: deliver_to without country still uses the child table', () => {
+    assert.ok(source.includes("p.countryCode || p.deliverTo"));
+    assert.ok(source.includes("CZK / JPY / PHP amounts mislabelled as USD"));
   });
 });

@@ -41,7 +41,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v26-b82726'; // v26: BUY-82726 never restore foreign-currency child FTS rows (BUY-79827 leftover)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v27-b82726'; // v27: BUY-82726 deliver_to→child + no-restore + CZ/JPY sanity
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -352,7 +352,9 @@ async function tryTierSearch(
   // child table (MCP already does this). search_products + country_code recheck
   // times out at 4s for head terms (phone/laptop) because idx_sp_fts_my/us are
   // INVALID and even idx_sp_fts_sg still expands a huge bitmap.
-  const ccUpper = (p.countryCode || '').toUpperCase();
+  // BUY-82726: deliver_to=SG/US without country used to skip the child table
+  // (PH Datablitz / JP cases / CZ $25k Airs). Buyer market is the isolation country.
+  const ccUpper = (p.countryCode || p.deliverTo || '').toUpperCase();
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
   const ftsTable = useChildTable
     ? `products_partitioned_${ccUpper.toLowerCase()}`
@@ -439,11 +441,8 @@ async function tryTierSearch(
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   // BUY-72744: exclude synthetic Amazon rows in tier search.
   const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
-  // BUY-82519: country=US/SG is a merchant-home-market filter, not a ranking hint.
-  // Listings often carry country_code=US while merchant_id is a foreign TLD
-  // (markenkoffer.de, blink.com.kw, *.pk). Drop those unless the user asked for
-  // that market. Keep amazon.com / *.myshopify.com (no ccTLD) untouched.
-  const cc = (p.countryCode || '').toUpperCase();
+  // BUY-82519 / BUY-82726: merchant-home-market filter; deliver_to counts as market.
+  const cc = (p.countryCode || p.deliverTo || '').toUpperCase();
   let merchantCountryFilter = '';
   if (cc === 'US') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
@@ -456,12 +455,16 @@ async function tryTierSearch(
       AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
       AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd'
       AND sp.merchant_id NOT ILIKE '%.lk' AND sp.merchant_id NOT ILIKE '%.com.pk'
+      AND sp.merchant_id NOT ILIKE '%.jp' AND sp.merchant_id NOT ILIKE 'amazon_jp'
+      AND sp.merchant_id NOT ILIKE '%.uk' AND sp.merchant_id NOT ILIKE '%.co.uk'
     ))`;
   } else if (cc === 'SG') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
       sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw'
       AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
       AND sp.merchant_id NOT ILIKE '%.com.kw'
+      AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%_ph'
+      AND sp.merchant_id NOT ILIKE '%.jp' AND sp.merchant_id NOT ILIKE 'amazon_jp'
     ))`;
   }
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl
@@ -617,6 +620,7 @@ async function tryTierSearch(
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx}`;
 
+
   // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
   // products parent table JOIN that causes 500s during ingest load (1-2 hr
   // INSERT transactions hold ShareUpdateExclusiveLock, blocking the tier search
@@ -697,6 +701,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+
     ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx}`;
   const tokenTitleFallbackQuery = `
@@ -708,6 +713,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+
     ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
     LIMIT $${limitIdx}`;
   const phoneCategoryFallbackQuery = `
@@ -899,7 +905,8 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
-    const isolateCur = !!(p.countryCode && p.currency);
+
+    const isolateCur = !!((p.countryCode || p.deliverTo) && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
     const isolated = rows
       .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
@@ -910,7 +917,14 @@ async function tryTierSearch(
         // BUY-80194: never restore PHP/USD/etc. leaks when isolation empties the
         // page — that filled US+SG catalog_search with PH-priced generic SKUs.
         // BUY-82726: BUY-79827 leftover restore path was still live on main.
-        return cur === wantCur;
+
+        if (cur !== wantCur) return false;
+        const amt = Number(prod.price?.amount);
+        const title = String(prod.title || '');
+        // CZK / JPY / PHP amounts mislabelled as USD (MacBook Air M4 CZ 24990).
+        if (wantCur === 'USD' && Number.isFinite(amt) && amt >= 8000 && /\bCZ\b|jádrov|jádr/i.test(title)) return false;
+        if (wantCur === 'USD' && Number.isFinite(amt) && amt >= 20000) return false;
+        return true;
       });
     const hasMore = isolated.length > p.offset + p.limit;
     const productsOut = isolated.slice(p.offset, p.offset + p.limit);
