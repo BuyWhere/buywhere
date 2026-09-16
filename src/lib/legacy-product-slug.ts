@@ -97,13 +97,24 @@ export function pickLegacyProductHit(
   if (!normalized) return null;
 
   const hits = items.map(toHit).filter((h): h is LegacyProductHit => Boolean(h));
+  const incomingTokens = new Set(normalized.split("-").filter(Boolean));
+  function tokenOverlap(slug: string): number {
+    const parts = slug.split("-").filter(Boolean);
+    let n = 0;
+    for (const p of parts) if (incomingTokens.has(p)) n += 1;
+    return n;
+  }
   const exact = hits.filter((h) => slugMatches(normalized, h.slug));
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) {
-    exact.sort((a, b) => a.slug.length - b.slug.length);
+    exact.sort((a, b) => tokenOverlap(b.slug) - tokenOverlap(a.slug) || b.slug.length - a.slug.length);
     return exact[0];
   }
   if (hits.length === 1) return hits[0];
+  const ranked = [...hits].sort((a, b) => tokenOverlap(b.slug) - tokenOverlap(a.slug));
+  if (ranked.length && tokenOverlap(ranked[0].slug) >= Math.min(6, incomingTokens.size)) {
+    return ranked[0];
+  }
   return null;
 }
 
@@ -139,24 +150,42 @@ export async function resolveLegacyProductSlug(
     }
   }
 
-  const q = slugToSearchQuery(normalized);
-  if (!q) return null;
+  const fullQ = slugToSearchQuery(normalized);
+  if (!fullQ) return null;
+  // Full title slugs (~20 tokens) over-constrain keyword search and return 0
+  // (BUY-82755 Gigabyte URL). Try a short distinctive prefix first, then the
+  // first 8 tokens, then the full query.
+  const tokens = fullQ.split(/\s+/).filter(Boolean);
+  const queries = Array.from(
+    new Set(
+      [
+        tokens.slice(0, 4).join(" "),
+        tokens.slice(0, 8).join(" "),
+        fullQ,
+      ].filter((q) => q.length >= 8),
+    ),
+  );
+
   try {
-    const url = new URL(`${opts.apiBase}/v1/products/search`);
-    url.searchParams.set("q", q);
-    url.searchParams.set("limit", "8");
-    url.searchParams.set("country", "US");
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
-      },
-      next: { revalidate: 300 },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return null;
-    const payload = await res.json();
-    return pickLegacyProductHit(normalized, itemsFromSearchPayload(payload));
+    for (const q of queries) {
+      const url = new URL(`${opts.apiBase}/v1/products/search`);
+      url.searchParams.set("q", q);
+      url.searchParams.set("limit", "8");
+      url.searchParams.set("country", "US");
+      const res = await fetch(url.toString(), {
+        headers: {
+          Accept: "application/json",
+          ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
+        },
+        next: { revalidate: 300 },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) continue;
+      const payload = await res.json();
+      const hit = pickLegacyProductHit(normalized, itemsFromSearchPayload(payload));
+      if (hit) return hit;
+    }
+    return null;
   } catch {
     return null;
   }
