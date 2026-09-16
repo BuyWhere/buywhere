@@ -6,6 +6,10 @@ import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
+import {
+  PDP_PRIMARY_CTA_CLASS,
+  SsrProductDetailLayout,
+} from "@/components/pdp/SsrProductDetailLayout";
 
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
@@ -262,121 +266,61 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
-      <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
-          <ol className="flex items-center gap-2 flex-wrap">
-            <li>
-              <Link href="/" className="hover:text-indigo-600">
-                Home
-              </Link>
-            </li>
-            <li aria-hidden="true">/</li>
-            <li>
-              <Link
-                href={`/${region}/${merchantSlug}/products/`}
-                className="hover:text-indigo-600"
+      <SsrProductDetailLayout
+        crumbs={[
+          { href: "/", label: "Home" },
+          { href: `/${region}/${merchantSlug}/products/`, label: merchantName },
+          { label: productName },
+        ]}
+        imageUrl={product.image_url}
+        imageAlt={productName}
+        title={productName}
+        brand={product.brand}
+        priceLabel={
+          product.price != null
+            ? `${regionConfig.currency} ${Number(product.price).toFixed(2)}`
+            : null
+        }
+        cta={(() => {
+          const ctaUrl = pickPrimaryCtaUrl(product);
+          const fallbackHref = `/${region}/${merchantSlug}/products/`;
+          const redirectHref = buildAffiliateRedirectUrl(
+            product.id,
+            `/products/${region}/${merchantSlug}/${productId}`,
+          );
+          const targetUrl = redirectHref ?? ctaUrl ?? fallbackHref;
+          const isExternal = redirectHref ? false : ctaUrl ? /^https?:\/\//i.test(ctaUrl) : false;
+          return (
+            <div className="mb-6">
+              <a
+                href={targetUrl}
+                {...(isExternal
+                  ? { target: "_blank", rel: "noopener noreferrer nofollow sponsored" }
+                  : { rel: "nofollow sponsored" })}
+                className={PDP_PRIMARY_CTA_CLASS}
               >
-                {merchantName}
-              </Link>
-            </li>
-            <li aria-hidden="true">/</li>
-            <li className="text-gray-900 font-medium line-clamp-1">{productName}</li>
-          </ol>
-        </nav>
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {product.image_url && (
-            <div className="aspect-square max-h-64 overflow-hidden bg-gray-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={product.image_url}
-                alt={productName}
-                className="w-full h-full object-contain p-4"
-              />
+                {ctaUrl ? viewAtCtaLabel(merchantName) : `View all from ${merchantName}`}
+                <span aria-hidden="true">→</span>
+              </a>
             </div>
-          )}
-
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{productName}</h1>
-
-            {product.brand && (
-              <p className="text-sm text-gray-500 mb-4">
-                by <span className="text-gray-700 font-medium">{product.brand}</span>
-              </p>
-            )}
-
-            {product.price != null && (
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-indigo-600">
-                  {regionConfig.currency} {Number(product.price).toFixed(2)}
-                </span>
-              </div>
-            )}
-
-            {(() => {
-              const ctaUrl = pickPrimaryCtaUrl(product);
-              const fallbackHref = `/${region}/${merchantSlug}/products/`;
-              // BUY-75417: route affiliate links through /r/direct/{id} so
-              // AI crawlers see a followable server-rendered href instead of
-              // an external domain they cannot follow.
-              const redirectHref = buildAffiliateRedirectUrl(
-                product.id,
-                `/products/${region}/${merchantSlug}/${productId}`,
-              );
-              const targetUrl = redirectHref ?? ctaUrl ?? fallbackHref;
-              const isExternal = redirectHref
-                ? false
-                : ctaUrl
-                  ? /^https?:\/\//i.test(ctaUrl)
-                  : false;
-              // BUY-65451: PDP must ship a primary action button so SEO landing
-              // cards don't dead-end on a detail page without an exit. Fall
-              // back to the merchant listing on BuyWhere when no affiliate URL
-              // is on the product record.
-              return (
-                <div className="mb-6">
-                  <a
-                    href={targetUrl}
-                    {...(isExternal
-                      ? {
-                          target: "_blank",
-                          rel: "noopener noreferrer nofollow sponsored",
-                        }
-                      : {
-                          rel: "nofollow sponsored",
-                        })}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                  >
-                    {ctaUrl ? viewAtCtaLabel(merchantName) : `View all from ${merchantName}`}
-                    <span aria-hidden="true">→</span>
-                  </a>
-                </div>
-              );
-            })()}
-
-            <p className="text-sm text-gray-600 mb-4">
-              Available from{" "}
-              <Link
-                href={`/${region}/${merchantSlug}/products/`}
-                className="text-indigo-600 hover:underline"
-              >
-                {merchantName}
-              </Link>{" "}
-              in {regionConfig.countryName}.
-            </p>
-
-            {product.description && (
-              <div className="prose prose-sm text-gray-700 mt-4">
-                <p>{product.description}</p>
-              </div>
-            )}
-
-            {product.category && (
-              <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>
-            )}
-          </div>
-        </div>
-      </main>
+          );
+        })()}
+        availability={
+          <p className="text-sm text-gray-600 mb-4">
+            Available from{" "}
+            <Link
+              href={`/${region}/${merchantSlug}/products/`}
+              className="text-indigo-600 hover:underline"
+            >
+              {merchantName}
+            </Link>{" "}
+            in {regionConfig.countryName}.
+          </p>
+        }
+        description={product.description}
+        category={product.category}
+      />
+>>>>>>> d11877dce (fix(pdp): 2-column desktop hero, wrapping crumbs (BUY-82738))
     </>
   );
 }
