@@ -41,7 +41,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v25-modehon'; // v25: search_mode honesty fields restored after f5f4e556 stale-checkout wipe (BWEXT-69EEE94E)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v26-b82726'; // v26: BUY-82726 never restore foreign-currency child FTS rows (BUY-79827 leftover)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -468,10 +468,20 @@ async function tryTierSearch(
     + merchantCountryFilter
     + (useChildTable ? '' : ' AND ' + marketCurrencyConsistencySql('sp'));
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
-  // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
-  const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
-  const offsetIdx = i; params.push(p.offset); i++;
-  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+  // BUY-79497 / BUY-80194 / BUY-82726: overfetch so a currency post-filter can
+  // still fill `limit`. Do NOT SQL-OFFSET here — isolation must run first
+  // (BUY-80026). Child FTS previously OFFSET then restored USD Shopify when
+  // SGD isolation emptied the page (BUY-79827 leftover).
+  const fetchCap = Math.min((p.limit + p.offset + 1) * 8, 200);
+  const limitIdx = i; params.push(fetchCap); i++;
+  // BUY-82726: on child tables, surface native-currency rows before USD Shopify
+  // labelled as SG (PlayStation 5 / country=sg was returning joesge USD).
+  let nativeCurPrefix = '';
+  if (useChildTable && p.currency) {
+    const nativeCurIdx = i; params.push(p.currency); i++;
+    nativeCurPrefix = `(sp.currency = $${nativeCurIdx}) DESC NULLS LAST, `;
+  }
+  const orderPrefix = nativeCurPrefix + (dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '');
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
@@ -605,7 +615,7 @@ async function tryTierSearch(
     FROM top JOIN ${ftsTable} sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
 
   // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
   // products parent table JOIN that causes 500s during ingest load (1-2 hr
@@ -641,7 +651,7 @@ async function tryTierSearch(
     SELECT ${childCols}, top.rank AS _fts_rank
     FROM top JOIN ${ftsTable} sp ON sp.id = top.id
     ORDER BY ${orderPrefix}top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
@@ -688,7 +698,7 @@ async function tryTierSearch(
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
@@ -699,7 +709,7 @@ async function tryTierSearch(
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
       SELECT sp.id FROM ${ftsTable} sp
@@ -718,7 +728,7 @@ async function tryTierSearch(
     FROM pcand JOIN ${ftsTable} sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
 
   let client: PoolClient;
   try { client = await servingReadDbConnect(); } catch { return false; }
@@ -889,30 +899,21 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
-    const hasMore = rows.length > p.limit;
-    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const isolateCur = !!(p.countryCode && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
-    const products = pageRows
+    const isolated = rows
       .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
       .filter((prod) => {
         if (!wantCur) return true;
         const cur = String(prod.price?.currency || '').toUpperCase();
         // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
+        // BUY-80194: never restore PHP/USD/etc. leaks when isolation empties the
+        // page — that filled US+SG catalog_search with PH-priced generic SKUs.
+        // BUY-82726: BUY-79827 leftover restore path was still live on main.
         return cur === wantCur;
       });
-    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
-    // matched but the currency post-filter emptied the page. Archive for
-    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
-    // even though products_partitioned_sg has live iPhone rows (USD
-    // Shopify labelled SG). Serve the child hits without currency
-    // isolation — leaking USD is a truthful in-market listing; api_error
-    // is not. BUY-79497 archive fallback stays for empty child FTS only.
-    let served = products;
-    if (useChildTable && wantCur && served.length === 0) {
-      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
-    }
-    const productsOut = served;
+    const hasMore = isolated.length > p.offset + p.limit;
+    const productsOut = isolated.slice(p.offset, p.offset + p.limit);
     // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
     // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
     // already true and thousands more rows existed - neither a real count nor an honest
