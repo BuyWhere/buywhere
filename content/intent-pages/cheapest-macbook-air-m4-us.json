@@ -10,17 +10,15 @@
   "country": "US",
   "currency": "USD",
   "locale": "en_US",
-  "searchQuery": "Apple MacBook Air",
+  "searchQuery": "Refurbished 13-inch MacBook Air Apple M4",
   "backupQueries": [
-    "MacBook Air 13",
-    "MacBook Air 15",
-    "Apple laptop"
+    "MacBook Air Apple M4 chip",
+    "13-inch MacBook Air M4",
+    "Apple M4 MacBook Air refurbished"
   ],
   "requiredProductTerms": [
     "macbook air",
-    "apple",
-    "laptop",
-    "notebook"
+    "m4"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
@@ -162,5 +160,5 @@
   "owner": "Surf",
   "reviewer": "Hue",
   "queueRow": 58,
-  "minPrice": 199.95
+  "minPrice": 700
 }

@@ -15,17 +15,17 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "PlayStation 5",
+  "searchQuery": "PS5 Pro 2TB",
   "backupQueries": [
-    "Sony PS5",
-    "PS5 console",
-    "PlayStation 5 console"
+    "PlayStation 5 console",
+    "PS5 Slim console",
+    "Sony PlayStation 5 Pro"
   ],
-  "minPrice": 250,
+  "minPrice": 500,
   "requiredProductTerms": [
     "ps5",
-    "playstation",
-    "sony"
+    "playstation 5",
+    "playstation5"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
