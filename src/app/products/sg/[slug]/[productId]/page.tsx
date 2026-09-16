@@ -5,6 +5,7 @@ import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildSGLegacyProductRedirect } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { buildAffiliateRedirectUrl } from "@/lib/click-attribution";
+import { resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 import {
   PDP_PRIMARY_CTA_CLASS,
   SsrProductDetailLayout,
@@ -53,6 +54,7 @@ interface ApiProductItem {
   brand?: string | null;
   merchant?: string | null;
   merchant_name?: string | null;
+  merchant_id?: string | null;
   updated_at?: string | null;
   click_url?: string | null;
   affiliate_redirect_url?: string | null;
@@ -75,7 +77,13 @@ function mapApiProduct(item: ApiProductItem): ProductDetail {
     image_url: item.image_url ?? null,
     category: item.category ?? undefined,
     brand: item.brand ?? undefined,
-    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
+    merchant_name:
+      resolveMerchantDisplayName({
+        merchant: item.merchant,
+        merchant_name: item.merchant_name,
+        merchant_id: item.merchant_id,
+        url: item.url ?? item.product_url,
+      }) || undefined,
     data_updated_at: item.updated_at ?? undefined,
     affiliate_redirect_url: item.affiliate_redirect_url ?? null,
     click_url: item.click_url ?? null,
@@ -172,7 +180,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const productName = product.name ?? product.title ?? `Product ${productId}`;
-  const merchantName = product.merchant_name ?? merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const merchantName =
+    stripMerchantTenantSuffix(product.merchant_name) ||
+    merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const canonicalUrl = `https://buywhere.ai/products/sg/${merchantSlug}/${productId}/`;
 
   return {
@@ -277,7 +287,7 @@ export default async function SGProductDetailPage({ params }: PageProps) {
                   : { rel: "nofollow sponsored" })}
                 className={PDP_PRIMARY_CTA_CLASS}
               >
-                {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}
+                {ctaUrl ? viewAtCtaLabel(merchantName) : `View all from ${merchantName}`}
                 <span aria-hidden="true">→</span>
               </a>
             </div>

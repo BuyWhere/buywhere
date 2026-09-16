@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 import { toSiteUrl } from "@/lib/site-url";
-import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
+import { resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 const API_INTERNAL_URL = (
   process.env.BUYWHERE_API_INTERNAL_URL ||
@@ -43,6 +43,7 @@ interface ApiProductItem {
   brand?: string | null;
   merchant?: string | null;
   merchant_name?: string | null;
+  merchant_id?: string | null;
   updated_at?: string | null;
   click_url?: string | null;
   affiliate_redirect_url?: string | null;
@@ -76,7 +77,13 @@ function mapApiProduct(item: ApiProductItem): ProductDetail {
     image_url: item.image_url ?? null,
     category: item.category ?? undefined,
     brand: item.brand ?? undefined,
-    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
+    merchant_name:
+      resolveMerchantDisplayName({
+        merchant: item.merchant,
+        merchant_name: item.merchant_name,
+        merchant_id: item.merchant_id,
+        url: item.url ?? item.product_url,
+      }) || undefined,
     data_updated_at: item.updated_at ?? undefined,
     affiliate_redirect_url: item.affiliate_redirect_url ?? null,
     click_url: item.click_url ?? null,
