@@ -202,6 +202,55 @@ test("robot-vacuum landing page excludes parts and tops up sparse live results w
   }
 });
 
+test("air purifier Singapore excludes replacement filters from the price floor", async () => {
+  const config = seoLandingPages["air-purifier-singapore"];
+  assert.equal(config.excludeAccessories, true);
+  assert.equal(config.minPrice, 249);
+  const makeSgAirPurifierItem = (id: string, title: string, price: number) => ({
+    id,
+    title,
+    price_amount: price,
+    price_currency: "SGD",
+    merchant: "amazon_sg",
+    merchant_name: "Amazon.Sg",
+    country_code: "SG",
+    click_url: `https://amazon.sg/${id}`,
+    affiliate_redirect_url: `/r/${id}`,
+    image_url: `https://images.example/${id}.jpg`,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (!url.includes("/api/products/search")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
+
+    return new Response(
+      JSON.stringify({
+        data: [
+          makeSgAirPurifierItem("filter", "Air Mini Replacement PECO-HEPA Filter Compatible with Molekule Tri-Power Air Mini", 56),
+          makeSgAirPurifierItem("ionic", "Ionic Air Purifier 2-Pack Filter Replacement", 80),
+          makeSgAirPurifierItem("xiaomi", "Xiaomi Smart Air Purifier 4", 249),
+          makeSgAirPurifierItem("philips", "Philips 3000i Series Air Purifier", 459),
+        ],
+        meta: { total: 4, degraded: false },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const products = await getSeoLandingProducts(config);
+    assert.ok(products.length >= 2);
+    assert.equal(findFloorPriceProductId(products), "xiaomi");
+    assert.ok(products.every((product) => (product.price ?? 0) >= 249), "all rendered products respect the S$249 floor");
+    assert.doesNotMatch(products.map((product) => product.name).join(" "), /replacement|filter/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("SEO landing products consume live API products payloads", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {

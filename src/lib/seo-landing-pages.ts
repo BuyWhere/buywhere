@@ -2330,7 +2330,8 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     locale: "en_SG",
     searchQuery: "air purifier Singapore",
     backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
-    minPrice: 50,
+    excludeAccessories: true,
+    minPrice: 249,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -14331,4 +14332,3 @@ export function buildAnswerBlock(
     nextPrice: next.price,
   };
 }
-
