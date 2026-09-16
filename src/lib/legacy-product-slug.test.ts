@@ -51,4 +51,16 @@ describe("BUY-82755 legacy /product/<slug> lookup", () => {
     assert.ok(hit);
     assert.equal(hit.id, "871873063695734596");
   });
+
+  it("prefers the longest prefix-matching title when several A16 SKUs return", () => {
+    const hit = pickLegacyProductHit(raw, [
+      { id: "1", name: "Gigabyte Gaming A16 16.0 165Hz 1TB 16GB DDR5 RTX 5050 Windows Laptop" },
+      {
+        id: "871873063695734596",
+        name: "Gigabyte Gaming A16 GA63TH RTX 5050 Laptop AMD Ryzen 7 260 16GB DDR5 16 Inch 165Hz IPS WUXGA Gaming Laptop",
+      },
+    ]);
+    assert.ok(hit);
+    assert.equal(hit.id, "871873063695734596");
+  });
 });
