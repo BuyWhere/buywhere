@@ -336,6 +336,13 @@ test("QA-sampled SEO source configs do not contain synthetic placeholders", () =
   }
 });
 
+test("BUY-77657: laptop-singapore primary query is MacBook (bare laptop is empty on SG)", () => {
+  const cfg = seoLandingPages["laptop-singapore"];
+  assert.equal(cfg.searchQuery, "MacBook");
+  assert.ok((cfg.backupQueries ?? []).some((q) => /macbook/i.test(q)));
+});
+
+
 test("BUY-72906: US SEO landing search passes deliver_to + include_unshippable=false + country", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";

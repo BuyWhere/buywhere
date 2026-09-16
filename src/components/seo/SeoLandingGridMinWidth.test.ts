@@ -35,3 +35,13 @@ test("non-compact catalog grid must not force 4 columns at xl/lg (BUY-82522)", (
     "catalog snapshot must not use lg:grid-cols-4 (fires at 1024px / ~183–230px cards)"
   );
 });
+
+test("live catalog grid must render priced rows even without imageUrl (BUY-77657)", () => {
+  // /laptop-singapore JSON-LD lists Apple.sg MacBooks with a live floor, but
+  // BUY-80551 `.filter((p) => p.imageUrl)` emptied the ATF grid because those
+  // rows have no raster URL. ProductGridImage already silhouettes empty src.
+  assert.ok(
+    !/\.filter\(\(p\)\s*=>\s*p\.imageUrl\)/.test(template),
+    "must not hide live catalog cards solely because imageUrl is missing"
+  );
+});

@@ -2417,16 +2417,18 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "laptop",
+    // BUY-77657 (2026-09-16): bare `q=laptop` against the SG partition now
+    // returns total=0 (keyword miss / accessory-demotion wipe). `q=MacBook`
+    // returns 24 SGD Apple.sg MacBook Pro rows in ~80ms. Lead with that
+    // recall query; keep brand-scoped backups that historically hit.
+    searchQuery: "MacBook",
     // BUY-77791: `category=laptops` on /api/products/search times out (10s
     // degraded) for the SG country filter because the planner can't use the
-    // partition key efficiently with that category_path value. The primary
-    // `q=laptop` call against the partition succeeds in ~3s and returns 11
-    // SGD-priced Amazon.sg laptops, 7 of which pass requiredProductTerms +
-    // minPrice. Leave searchCategory undefined so the live API call drops
-    // the category parameter and relies on the searchQuery + filters.
+    // partition key efficiently with that category_path value. Leave
+    // searchCategory undefined so the live API call drops the category
+    // parameter and relies on the searchQuery + filters.
     excludeAccessories: true,
-    backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
+    backupQueries: ["MacBook laptop", "MacBook Air", "MacBook Pro", "ASUS laptop", "Lenovo laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     compactCatalogCards: true,
@@ -13872,7 +13874,10 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     // page — drop the category parameter and rely on the searchQuery + filters
     // so the live call returns real US laptops instead of degrading into the
     // fallback set (the cached HTML currently shows the 5 fallback rows).
+    // BUY-77657: US `q=Laptop` over-indexes mounts/used junk; MacBook backups
+    // still return primary SKUs after accessory demotion.
     excludeAccessories: true,
+    backupQueries: ["MacBook", "MacBook Air", "MacBook Pro"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",

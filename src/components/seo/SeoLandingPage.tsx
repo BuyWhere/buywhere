@@ -251,13 +251,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               // still must not render fallbackProducts (BUY-79133).
               null
             ) : (
-              // BUY-80551: filter products without images from the visible grid.
-              // Products without real photos are excluded from the first-viewport
-              // grid to prevent "Photo unavailable" placeholders. The full list
-              // (including no-image products) still goes to JSON-LD schema.
+              // BUY-77657 (2026-09-16): do NOT drop live priced rows that lack
+              // imageUrl. Apple.sg MacBook hits (and many US laptop SKUs) have
+              // no raster URL; BUY-80551 hid every card while JSON-LD / H1
+              // still advertised a live floor. ProductGridImage already renders
+              // a branded silhouette when src is empty.
               <>
                 {(() => {
-                  const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).filter((p) => p.imageUrl);
+                  const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? [])));
                   if (displayProducts.length === 0) return null;
                   // BUY-82522: never force 4 cols below ~1024px. auto-fit +
                   // minmax(240px) keeps cards ≥240px (~3 cols at 1000px, 4 at
