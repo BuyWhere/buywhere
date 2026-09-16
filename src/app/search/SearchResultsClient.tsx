@@ -1822,7 +1822,7 @@ export default function SearchResultsClient({
             className="mx-auto block max-w-7xl whitespace-normal break-words px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
 
           >
-            <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
+            <span className="text-[#8a4b08]">{activeCountry.label.toUpperCase()}</span>
             <span className="mx-2 text-slate-300">/</span>
             <span>
               {loadingInitial
@@ -1845,7 +1845,7 @@ export default function SearchResultsClient({
                   a loading placeholder. */}
               {hasActiveSearch || initialQuery ? null : (
                 <>
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#8a4b08]">Product search</p>
                   <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
                     Find live catalog results without leaving BuyWhere
                   </h1>
@@ -2052,7 +2052,7 @@ export default function SearchResultsClient({
                   Loading indicator is rendered below as a separate element with
                   role="status" (BUY-69622 a11y fix). */}
               <div className="hidden md:block">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8a4b08]">
                   {activeCountry.label}
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
@@ -2115,7 +2115,7 @@ export default function SearchResultsClient({
                   data-testid="search-degraded-banner"
                   className="rounded-[28px] border border-amber-300 bg-amber-50 p-8 shadow-sm"
                 >
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8a4b08]">Catalog update in progress</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                     Live results for “{debouncedQuery}” are temporarily unavailable
                   </h2>
@@ -2181,7 +2181,7 @@ export default function SearchResultsClient({
               products.length > 0 &&
               sortedFilteredProducts.length === 0 ? (
                 <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8 shadow-sm" data-testid="search-no-filter-matches">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Filters cleared everything</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8a4b08]">Filters cleared everything</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                     No products match your current filters
                   </h2>
