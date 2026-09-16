@@ -320,7 +320,6 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
         description={product.description}
         category={product.category}
       />
->>>>>>> d11877dce (fix(pdp): 2-column desktop hero, wrapping crumbs (BUY-82738))
     </>
   );
 }
