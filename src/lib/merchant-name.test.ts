@@ -139,4 +139,21 @@ test("BUY-82739: ingest-lane merchant yields Newegg from merchant_id/url", () =>
     /Targeted|buy79179|newegg_us/i,
   );
   assert.equal(resolveMerchantDisplayName({ merchant: "newegg_us" }), "Newegg");
+  assert.equal(
+    resolveMerchantDisplayName({
+      merchant: "newegg_us",
+      merchant_id: "newegg.com",
+      merchant_name: "Newegg.com",
+    }),
+    "Newegg",
+  );
+  assert.equal(
+    viewAtCtaLabel(
+      resolveMerchantDisplayName({
+        merchant: "newegg_us",
+        merchant_id: "newegg.com",
+      }),
+    ),
+    "View at Newegg",
+  );
 });

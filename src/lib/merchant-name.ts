@@ -197,11 +197,17 @@ export function viewAtCtaLabel(value?: string | null): string {
 }
 
 const INGEST_LANE_ID = /^buy\d+/i;
+const COUNTRY_SLUG = /^[a-z0-9]+_(?:us|sg|my|ph|th|id|vn|au|ca|uk|gb|de|fr)$/i;
 
 function looksLikeIngestLane(value?: string | null): boolean {
   if (!value) return true;
-  const first = value.split(/[\s_.-]+/).filter(Boolean)[0] ?? '';
-  return INGEST_LANE_ID.test(first);
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  const first = trimmed.split(/[\s_.-]+/).filter(Boolean)[0] ?? '';
+  if (INGEST_LANE_ID.test(first) || INGEST_LANE_ID.test(trimmed)) return true;
+  // Raw catalog slugs like newegg_us must not win over merchant_id/url.
+  if (COUNTRY_SLUG.test(trimmed) && !trimmed.includes('.')) return true;
+  return false;
 }
 
 function hostnameFromUrl(url?: string | null): string {
