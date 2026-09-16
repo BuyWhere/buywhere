@@ -190,6 +190,12 @@ export function buyAtCtaLabel(value?: string | null): string {
   return label ? `Buy at ${label}` : 'Buy';
 }
 
+/** BUY-82739: PDP/grid CTA — never render raw slugs like "newegg_us". */
+export function viewAtCtaLabel(value?: string | null): string {
+  const label = ctaMerchantLabel(value);
+  return label ? `View at ${label}` : 'View';
+}
+
 // Title-case every whitespace-separated word in a token, lowercasing the
 // rest. Tolerates already-mixed-case input — handles "SHOPIFY", "bestBuy",
 // and "BEST BUY" alike so the public render is always "Shopify" / "Best Buy".

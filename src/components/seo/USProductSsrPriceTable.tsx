@@ -1,6 +1,7 @@
 import { toSiteUrl } from "@/lib/site-url";
 import { normalizeUSMerchantPrice, type USMerchantPrice, type USProductOfferApiItem } from "@/lib/us-products";
 import { buildAffiliateRedirectUrl, buildAffiliateRedirectFromMerchantUrl } from "@/lib/click-attribution";
+import { stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 const IN_STOCK = "https://schema.org/InStock";
 const OUT_OF_STOCK = "https://schema.org/OutOfStock";
@@ -165,7 +166,7 @@ export default function USProductSsrPriceTable({
               return (
                 <tr key={row.merchant}>
                   <th scope="row" className="px-4 py-3 font-medium text-gray-900">
-                    {row.merchant}
+                    {stripMerchantTenantSuffix(row.merchant) || row.merchant}
                   </th>
                   <td className="px-4 py-3 text-gray-900" data-merchant={row.merchant}>
                     <span data-price={`${numericPrice}`}>{displayPrice}</span>
@@ -183,7 +184,7 @@ export default function USProductSsrPriceTable({
                         data-affiliate-redirect="us-product-table"
                         className="text-indigo-600 font-semibold hover:text-indigo-800"
                       >
-                        View at {row.merchant}
+                        {viewAtCtaLabel(row.merchant)}
                       </a>
                     ) : null}
                   </td>
