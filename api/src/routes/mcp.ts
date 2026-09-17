@@ -72,7 +72,7 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 ]);
 
 const router = Router();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10); // BUY-82929: raised from 1000 to handle sakura IO saturation
 // BUY-78735: MCP clients (and the 5s 0-byte hang probes) abort well before PG's
 // 30s statement_timeout. Bound catalog_search / get_deals / FBP to a wall-clock
 // so tools/call always flushes a JSON degraded envelope. PG timeout is kept
