@@ -65,6 +65,17 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
 
+// BUY-75921: per-row CASE on country_code -> expected currency; rows with NULL or
+// unmapped country, or NULL currency, are kept. Applied to the tier's
+// search_products candidates, the products archive baseConditions, and the sp-fallback;
+// NOT to per-country child tables (BUY-79497). Removed in dadb26c50 then restored
+// here to fix TS2305 — kept separate from the title-normalisation scope.
+export function marketCurrencyConsistencySql(alias: string): string {
+  const a = alias ? `${alias}.` : '';
+  const whens = Object.entries(COUNTRY_CURRENCY).map(([cc, cur]) => `WHEN '${cc}' THEN '${cur}'`).join(' ');
+  return `(${a}currency IS NULL OR ${a}currency = CASE ${a}country_code ${whens} ELSE ${a}currency END)`;
+}
+
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:
 //   https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg
