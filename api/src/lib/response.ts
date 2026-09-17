@@ -65,18 +65,6 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
 
-// A listing whose country_code belongs to a market with a DIFFERENT currency is
-// mislabelled (2026-09-11: 58 of the top 100 SGD deals were US listings stored as SGD,
-// which buildProduct then relabelled USD by country). Rows with a NULL or unmapped
-// country, or a NULL currency, are kept. A per-row CASE, cheap enough for the cand
-// CTE filter. Applied on search_products and the products archive; NOT on per-country
-// child tables, where an off-currency row is the JS post-filter's decision (BUY-79497).
-export function marketCurrencyConsistencySql(alias: string): string {
-  const a = alias ? `${alias}.` : '';
-  const whens = Object.entries(COUNTRY_CURRENCY).map(([cc, cur]) => `WHEN '${cc}' THEN '${cur}'`).join(' ');
-  return `(${a}currency IS NULL OR ${a}currency = CASE ${a}country_code ${whens} ELSE ${a}currency END)`;
-}
-
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:
 //   https://m.media-amazon.com/images/I/B10162255701._AC_SY360_.jpg
@@ -146,34 +134,22 @@ export function regionForCountry(countryCode: string | null | undefined): string
 }
 
 // BUY-75921: normalize product titles to remove keyword-stuffed strings.
-// Uses brand + model from metadata when available; falls back to original title.
+// Strips trailing keyword appendages (e.g. "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones")
 export function normalizeProductTitle(row: Record<string, unknown>): string {
   const rawTitle = (row.title as string) || '';
-  const meta = row.metadata as Record<string, unknown> | null;
+  if (!rawTitle) return '';
 
-  const brand = meta?.brand as string | null;
-  const model = meta?.model as string | null;
-  const category = meta?.category as string | null;
-  const color = meta?.color as string | null;
-
-  // Build clean title from structured metadata when available
-  if (brand || model) {
-    const parts: string[] = [];
-    if (brand) parts.push(brand.trim());
-    if (model) parts.push(model.trim());
-    if (color) parts.push(color.trim());
-    if (parts.length > 0) {
-      return parts.join(' ');
-    }
-  }
-
-  // If no metadata, try to clean up the raw title by stripping common keyword patterns
-  // Pattern: remove trailing keyword lists like "...with X, Y, Z, & W"
+  // Strip common keyword-stuffing patterns from raw marketplace titles
+  // Pattern examples: "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones"
   const cleaned = rawTitle
-    // Remove trailing descriptors that indicate keyword stuffing
+    // Remove trailing "with X, Y, Z, & W" patterns (common keyword stuffing)
     .replace(/\s+with\s+[^,]+,\s*[^,]+(?:,\s*[^,]+)*(?:,\s*&\s*[^,]+)*\s*$/i, '')
-    .replace(/\s*[-–—]\s*.+$/, '') // Remove trailing dash-separated content
-    .replace(/\s*\|\s*.+$/, '') // Remove pipe-separated content
+    // Remove trailing dash-separated content (e.g. " - Free Shipping" or " - Hot Sale")
+    .replace(/\s*[-–—]\s*.+$/, '')
+    // Remove pipe-separated trailing content (e.g. " | Free Delivery")
+    .replace(/\s*\|\s*.+$/, '')
+    // Remove common trailing phrases that indicate marketing/SEO padding
+    .replace(/\s+(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+offer|exclusive|deal)\s*$/i, '')
     .trim();
 
   // Return cleaned title if we made meaningful changes, otherwise original
