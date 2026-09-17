@@ -397,7 +397,10 @@ async function tryTierSearch(
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl + merchantCountryFilter;
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
-  const limitIdx = i; params.push(Math.min((p.limit + 1) * 8, 80)); i++;
+  // BUY-82928: increase over-fetch multiplier for child tables since currency
+  // post-filter can drop significant portion (SG has many USD-priced products).
+  const overfetchMultiplier = useChildTable ? 15 : 8;
+  const limitIdx = i; params.push(Math.min((p.limit + 1) * overfetchMultiplier, 200)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
@@ -652,18 +655,26 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
-    const hasMore = rows.length > p.limit;
-    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+    // BUY-82928: apply currency filter BEFORE slicing to page size.
+    // This ensures we keep enough results after filtering for child tables with
+    // mixed currencies (e.g., SG has many USD-priced products).
     const isolateCur = !!(p.countryCode && p.currency);
     const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
-    const products = pageRows
-      .map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact))
-      .filter((prod) => {
-        if (!wantCur) return true;
-        const cur = String(prod.price?.currency || '').toUpperCase();
-        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
-        return cur === wantCur;
-      });
+    const filteredRows = wantCur
+      ? rows.filter((r) => {
+          const row = r as Record<string, unknown>;
+          const price = row.price;
+          let rowCurrency = '';
+          if (price && typeof price === 'object' && !Array.isArray(price)) {
+            rowCurrency = (price as { currency?: string }).currency?.toUpperCase() || '';
+          }
+          if (rowCurrency && rowCurrency !== wantCur) return false;
+          return true;
+        })
+      : rows;
+    const hasMore = filteredRows.length > p.limit;
+    const pageRows = hasMore ? filteredRows.slice(0, p.limit) : filteredRows;
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
     // matched but the currency post-filter emptied the page. Archive for
     // head terms (iphone) times out at ~8s → emptiness_reason=api_error
@@ -671,14 +682,14 @@ async function tryTierSearch(
     // Shopify labelled SG). Serve the child hits without currency
     // isolation — leaking USD is a truthful in-market listing; api_error
     // is not. BUY-79497 archive fallback stays for empty child FTS only.
-    // BUY-82928: extend fallback to trigger when currency isolation returns
-    // too few results. Many SG products are USD-priced (international
-    // sellers) but available in Singapore market. Use threshold relative to
-    // limit to ensure meaningful results even for small limits.
+    // BUY-82928: with pre-slice filtering and increased over-fetch, the fallback
+    // is now rarely needed but kept for edge cases.
     let served = products;
     const MIN_RESULTS_THRESHOLD = Math.max(5, Math.floor(p.limit * 0.4));
     if (useChildTable && wantCur && served.length < MIN_RESULTS_THRESHOLD) {
-      served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+      // Fallback: serve unfiltered rows if filtering returned too few
+      const fallbackRows = filteredRows.slice(0, p.limit);
+      served = fallbackRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     }
     const productsOut = served;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
