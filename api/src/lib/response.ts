@@ -145,26 +145,78 @@ export function regionForCountry(countryCode: string | null | undefined): string
 }
 
 // BUY-75921: normalize product titles to remove keyword-stuffed strings.
-// Strips trailing keyword appendages (e.g. "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones")
+// V2 (2026-09-17): keep-prefix compositional approach. Marketplace listings stuff
+// spec sheets ("16GB RAM,1TB SSD,Win 11") and SEO tails ("for Business, College,
+// School, Photo Editing") after the brand + model. We keep the prefix up to the
+// first spec signal / marketing tail and lightly clean it. Short titles (≤40 chars)
+// are already clean and pass through untouched.
+const TITLE_SPEC_SIGNAL =
+  /(\d+(?:\.\d+)?\s*(?:"|inch|inches|gb|tb|mb|mhz|ghz|hz|wh|mah|tops|dpi|ppi)\b|\d{3,4}\s*[x×]\s*\d{3,4}|\(\s*\d|\[\s*\d|\b(?:win(?:dows)?\s*(?:10|11|xp|8|7)|android\s?\d|ios\s?\d|macos)\b|\b(?:intel|amd|nvidia|geforce|rtx|gtx|radeon|ryzen|core\s+(?:i\d|ultra)|celeron|pentium)\b|\b(?:fhd|qhd|uhd|4k|8k|retina|amoled|oled|ips|lcd)\b|\b(?:wifi|bluetooth)\s?\d|\bbacklit\b|\bfingerprint\b|\btouchscreen\b|\bwebcam\b|\b\d+mp\b|\bnfc\b|\bgps\b|\bhdmi\b|\busb\b|\beth(?:ernet)?\b|\bddr\d\b|\bssd\b|\bhdd\b)/i;
+const TITLE_TAIL_STUFF =
+  /\b(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+(?:offer|time)|exclusive|special\s+offer|promo(?:tion)?|clearance|in\s+stock|ships?\s|fast\s+(?:delivery|shipping)|same[-\s]?day|next[-\s]?day|\d+[-\s]?day\s+delivery|delivery|brand\s+new|factory\s+sealed|sealed\s+box|original|genuine|official|authorized|warranty|lifetime|for\s+(?:men|women|kids|children|students?|business|office|home\s+office|school|college|gaming|gamers?|work|travel|photography|photo\s+editing|video\s+editing|everyday)|suitable\s+for|ideal\s+for|perfect\s+for|designed\s+for|compatible\s+with|works?\s+with|built[-\s]in\s+mic|built[-\s]in\s+battery)\b/i;
+const TITLE_TRAIL_SPEC_SEG = /[,\s]+\d+(?:\.\d+)?\s*(?:"|inch|inches)?\s*(?=[,;\/]|$)/;
+const TITLE_SIZE_TOK = /\s+\d+(?:\.\d+)?\s*(?:"|inch|inches|-inch)\b/i;
+const TITLE_YEAR_SEG = /,\s*(?:19|20)\d{2}\s*$/;
+const TITLE_WITH_CLAUSE = /\s+with\s+[^,]+.*$/;
+const TITLE_FILLER_END = /\s+(?:pc|computer|notebook|laptop)\s*$/i;
+// Names that legitimately END in a model token we must not amputate (Gen 12, M3, Pro Max…)
+const TITLE_ENDS_IN_MODEL = /\s(?:gen(?:eration)?\s*\d+|m\d|a\d{2,3}|v\d+|max|pro|plus|ultra|xl|xxl)$/i;
+
 export function normalizeProductTitle(row: Record<string, unknown>): string {
   const rawTitle = (row.title as string) || '';
   if (!rawTitle) return '';
+  const t = rawTitle.trim();
+  // Already-clean short titles pass through (e.g. "MSI Cyborg15", "Hasee T8 Pro")
+  if (t.length <= 40) return t;
 
-  // Strip common keyword-stuffing patterns from raw marketplace titles
-  // Pattern examples: "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones"
-  const cleaned = rawTitle
-    // Remove trailing "with X, Y, Z, & W" patterns (common keyword stuffing)
-    .replace(/\s+with\s+[^,]+,\s*[^,]+(?:,\s*[^,]+)*(?:,\s*&\s*[^,]+)*\s*$/i, '')
-    // Remove trailing dash-separated content (e.g. " - Free Shipping" or " - Hot Sale")
-    .replace(/\s*[-–—]\s*.+$/, '')
-    // Remove pipe-separated trailing content (e.g. " | Free Delivery")
-    .replace(/\s*\|\s*.+$/, '')
-    // Remove common trailing phrases that indicate marketing/SEO padding
-    .replace(/\s+(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+offer|exclusive|deal)\s*$/i, '')
+  // 1. Cut at the first spec signal, preferring a nearby comma boundary so we
+  //    don't amputate mid-word ("...15.6 FHD Laptop" → cut before the size clause).
+  let cut = t.length;
+  const sig = t.match(TITLE_SPEC_SIGNAL);
+  if (sig && sig.index !== undefined) {
+    let idx = sig.index;
+    const commaBefore = t.lastIndexOf(',', idx);
+    if (commaBefore >= 0 && idx - commaBefore <= 12) idx = commaBefore;
+    if (!/^[,\s]/.test(sig[0]) && /^\d/.test(sig[0])) {
+      const commaAfter = t.indexOf(',', idx);
+      if (commaAfter > 0 && commaAfter - idx <= 12) idx = commaAfter;
+    }
+    cut = idx;
+  }
+  // 2. Cut at the first marketing/audience tail clause, wherever it starts.
+  const tail = t.match(TITLE_TAIL_STUFF);
+  if (tail && tail.index !== undefined) cut = Math.min(cut, tail.index);
+
+  let s = t.slice(0, cut);
+  s = s
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,;])/g, '$1')
+    .replace(/([,;])\s*/g, ', ')
+    .replace(/,\s*$/, '')
     .trim();
 
-  // Return cleaned title if we made meaningful changes, otherwise original
-  return cleaned.length > 10 ? cleaned : rawTitle;
+  // 3. Light cleanup — unless the kept prefix ends in a real model token.
+  if (!TITLE_ENDS_IN_MODEL.test(s)) {
+    for (let i = 0; i < 3; i++) {
+      const before = s;
+      s = s.replace(TITLE_WITH_CLAUSE, '').trim();
+      s = s.replace(TITLE_YEAR_SEG, '').trim();
+      s = s.replace(TITLE_TRAIL_SPEC_SEG, '').trim();
+      s = s.replace(TITLE_SIZE_TOK, '').trim();
+      s = s.replace(/[",.\s]+$/, '').trim();
+      if (s === before) break;
+    }
+    s = s.replace(TITLE_FILLER_END, '').trim();
+    s = s.replace(/[",.\s]+$/, '').trim();
+  } else {
+    s = s.replace(TITLE_WITH_CLAUSE, '').trim();
+    s = s.replace(/[",.\s]+$/, '').trim();
+  }
+
+  // 4. Never return a degenerate result — fall back to the original title.
+  if (!s || s.length < 8) return t;
+  if (s.split(/\s+/).length < 2) return t;
+  return s;
 }
 
 export function normalizeCategoryPath(row: Record<string, unknown>): string[] | null {
