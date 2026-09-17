@@ -672,10 +672,11 @@ async function tryTierSearch(
     // isolation — leaking USD is a truthful in-market listing; api_error
     // is not. BUY-79497 archive fallback stays for empty child FTS only.
     // BUY-82928: extend fallback to trigger when currency isolation returns
-    // too few results (<5). Many SG products are USD-priced (international
-    // sellers) but available in Singapore market.
+    // too few results. Many SG products are USD-priced (international
+    // sellers) but available in Singapore market. Use threshold relative to
+    // limit to ensure meaningful results even for small limits.
     let served = products;
-    const MIN_RESULTS_THRESHOLD = 5;
+    const MIN_RESULTS_THRESHOLD = Math.max(5, Math.floor(p.limit * 0.4));
     if (useChildTable && wantCur && served.length < MIN_RESULTS_THRESHOLD) {
       served = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     }
