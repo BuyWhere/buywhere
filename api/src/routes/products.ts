@@ -658,8 +658,12 @@ async function tryTierSearch(
     // BUY-82928: apply currency filter BEFORE slicing to page size.
     // This ensures we keep enough results after filtering for child tables with
     // mixed currencies (e.g., SG has many USD-priced products).
+    // However, for markets like SG where the catalog is predominantly USD-priced,
+    // skip currency filtering entirely to return meaningful results.
     const isolateCur = !!(p.countryCode && p.currency);
-    const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
+    // BUY-82928: skip currency isolation for SG - most products are USD-priced
+    const skipCurrencyFilter = p.countryCode === 'SG';
+    const wantCur = (isolateCur && !skipCurrencyFilter) ? (p.currency || '').toUpperCase() : '';
     const filteredRows = wantCur
       ? rows.filter((r) => {
           const row = r as Record<string, unknown>;
@@ -682,8 +686,7 @@ async function tryTierSearch(
     // Shopify labelled SG). Serve the child hits without currency
     // isolation — leaking USD is a truthful in-market listing; api_error
     // is not. BUY-79497 archive fallback stays for empty child FTS only.
-    // BUY-82928: with pre-slice filtering and increased over-fetch, the fallback
-    // is now rarely needed but kept for edge cases.
+    // BUY-82928: with skipCurrencyFilter for SG, fallback is rarely needed.
     let served = products;
     const MIN_RESULTS_THRESHOLD = Math.max(5, Math.floor(p.limit * 0.4));
     if (useChildTable && wantCur && served.length < MIN_RESULTS_THRESHOLD) {
