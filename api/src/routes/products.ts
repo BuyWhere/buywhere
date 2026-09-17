@@ -565,13 +565,20 @@ async function tryTierSearch(
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
-  // BUY-82519: for bare "laptop" queries, boost computer categories and
+  // BUY-80662 BUY-82519: for bare "laptop" queries, boost computer categories and
   // demote unrelated ones (Games, Bags) even when the title contains "laptop".
+  // "Laptop Mounts", "Laptop Cases", "Phone Stands" etc. have category LIKE '%laptop%'
+  // but are accessory products — exclude them from the 5.0 boost so the 0.25x accessory
+  // penalty or the non-laptop-category 0.1x demotion can push them below real computers.
   const laptopCategoryBoost = isBareDevice ? `
     CASE
-      WHEN lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%'
+      WHEN (lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%'
         OR lower(sp.category) LIKE '%macbook%' OR lower(sp.category) LIKE '%computer%'
-        OR lower(sp.category) LIKE '%ultrabook%' OR lower(sp.category) LIKE '%chromebook%'
+        OR lower(sp.category) LIKE '%ultrabook%' OR lower(sp.category) LIKE '%chromebook%')
+        AND NOT (
+          lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+          OR lower(sp.title)    ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        )
       THEN 5.0
       WHEN lower(sp.category) IS NOT NULL AND lower(sp.category) != ''
         AND lower(sp.category) NOT LIKE '%laptop%' AND lower(sp.category) NOT LIKE '%notebook%'
