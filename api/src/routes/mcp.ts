@@ -417,9 +417,9 @@ function mcpCircuitKey(tool: McpDegradedTool, stage: McpDegradedStage, country?:
 
 function isMcpCircuitOpen(tool: McpDegradedTool, stage: McpDegradedStage, country?: string | null) {
   const key = mcpCircuitKey(tool, stage, country);
-  // BUY-79598: search_products circuit stays open after query-specific 08P01/timeout
-  // and blocks SG while REST is healthy. Drain it; REST fallback is the soft-fail path.
-  if (tool === 'search_products') {
+  // BUY-79598 + BUY-69368: search_products + get_deals circuits stay open after query-specific
+  // 08P01/timeout and block SG/US while REST is healthy. Drain them; REST fallback is the soft-fail path.
+  if (tool === 'search_products' || tool === 'get_deals') {
     mcpDegradedCircuitState.delete(key);
     return false;
   }
