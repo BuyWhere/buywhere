@@ -397,10 +397,10 @@ async function tryTierSearch(
   const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl + merchantCountryFilter;
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
-  // BUY-82928: increase over-fetch multiplier for child tables since currency
-  // post-filter can drop significant portion (SG has many USD-priced products).
-  const overfetchMultiplier = useChildTable ? 15 : 8;
-  const limitIdx = i; params.push(Math.min((p.limit + 1) * overfetchMultiplier, 200)); i++;
+  // BUY-82928: increase over-fetch multiplier significantly for child tables since
+  // currency post-filter drops most results (SG has predominantly USD-priced products).
+  const overfetchMultiplier = useChildTable ? 25 : 8;
+  const limitIdx = i; params.push(Math.min((p.limit + 1) * overfetchMultiplier, 500)); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
