@@ -1266,8 +1266,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const useDiscountCol = true;
   
 
-  // BUY-79200: search_products + idx_sp_disc, not the 382M products parent.
+  // BUY-69368: revert to products table (search_products has 1 row — never populated post-BUY-79200).
+  // Use the dedicated partial deals indexes on products: idx_buy69368_deals_{sg,us} filter on
+  // (discount_pct >= 10, country_code). is_active = true is required by those partial indexes.
   const conditions: string[] = [
+    `is_active = true`,
+    `country_code IS NOT NULL`,
     `price > 0`,
     `discount_pct >= $1`,
   ];
@@ -1308,10 +1312,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // real discounted products. Query the indexed discount predicate directly.
   let dealsClient: any = null;
   let products: ReturnType<typeof buildProduct>[] = [];
-  // BUY-79200: always use parent search_products table (NOT child tables).
-  // Child tables products_partitioned_{cc} don't have discount data populated.
-  // The fix is to use enable_indexscan=off to force Bitmap Index Scan on the GIN.
-  const dealsTable = 'search_products';
+  // BUY-69368: use products table with dedicated partial deals indexes.
+  // search_products has 1 row (never populated post-BUY-79200) — not usable.
+  // idx_buy69368_deals_sg/us on products cover the SG/US country+discount case.
+  // For other countries (VN, TH, MY, etc.) idx_buy64112_deals_country_products covers
+  // (currency, country_code, discount_pct DESC) with is_active=true.
+  const dealsTable = 'products';
 
   let total = 0;
   try {
@@ -1325,7 +1331,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     const candidateLimit = 200;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
-      `SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+      `SELECT p.id, p.sku AS source, p.merchant_id AS domain, p.url, p.title,
               p.price,
               NULL::numeric AS original_price,
               p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,

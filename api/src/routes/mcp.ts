@@ -1510,18 +1510,17 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   const useDiscountCol = true;
   
 
-  // BUY-79200: search_products (97M, idx_sp_disc) instead of products (382M).
-  // The parent deals index is currency-only; country filters then seqscan/timeout
-  // at the 3.5s MCP wall. search_products has no is_active/metadata columns.
+  // BUY-69368: revert to products table (search_products has 1 row — never populated post-BUY-79200).
+  // Use the dedicated partial deals indexes on products: idx_buy69368_deals_{sg,us} filter on
+  // (discount_pct >= 10, country_code). is_active = true is required by those partial indexes.
+  // Currency filter is applied post-fetch (the deals partial indexes don't include currency).
   const conditions: string[] = [
+    `is_active = true`,
+    `country_code IS NOT NULL`,
     `price > 0`,
     `discount_pct >= $1`,
   ];
   const params: unknown[] = [minDiscount];
-  if (currency) {
-    params.push(currency);
-    conditions.push(`currency = $${params.length}`);
-  }
   if (region) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
@@ -1598,7 +1597,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
               p.category, NULL::text[] AS category_path
-       FROM search_products p
+       FROM products p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`,
@@ -1609,6 +1608,15 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
       const cc = effectiveCountry.toUpperCase();
       dataResult.rows = (dataResult.rows as Record<string, unknown>[]).filter(
         (r) => String(r.country_code || '').toUpperCase() === cc,
+      );
+      total = dataResult.rows.length;
+    }
+    // BUY-69368: post-fetch currency filter. The products partial deals indexes
+    // (idx_buy69368_deals_{sg,us}) don't include currency; applying it in SQL WHERE
+    // would force a heap scan. Filter in-memory after the index-bounded fetch.
+    if (currency) {
+      dataResult.rows = (dataResult.rows as Record<string, unknown>[]).filter(
+        (r) => String(r.currency || '').toUpperCase() === currency,
       );
       total = dataResult.rows.length;
     }
