@@ -36,7 +36,7 @@ const V2_BUYER_TOOLS = new Set([
 // and find_best_price return 0 rows in ~40ms (false no-match).
 const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'AU', 'GB', 'CA']);
 const router = (0, express_1.Router)();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10); // BUY-82929: 1s→3s to avoid fast pool exhaustion during sakura IO saturation
 // BUY-78767: MCP clients abort well before a 8–30s PG timeout. Bound catalog
 // tools to a wall-clock so tools/call always flushes JSON. PG timeout is kept
 // slightly under the wall so cancelled queries don't occupy the pool after we
@@ -50,7 +50,19 @@ const MCP_CATALOG_WALL_TOOLS = new Set([
     'get_deals_v2',
     'find_best_price',
     'find_best_price_v2',
+    'list_categories',
 ]);
+// BUY-67598: per-tool wall. get_deals stays tight; find_best_price gets a wider
+// budget so the 25s probe client sees fail-open JSON instead of a hang.
+const MCP_TOOL_WALL_MS = {
+    get_deals: 4000,
+    get_deals_v2: 4000,
+    search_products: 3500,
+    search_products_v2: 3500,
+    list_categories: 3500,
+    find_best_price: 20000,
+    find_best_price_v2: 20000,
+};
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
 // Override via MCP_FTS_CACHE_TTL_SECONDS env.
@@ -70,6 +82,25 @@ async function acquireMcpClient() {
             clearTimeout(timer);
     }
 }
+// BUY-67598: separate pool-acquire wait from SQL so sweep RCA can tell starvation vs query.
+async function acquireMcpClientTimed(tool) {
+    const t0 = Date.now();
+    const client = await acquireMcpClient();
+    const poolWaitMs = Date.now() - t0;
+    if (poolWaitMs >= 200) {
+        console.warn(`[mcp] BUY-67598 ${tool} pool_wait_ms=${poolWaitMs}`);
+    }
+    return { client, poolWaitMs };
+}
+async function showStatementTimeout(client) {
+    try {
+        const res = await client.query('SHOW statement_timeout');
+        return String(res.rows?.[0]?.statement_timeout ?? '');
+    }
+    catch (_) {
+        return null;
+    }
+}
 // BUY-79260: when the catalog_search circuit is open (or pool acquire fails),
 // REST /v1/products/search on the same origin is independently healthy. Serve
 // hits from REST instead of returning an empty circuit_open envelope so Cart
@@ -86,10 +117,10 @@ function restSearchQueryParams(opts) {
             params.set('deliver_to', opts.country);
         }
         else {
-            // BUY-79631: country= returns native-currency market rows (SGD shirts)
-            // so BUY-79642 isolation does not empty the page.
+            // BUY-79631: country= WITHOUT deliver_to. Pairing country+deliver_to
+            // post-filters the SGD shirt page to empty (REST meta.total=21, n=0).
+            // Bare country= returns Carpenter Fold Shirt SGD.
             params.set('country', opts.country);
-            params.set('deliver_to', opts.country);
         }
     }
     params.set('limit', String(Math.min(Math.max(opts.limit * 4, 1), 40)));
@@ -125,9 +156,11 @@ function isolateRestSearchHits(rows, opts) {
                 return false;
         }
         if (expectedCur) {
-            const fromProduct = String(p.price?.currency || '').toUpperCase();
+            const fromProduct = (0, response_1.extractRowCurrency)(p);
             const cur = item.rowCurrency || fromProduct;
-            if (cur && cur !== expectedCur)
+            // BUY-80652: unknown/empty currency on SG/MY Shopify is usually USD —
+            // do not keep it. Prefer empty over a foreign-currency leak.
+            if (!cur || cur !== expectedCur)
                 return false;
         }
         return true;
@@ -137,8 +170,6 @@ function isolateRestSearchHits(rows, opts) {
 async function searchProductsViaRestFallback(opts) {
     if (!opts.q)
         return null;
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
     try {
         const headers = { accept: 'application/json' };
         const incomingKey = (typeof opts.apiKey === 'string' && opts.apiKey)
@@ -149,12 +180,14 @@ async function searchProductsViaRestFallback(opts) {
             headers['x-api-key'] = incomingKey.replace(/^Bearer\s+/i, '');
             headers['authorization'] = incomingKey.startsWith('Bearer ') ? incomingKey : `Bearer ${incomingKey}`;
         }
+        // BUY-79631: public REST first. Internal hosts hang ~2.5s on miss and
+        // abort the country= retry that actually returns SGD shirts.
         const bases = [
+            'https://api.buywhere.ai',
             (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
             'http://buywhere-api.railway.internal:8080',
             'http://buywhere-api.railway.internal:3000',
             `http://127.0.0.1:${config_1.PORT}`,
-            'https://api.buywhere.ai',
         ].filter(Boolean);
         const fetchRows = async (mode) => {
             const params = restSearchQueryParams({
@@ -166,6 +199,11 @@ async function searchProductsViaRestFallback(opts) {
             });
             let lastErr = null;
             for (const base of bases) {
+                const ac = new AbortController();
+                const perAttemptMs = base.includes('railway.internal') || base.includes('127.0.0.1')
+                    ? 400
+                    : (mode === 'country' ? Math.max(REST_SEARCH_FALLBACK_MS, 4500) : REST_SEARCH_FALLBACK_MS);
+                const timer = setTimeout(() => ac.abort(), perAttemptMs);
                 try {
                     const attempt = await fetch(`${base}/v1/products/search?${params.toString()}`, {
                         method: 'GET',
@@ -185,15 +223,23 @@ async function searchProductsViaRestFallback(opts) {
                 catch (e) {
                     lastErr = e;
                 }
+                finally {
+                    clearTimeout(timer);
+                }
             }
             if (lastErr) {
                 console.warn('[search_products] REST fetch mode=', mode, lastErr?.message?.slice(0, 160));
             }
             return null;
         };
-        // Prefer market aliases for recall, then country= if isolation empties the page
-        // (shirt SG: market= returns USD-labelled SG Shopify; country= returns SGD).
-        for (const mode of ['market', 'country']) {
+        // BUY-79631: country= first (SGD shirts). market= is high-recall but
+        // isolation-empty for shirt SG (USD Shopify) and used to burn the timeout.
+        // BUY-80652: country= first. Do not fall through to market= after a
+        // currency-isolated miss — market= is the USD Shopify leak (SG/MY shirts).
+        const modes = opts.country
+            ? ['country']
+            : ['market'];
+        for (const mode of modes) {
             const rows = await fetchRows(mode);
             if (!rows || rows.length === 0)
                 continue;
@@ -212,9 +258,6 @@ async function searchProductsViaRestFallback(opts) {
     catch (err) {
         console.warn('[search_products] REST fallback failed:', err?.message?.slice(0, 160));
         return null;
-    }
-    finally {
-        clearTimeout(timer);
     }
 }
 function aliasSearchEnvelope(resp) {
@@ -246,22 +289,29 @@ async function findBestPriceViaRestFallback(opts) {
     });
     if (!restHits || restHits.products.length === 0)
         return null;
-    const data = restHits.products.map((p) => {
+    const nativeHits = (0, response_1.filterNativeCurrencyRows)(restHits.products, opts.country);
+    if (nativeHits.length === 0)
+        return null;
+    const data = nativeHits.map((p) => {
         const price = p.price;
         let amount = (0, response_1.extractNumericPrice)(price);
         let curr = response_1.COUNTRY_CURRENCY[opts.country] || 'SGD';
         if (price && typeof price === 'object' && !Array.isArray(price) && price.currency) {
             curr = String(price.currency);
         }
+        const merchant = p.merchant || (p.merchant_name) || null;
         return {
             id: p.id,
             title: p.title,
             name: p.title,
             price: { amount, currency: curr },
-            merchant: p.merchant,
+            // BUY-80524: Cart/v1 agents read both merchant and merchant_name.
+            merchant,
+            merchant_name: merchant,
             url: p.url,
             image_url: p.image_url,
             country_code: opts.country,
+            url_status: p.url_status || 'ok',
         };
     });
     return {
@@ -691,7 +741,7 @@ async function handleSearchProducts(args) {
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
     const rawRegionArg = String(args.region || '').trim().toLowerCase();
-    const countryHint = ((args.deliver_to || args.country_code || args.country) || '').toUpperCase();
+    const countryHint = ((args.deliver_to || args.country_code || args.country || args.market) || '').toUpperCase();
     const region = (rawRegionArg === 'sea' && countryHint) ? '' : args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
     // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
@@ -700,7 +750,7 @@ async function handleSearchProducts(args) {
     // BUY-73666: deliver_to takes precedence over country_code/country per tool
     // schema contract. Without this, MCP clients passing deliver_to="US" get SG
     // results because the country filter was never applied.
-    const rawCountry = ((args.deliver_to || args.country_code || args.country) || '').toUpperCase();
+    const rawCountry = ((args.deliver_to || args.country_code || args.country || args.market) || '').toUpperCase();
     // BUY-79690: do not silently default dest — empty+no dest is deliver_to_missing.
     const country = rawCountry;
     // BUY-79598: clear stale circuit state so SG queries are never blocked by old failures.
@@ -714,7 +764,8 @@ async function handleSearchProducts(args) {
     const currency = country ? (response_1.COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
     const deliverToPresent = Boolean((typeof args.deliver_to === 'string' && args.deliver_to.trim() !== '') ||
         (typeof args.country_code === 'string' && args.country_code.trim() !== '') ||
-        (typeof args.country === 'string' && args.country.trim() !== ''));
+        (typeof args.country === 'string' && args.country.trim() !== '') ||
+        (typeof args.market === 'string' && args.market.trim() !== ''));
     const restFallbackOpts = {
         q, country, limit, offset, compact, currency,
         apiKey: typeof args._mcpInboundApiKey === 'string' ? args._mcpInboundApiKey : undefined,
@@ -730,7 +781,7 @@ async function handleSearchProducts(args) {
     // the catalog recovers in <100ms. REST fallback is the soft-fail path. Circuit stays
     // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
     // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-    const cacheKey = `fts:v10:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+    const cacheKey = `fts:v11:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -864,8 +915,11 @@ async function handleSearchProducts(args) {
     // Under load, db.connect() can stall for seconds on a saturated pool and the
     // wall-clock timer fires before the query even starts; that's the SEV-1 floor.
     let searchClient;
+    let searchPoolWaitMs = -1;
     try {
-        searchClient = await acquireMcpClient();
+        const acquiredSearch = await acquireMcpClientTimed('search_products');
+        searchClient = acquiredSearch.client;
+        searchPoolWaitMs = acquiredSearch.poolWaitMs;
     }
     catch (acquireErr) {
         const degradedKind = classifyMcpDegradedKind(acquireErr);
@@ -904,6 +958,10 @@ async function handleSearchProducts(args) {
         // Child-table FTS is <10ms; extra SET LOCAL hops were burning the 3.5s wall
         // under pool contention.
         await searchClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`);
+        {
+            const stSearch = await showStatementTimeout(searchClient);
+            console.warn(`[mcp] BUY-67598 search_products pool_wait_ms=${searchPoolWaitMs} statement_timeout=${stSearch} sql_start`);
+        }
         if (useChildTable) {
             await searchClient.query(`SET enable_seqscan = off`);
             // BUY-79260: force Bitmap Index Scan on the GIN (matches BUY-79200 FBP fix).
@@ -1032,11 +1090,21 @@ async function handleSearchProducts(args) {
                 }
             }
             else {
+                // BUY-79631: GIN on "shirt" returns USD Shopify labelled SG (n=40) and
+                // isolation empties after 2.5s — REST country= already has the SGD hit.
+                const BROAD_REST_TOKENS = new Set(['shirt', 'shirts', 'tshirt', 't-shirt']);
+                if (q && BROAD_REST_TOKENS.has(q.toLowerCase()) && country) {
+                    const restHits = await searchProductsViaRestFallback(restFallbackOpts);
+                    if (restHits && restHits.products.length > 0) {
+                        console.warn(`[search_products] BUY-79631: broad-token REST n=${restHits.products.length} q=${q} country=${country}`);
+                        return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+                    }
+                }
                 // BUY-78767: Keyword FTS returns columns from search_products itself.
                 // PK-joining to products (373M) times out; REST tryTierSearch does the same.
                 // BUY-79497: overfetch on child tables so currency post-filter still fills `limit`.
                 // Shopify SG/US rows are often USD/SGD-mislabelled; LIMIT=page size would leak.
-                const wantCur = (country && response_1.COUNTRY_CURRENCY[country] && useChildTable)
+                const wantCur = (country && response_1.COUNTRY_CURRENCY[country])
                     ? response_1.COUNTRY_CURRENCY[country].toUpperCase()
                     : '';
                 const pageLimit = Math.min(Math.max((limit + offset) * (wantCur ? 8 : 1), 1), 80);
@@ -1092,11 +1160,27 @@ async function handleSearchProducts(args) {
                     }
                 }
                 let candidates = wantCur
-                    ? native.filter(r => String(r.currency || '').toUpperCase() === wantCur)
+                    ? native.filter(r => {
+                        const cur = String(r.currency || '').toUpperCase();
+                        // BUY-79631: missing currency is not SGD — USD Shopify often has
+                        // empty currency + country_code=SG.
+                        return cur === wantCur;
+                    })
                     : native;
                 // BUY-79642: do not substitute wrong-currency rows when market filtering empties the page.
                 if (wantCur && candidates.length === 0) {
                     candidates = [];
+                }
+                // BUY-79631: native FTS often ranks USD-labelled Shopify as "SG" for
+                // broad tokens (shirt). Isolation then returns n=0 with total>0, which
+                // skips REST. Treat a currency-empty native page as a miss and serve
+                // REST country= hits (Carpenter Fold Shirt SGD).
+                if (q && candidates.length === 0) {
+                    const restHits = await restFallbackPromise;
+                    if (restHits && restHits.products.length > 0) {
+                        console.warn(`[search_products] BUY-79631: native isolation empty — REST n=${restHits.products.length} q=${q} country=${country}`);
+                        return aliasSearchEnvelope((0, response_1.buildSearchResponse)(restHits.products, restHits.total, limit, offset, Date.now() - t0, false));
+                    }
                 }
                 rows = candidates.slice(offset, offset + Math.max(limit, 1));
                 total = candidates.length + offset;
@@ -1180,15 +1264,14 @@ async function handleSearchProducts(args) {
                 return false;
             if (wantCur) {
                 const cur = String(r.currency || '').toUpperCase();
-                if (cur && cur !== wantCur)
+                if (cur !== wantCur)
                     return false;
             }
             return true;
         });
-        // BUY-79598: keep native-currency overfetch if the strict filter emptied the
-        // page (USD-labelled SG Shopify). Country already constrained by child table.
-        rows = (filtered.length > 0 ? filtered : rows)
-            .slice(0, limit);
+        // BUY-79631: do NOT restore wrong-currency rows when isolation empties the
+        // page — that served USD Shopify as SG shirts and skipped REST country=.
+        rows = filtered.slice(0, limit);
     }
     let products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     if (q && products.length === 0) {
@@ -1391,8 +1474,13 @@ async function handleGetDeals(args) {
     const dealsTable = 'search_products';
     let total = 0;
     try {
-        dealsClient = await acquireMcpClient();
+        const acquiredDeals = await acquireMcpClientTimed('get_deals');
+        dealsClient = acquiredDeals.client;
         await dealsClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast; 30s hung tools/call 0-byte.
+        {
+            const stDeals = await showStatementTimeout(dealsClient);
+            console.warn(`[mcp] BUY-67598 get_deals pool_wait_ms=${acquiredDeals.poolWaitMs} statement_timeout=${stDeals} sql_start`);
+        }
         await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path
         // BUY-74579: do NOT set enable_indexscan=off here. That GIN-search setting
         // forces BitmapAnd(idx_sp_disc, idx_sp_cc_price)+Sort (~700k cost, JIT)
@@ -1523,15 +1611,21 @@ async function handleListCategories(args) {
     }
     // 3. No in-flight query — start one and register it so concurrent callers coalesce
     const queryPromise = (async () => {
-        const client = await acquireMcpClient();
+        const acquiredCats = await acquireMcpClientTimed('list_categories');
+        const client = acquiredCats.client;
         try {
-            await client.query('SET statement_timeout = 8000');
+            await client.query('SET statement_timeout = 4000');
+            {
+                const stCat = await showStatementTimeout(client);
+                console.warn(`[mcp] BUY-67598 list_categories pool_wait_ms=${acquiredCats.poolWaitMs} statement_timeout=${stCat} sql_start`);
+            }
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
             let rows;
-            const MAT_VIEW_TIMEOUT_MS = 8000;
+            const MAT_VIEW_TIMEOUT_MS = 4000;
             // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
             // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
-            const LIVE_TIMEOUT_MS = 1800;
+            const LIVE_TIMEOUT_MS = 1500;
+            const skipColdScan = acquiredCats.poolWaitMs >= 500;
             const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
             rows = [];
             if (tableCheck.rows[0]?.tbl) {
@@ -1579,7 +1673,7 @@ async function handleListCategories(args) {
             // country during ingestion skew. Keep the bounded updated_at scan, but push the
             // country/category predicates into the inner query so each market gets its own
             // recent sample before grouping.
-            if (rows.length === 0) {
+            if (rows.length === 0 && !skipColdScan) {
                 try {
                     await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
                     const recentResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
@@ -1603,7 +1697,7 @@ async function handleListCategories(args) {
                     // recent-products fallback timed out — fall through to static category defaults
                 }
             }
-            if (rows.length === 0) {
+            if (rows.length === 0 && !skipColdScan) {
                 rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
                     slug: name.toLowerCase().replace(/\s+/g, '-'),
                     name,
@@ -1687,8 +1781,13 @@ async function handleFindBestPrice(args) {
     const searchName = normalizeFbpQuery(productName) || productName;
     // BUY-67522: infer exact device-family queries and reject accessory results.
     const deviceFilter = (0, deviceClassifier_1.buildDeviceFilter)(searchName, country);
+    // BUY-80524: catalog FTS currently hangs 5–8s then the wall returns
+    // amount-less degraded v1. Kick REST in parallel so the first call still
+    // returns a priced best_price (v2 looked "working" only after v1 tripped
+    // the circuit). Winner is the first envelope with a priced best_price.
+    const restFallbackPromise = findBestPriceViaRestFallback({ productName, country, t0 }).catch(() => null);
     if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
-        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        const restFbp = await restFallbackPromise;
         if (restFbp && restFbp.best_price) {
             console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
             return restFbp;
@@ -1742,6 +1841,12 @@ async function handleFindBestPrice(args) {
         tierParams.push(country);
         tierConditions.push(`sp.country_code = $${tierParams.length}`);
     }
+    if (country && response_1.COUNTRY_CURRENCY[country]) {
+        // BUY-80652 / BUY-80156: native-currency predicate so FBP does not
+        // bitmap-scan USD Shopify labelled SG/MY then time out on heap recheck.
+        tierParams.push(response_1.COUNTRY_CURRENCY[country]);
+        tierConditions.push(`sp.currency = $${tierParams.length}`);
+    }
     const tierWhere = tierConditions.length ? `WHERE ${tierConditions.join(' AND ')}` : '';
     // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
     // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -1754,12 +1859,15 @@ async function handleFindBestPrice(args) {
     // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
     // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
     let bestPriceClient;
+    let fbpPoolWaitMs = -1;
     try {
-        bestPriceClient = await acquireMcpClient();
+        const acquiredFbp = await acquireMcpClientTimed('find_best_price');
+        bestPriceClient = acquiredFbp.client;
+        fbpPoolWaitMs = acquiredFbp.poolWaitMs;
     }
     catch (acquireErr) {
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
-        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        const restFbp = await restFallbackPromise;
         if (restFbp && restFbp.best_price) {
             console.warn(`[find_best_price] BUY-74579: pool acquire failed — REST fallback n=${restFbp.meta.total}`);
             return restFbp;
@@ -1775,8 +1883,15 @@ async function handleFindBestPrice(args) {
         });
     }
     let result;
-    try {
+    // BUY-80524: don't wait the 20s tool wall for a hung GIN scan. If REST
+    // already has a priced envelope, take it after 2.5s of catalog silence.
+    const FBP_REST_RACE_MS = parseInt(process.env.MCP_FBP_REST_RACE_MS || '2500', 10);
+    const catalogWork = (async () => {
         await bestPriceClient.query(`SET statement_timeout = ${MCP_CATALOG_STATEMENT_TIMEOUT_MS}`); // BUY-78767: wall-clock fail-fast
+        {
+            const stFbp = await showStatementTimeout(bestPriceClient);
+            console.warn(`[mcp] BUY-67598 find_best_price pool_wait_ms=${fbpPoolWaitMs} statement_timeout=${stFbp} sql_start`);
+        }
         await bestPriceClient.query('SET enable_seqscan = off'); // BUY-76212: force GIN index plan
         await bestPriceClient.query('SET enable_indexscan = off'); // BUY-79200: Bitmap Index Scan on idx_sp_fts_<cc>
         const candParams = [...tierParams, CANDIDATE_POOL];
@@ -1803,25 +1918,22 @@ async function handleFindBestPrice(args) {
                 return aIn - bIn;
             return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
         }).slice(0, limit);
-        result = {
-            rows: ranked.map((r) => ({
-                id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
-                url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
-                category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
-            })),
-        };
-        // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
-        if (result.rows.length === 0) {
+        let rows = ranked.map((r) => ({
+            id: r.id, title: r.title, price: r.price, currency: r.currency, domain: r.source,
+            url: r.url, image_url: r.image_url, country_code: r.country_code, updated_at: r.updated_at,
+            category: r.category, category_path: null, metadata: null, url_last_checked_at: null, url_status: 'ok',
+        }));
+        if (rows.length === 0) {
             await bestPriceClient.query('SET statement_timeout = 4500');
             const titlePattern = `%${productName}%`;
-            // requestedCountry already declared above for BUY-76909 child-table routing
             const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-            result = await bestPriceClient.query(`SELECT * FROM (
+            const ilike = await bestPriceClient.query(`SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at, category, NULL::text[] AS category_path, NULL::jsonb AS metadata
            FROM search_products
            WHERE price > 0
              AND country_code = $1
+             ${response_1.COUNTRY_CURRENCY[requestedCountry] ? `AND currency = '${response_1.COUNTRY_CURRENCY[requestedCountry].replace(/'/g, '')}'` : ''}
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
            ORDER BY updated_at DESC
            LIMIT $${minPrice > 0 ? 3 : 2}
@@ -1832,14 +1944,35 @@ async function handleFindBestPrice(args) {
          LIMIT $${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`, minPrice > 0
                 ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
                 : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern]));
+            rows = ilike.rows;
         }
         recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
+        return { rows };
+    })();
+    try {
+        const raced = await Promise.race([
+            catalogWork.then((rows) => ({ kind: 'catalog', rows })),
+            restFallbackPromise.then(async (rest) => {
+                await new Promise((r) => setTimeout(r, FBP_REST_RACE_MS));
+                return { kind: 'rest', rest };
+            }),
+        ]);
+        if (raced.kind === 'rest' && raced.rest && raced.rest.best_price) {
+            console.warn(`[find_best_price] BUY-80524: REST won race n=${raced.rest.meta.total} country=${country}`);
+            return raced.rest;
+        }
+        if (raced.kind === 'catalog') {
+            result = raced.rows;
+        }
+        else {
+            result = await catalogWork;
+        }
     }
     catch (err) {
         const degradedKind = classifyMcpDegradedKind(err);
         recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
         console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
-        const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+        const restFbp = await restFallbackPromise;
         if (restFbp && restFbp.best_price) {
             console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
             return restFbp;
@@ -1854,8 +1987,9 @@ async function handleFindBestPrice(args) {
         });
     }
     finally {
-        // BUY-56185: discard connections poisoned by statement_timeout
-        releaseClientSafely(bestPriceClient);
+        // BUY-80524: catalogWork may still be in-flight if REST won the race.
+        // Don't recycle the client until that query settles or errors.
+        void catalogWork.finally(() => releaseClientSafely(bestPriceClient));
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const toUsd = response_1.CURRENCY_RATES[currency] ?? 1;
@@ -1906,17 +2040,40 @@ async function handleFindBestPrice(args) {
     // worse than returning accessories (the user can refine the query).
     const filteredAccessories = result.rows.filter(r => !isAccessory(r));
     const candidates = filteredAccessories.length > 0 ? filteredAccessories : result.rows;
-    const data = candidates.map((r) => ({
-        id: r.id,
-        title: r.title,
-        name: r.title,
-        price: { amount: r.price != null ? parseFloat(r.price) : null, currency: r.currency || currency },
-        normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-        merchant: r.domain,
-        url: r.url,
-        image_url: r.image_url,
-        country_code: r.country_code,
-    }));
+    // BUY-80524: node-pg returns numeric/float8 as JS number. parseFloat(number as
+    // string) is NaN, and JSON.stringify(NaN) becomes null — v1 agents then see
+    // best_price.price.amount=null while merchant/url still populate. extractNumericPrice
+    // accepts number | string | {amount}.
+    const data = (0, response_1.filterNativeCurrencyRows)(candidates.map((r) => {
+        const amount = (0, response_1.extractNumericPrice)(r.price);
+        const merchant = r.domain || r.merchant || null;
+        return {
+            id: r.id,
+            title: r.title,
+            name: r.title,
+            price: { amount, currency: r.currency || currency },
+            currency: r.currency || currency,
+            normalized_price_usd: amount != null ? Math.round(amount * toUsd * 100) / 100 : null,
+            merchant,
+            merchant_name: merchant,
+            url: r.url,
+            image_url: r.image_url,
+            country_code: r.country_code,
+            url_status: r.url_status || 'ok',
+        };
+    }), country);
+    // BUY-80524: if catalog rows have no finite amount, prefer the REST envelope.
+    const catalogHasPrice = data.some((row) => {
+        const amt = (0, response_1.extractNumericPrice)(row.price);
+        return amt != null && amt > 0;
+    });
+    if (!catalogHasPrice) {
+        const restFbp = await restFallbackPromise;
+        if (restFbp && restFbp.best_price) {
+            console.warn(`[find_best_price] BUY-80524: catalog unpriced — REST fallback n=${restFbp.meta.total}`);
+            return restFbp;
+        }
+    }
     return {
         best_price: data[0] ?? null,
         alternatives: data.slice(1),
@@ -2329,9 +2486,10 @@ async function withMcpCatalogWall(name, args, work) {
     if (!MCP_CATALOG_WALL_TOOLS.has(name))
         return work();
     const startedAt = Date.now();
+    const wallMs = MCP_TOOL_WALL_MS[name] || MCP_CATALOG_WALL_MS;
     let timer;
     const wall = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), MCP_CATALOG_WALL_MS);
+        timer = setTimeout(() => reject(Object.assign(new Error('mcp_catalog_wall_timeout'), { code: '57014' })), wallMs);
     });
     try {
         return await Promise.race([work(), wall]);
@@ -2339,7 +2497,7 @@ async function withMcpCatalogWall(name, args, work) {
     catch (err) {
         const message = String(err?.message || '');
         if (message.includes('mcp_catalog_wall_timeout')) {
-            console.warn(`[mcp] BUY-78767: ${name} hit ${MCP_CATALOG_WALL_MS}ms catalog wall — flushing degraded envelope`);
+            console.warn(`[mcp] BUY-67598/BUY-78767: ${name} hit ${wallMs}ms catalog wall — flushing degraded envelope`);
             return mcpCatalogWallEnvelope(name, args, startedAt);
         }
         throw err;
@@ -2879,6 +3037,47 @@ router.get('/health/cache_hit_latency', async (req, res) => {
     }
 });
 // GET /mcp/health/authenticated — deeper probe requiring API key
+// GET /mcp/diagnostics — BUY-67598: timeout budgets + live SHOW statement_timeout.
+router.get('/diagnostics', apiKey_1.requireApiKey, async (_req, res) => {
+    let statementTimeout = null;
+    let poolWaitMs = null;
+    try {
+        const acquired = await acquireMcpClientTimed('diagnostics');
+        poolWaitMs = acquired.poolWaitMs;
+        try {
+            statementTimeout = await showStatementTimeout(acquired.client);
+        }
+        finally {
+            releaseClientSafely(acquired.client);
+        }
+    }
+    catch (err) {
+        return res.status(503).json({
+            issue: 'BUY-67598',
+            error: err.message || String(err),
+            tool_wall_ms: MCP_TOOL_WALL_MS,
+            catalog_wall_ms: MCP_CATALOG_WALL_MS,
+            catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+            db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+        });
+    }
+    res.json({
+        issue: 'BUY-67598',
+        tool_wall_ms: MCP_TOOL_WALL_MS,
+        catalog_wall_ms: MCP_CATALOG_WALL_MS,
+        catalog_statement_timeout_ms: MCP_CATALOG_STATEMENT_TIMEOUT_MS,
+        db_acquire_timeout_ms: MCP_DB_ACQUIRE_TIMEOUT_MS,
+        session_statement_timeout: statementTimeout,
+        pool_wait_ms: poolWaitMs,
+        list_categories: {
+            mat_view_timeout_ms: 4000,
+            live_timeout_ms: 1500,
+            skip_cold_scan_if_pool_wait_ms: 500,
+            cached_ttl_s: 600,
+        },
+        ts: new Date().toISOString(),
+    });
+});
 router.get('/health/authenticated', apiKey_1.requireApiKey, async (_req, res) => {
     try {
         const [countResult, pong] = await Promise.all([
