@@ -173,6 +173,18 @@ COUNTRY_NAMES = {
     "US": "United States",
 }
 
+# BUY-82928: map country to native currency for currency isolation filter.
+# SG scraper ingests USD-priced products (Shopify Titan), causing near-zero
+# results when filtering by country without currency matching.
+COUNTRY_CURRENCY = {
+    "SG": "SGD",
+    "US": "USD",
+    "MY": "MYR",
+    "TH": "THB",
+    "VN": "VND",
+    "PH": "PHP",
+}
+
 REGION_NAMES = {
     "SG": "Singapore",
     "US": "United States",
@@ -529,6 +541,11 @@ async def search_products(
         # BUY-78539: NULL country_code rows must be excluded when filtering by country.
         # SQL IN (...) excludes NULLs — WHERE country_code IN ('SG') returns no rows where country_code IS NULL.
         base_query = base_query.where(Product.country_code.isnot(None)).where(Product.country_code.in_(country_codes))
+        # BUY-82928: filter to native currency for the requested country.
+        # SG catalog has USD rows (Shopify Titan) that would otherwise dominate results.
+        if len(country_codes) == 1 and country_codes[0] in COUNTRY_CURRENCY:
+            native_currency = COUNTRY_CURRENCY[country_codes[0]]
+            base_query = base_query.where(Product.currency == native_currency)
     if region is not None and country is None:
         region_codes = [r.strip().lower() for r in region.split(",")]
         base_query = base_query.where(func.lower(Product.region).in_(region_codes))
@@ -551,6 +568,10 @@ async def search_products(
             # BUY-78539: exclude NULL country_code rows
             count_conditions.append(Product.country_code.isnot(None))
             count_conditions.append(Product.country_code.in_(country_codes_count))
+            # BUY-82928: filter to native currency in count query too
+            if len(country_codes_count) == 1 and country_codes_count[0] in COUNTRY_CURRENCY:
+                native_currency = COUNTRY_CURRENCY[country_codes_count[0]]
+                count_conditions.append(Product.currency == native_currency)
         if region is not None and country is None:
             region_codes_count = [r.strip().lower() for r in region.split(",")]
             count_conditions.append(func.lower(Product.region).in_(region_codes_count))
@@ -617,6 +638,10 @@ async def search_products(
                 raise HTTPException(status_code=422, detail=f"Invalid country code(s): {', '.join(invalid)}. Supported: {', '.join(COUNTRY_NAMES.keys())}")
             # BUY-78539: exclude NULL country_code rows
             facet_base_query = facet_base_query.where(Product.country_code.isnot(None)).where(Product.country_code.in_(country_codes))
+            # BUY-82928: filter to native currency in facets too
+            if len(country_codes) == 1 and country_codes[0] in COUNTRY_CURRENCY:
+                native_currency = COUNTRY_CURRENCY[country_codes[0]]
+                facet_base_query = facet_base_query.where(Product.currency == native_currency)
         if region is not None and country is None:
             region_codes = [r.strip().lower() for r in region.split(",")]
             facet_base_query = facet_base_query.where(func.lower(Product.region).in_(region_codes))
