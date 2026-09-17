@@ -136,99 +136,104 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
-// BUY-75921: normalize product titles to remove keyword-stuffed strings.
-// Strips trailing keyword appendages (e.g. "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones")
-// Re-opened 2026-09-17: fix keyword-stuffing like "FVYAO Active Noise Cancelling Earbuds, Wireless Earbuds"
+// BUY-75921 v4: normalize product titles to remove keyword-stuffed strings.
+// v1/v2/v3 history: v2 (keep-prefix, cut-at-spec-signal) shipped, was silently
+// reverted by 832f74304 (BUY-82928 rewrote response.ts), and QA re-flagged the bug
+// 2026-09-17T22:08Z — including v2 artifacts like "LUDOS FEROX ... Earbuds in"
+// (mid-phrase cut). V4 is conservative segment-based filtering:
+//   - Operates on whole comma/pipe segments only. NEVER cuts mid-phrase.
+//   - Drops trailing segments that are purely generic keyword appendages
+//     (category words, specs, marketing fluff) or near-duplicates of the head.
+//   - Never touches segments containing brand-ish tokens (capitalized words that
+//     are not in the generic lexicon) so "BOWERS & WILKINS Pi8" is safe.
+//   - Falls back to the original title whenever the result would be degenerate.
 export function normalizeProductTitle(row: Record<string, unknown>): string {
-  const rawTitle = (row.title as string) || '';
-  if (!rawTitle) return '';
+  const rawTitle = ((row.title as string) || '').replace(/\s+/g, ' ').trim();
+  if (rawTitle.length <= 40) return rawTitle;
 
-  // BUY-75921 (2026-09-17): Try metadata brand+model first if available
-  const metadata = row.metadata as Record<string, unknown> | null | undefined;
-  const metaBrand = (metadata?.brand as string)?.trim();
-  const metaModel = (metadata?.model as string)?.trim();
-  if (metaBrand && metaModel) {
-    return `${metaBrand} ${metaModel}`;
-  }
-  if (metaBrand) {
-    return metaBrand;
-  }
+  // Segments are split on commas and pipes — marketplace stuffing is
+  // comma-delimited by convention. Each segment judged independently.
+  const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
+  if (segments.length < 2) return rawTitle;
 
-  // Common generic product category descriptors that appear AFTER the first product type
-  // These are repeated category terms that add NO information (redundant)
-  const GENERIC_CATEGORY_PATTERNS = [
-    'wireless earbuds', 'bluetooth earbuds', 'true wireless',
-    'in-ear', 'on-ear', 'over-ear',
-    'active noise cancelling', 'anc', 'noise cancellation',
-    'waterproof', 'ipx\\d+', 'water resistant', 'sweatproof',
-    'playtime', 'battery life',
-    'bluetooth \\d+',
-    'mini', 'tiny', 'small',
-    'sleep', 'for side sleepers', 'comfortable',
-    'sport', 'workout', 'fitness',
-    'gaming',
-    'hdmi', 'usb', 'charging',
-    'power bank', 'portable charger',
-    'smart watch', 'fitness tracker',
-    'laptop', 'notebook', 'ultrabook',
-    'desktop', 'all-in-one',
-    'computer', 'monitor', 'display',
-    'printer', 'scanner',
-    'router', 'modem', 'wifi', 'network',
-    'bluetooth speaker', 'portable speaker', 'soundbar',
-    'subwoofer', 'sound system', 'home theater',
-    'camera', 'dslr', 'mirrorless', 'action cam', 'drone',
-    'charger', 'adapter',
-    'protective case', 'silicone case', 'hard case', 'carrying case',
-    'mount', 'stand', 'holder', 'cradle',
-    'bag', 'pouch', 'backpack',
-    'accessory', 'accessories', 'kit', 'set', 'bundle',
-  ];
+  const GENERIC_WORDS = new Set([
+    // earbud/headphone category
+    'earbuds', 'earphones', 'earbuds,', 'headphones', 'headset', 'buds', 'buds+', 'ear',
+    'wireless', 'bluetooth', 'tw', 'tws', 'true', 'in-ear', 'inear', 'in', 'on-ear', 'over-ear',
+    'anc', 'noise', 'cancelling', 'canceling', 'cancellation', 'active', 'enc',
+    'hi-fi', 'hifi', 'stereo', 'bass', 'deep', 'clear', 'calls', 'call', 'mic', 'mics',
+    'microphone', 'hd', 'sound', 'audio', 'sport', 'sports', 'running', 'workout', 'gym',
+    'waterproof', 'water', 'resistant', 'sweatproof', 'ipx7', 'ipx5', 'ipx6', 'ip68',
+    'playtime', 'battery', 'charging', 'case', 'led', 'display', 'digital',
+    // connectors/compat
+    '3.5mm', 'usb', 'usb-c', 'type-c', 'jack', 'aux', 'mp3', 'player', 'players',
+    'compatible', 'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
+    // watch/laptop/speaker/phone generic
+    'smart', 'watch', 'fitness', 'tracker', 'laptop', 'notebook', 'computer', 'pc',
+    'speaker', 'speakers', 'portable', 'subwoofer', 'soundbar', 'phone', 'phones',
+    'charger', 'adapter', 'cable', 'cables', 'power', 'bank', 'fast',
+    // marketing fluff
+    'new', 'hot', 'sale', 'best', 'free', 'shipping', 'delivery', 'gift', 'original',
+    'genuine', 'quality', 'premium', 'high', 'pro', 'max', 'mini', 'plus', 'ultra',
+    // sizes/specs
+    'inch', 'mm', 'mah', 'hours', 'hrs', 'gb', 'tb', 'rgb',
+  ]);
 
-  // Step 1: Try the original patterns
-  let cleaned = rawTitle
-    // Remove trailing "with X, Y, Z, & W" patterns (common keyword stuffing)
-    .replace(/\s+with\s+[^,]+,\s*[^,]+(?:,\s*[^,]+)*(?:,\s*&\s*[^,]+)*\s*$/i, '')
-    // Remove trailing dash-separated content (e.g. " - Free Shipping" or " - Hot Sale")
-    .replace(/\s*[-–—]\s*.+$/, '')
-    // Remove pipe-separated trailing content (e.g. " | Free Delivery")
-    .replace(/\s*\|\s*.+$/, '')
-    // Remove common trailing phrases that indicate marketing/SEO padding
-    .replace(/\s+(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+offer|exclusive|deal)\s*$/i, '')
-    .trim();
+  const isGenericSegment = (seg: string): boolean => {
+    const words = seg.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
+    if (words.length === 0) return false;
+    // purely numeric/spec tokens (1920x1200, 512gb, ipx7, 3.5mm) are generic
+    const meaningful = words.filter(w =>
+      !GENERIC_WORDS.has(w) &&
+      !/^[\d.,:x×*\-]+$/.test(w) &&          // pure numbers / ranges
+      !/^ipx?\d/i.test(w) &&                 // ipx ratings
+      !/^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/.test(w) // units
+    );
+    return meaningful.length === 0;
+  };
 
-  // Step 2: Remove trailing generic category descriptors AFTER A COMMA
-  // This catches "Brand Model, GenericCategory, MoreFeatures..." → "Brand Model"
-  const trailingGenericRegex = new RegExp(
-    ',\\s*(' + GENERIC_CATEGORY_PATTERNS.join('|') + ')[,\\s\\d]+.*$',
-    'i'
-  );
-  cleaned = cleaned.replace(trailingGenericRegex, '');
-
-  // Step 3: Handle comma-separated parts with generic duplication
-  const parts = cleaned.split(/[,|]/);
-  if (parts.length >= 2) {
-    const meaningfulParts = parts.map(p => p.trim()).filter(p => p.length > 2);
-    if (meaningfulParts.length >= 2) {
-      const first = meaningfulParts[0].toLowerCase();
-      const second = meaningfulParts[1].toLowerCase();
-
-      const isGenericDup = GENERIC_CATEGORY_PATTERNS.some(pat => {
-        const regex = new RegExp('^' + pat + '$', 'i');
-        return regex.test(second.trim()) ||
-               (second.includes('wireless') && first.includes('ear')) ||
-               (second.includes('bluetooth') && first.includes('ear')) ||
-               (second.includes('headphone') && first.includes('ear'));
-      });
-
-      if (isGenericDup) {
-        cleaned = meaningfulParts[0];
-      }
+  // Head = first segment. Keep everything that isn't a droppable tail segment.
+  const head = segments[0];
+  const kept = [head];
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    const words = seg.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
+    // Brand-ish token: capitalized word not in the generic lexicon. If the
+    // segment contains one, it carries identity — keep it.
+    const hasBrandish = seg.split(/\s+/).some(word => {
+      const w = word.toLowerCase();
+      return /^[a-z][a-z\-'.]{1,}$/.test(word) && /^[A-Z]/.test(word) && !GENERIC_WORDS.has(w);
+    });
+    const dupOfHead = (() => {
+      const headWords = new Set(head.toLowerCase().split(/\s+/));
+      const overl = words.filter(w => headWords.has(w)).length;
+      return words.length > 0 && overl / words.length >= 0.6; // ≥60% overlap with head
+    })();
+    // Prepositional tail clauses ("for Business, College", "with Microphone",
+    // "for Android iOS") are marketplace stuffing — including when they start
+    // MID-segment ("1TB SSD Laptops for Business"). Cut the segment at the
+    // first standalone for/with; a brandish remainder before the cut is kept.
+    let segText = seg;
+    const prepMatch = segText.match(/\s+(?:for|with)\s+/i);
+    if (prepMatch && prepMatch.index && prepMatch.index > 0) {
+      segText = segText.slice(0, prepMatch.index).trim();
     }
+    if (!segText) continue;
+    const keptWords = segText.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
+    const keptBrandish = segText.split(/\s+/).some(word => {
+      const w = word.toLowerCase();
+      return /^[a-z][a-z\-'.]{1,}$/.test(word) && /^[A-Z]/.test(word) && !GENERIC_WORDS.has(w);
+    });
+    if (isGenericSegment(segText) || dupOfHead || (!keptBrandish && keptWords.length <= 4)) {
+      continue; // drop trailing appendage
+    }
+    kept.push(segText);
   }
 
-  // Return cleaned title if we made meaningful changes, otherwise original
-  return cleaned.length > 10 ? cleaned : rawTitle;
+  const cleaned = kept.join(', ');
+  // Degenerate guards: too short to be a real title, or head itself was emptied.
+  if (cleaned.length < 12) return rawTitle;
+  return cleaned;
 }
 
 // BUY-80652: filter REST fallback rows to native currency for the requested market.
