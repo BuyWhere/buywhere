@@ -1967,9 +1967,14 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // selective), candidates are id-thin, and full rows join only for the
     // returned page. updated_at tiebreak preserved in SQL.
     await dealsClient.query('SET enable_seqscan = off');
-    // BUY-79200: keep the walk tiny. idx_sp_disc LIMIT 200 is <1ms; 400+ times out
-    // because heap fetches from 78GB search_products scatter. Country partial
-    // idx_sp_disc_* (created alongside this change) makes country filters index-only.
+    // BUY-69368 (2026-09-17): search_products was TRUNCATED on 2026-09-17 by the
+    // BUY-72136 partition-swap work (freed 118GB for the loader; see that issue).
+    // Until it is repopulated, serve get_deals from the monolithic `products`
+    // table — idx_products_deals_discount_pct (currency, discount_pct DESC)
+    // partial makes the ordered walk 90-300ms warm for SG/US, and the cheap
+    // post-fetch country filter bounds the candidate set. Same column shape as
+    // the search_products select (p.merchant_id AS domain per BUY-79353).
+    // BUY-79200 note kept for when search_products returns: keep the walk tiny.
     const candidateLimit = categoryLower ? 200 : 200;
     const candidateParams = [...params, candidateLimit];
     // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
@@ -1981,7 +1986,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
               p.category, p.category_path
-       FROM search_products p
+       FROM products p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`,
