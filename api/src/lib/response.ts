@@ -145,6 +145,41 @@ export function regionForCountry(countryCode: string | null | undefined): string
   return null;
 }
 
+// BUY-75921: normalize product titles to remove keyword-stuffed strings.
+// Uses brand + model from metadata when available; falls back to original title.
+export function normalizeProductTitle(row: Record<string, unknown>): string {
+  const rawTitle = (row.title as string) || '';
+  const meta = row.metadata as Record<string, unknown> | null;
+
+  const brand = meta?.brand as string | null;
+  const model = meta?.model as string | null;
+  const category = meta?.category as string | null;
+  const color = meta?.color as string | null;
+
+  // Build clean title from structured metadata when available
+  if (brand || model) {
+    const parts: string[] = [];
+    if (brand) parts.push(brand.trim());
+    if (model) parts.push(model.trim());
+    if (color) parts.push(color.trim());
+    if (parts.length > 0) {
+      return parts.join(' ');
+    }
+  }
+
+  // If no metadata, try to clean up the raw title by stripping common keyword patterns
+  // Pattern: remove trailing keyword lists like "...with X, Y, Z, & W"
+  const cleaned = rawTitle
+    // Remove trailing descriptors that indicate keyword stuffing
+    .replace(/\s+with\s+[^,]+,\s*[^,]+(?:,\s*[^,]+)*(?:,\s*&\s*[^,]+)*\s*$/i, '')
+    .replace(/\s*[-–—]\s*.+$/, '') // Remove trailing dash-separated content
+    .replace(/\s*\|\s*.+$/, '') // Remove pipe-separated content
+    .trim();
+
+  // Return cleaned title if we made meaningful changes, otherwise original
+  return cleaned.length > 10 ? cleaned : rawTitle;
+}
+
 export function normalizeCategoryPath(row: Record<string, unknown>): string[] | null {
   const rawCategoryPath = row.category_path ?? (row.metadata as Record<string, unknown> | null | undefined)?.category_path;
   const rawCategory = row.category ?? (row.metadata as Record<string, unknown> | null | undefined)?.category;
@@ -265,7 +300,7 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
-  const title = row.title as string;
+  const title = normalizeProductTitle(row);
   const categoryPath = normalizeCategoryPath(row);
   const base: CanonicalProduct = {
     id: productId,
