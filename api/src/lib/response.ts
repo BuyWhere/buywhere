@@ -136,6 +136,101 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
+// BUY-75921: normalize product titles to remove keyword-stuffed strings.
+// Strips trailing keyword appendages (e.g. "...with Deep Bass Clear Call, Bluetooth Ear Buds & in-Ear Headphones")
+// Re-opened 2026-09-17: fix keyword-stuffing like "FVYAO Active Noise Cancelling Earbuds, Wireless Earbuds"
+export function normalizeProductTitle(row: Record<string, unknown>): string {
+  const rawTitle = (row.title as string) || '';
+  if (!rawTitle) return '';
+
+  // BUY-75921 (2026-09-17): Try metadata brand+model first if available
+  const metadata = row.metadata as Record<string, unknown> | null | undefined;
+  const metaBrand = (metadata?.brand as string)?.trim();
+  const metaModel = (metadata?.model as string)?.trim();
+  if (metaBrand && metaModel) {
+    return `${metaBrand} ${metaModel}`;
+  }
+  if (metaBrand) {
+    return metaBrand;
+  }
+
+  // Common generic product category descriptors that appear AFTER the first product type
+  // These are repeated category terms that add NO information (redundant)
+  const GENERIC_CATEGORY_PATTERNS = [
+    'wireless earbuds', 'bluetooth earbuds', 'true wireless',
+    'in-ear', 'on-ear', 'over-ear',
+    'active noise cancelling', 'anc', 'noise cancellation',
+    'waterproof', 'ipx\\d+', 'water resistant', 'sweatproof',
+    'playtime', 'battery life',
+    'bluetooth \\d+',
+    'mini', 'tiny', 'small',
+    'sleep', 'for side sleepers', 'comfortable',
+    'sport', 'workout', 'fitness',
+    'gaming',
+    'hdmi', 'usb', 'charging',
+    'power bank', 'portable charger',
+    'smart watch', 'fitness tracker',
+    'laptop', 'notebook', 'ultrabook',
+    'desktop', 'all-in-one',
+    'computer', 'monitor', 'display',
+    'printer', 'scanner',
+    'router', 'modem', 'wifi', 'network',
+    'bluetooth speaker', 'portable speaker', 'soundbar',
+    'subwoofer', 'sound system', 'home theater',
+    'camera', 'dslr', 'mirrorless', 'action cam', 'drone',
+    'charger', 'adapter',
+    'protective case', 'silicone case', 'hard case', 'carrying case',
+    'mount', 'stand', 'holder', 'cradle',
+    'bag', 'pouch', 'backpack',
+    'accessory', 'accessories', 'kit', 'set', 'bundle',
+  ];
+
+  // Step 1: Try the original patterns
+  let cleaned = rawTitle
+    // Remove trailing "with X, Y, Z, & W" patterns (common keyword stuffing)
+    .replace(/\s+with\s+[^,]+,\s*[^,]+(?:,\s*[^,]+)*(?:,\s*&\s*[^,]+)*\s*$/i, '')
+    // Remove trailing dash-separated content (e.g. " - Free Shipping" or " - Hot Sale")
+    .replace(/\s*[-–—]\s*.+$/, '')
+    // Remove pipe-separated trailing content (e.g. " | Free Delivery")
+    .replace(/\s*\|\s*.+$/, '')
+    // Remove common trailing phrases that indicate marketing/SEO padding
+    .replace(/\s+(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+offer|exclusive|deal)\s*$/i, '')
+    .trim();
+
+  // Step 2: Remove trailing generic category descriptors AFTER A COMMA
+  // This catches "Brand Model, GenericCategory, MoreFeatures..." → "Brand Model"
+  const trailingGenericRegex = new RegExp(
+    ',\\s*(' + GENERIC_CATEGORY_PATTERNS.join('|') + ')[,\\s\\d]+.*$',
+    'i'
+  );
+  cleaned = cleaned.replace(trailingGenericRegex, '');
+
+  // Step 3: Handle comma-separated parts with generic duplication
+  const parts = cleaned.split(/[,|]/);
+  if (parts.length >= 2) {
+    const meaningfulParts = parts.map(p => p.trim()).filter(p => p.length > 2);
+    if (meaningfulParts.length >= 2) {
+      const first = meaningfulParts[0].toLowerCase();
+      const second = meaningfulParts[1].toLowerCase();
+
+      const isGenericDup = GENERIC_CATEGORY_PATTERNS.some(pat => {
+        const regex = new RegExp('^' + pat + '$', 'i');
+        return regex.test(second.trim()) ||
+               (second.includes('wireless') && first.includes('ear')) ||
+               (second.includes('bluetooth') && first.includes('ear')) ||
+               (second.includes('headphone') && first.includes('ear'));
+      });
+
+      if (isGenericDup) {
+        cleaned = meaningfulParts[0];
+      }
+    }
+  }
+
+  // Return cleaned title if we made meaningful changes, otherwise original
+  return cleaned.length > 10 ? cleaned : rawTitle;
+}
+
 // BUY-80652: filter REST fallback rows to native currency for the requested market.
 export function filterNativeCurrencyRows(rows: Record<string, unknown>[], country: string): Record<string, unknown>[] {
   const expectedCurrency = COUNTRY_CURRENCY[country] || 'SGD';
@@ -241,7 +336,8 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
-  const title = row.title as string;
+  // BUY-75921: apply title normalization to strip keyword-stuffing
+  const title = normalizeProductTitle(row);
   const base: CanonicalProduct = {
     id: productId,
     title,
