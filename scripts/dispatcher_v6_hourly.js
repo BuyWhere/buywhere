@@ -361,7 +361,7 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
       FROM ingestion_runs
       WHERE started_at >= $1::timestamptz
         AND started_at <  ($1::timestamptz + interval '1 hour')
-        AND status = 'completed'
+        AND status IN ('completed', 'completed_with_errors')
     ),
     upserted AS (
       INSERT INTO canonical_throughput_hourly
