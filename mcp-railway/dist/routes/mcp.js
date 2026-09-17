@@ -36,7 +36,7 @@ const V2_BUYER_TOOLS = new Set([
 // and find_best_price return 0 rows in ~40ms (false no-match).
 const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG', 'US', 'AU', 'GB', 'CA']);
 const router = (0, express_1.Router)();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10); // BUY-82929: 1s->3s acquire timeout for sakura proxy IO saturation
 // BUY-78767: MCP clients abort well before a 8–30s PG timeout. Bound catalog
 // tools to a wall-clock so tools/call always flushes JSON. PG timeout is kept
 // slightly under the wall so cancelled queries don't occupy the pool after we

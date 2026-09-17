@@ -54,7 +54,11 @@ const FAST_CHILD_TABLE_COUNTRIES = new Set([
 ]);
 
 const router = Router();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-82929: raised from 1000 → 3000. sakura proxy IO saturation (592 GB) causes
+// pool starvation under load; 1s was too short for a saturated-but-responding DB.
+// 3s gives connections time to free up without piling up acquire rejections that
+// exhaust the pool with degraded envelopes. Env-override still available.
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10);
 // BUY-75291: per-(q,cc) MCP FTS snapshot TTL. 60s bounds staleness between
 // ingestion flushes; ingestion drops fts:* keys as soon as a run lands.
 // Override via MCP_FTS_CACHE_TTL_SECONDS env.
