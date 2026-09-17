@@ -31,50 +31,12 @@ export function extractNumericPrice(raw: unknown): number | null {
   return null;
 }
 
-// BUY-80652: extract the native currency of a search result row.
-// Handles nested `{amount, currency}` price objects (REST API response shape)
-// and flat `currency` column (DB row shape). Unknown/empty/null → null.
-export function extractRowCurrency(row: Record<string, unknown>): string | null {
-  // Nested price object from REST API response
-  const price = row.price;
-  if (price != null && typeof price === 'object' && !Array.isArray(price)) {
-    const cur = (price as Record<string, unknown>).currency;
-    if (typeof cur === 'string' && cur.trim() !== '') return cur.toUpperCase().trim();
-  }
-  // Flat currency column from DB row
-  const cur = row.currency;
-  if (typeof cur === 'string' && cur.trim() !== '') return cur.toUpperCase().trim();
-  return null;
-}
-
-// BUY-80652: drop rows whose native currency does not match the target country.
-// Unknown/empty/null currency is treated as non-native (filtered out).
-export function filterNativeCurrencyRows(
-  rows: Record<string, unknown>[],
-  country: string,
-): Record<string, unknown>[] {
-  const want = COUNTRY_CURRENCY[country?.toUpperCase()] ?? null;
-  if (!want) return rows;
-  return rows.filter((r) => extractRowCurrency(r) === want);
-}
-
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', UK: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   PH: 'PHP', ID: 'IDR', JP: 'JPY', DE: 'EUR', AU: 'AUD',
   // Single-currency regions stored under EUR/USD on the catalog:
   FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', IE: 'EUR', CA: 'CAD', MX: 'MXN', BR: 'BRL',
 };
-
-// BUY-75921: per-row CASE on country_code -> expected currency; rows with NULL or
-// unmapped country, or NULL currency, are kept. Applied to the tier's
-// search_products candidates, the products archive baseConditions, and the sp-fallback;
-// NOT to per-country child tables (BUY-79497). Removed in dadb26c50 then restored
-// here to fix TS2305 — kept separate from the title-normalisation scope.
-export function marketCurrencyConsistencySql(alias: string): string {
-  const a = alias ? `${alias}.` : '';
-  const whens = Object.entries(COUNTRY_CURRENCY).map(([cc, cur]) => `WHEN '${cc}' THEN '${cur}'`).join(' ');
-  return `(${a}currency IS NULL OR ${a}currency = CASE ${a}country_code ${whens} ELSE ${a}currency END)`;
-}
 
 // BUY-72693: reject ASIN-derived image URLs from Amazon CDN.
 // Synthetic rows carry image URLs like:
@@ -144,81 +106,6 @@ export function regionForCountry(countryCode: string | null | undefined): string
   return null;
 }
 
-// BUY-75921: normalize product titles to remove keyword-stuffed strings.
-// V2 (2026-09-17): keep-prefix compositional approach. Marketplace listings stuff
-// spec sheets ("16GB RAM,1TB SSD,Win 11") and SEO tails ("for Business, College,
-// School, Photo Editing") after the brand + model. We keep the prefix up to the
-// first spec signal / marketing tail and lightly clean it. Short titles (≤40 chars)
-// are already clean and pass through untouched.
-const TITLE_SPEC_SIGNAL =
-  /(\d+(?:\.\d+)?\s*(?:"|inch|inches|gb|tb|mb|mhz|ghz|hz|wh|mah|tops|dpi|ppi)\b|\d{3,4}\s*[x×]\s*\d{3,4}|\(\s*\d|\[\s*\d|\b(?:win(?:dows)?\s*(?:10|11|xp|8|7)|android\s?\d|ios\s?\d|macos)\b|\b(?:intel|amd|nvidia|geforce|rtx|gtx|radeon|ryzen|core\s+(?:i\d|ultra)|celeron|pentium)\b|\b(?:fhd|qhd|uhd|4k|8k|retina|amoled|oled|ips|lcd)\b|\b(?:wifi|bluetooth)\s?\d|\bbacklit\b|\bfingerprint\b|\btouchscreen\b|\bwebcam\b|\b\d+mp\b|\bnfc\b|\bgps\b|\bhdmi\b|\busb\b|\beth(?:ernet)?\b|\bddr\d\b|\bssd\b|\bhdd\b)/i;
-const TITLE_TAIL_STUFF =
-  /\b(?:free\s+shipping|hot\s+sale|best\s+seller|new\s+arrival|limited\s+(?:offer|time)|exclusive|special\s+offer|promo(?:tion)?|clearance|in\s+stock|ships?\s|fast\s+(?:delivery|shipping)|same[-\s]?day|next[-\s]?day|\d+[-\s]?day\s+delivery|delivery|brand\s+new|factory\s+sealed|sealed\s+box|original|genuine|official|authorized|warranty|lifetime|for\s+(?:men|women|kids|children|students?|business|office|home\s+office|school|college|gaming|gamers?|work|travel|photography|photo\s+editing|video\s+editing|everyday)|suitable\s+for|ideal\s+for|perfect\s+for|designed\s+for|compatible\s+with|works?\s+with|built[-\s]in\s+mic|built[-\s]in\s+battery)\b/i;
-const TITLE_TRAIL_SPEC_SEG = /[,\s]+\d+(?:\.\d+)?\s*(?:"|inch|inches)?\s*(?=[,;\/]|$)/;
-const TITLE_SIZE_TOK = /\s+\d+(?:\.\d+)?\s*(?:"|inch|inches|-inch)\b/i;
-const TITLE_YEAR_SEG = /,\s*(?:19|20)\d{2}\s*$/;
-const TITLE_WITH_CLAUSE = /\s+with\s+[^,]+.*$/;
-const TITLE_FILLER_END = /\s+(?:pc|computer|notebook|laptop)\s*$/i;
-// Names that legitimately END in a model token we must not amputate (Gen 12, M3, Pro Max…)
-const TITLE_ENDS_IN_MODEL = /\s(?:gen(?:eration)?\s*\d+|m\d|a\d{2,3}|v\d+|max|pro|plus|ultra|xl|xxl)$/i;
-
-export function normalizeProductTitle(row: Record<string, unknown>): string {
-  const rawTitle = (row.title as string) || '';
-  if (!rawTitle) return '';
-  const t = rawTitle.trim();
-  // Already-clean short titles pass through (e.g. "MSI Cyborg15", "Hasee T8 Pro")
-  if (t.length <= 40) return t;
-
-  // 1. Cut at the first spec signal, preferring a nearby comma boundary so we
-  //    don't amputate mid-word ("...15.6 FHD Laptop" → cut before the size clause).
-  let cut = t.length;
-  const sig = t.match(TITLE_SPEC_SIGNAL);
-  if (sig && sig.index !== undefined) {
-    let idx = sig.index;
-    const commaBefore = t.lastIndexOf(',', idx);
-    if (commaBefore >= 0 && idx - commaBefore <= 12) idx = commaBefore;
-    if (!/^[,\s]/.test(sig[0]) && /^\d/.test(sig[0])) {
-      const commaAfter = t.indexOf(',', idx);
-      if (commaAfter > 0 && commaAfter - idx <= 12) idx = commaAfter;
-    }
-    cut = idx;
-  }
-  // 2. Cut at the first marketing/audience tail clause, wherever it starts.
-  const tail = t.match(TITLE_TAIL_STUFF);
-  if (tail && tail.index !== undefined) cut = Math.min(cut, tail.index);
-
-  let s = t.slice(0, cut);
-  s = s
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\s+([,;])/g, '$1')
-    .replace(/([,;])\s*/g, ', ')
-    .replace(/,\s*$/, '')
-    .trim();
-
-  // 3. Light cleanup — unless the kept prefix ends in a real model token.
-  if (!TITLE_ENDS_IN_MODEL.test(s)) {
-    for (let i = 0; i < 3; i++) {
-      const before = s;
-      s = s.replace(TITLE_WITH_CLAUSE, '').trim();
-      s = s.replace(TITLE_YEAR_SEG, '').trim();
-      s = s.replace(TITLE_TRAIL_SPEC_SEG, '').trim();
-      s = s.replace(TITLE_SIZE_TOK, '').trim();
-      s = s.replace(/[",.\s]+$/, '').trim();
-      if (s === before) break;
-    }
-    s = s.replace(TITLE_FILLER_END, '').trim();
-    s = s.replace(/[",.\s]+$/, '').trim();
-  } else {
-    s = s.replace(TITLE_WITH_CLAUSE, '').trim();
-    s = s.replace(/[",.\s]+$/, '').trim();
-  }
-
-  // 4. Never return a degenerate result — fall back to the original title.
-  if (!s || s.length < 8) return t;
-  if (s.split(/\s+/).length < 2) return t;
-  return s;
-}
-
 export function normalizeCategoryPath(row: Record<string, unknown>): string[] | null {
   const rawCategoryPath = row.category_path ?? (row.metadata as Record<string, unknown> | null | undefined)?.category_path;
   const rawCategory = row.category ?? (row.metadata as Record<string, unknown> | null | undefined)?.category;
@@ -249,6 +136,31 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
+// BUY-80652: filter REST fallback rows to native currency for the requested market.
+export function filterNativeCurrencyRows(rows: Record<string, unknown>[], country: string): Record<string, unknown>[] {
+  const expectedCurrency = COUNTRY_CURRENCY[country] || 'SGD';
+  return rows.filter((row) => {
+    const price = row.price;
+    let rowCurrency = '';
+    if (price && typeof price === 'object' && !Array.isArray(price)) {
+      const p = price as { currency?: string };
+      rowCurrency = (p.currency || '').toUpperCase();
+    }
+    // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
+    if (rowCurrency && rowCurrency !== expectedCurrency) return false;
+    return true;
+  });
+}
+
+export function extractRowCurrency(row: Record<string, unknown>): string {
+  const price = row.price;
+  if (price && typeof price === 'object' && !Array.isArray(price)) {
+    const p = price as { currency?: string };
+    return (p.currency || '').toUpperCase();
+  }
+  return '';
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -268,21 +180,11 @@ export function buildProduct(
     keyHash?: string | null;
   } | null,
 ): CanonicalProduct {
-  // BUY-80679 revisited (2026-09-05, BWEXT-78A3634B): stamping defaultCurrency over
-  // EVERY row threw away truth — verified against the store: newegg rows are USD and
-  // datablitz PHP in both products and search_products, yet responses labeled them
-  // SGD (a PHP 45,950 price served as SGD dollars). The contamination BUY-80679
-  // feared has a precise signature — SGD stamped on a row whose country_code is not
-  // SG (the SG/US ingest era bug) — so distrust exactly that case, not the column:
-  //   1. row currency, unless it is the contamination signature;
-  //   2. the row country's canonical currency;
-  //   3. the market default (old behavior) as last resort.
-  const rowCur = extractRowCurrency(row);
-  const rowCc = ((row.country_code as string) || '').toUpperCase();
-  const contaminated = rowCur === 'SGD' && rowCc !== '' && rowCc !== 'SG';
-  const currency = (rowCur && !contaminated ? rowCur : null)
-    || (rowCc && COUNTRY_CURRENCY[rowCc])
-    || defaultCurrency;
+  // BUY-80679: use the market's canonical currency as the authoritative value.
+  // The DB `currency` column is unreliable (partitions carry SGD contamination from
+  // the SG/US ingest era). `row.currency` must NOT override the market-default
+  // — otherwise MY serves SGD, TH serves SGD, GB serves USD, etc.
+  const currency = defaultCurrency;
   const amount = extractNumericPrice(row.price);
 
   // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
@@ -339,8 +241,7 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
-  const title = normalizeProductTitle(row);
-  const categoryPath = normalizeCategoryPath(row);
+  const title = row.title as string;
   const base: CanonicalProduct = {
     id: productId,
     title,
@@ -360,7 +261,7 @@ export function buildProduct(
       return rawRegion;
     })(),
     country_code: (row.country_code as string) || null,
-    category_path: categoryPath,
+    category_path: normalizeCategoryPath(row),
     updated_at: (row.updated_at as string) || null,
     // BUY-74689: merchant_id from the row, real storefront name from the batched
     // merchants lookup. `merchant` / `merchant_id` (platform slug) preserved for
@@ -614,9 +515,13 @@ export function deriveEmptiness(signals: EmptinessSignals): {
   // BUY-74597: timeout / auth failure / circuit open / upstream exception take
   // precedence over other empty-result heuristics. They always return
   // status=degraded, confidence=low, and a stage diagnostic.
+  // BUY-79931: timeout is degraded_kind only. P2.6 emptiness_reason enum
+  // is locked (no_data|no_match|api_error|quota|region_unsupported|
+  // category_unsupported|deliver_to_missing|invalid_deliver_to). Timeouts
+  // and infra failures map to api_error so REST and MCP share a class.
   if (signals.degradedKind === 'timeout' || signals.degradedKind === 'partial_timeout') {
     return {
-      emptiness_reason: signals.degradedKind,
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'degraded',
@@ -626,12 +531,12 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         timed_out_stage: signals.timedOutStage ?? null,
         ...baseDiag,
       },
-      degraded_kind: signals.degradedKind,
+      degraded_kind: signals.degradedKind === 'partial_timeout' ? 'partial_timeout' : 'timeout',
     };
   }
   if (signals.degradedKind === 'auth_failure') {
     return {
-      emptiness_reason: 'auth_failure',
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'error',

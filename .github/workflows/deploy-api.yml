@@ -66,30 +66,16 @@ jobs:
         env:
           SMOKE_KEY: ${{ secrets.SMOKE_KEY }}
         run: |
-          # Warm-up: Railway cold-starts can take 2–3 min under load.
-          # Probe the health endpoint first, then check for a 200 + product array.
-          sleep 90
+          sleep 60
           curl -sf https://api.buywhere.ai/health
-          echo ""
-          for i in $(seq 1 4); do
-            # q=laptop is the most catalogued term — 100k+ products, never empty.
-            # Accept: HTTP 200 AND a JSON array with at least one product object.
-            RESP=$(curl -s -m 15 -w "\n%{http_code}" \
-              "https://api.buywhere.ai/v1/products/search?q=laptop&limit=1" \
-              -H "Authorization: Bearer $SMOKE_KEY")
-            HTTP_CODE=$(echo "$RESP" | tail -1)
-            BODY=$(echo "$RESP" | sed '$d')
-            echo "[attempt $i] HTTP $HTTP_CODE, body length: ${#BODY}"
-            # Hard-fail on 500
-            [ "$HTTP_CODE" = "500" ] && { echo "::error::search returning 500"; exit 1; }
-            # Accept if we got a 200 with a products array containing at least one id
-            if [ "$HTTP_CODE" = "200" ] && echo "$BODY" | grep -q '"products"'; then
-              echo "Smoke test PASSED"
-              exit 0
-            fi
-            sleep 60
+          for i in $(seq 1 5); do
+            BODY=$(curl -s -m 15 "https://api.buywhere.ai/v1/products/search?q=nike&limit=3" -H "Authorization: Bearer $SMOKE_KEY")
+            echo "$BODY" | grep -q '"id"' && exit 0
+            CODE=$(curl -s -m 15 -o /dev/null -w "%{http_code}" "https://api.buywhere.ai/v1/products/search?q=nike&country_code=SG&limit=1" -H "Authorization: Bearer $SMOKE_KEY")
+            [ "$CODE" = "500" ] && { echo "::error::search returning 500"; exit 1; }
+            sleep 45
           done
-          echo "::error::search never returned a 200 with products within warm-up window"; exit 1
+          echo "::error::search never returned results within warm-up window"; exit 1
 
       - name: Auto-rollback on failure
         if: failure()
