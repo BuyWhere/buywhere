@@ -249,6 +249,29 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
   const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
 
   if (segments.length < 2) {
+    // BUY-75921 v7: hard length cap for single-segment titles.
+    // Even after forward + backward trim, spec-dump titles like
+    // "HP Omnibook 5 AI Laptop 16 inch 2K WUXGA 16GB RAM 512GB SSD Win 11 Home"
+    // (71 chars, no comma to split) return unchanged because trimTrailingGeneric
+    // walks forward from the first anchor and stops at "Laptop" (generic), keeping
+    // only ~21 chars — and backward trim finds no trailing generics either.
+    // Both trims return the same ~21-char result; the function picks it and returns
+    // it unchanged. The real fix: when single-segment title > 50 chars, force a
+    // backward scan that drops words from the END until the prefix is ≤50 chars.
+    // This handles both laptop spec-dumps and any earbuds strings that slip through.
+    if (rawTitle.length > 50) {
+      const words = rawTitle.split(/\s+/);
+      let endIdx = words.length;
+      let dropped = 0;
+      while (endIdx > 0 && dropped < 20 && words.slice(0, endIdx).join(' ').length > 50) {
+        endIdx--;
+        dropped++;
+      }
+      if (dropped > 0) {
+        const capped = words.slice(0, endIdx).join(' ');
+        if (capped.length >= 12) return capped;
+      }
+    }
     // Single segment: try forward trim first (anchor + accumulate forward).
     const trimmed = trimTrailingGeneric(rawTitle);
     // BUY-75921 v6: also try backward trim if forward trim didn't reduce the
