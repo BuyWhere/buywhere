@@ -63,7 +63,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
   return (
     <div
       className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
-        compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
+        compact ? "grid-rows-[auto_1fr] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
       {/*
@@ -95,7 +95,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         className={`block ${compact ? "" : "group-hover:opacity-95"}`}
       >
         <div
-          className={`relative isolate overflow-hidden bg-slate-100 ${compact ? "aspect-[4/3] min-w-0 max-w-full rounded-l-[27px]" : "aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]"}`}
+          className={`relative isolate overflow-hidden bg-slate-100 ${aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]}`}
           style={{ overflow: "hidden", maxWidth: "100%" }}
         >
           <ProductGridImage
