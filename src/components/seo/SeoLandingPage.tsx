@@ -265,7 +265,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                   // max-w-6xl / 1280+). min(100%,240px) avoids overflow on
                   // sub-240 viewports.
                   return (
-                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))]"}>
+                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),280px))]"}>
                       {displayProducts.map((product) => (
                         // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
                         <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
