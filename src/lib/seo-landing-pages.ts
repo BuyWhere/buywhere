@@ -2092,6 +2092,22 @@ export function buildSeoLandingMetadata(
   };
 }
 
+// BUY-83036: decode HTML entities before rendering product names into JSON-LD.
+// Scraper ingests &#8243; etc. verbatim; decode at render time so schema markup
+// and page text are clean.
+function decodeEntities(s: string): string {
+  return String(s || "")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[], dateModifiedIso?: string) {
   const canonical = toSiteUrl(config.canonicalPath);
   // BUY-66320: resolve the same hero title the page renders so the JSON-LD
@@ -2143,18 +2159,18 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     return {
       "@type": "Product",
       "@id": `${canonical}#product-${reference.id}`,
-      name: reference.name,
+      name: decodeEntities(reference.name),
       brand: reference.brand
         ? {
             "@type": "Brand",
-            name: reference.brand,
+            name: decodeEntities(reference.brand),
           }
         : undefined,
       category: reference.category || undefined,
       ...(schemaProductImage(reference.imageUrl)
         ? { image: schemaProductImage(reference.imageUrl) }
         : {}),
-      description: `${reference.name} price comparison across ${group.length} ${
+      description: `${decodeEntities(reference.name)} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
       // BUY-69663: aggregateRating intentionally absent. The previous block
@@ -2172,7 +2188,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: p.merchant,
+                name: decodeEntities(p.merchant),
               })),
             }
           : {
