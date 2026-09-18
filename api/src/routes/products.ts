@@ -8,7 +8,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, normalizeProductTitle } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -24,6 +24,25 @@ import { lookupMerchantMap } from '../lib/merchantLookup';
 import { semanticLookup as semLookup, semanticRegister as semRegister, semanticEnabled as semEnabled } from '../lib/semanticCache';
 
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+
+// BUY-75921: normalize titles in cached responses to strip keyword-stuffing.
+// Cache stores raw DB titles; this applies normalizeProductTitle to cached hits.
+const normalizeCachedTitles = (item: Record<string, unknown>): Record<string, unknown> => {
+  const title = (item.title as string) || (item.name as string) || '';
+  if (!title) return item;
+  const normalized = normalizeProductTitle({ title });
+  if (normalized !== title) {
+    return { ...item, title: normalized, name: normalized };
+  }
+  return item;
+};
+
+const normalizeCachedResponse = (parsed: Record<string, unknown>): void => {
+  const itemKey = parsed.data ? 'data' : parsed.products ? 'products' : parsed.results ? 'results' : null;
+  if (itemKey && Array.isArray(parsed[itemKey])) {
+    (parsed as Record<string, unknown>)[itemKey] = (parsed[itemKey] as Record<string, unknown>[]).map(normalizeCachedTitles);
+  }
+};
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -853,6 +872,8 @@ router.get(
       if (cached) {
         res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
+        // BUY-75921: normalize cached titles to strip keyword-stuffing
+        normalizeCachedResponse(parsed);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
         recordProductViewsBulk({
           productIds: (parsed.data || parsed.products || parsed.results || [])
@@ -1164,6 +1185,8 @@ router.get(
       if (cached) {
         res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
+        // BUY-75921: normalize cached titles to strip keyword-stuffing
+        normalizeCachedResponse(parsed);
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
@@ -2199,6 +2222,8 @@ router.get(
       if (cached) {
         res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
+        // BUY-75921: normalize cached titles to strip keyword-stuffing
+        normalizeCachedResponse(parsed);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
         annotateDeliverTo(parsed as Record<string, unknown>, deliverTo, includeUnshippable, ''); // F24b
@@ -2777,6 +2802,8 @@ router.get(
       if (cached) {
         res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
+        // BUY-75921: normalize cached titles to strip keyword-stuffing
+        normalizeCachedResponse(parsed);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
         recordProductViewsBulk({
