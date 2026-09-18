@@ -1,3 +1,4 @@
+// tweak 1
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildAnswerBlock, type LandingProduct } from "@/lib/seo-landing-pages";
@@ -109,6 +110,44 @@ test("buildAnswerBlock renders SG currency formatting", () => {
   assert.match(result.text, /S\$1,000/);
   // Country in the verdict.
   assert.match(result.text, /in SG today/);
+});
+
+test("buildAnswerBlock drops extreme outliers above 3x median (BUY-83035)", () => {
+  // Median of [70,100,120,3299] sorted = (100 + 120) / 2 = 110. 3x = 330.
+  // 3299 is way above 330 so it must be dropped. Verdict must name the
+  // surviving retailers and never name a S$3,299 row.
+  const products = [
+    product("Widget A", 70, "shopee_sg"),
+    product("Widget B", 100, "lazada_sg"),
+    product("Widget C", 120, "amazon_sg"),
+    product("Widget D (outlier)", 3299, "crazy_store_sg"),
+  ];
+  const result = buildAnswerBlock(
+    { searchQuery: "Widget", country: "SG", currency: "SGD" },
+    products,
+    checked,
+  );
+  assert.ok(result, "expected answer block to render");
+  // 4 priced rows in, 1 outlier dropped → 3 retailers remain.
+  assert.equal(result.retailerCount, 3);
+  // Cheapest and next-prices come from the filtered set.
+  assert.equal(result.cheapestPrice, 70);
+  assert.equal(result.nextPrice, 100);
+  // Verdict text never names the 3,299 row.
+  assert.ok(
+    !/3,299|3299/.test(result.text),
+    `outlier price leaked into verdict text: ${result.text}`,
+  );
+  // And never names the outlier merchant.
+  assert.ok(
+    !/crazy_store/i.test(result.text),
+    `outlier merchant leaked into verdict text: ${result.text}`,
+  );
+  // The surviving retailers do appear.
+  assert.match(result.text, /Shopee/i);
+  assert.match(result.text, /Lazada/i);
+  // Range line (sentenceThree) uses 120 as the high-water mark, NOT 3,299.
+  assert.match(result.text, /S\$120/);
 });
 
 test("buildAnswerBlock word count is in the 40-60 range", () => {
