@@ -53,7 +53,7 @@ export function HomeProductSearch() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mb-10">
+    <div className="max-w-3xl mx-auto mb-10 px-4 sm:px-0" style={{ boxSizing: 'border-box', maxWidth: 'calc(100% - 2rem)' }}>
       <form
         onSubmit={handleSubmit}
         className="grid gap-3"
