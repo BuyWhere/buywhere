@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:gap-2 md:flex-row md:items-stretch md:gap-3 max-md:pb-safe">
+        <div className="flex flex-col gap-3 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:gap-2 md:flex-row md:items-stretch md:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
@@ -113,8 +113,8 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex max-w-full min-w-0 flex-row flex-nowrap items-center justify-start gap-2 overflow-x-auto px-2 text-sm text-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="shrink-0 self-center whitespace-nowrap font-semibold text-white/90">Try:</span>
+            <div className="flex flex-row flex-nowrap items-center justify-start gap-2 text-sm text-white px-2 overflow-x-auto">
+              <span className="font-semibold text-white/90 self-center">Try:</span>
               {exampleQueries.map((example) => (
                 <button
                   key={example}
@@ -123,7 +123,7 @@ export function HomeProductSearch() {
                     setQuery(example);
                     submitQuery(example);
                   }}
-                  className="shrink-0 whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 text-xs font-semibold leading-tight text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
                 >
                   {example}
                 </button>
