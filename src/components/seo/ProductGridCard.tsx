@@ -112,7 +112,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         </div>
       </a>
 
-      <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-5"}`}>
+      <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-4 sm:p-5"}`}>
         <a
           href={affiliateHref}
           onClick={handleAffiliateClick}
@@ -138,7 +138,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
           aria-label={`Buy ${product.name} at ${product.merchant}`}
         >
           <div className="space-y-2">
-            <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
+            <h2 className="line-clamp-3 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
               {product.name}
             </h2>
             {product.brand ? (
