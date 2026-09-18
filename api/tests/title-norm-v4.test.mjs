@@ -1,11 +1,12 @@
 import { normalizeProductTitle } from '../src/lib/response.ts';
 
-// BUY-75921 v5: single-segment trimming added. Tests cover:
-//   - Multi-segment comma/pipe titles (original v4 path)
-//   - Single-segment long titles (NEW v5 path — live catalog has no commas)
+// BUY-75921 v6: layered normalization. Tests cover:
+//   - Multi-segment comma/pipe titles (v4 path) + v6 long-stuffing segment drop
+//   - Single-segment long titles: forward trim + backward trim take the shorter
 //   - Brand cluster accumulation (B&W stays intact)
 //   - Short titles (pass through unchanged)
 //   - Degenerate guard (fallback to raw on bad trim)
+//   - Live QA-titled strings (BUSFUIVA, Xmenha Sleep live, etc.)
 const cases = [
   // === Multi-segment (v4 path) ===
   ['LUDOS FEROX 2 Pack Wired Earbuds in-Ear Headphones, 5 Years Warranty, Wired Earbuds with Microphone, Earbuds Stereo, Noise Isolating',
@@ -48,12 +49,14 @@ const cases = [
     t => t === 'Sony WH-1000XM5',
     'model-only title untouched'],
 
-  // === Single-segment (v5 path — live catalog) ===
-  // E6S: no comma to split, but head contains brand "E6S" — no generic filler
-  // after it, so the single-segment path keeps the whole title (degenerate guard).
+  // === Single-segment (v5 + v6 path — live catalog) ===
+  // E6S: no comma to split. Forward trim stops at "Wireless" (generic).
+  // Backward trim (v6) drops the trailing 8-generic tail
+  // ("Earbuds Noise Cancelling Earphones with Microphone Headphones") but
+  // caps at "Headset" to preserve the brand+model anchor.
   ['E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds Noise Cancelling Earphones with Microphone Headphones',
-    t => t.length >= 40,
-    'E6S: no comma, no filler after anchor → kept as-is'],
+    t => t.startsWith('E6S') && t.length < 70,
+    'E6S: backward trim drops trailing generics, preserves anchor'],
 
   // TOZO: comma exists → multi-segment path → head trimmed to TOZO T10 True
   ['TOZO T10 True Wireless Bluetooth 5.3 Earbuds, IPX8 Waterproof, Stereo Call, USB-C, 40H Playtime',
@@ -80,6 +83,31 @@ const cases = [
   ['ABC Wireless Earbuds',
     t => t.length >= 12,
     'degenerate guard: result < 12 chars → fallback to raw'],
+
+  // === v6 NEW: live-catalog stuffed titles from QA re-verification ===
+  // Xmenha Sleep live (115 chars, comma split, mid-stuffing segment).
+  // v6 long-stuffing drop: 11-word "Comfortable Low Profile...Bluetooth"
+  // segment with ≥2 generics → dropped.
+  ['Xmenha Sleep, Comfortable Low Profile Small Tiny Discreet Micro Hidden Earbuds Wireless Bluetooth, Small Ear Canals',
+    t => t.startsWith('Xmenha Sleep') && t.length < 50,
+    'live Xmenha Sleep (2026-09-18 QA): long stuffing segment dropped'],
+
+  // BUSFUIVA Beats: single-segment 109 chars, backward trim drops
+  // "Wireless Headset" from the end, preserving "PA-BT05" model anchor.
+  ['BUSFUIVA Beats Studio 3.0 Updated AEC643333 Battery Compatible with Beats Studio 2.0 PA-BT05 Wireless Headset',
+    t => t.length < 110 && t.startsWith('BUSFUIVA'),
+    'live BUSFUIVA Beats (2026-09-18 QA): backward trim drops tail'],
+
+  // Long "(Red)" tail: backward trim strips parenthetical then drops trailing
+  // generics.
+  ['Ear buds Wireless Earbuds Bluetooth 5.3 Headphones 60hrs Playtime with Digital Display Sports Wireless Headphones with Earhook Deep Bass IPX7 Waterproof Over-Ear Earbuds for Android iOS Workout (Red)',
+    t => t.length < 200 && !t.includes('(Red)') && t.startsWith('Ear buds'),
+    'live "(Red)" tail: parenthetical stripped + generics dropped'],
+
+  // Two Pairs: comma → head trim → "Two Pairs Wireless Earbuds" (26 chars).
+  ['Two Pairs Wireless Earbuds, Bluetooth 5.5 Headphones HIFI Bass Stereo Ear Buds, LED Display Power in Ear Earphones Waterproof 120H Playtime',
+    t => t.startsWith('Two Pairs Wireless Earbuds'),
+    'live Two Pairs (2026-09-18 QA): head trim only'],
 ];
 
 let pass = 0;

@@ -249,9 +249,34 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
   const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
 
   if (segments.length < 2) {
-    // Single segment: trim trailing generic appendages.
+    // Single segment: try forward trim first (anchor + accumulate forward).
     const trimmed = trimTrailingGeneric(rawTitle);
-    return trimmed.length < 12 ? rawTitle : trimmed;
+    // BUY-75921 v6: also try backward trim if forward trim didn't reduce the
+    // title. Walks backward dropping generic-only words until a non-generic
+    // word stops it. Catches "BUSFUIVA Beats Studio ... PA-BT05 Wireless
+    // Headset" → drop "Wireless Headset" from the end. Capped at 8 drops.
+    // First strips trailing parenthetical (color/condition) like "(Red)".
+    const backTrim = (() => {
+      let base = rawTitle.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      if (base.length < 12) base = rawTitle;
+      const words = base.split(/\s+/);
+      if (words.length <= 4) return base;
+      let endIdx = words.length;
+      let dropped = 0;
+      while (endIdx > 0 && dropped < 8) {
+        const w = words[endIdx - 1];
+        if (!isGenericToken(w)) break;
+        endIdx--;
+        dropped++;
+      }
+      if (endIdx === words.length || endIdx === 0) return base;
+      const r = words.slice(0, endIdx).join(' ');
+      return r.length < 12 ? base : r;
+    })();
+    // Pick the shortest reasonable result. Guard against degenerate outputs.
+    const candidates = [trimmed, backTrim].filter(t => t.length >= 12 && t.length <= rawTitle.length);
+    if (candidates.length === 0) return rawTitle;
+    return candidates.reduce((a, b) => (a.length <= b.length ? a : b));
   }
 
   // Multi-segment: trim the head segment, then apply trailing-segment drop logic.
@@ -271,7 +296,13 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
     if (!segText) continue;
     const keptWords = segText.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
     const keptBrandish = segText.split(/\s+/).some(w => isBrandish(w));
-    if (dupOfHead || (!keptBrandish && keptWords.length <= 4)) continue;
+    // BUY-75921 v6: drop segments that are long keyword-stuffing descriptions
+    // (>8 words) AND contain ≥2 generic fillers. They read as filler, not as
+    // identity. Real product segments are short ("IPX8 Waterproof") or
+    // generic-light ("Sony WF-1000XM5"). Short 2-8 word segments unaffected.
+    const keptGenerics = keptWords.filter(w => GENERIC_WORDS.has(w)).length;
+    const isLongStuffing = keptWords.length > 8 && keptGenerics >= 2;
+    if (dupOfHead || (!keptBrandish && keptWords.length <= 4) || isLongStuffing) continue;
     kept.push(segText);
   }
 
