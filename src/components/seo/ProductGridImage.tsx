@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+import { decodeHtmlEntities } from "@/lib/html-entities";
 
 interface ProductGridImageProps {
   src: string;
@@ -104,7 +105,8 @@ function clientCategorySilhouette(category?: string | null, alt?: string | null)
 }
 
 function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; brand?: string | null; merchant?: string; category?: string | null }) {
-  const clean = (s: string) => String(s).replace(/[<>&"']/g, "").trim();
+  // BUY-83036: decode HTML entities before sanitizing for SVG
+  const clean = (s: string) => decodeHtmlEntities(String(s)).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(alt).slice(0, 26) || categoryText;

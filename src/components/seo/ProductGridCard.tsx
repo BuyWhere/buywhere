@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { captureProductCardClick } from "@/lib/posthog-client";
+import { decodeHtmlEntities } from "@/lib/html-entities";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
 
 function formatPrice(price: number | null, currency: string) {
@@ -19,6 +20,10 @@ function formatPrice(price: number | null, currency: string) {
 }
 
 export function ProductGridCard({ product, compact = false, pathname }: { product: LandingProduct; compact?: boolean; pathname?: string | null }) {
+  // BUY-83036: decode HTML entities in product name/brand before rendering
+  const decodedName = decodeHtmlEntities(decodedName);
+  const decodedBrand = decodeHtmlEntities(product.brand || "");
+
   // BUY-76340 / BUY-75417: the whole card must lead to a server-rendered,
   // crawlable affiliate redirect so AI crawlers (GPTBot, ClaudeBot) and real
   // users both earn commission (target 10K affiliate clicks/day from intent
@@ -91,7 +96,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         onClick={handleAffiliateClick}
         target="_blank"
         rel="noopener noreferrer nofollow sponsored"
-        aria-label={`Buy ${product.name} at ${product.merchant}`}
+        aria-label={`Buy ${decodedName} at ${product.merchant}`}
         className={`block ${compact ? "" : "group-hover:opacity-95"}`}
       >
         <div
@@ -100,8 +105,8 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         >
           <ProductGridImage
             src={product.imageUrl || ""}
-            alt={product.name}
-            brand={product.brand}
+            alt={decodedName}
+            brand={decodedBrand}
             merchant={product.merchant}
             // BUY-69167: thread the page-resolved category through to the
             // client fallback so the onError placeholder matches the data-
@@ -118,7 +123,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
           target="_blank"
           rel="noopener noreferrer nofollow sponsored"
           className="block"
-          aria-label={`Buy ${product.name} at ${product.merchant}`}
+          aria-label={`Buy ${decodedName} at ${product.merchant}`}
         >
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
             <span className="rounded-full bg-slate-100 px-2.5 py-1">
@@ -134,14 +139,14 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
           target="_blank"
           rel="noopener noreferrer nofollow sponsored"
           className="block"
-          aria-label={`Buy ${product.name} at ${product.merchant}`}
+          aria-label={`Buy ${decodedName} at ${product.merchant}`}
         >
           <div className="space-y-2">
             <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
-              {product.name}
+              {decodedName}
             </h2>
-            {product.brand ? (
-              <p className="text-sm text-slate-600">{product.brand}</p>
+            {decodedBrand ? (
+              <p className="text-sm text-slate-600">{decodedBrand}</p>
             ) : null}
           </div>
         </a>

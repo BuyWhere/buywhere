@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { isHotlinkBlockedHostname, viaImageProxy } from "@/lib/hotlink-hosts";
 import { toSiteUrl } from "@/lib/site-url";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+import { decodeHtmlEntities } from "@/lib/html-entities";
 import {
   type CountryCode,
   containsDisallowedMerchantText,
@@ -754,7 +755,7 @@ function brandedProductPlaceholderSvg(
   name?: string | null,
   category?: string | null,
 ): string {
-  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  const clean = (s: string) => decodeHtmlEntities(s).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 36) || categoryText;
