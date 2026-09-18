@@ -7,18 +7,6 @@ import { captureProductCardClick } from "@/lib/posthog-client";
 import { buyAtCtaLabel } from "@/lib/merchant-name";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
 
-// BUY-83036: decode HTML entities that leak from upstream product titles
-function decodeHtmlEntities(str: string): string {
-  return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
-}
-
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
     return "Price unavailable";
@@ -73,9 +61,6 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
     fireProductCardPosthog(e.currentTarget.href);
   }
 
-  // BUY-83036: decode HTML entities in product name for display
-  const decodedName = decodeHtmlEntities(product.name);
-
   return (
     <div
       className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
@@ -107,7 +92,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         onClick={handleAffiliateClick}
         target="_blank"
         rel="noopener noreferrer nofollow sponsored"
-        aria-label={`Buy ${decodedName} at ${product.merchant}`}
+        aria-label={`Buy ${product.name} at ${product.merchant}`}
         className={`block ${compact ? "" : "group-hover:opacity-95"}`}
       >
         <div
@@ -116,7 +101,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         >
           <ProductGridImage
             src={product.imageUrl || ""}
-            alt={decodedName}
+            alt={product.name}
             brand={product.brand}
             merchant={product.merchant}
             // BUY-69167: thread the page-resolved category through to the
@@ -127,14 +112,14 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         </div>
       </a>
 
-      <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-5"}`}>
+      <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-4 sm:p-5"}`}>
         <a
           href={affiliateHref}
           onClick={handleAffiliateClick}
           target="_blank"
           rel="noopener noreferrer nofollow sponsored"
           className="block"
-          aria-label={`Buy ${decodedName} at ${product.merchant}`}
+          aria-label={`Buy ${product.name} at ${product.merchant}`}
         >
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
             <span className="rounded-full bg-slate-100 px-2.5 py-1">
@@ -150,11 +135,11 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
           target="_blank"
           rel="noopener noreferrer nofollow sponsored"
           className="block"
-          aria-label={`Buy ${decodedName} at ${product.merchant}`}
+          aria-label={`Buy ${product.name} at ${product.merchant}`}
         >
           <div className="space-y-2">
-            <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
-              {decodedName}
+            <h2 className="line-clamp-3 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
+              {product.name}
             </h2>
             {product.brand ? (
               <p className="text-sm text-slate-600">{product.brand}</p>
