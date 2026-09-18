@@ -1,8 +1,9 @@
 import { normalizeProductTitle } from '../src/lib/response.ts';
 
-// BUY-75921 v6: layered normalization. Tests cover:
+// BUY-75921 v7: layered normalization. Tests cover:
 //   - Multi-segment comma/pipe titles (v4 path) + v6 long-stuffing segment drop
 //   - Single-segment long titles: forward trim + backward trim take the shorter
+//   - v7: hard 50-char cap for single-segment titles >50 chars (laptop spec-dumps)
 //   - Brand cluster accumulation (B&W stays intact)
 //   - Short titles (pass through unchanged)
 //   - Degenerate guard (fallback to raw on bad trim)
@@ -108,6 +109,34 @@ const cases = [
   ['Two Pairs Wireless Earbuds, Bluetooth 5.5 Headphones HIFI Bass Stereo Ear Buds, LED Display Power in Ear Earphones Waterproof 120H Playtime',
     t => t.startsWith('Two Pairs Wireless Earbuds'),
     'live Two Pairs (2026-09-18 QA): head trim only'],
+
+  // === v7: laptop single-segment spec-dumps (BUY-75921 re-regression 2026-09-18) ===
+  // No commas → multi-segment path bypassed. Forward trim stops at "Laptop" (generic).
+  // Backward trim finds no trailing generics. Both trims return same ~21-char result →
+  // function returns it unchanged. v7 hard cap drops from end until prefix ≤50.
+  ['HP Omnibook 5 AI Laptop 16 inch 2K WUXGA 16GB RAM 512GB SSD Win 11 Home',
+    t => t.startsWith('HP Omnibook 5 AI Laptop') && t.length <= 50,
+    'HP Omnibook single-seg: v7 hard cap at 50'],
+
+  // Live API result: single-segment 119-char spec dump. v7 drops to 44 chars.
+  ['HP DK4Q5AT laptop Intel Core Ultra 7 33.8 cm (13.3") WUXGA 16 GB LPDDR5x-SDRAM 512 GB SSD Wi-Fi 7 (802.11be) Windows 11',
+    t => t.startsWith('HP DK4Q5AT') && t.length <= 50,
+    'HP DK4Q5AT live API: v7 hard cap at 50'],
+
+  // Victus: single-segment gaming laptop. v7 drops the spec tail.
+  ['Victus 15-FA2728TX Gaming 15.6" FHD (1920x1080) IPS 144Hz Intel Core i5-13420H NVIDIA RTX 4050',
+    t => t.startsWith('Victus') && t.length <= 50,
+    'Victus gaming single-seg: v7 hard cap'],
+
+  // Samsung Galaxy Book 4: single-segment 69 chars. v7 caps at 50.
+  ['Samsung Galaxy Book 4 NP750XGK-KG2US 15.6" FHD Intel Core 7 256GB SSD',
+    t => t.startsWith('Samsung Galaxy Book 4') && t.length <= 50,
+    'Samsung Galaxy Book 4 single-seg: v7 hard cap'],
+
+  // Boundary: exactly 49 chars — should NOT be capped (v7 triggers at >50)
+  ['HP Omnibook 5 AI Laptop 16 inch 2K WUXGA 16GB RAM',
+    t => t.length === 49,
+    '49-char boundary: unchanged (v7 triggers at >50 only)'],
 ];
 
 let pass = 0;
