@@ -3,19 +3,6 @@
 import { useState } from "react";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
-// BUY-83036: decode HTML entities that leak from upstream product titles
-// (e.g. "&#8243;" → '"'). Handles numeric entities (&#NNN;) and hex (&#xHH;).
-function decodeHtmlEntities(str: string): string {
-  return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
-}
-
 interface ProductGridImageProps {
   src: string;
   alt: string;
@@ -117,7 +104,20 @@ function clientCategorySilhouette(category?: string | null, alt?: string | null)
 }
 
 function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; brand?: string | null; merchant?: string; category?: string | null }) {
-  const clean = (s: string) => decodeHtmlEntities(String(s)).replace(/[<>&"']/g, "").trim();
+  // Decode common HTML entities (&#8243;, &#8217;, etc.) before stripping HTML-special chars.
+  // Mirrors the decodeEntities helper in seo-landing-pages.ts brandedProductPlaceholderSvg.
+  const decodeEntities = (s: string) =>
+    String(s)
+      .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'");
+  const clean = (s: string) => decodeEntities(s).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(alt).slice(0, 26) || categoryText;

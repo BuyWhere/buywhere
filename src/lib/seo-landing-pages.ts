@@ -754,7 +754,19 @@ function brandedProductPlaceholderSvg(
   name?: string | null,
   category?: string | null,
 ): string {
-  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  // Decode common HTML numeric entities (&#8243; = ″ double-prime/inch, &#8217; = right single quote, etc.)
+  // before stripping HTML-special chars. Covers entities the scraper ingests verbatim from upstream merchant pages.
+  const decodeEntities = (s: string) =>
+    s.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+     .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+     .replace(/&nbsp;/g, " ")
+     .replace(/&amp;/g, "&")
+     .replace(/&lt;/g, "<")
+     .replace(/&gt;/g, ">")
+     .replace(/&quot;/g, '"')
+     .replace(/&#39;/g, "'")
+     .replace(/&apos;/g, "'");
+  const clean = (s: string) => decodeEntities(s).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 36) || categoryText;
@@ -14259,38 +14271,6 @@ function shortMerchant(value: string): string {
   return stripMerchantTenantSuffix(value).replace(/\s+store$/i, "").trim() || "a retailer";
 }
 
-// BUY-83035: Helper to calculate median price for outlier detection
-function getMedianPrice(prices: number[]): number {
-  if (prices.length === 0) return 0;
-  const sorted = [...prices].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-// BUY-83035: Filter price outliers using median-based threshold
-// Excludes products with prices exceeding thresholdMultiplier * median
-function filterPriceOutliers<T extends { price: number }>(
-  items: T[],
-  thresholdMultiplier: number = 3,
-): T[] {
-  if (items.length < 3) return items; // Need at least 3 for meaningful median
-
-  const prices = items.map((i) => i.price);
-  const median = getMedianPrice(prices);
-  if (median === 0) return items;
-
-  const threshold = median * thresholdMultiplier;
-  const filtered = items.filter((item) => item.price <= threshold);
-
-  // If filtering removes too many items, fall back to original list
-  // to avoid over-filtering on small datasets
-  if (filtered.length < 2) return items;
-
-  return filtered;
-}
-
 export function buildAnswerBlock(
   config: Pick<SeoLandingPageConfig, "searchQuery" | "country" | "currency">,
   products: LandingProduct[],
@@ -14316,13 +14296,7 @@ export function buildAnswerBlock(
       byMerchant.set(key, row);
     }
   }
-  let ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
-
-  // BUY-83035: Filter price outliers before building the answer block.
-  // A price exceeding 3x the median is likely a data error (wrong currency,
-  // scrape error, or bad product mapping). This prevents misleading "cheapest"
-  // claims like "S$70 cheapest vs S$3,299" when S$3,299 is clearly erroneous.
-  ranked = filterPriceOutliers(ranked, 3);
+  const ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
 
   if (ranked.length < 2) {
     // Need at least two distinct priced retailers to honestly name a "next retailer"
