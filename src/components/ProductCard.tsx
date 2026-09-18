@@ -14,6 +14,18 @@ import { usePathname } from 'next/navigation';
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from '@/lib/click-attribution';
 import { captureProductCardClick } from '@/lib/posthog-client';
 
+// BUY-83036: decode HTML entities that leak from upstream product titles
+function decodeHtmlEntities(str: string): string {
+  return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 interface ProductCardProps {
   deal: {
     id: number;
@@ -146,6 +158,9 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
   // BUY-79361: SSR ?pathname= so source_page is set on non-intent surfaces.
   const redirectHref = buildAffiliateRedirectUrl(deal.id, pathname) || deal.url;
 
+  // BUY-83036: decode HTML entities in product name for display
+  const decodedName = decodeHtmlEntities(deal.name);
+
   return (
     <a
       href={redirectHref}
@@ -159,8 +174,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
       }}
       target="_blank"
       rel="noopener noreferrer nofollow sponsored"
-      title={deal.name}
-      aria-label={`View deal: ${deal.name} from ${deal.merchant}`}
+      title={decodedName}
+      aria-label={`View deal: ${decodedName} from ${deal.merchant}`}
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"
     >
       <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1/1'}}>
@@ -168,7 +183,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
           {deal.image_url ? (
             <Image
               src={deal.image_url}
-              alt={deal.name}
+              alt={decodedName}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className="object-contain"
@@ -217,8 +232,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
           <ShareDealActions
             variant="menu"
             productId={deal.id}
-            productName={deal.name}
-            productUrl={`/products/us/${buildUSProductSlug({ id: String(deal.id), name: deal.name })}/`}
+            productName={decodedName}
+            productUrl={`/products/us/${buildUSProductSlug({ id: String(deal.id), name: decodedName })}/`}
             merchant={deal.merchant}
             priceText={formatUSD(deal.price)}
           />
@@ -231,11 +246,11 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
       </div>
       <div className="p-4">
         <h3
-          title={deal.name}
-          aria-label={deal.name}
+          title={decodedName}
+          aria-label={decodedName}
           className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 group-hover:text-indigo-600 transition-colors"
         >
-          {deal.name}
+          {decodedName}
         </h3>
         <div className="mb-2 flex flex-col items-start gap-0.5">
           <MerchantBadge

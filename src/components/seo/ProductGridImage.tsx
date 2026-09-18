@@ -3,6 +3,19 @@
 import { useState } from "react";
 import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
+// BUY-83036: decode HTML entities that leak from upstream product titles
+// (e.g. "&#8243;" → '"'). Handles numeric entities (&#NNN;) and hex (&#xHH;).
+function decodeHtmlEntities(str: string): string {
+  return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 interface ProductGridImageProps {
   src: string;
   alt: string;
@@ -104,7 +117,7 @@ function clientCategorySilhouette(category?: string | null, alt?: string | null)
 }
 
 function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; brand?: string | null; merchant?: string; category?: string | null }) {
-  const clean = (s: string) => String(s).replace(/[<>&"']/g, "").trim();
+  const clean = (s: string) => decodeHtmlEntities(String(s)).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(alt).slice(0, 26) || categoryText;
