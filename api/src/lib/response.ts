@@ -136,7 +136,7 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
-// BUY-75921 v5: normalize product titles to remove keyword-stuffed strings.
+// BUY-75921 v9: normalize product titles to remove keyword-stuffed strings.
 // v4 (fc4116ccc): comma/pipe-segment filtering only. Failed because live catalog
 // titles have NO commas — single continuous strings like
 // "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds
@@ -305,9 +305,42 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
 
   // Multi-segment: trim the head segment, then apply trailing-segment drop logic.
   const rawHead = cutPrepTail(segments[0]);
-  const trimmedHead = trimTrailingGeneric(rawHead);
+  const forwardHead = trimTrailingGeneric(rawHead);
+  // BUY-75921 v8: apply backward trim to multi-segment heads too.
+  // "TOZO T10 Wireless Earbuds Bluetooth 5.3 Headphones" → forward trim finds T10
+  // anchor then stops at "Wireless" (generic) → keeps "T10" (3 chars) → returns
+  // original due to <12-char guard. Backward trim drops generic words from the end,
+  // keeping "TOZO T10". Pick the shorter reasonable result.
+  const backTrimHead = (() => {
+    let base = rawHead.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (base.length < 12) base = rawHead;
+    const words = base.split(/\s+/);
+    if (words.length <= 4) return base;
+    let endIdx = words.length;
+    let dropped = 0;
+    while (endIdx > 0 && dropped < 8) {
+      const w = words[endIdx - 1];
+      if (!isGenericToken(w)) break;
+      endIdx--;
+      dropped++;
+    }
+    if (endIdx === words.length || endIdx === 0) return base;
+    const r = words.slice(0, endIdx).join(' ');
+    // BUY-75921 v8: if trimmed result is short but has ≥2 meaningful words (brand+model),
+    // return it and let the downstream filter decide.
+    if (r.length < 12 && endIdx >= 2) return r;
+    return r.length < 12 ? base : r;
+  })();
+  const trimmedHead = [forwardHead, backTrimHead]
+    .filter(t => t.length >= 8 && t.length <= rawHead.length && t.split(/\s+/).length >= 2)
+    .reduce((a, b) => (a.length <= b.length ? a : b), rawHead);
 
   const kept = [trimmedHead];
+  // BUY-75921 v9: more aggressive trailing segment drop. If head segment is clean
+  // (brand+model), drop ALL trailing comma segments that are pure generic filler.
+  // "LUDOS FEROX 2 Pack Wired Earbuds in-Ear Headphones, 5 Year Warranty, Noise Isolation"
+  // → head="LUDOS FEROX 2 Pack Wired Earbuds", drop "5 Year Warranty" and "Noise Isolation"
+  const headHasContent = trimmedHead.split(/\s+/).length >= 2;
   for (let i = 1; i < segments.length; i++) {
     const seg = segments[i];
     const words = seg.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
@@ -321,16 +354,29 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
     const keptWords = segText.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
     const keptBrandish = segText.split(/\s+/).some(w => isBrandish(w));
     // BUY-75921 v6: drop segments that are long keyword-stuffing descriptions
-    // (>8 words) AND contain ≥2 generic fillers. They read as filler, not as
-    // identity. Real product segments are short ("IPX8 Waterproof") or
-    // generic-light ("Sony WF-1000XM5"). Short 2-8 word segments unaffected.
+    // (>8 words) AND contain ≥2 generic fillers.
     const keptGenerics = keptWords.filter(w => GENERIC_WORDS.has(w)).length;
     const isLongStuffing = keptWords.length > 8 && keptGenerics >= 2;
-    if (dupOfHead || (!keptBrandish && keptWords.length <= 4) || isLongStuffing) continue;
+    // BUY-75921 v8: drop segments that are pure keyword stuffing:
+    // no model token, no IPX rating, and generic words dominate (>50%).
+    // "App Customize EQ" → generic=3, words=3, no model, no IPX → stuffing
+    // "Ergonomic Design" → generic=2, words=2, no model, no IPX → stuffing
+    // "IPX8 Waterproof" → has IPX → keep
+    // "Sony WF-1000XM5" → has model token → keep
+    const segWordList = segText.split(/\s+/);
+    const hasModelToken = segWordList.some(w => isModelToken(w));
+    const hasIpx = segWordList.some(w => /^ipx?\d/i.test(w));
+    const nonGenericWords = keptWords.filter(w => !GENERIC_WORDS.has(w));
+    const isStuffing = !hasModelToken && !hasIpx && nonGenericWords.length > 0 && keptGenerics / keptWords.length > 0.5;
+    // BUY-75921 v9: if head has real content and this segment is pure generic (≥80% generic words), drop it
+    const isPureGeneric = headHasContent && keptWords.length > 0 && keptGenerics / keptWords.length >= 0.8;
+    if (dupOfHead || (!keptBrandish && keptWords.length <= 4) || isLongStuffing || isStuffing || isPureGeneric) continue;
     kept.push(segText);
   }
 
-  const cleaned = kept.join(', ');
+  // BUY-75921 v9: strip dangling punctuation from final output.
+  // ", Black)" → ", Black" ; "Headphones)" → "Headphones"
+  const cleaned = kept.join(', ').replace(/[),;:]+\s*$/, '').replace(/\s+,/g, ',');
   if (cleaned.length < 12) return rawTitle;
   return cleaned;
 }
