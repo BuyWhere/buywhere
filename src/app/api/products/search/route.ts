@@ -220,6 +220,85 @@ function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: s
   });
 }
 
+// BUY-75921: normalizeProductTitle — same logic as api/src/lib/response.ts
+// to strip keyword-stuffed appendages from product titles.
+function normalizeProductTitle(row: Record<string, unknown>): string {
+  const rawTitle = ((row.title as string) || (row.name as string) || '').replace(/\s+/g, ' ').trim();
+  if (rawTitle.length <= 40) return rawTitle;
+
+  const GENERIC_WORDS = new Set([
+    'earbuds', 'earphones', 'headphones', 'headset', 'buds', 'ear',
+    'wireless', 'bluetooth', 'tw', 'tws', 'true', 'in-ear', 'inear', 'in', 'on-ear', 'over-ear',
+    'anc', 'noise', 'cancelling', 'canceling', 'cancellation', 'active', 'enc',
+    'hi-fi', 'hifi', 'stereo', 'bass', 'deep', 'clear', 'calls', 'call', 'mic', 'mics',
+    'microphone', 'hd', 'sound', 'audio', 'sport', 'sports', 'running', 'workout', 'gym',
+    'waterproof', 'water', 'resistant', 'sweatproof', 'ipx7', 'ipx5', 'ipx6', 'ip68',
+    'playtime', 'battery', 'charging', 'case', 'led', 'display', 'digital',
+    '3.5mm', 'usb', 'usb-c', 'type-c', 'jack', 'aux', 'mp3', 'player', 'players',
+    'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
+    'smart', 'watch', 'fitness', 'tracker', 'laptop', 'notebook', 'computer', 'pc',
+    'speaker', 'speakers', 'portable', 'subwoofer', 'soundbar', 'phone', 'phones',
+    'charger', 'adapter', 'cable', 'cables', 'power', 'bank', 'fast',
+    'new', 'hot', 'sale', 'best', 'free', 'shipping', 'delivery', 'gift', 'original',
+    'genuine', 'quality', 'premium', 'high', 'pro', 'max', 'mini', 'plus', 'ultra',
+    'inch', 'mm', 'mah', 'hours', 'hrs', 'gb', 'tb', 'rgb',
+  ]);
+
+  const isGenericToken = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return GENERIC_WORDS.has(lo) ||
+      /^[\d.,:x\xd7*\-]+$/.test(w) ||
+      /^ipx?\d/i.test(w) ||
+      /^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/i.test(w);
+  };
+
+  const isBrandish = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return w.length >= 2 && /^[A-Z]/.test(w) && /^[a-z]/i.test(w) && !GENERIC_WORDS.has(lo);
+  };
+
+  const isModelNumber = (w: string): boolean => {
+    return /^[A-Z]{1,3}[-]?\d+[A-Z0-9]*$/i.test(w) || /^\d+[A-Z]{1,3}[A-Z0-9]*$/i.test(w);
+  };
+
+  const words = rawTitle.split(/\s+/);
+  const brandCluster: number[] = [];
+  let inBrand = false;
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (isBrandish(w) || isModelNumber(w)) {
+      brandCluster.push(i);
+      inBrand = true;
+    } else if (inBrand && isGenericToken(w)) {
+      break;
+    } else if (inBrand && !isGenericToken(w)) {
+      brandCluster.push(i);
+    }
+  }
+
+  if (brandCluster.length > 0) {
+    const kept = brandCluster.map((i) => words[i]);
+    const result = kept.join(' ');
+    if (result.length >= 10 && result.length < rawTitle.length) return result;
+  }
+
+  // Fallback: simple trim at 50 chars
+  return rawTitle.slice(0, 50);
+}
+
+function normalizeItemTitles(items: Record<string, unknown>[]): Record<string, unknown>[] {
+  return items.map((item) => {
+    const title = (item.title as string) || (item.name as string) || '';
+    if (!title) return item;
+    const normalized = normalizeProductTitle({ title });
+    if (normalized !== title) {
+      return { ...item, title: normalized, name: normalized };
+    }
+    return item;
+  });
+}
+
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';
 }
@@ -401,7 +480,9 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
+      // BUY-75921: normalize titles before ranking/dedupe
+      const itemsWithNormalizedTitles = normalizeItemTitles(data[itemKey] as Record<string, unknown>[]);
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(itemsWithNormalizedTitles, countryCode), query);
       if (itemKey !== 'data' && data.data) data.data = data[itemKey];
       if (itemKey !== 'items' && data.items) data.items = data[itemKey];
       if (itemKey !== 'results' && data.results) data.results = data[itemKey];
