@@ -136,29 +136,26 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
-// BUY-75921 v4: normalize product titles to remove keyword-stuffed strings.
-// v1/v2/v3 history: v2 (keep-prefix, cut-at-spec-signal) shipped, was silently
-// reverted by 832f74304 (BUY-82928 rewrote response.ts), and QA re-flagged the bug
-// 2026-09-17T22:08Z — including v2 artifacts like "LUDOS FEROX ... Earbuds in"
-// (mid-phrase cut). V4 is conservative segment-based filtering:
-//   - Operates on whole comma/pipe segments only. NEVER cuts mid-phrase.
-//   - Drops trailing segments that are purely generic keyword appendages
-//     (category words, specs, marketing fluff) or near-duplicates of the head.
-//   - Never touches segments containing brand-ish tokens (capitalized words that
-//     are not in the generic lexicon) so "BOWERS & WILKINS Pi8" is safe.
-//   - Falls back to the original title whenever the result would be degenerate.
+// BUY-75921 v5: normalize product titles to remove keyword-stuffed strings.
+// v4 (fc4116ccc): comma/pipe-segment filtering only. Failed because live catalog
+// titles have NO commas — single continuous strings like
+// "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds
+// Noise Cancelling Earphones with Microphone Headphones" pass through unchanged.
+// V5 adds single-segment trimming:
+//   - For single-segment titles: trim trailing generic appendages by accumulating
+//     words from the first meaningful/brandish anchor until a generic filler stops.
+//   - For multi-segment titles: also trim the head segment's trailing generic tail.
+//   - Brandish = capitalized word ≥2 chars not in the generic lexicon.
+//   - Stops trimming at the first generic filler after the brand cluster.
+//   - Prepositional tails ("for X, with Y") trigger a mid-segment cut.
+//   - Falls back to the original whenever the result would be degenerate.
 export function normalizeProductTitle(row: Record<string, unknown>): string {
   const rawTitle = ((row.title as string) || '').replace(/\s+/g, ' ').trim();
   if (rawTitle.length <= 40) return rawTitle;
 
-  // Segments are split on commas and pipes — marketplace stuffing is
-  // comma-delimited by convention. Each segment judged independently.
-  const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
-  if (segments.length < 2) return rawTitle;
-
   const GENERIC_WORDS = new Set([
     // earbud/headphone category
-    'earbuds', 'earphones', 'earbuds,', 'headphones', 'headset', 'buds', 'buds+', 'ear',
+    'earbuds', 'earphones', 'headphones', 'headset', 'buds', 'ear',
     'wireless', 'bluetooth', 'tw', 'tws', 'true', 'in-ear', 'inear', 'in', 'on-ear', 'over-ear',
     'anc', 'noise', 'cancelling', 'canceling', 'cancellation', 'active', 'enc',
     'hi-fi', 'hifi', 'stereo', 'bass', 'deep', 'clear', 'calls', 'call', 'mic', 'mics',
@@ -167,7 +164,7 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
     'playtime', 'battery', 'charging', 'case', 'led', 'display', 'digital',
     // connectors/compat
     '3.5mm', 'usb', 'usb-c', 'type-c', 'jack', 'aux', 'mp3', 'player', 'players',
-    'compatible', 'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
+    'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
     // watch/laptop/speaker/phone generic
     'smart', 'watch', 'fitness', 'tracker', 'laptop', 'notebook', 'computer', 'pc',
     'speaker', 'speakers', 'portable', 'subwoofer', 'soundbar', 'phone', 'phones',
@@ -179,59 +176,106 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
     'inch', 'mm', 'mah', 'hours', 'hrs', 'gb', 'tb', 'rgb',
   ]);
 
-  const isGenericSegment = (seg: string): boolean => {
-    const words = seg.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
-    if (words.length === 0) return false;
-    // purely numeric/spec tokens (1920x1200, 512gb, ipx7, 3.5mm) are generic
-    const meaningful = words.filter(w =>
-      !GENERIC_WORDS.has(w) &&
-      !/^[\d.,:x×*\-]+$/.test(w) &&          // pure numbers / ranges
-      !/^ipx?\d/i.test(w) &&                 // ipx ratings
-      !/^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/.test(w) // units
-    );
-    return meaningful.length === 0;
+  const isGenericToken = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return GENERIC_WORDS.has(lo) ||
+      /^[\d.,:x\xd7*\-]+$/.test(w) ||
+      /^ipx?\d/i.test(w) ||
+      /^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/i.test(w);
   };
 
-  // Head = first segment. Keep everything that isn't a droppable tail segment.
-  const head = segments[0];
-  const kept = [head];
+  // Capitalized word, >= 2 chars, not in generic list — carries product identity.
+  // The 2-char minimum (not 3) allows "HP" and "LG" as valid brand tokens.
+  const isBrandish = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return w.length >= 2 && /^[A-Z]/.test(w) && /^[a-z]/i.test(w) && !GENERIC_WORDS.has(lo);
+  };
+
+  // Alphanumeric model number: e.g. E6S, TOZO-T10, M110, QCY-HT05.
+  const isModelToken = (w: string): boolean =>
+    /^[A-Z][A-Z0-9]{1,}[0-9][A-Za-z0-9]*$/.test(w) || /^[A-Z]{2,}[0-9]/.test(w);
+
+  // Non-generic, non-numeric word with real content.
+  const isMeaningful = (w: string): boolean => {
+    if (isModelToken(w)) return true;
+    const lo = w.toLowerCase();
+    if (GENERIC_WORDS.has(lo)) return false;
+    if (/^[\d.,:x\xd7*\-]+$/.test(w)) return false;
+    return /^[a-z]/i.test(w) && w.length >= 3;
+  };
+
+  // Trims trailing generic-word appendages from a single-segment title string.
+  // Finds the first meaningful/brandish/model anchor, then accumulates words
+  // forward (including adjacent brandish words and connectors) until the first
+  // generic filler word stops the accumulation. This keeps brand clusters like
+  // "BOWERS & WILKINS" and "WH-1000XM5" intact.
+  const trimTrailingGeneric = (segment: string): string => {
+    const words = segment.split(/\s+/);
+    if (words.length <= 2) return segment;
+
+    // Find the first anchor: model token > meaningful word.
+    let anchorIdx = -1;
+    for (let i = 0; i < words.length; i++) {
+      if (isModelToken(words[i])) { anchorIdx = i; break; }
+    }
+    if (anchorIdx < 0) {
+      for (let i = 0; i < words.length; i++) {
+        if (isMeaningful(words[i])) { anchorIdx = i; break; }
+      }
+    }
+    if (anchorIdx < 0) return segment;
+
+    // Accumulate from anchor forward: keep all brandish words and connectors,
+    // stop ONLY at the first generic filler. This keeps "BOWERS & WILKINS Pi8"
+    // together and "Sony WH-1000XM5" together.
+    const kept: string[] = [];
+    for (let i = anchorIdx; i < words.length; i++) {
+      const w = words[i];
+      if (isGenericToken(w)) break; // first generic filler stops accumulation
+      kept.push(w);
+    }
+    if (kept.length === 0) return segment;
+    const result = kept.join(' ');
+    return result.length < 12 ? segment : result;
+  };
+
+  // Truncate at the first " for " or " with " (mid-segment prepositional tail).
+  const cutPrepTail = (text: string): string => {
+    const m = text.match(/\s+(?:for|with)\s+/i);
+    if (m && m.index && m.index > 0) return text.slice(0, m.index).trim();
+    return text;
+  };
+
+  const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
+
+  if (segments.length < 2) {
+    // Single segment: trim trailing generic appendages.
+    const trimmed = trimTrailingGeneric(rawTitle);
+    return trimmed.length < 12 ? rawTitle : trimmed;
+  }
+
+  // Multi-segment: trim the head segment, then apply trailing-segment drop logic.
+  const rawHead = cutPrepTail(segments[0]);
+  const trimmedHead = trimTrailingGeneric(rawHead);
+
+  const kept = [trimmedHead];
   for (let i = 1; i < segments.length; i++) {
     const seg = segments[i];
-    const words = seg.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
-    // Brand-ish token: capitalized word not in the generic lexicon. If the
-    // segment contains one, it carries identity — keep it.
-    const hasBrandish = seg.split(/\s+/).some(word => {
-      const w = word.toLowerCase();
-      return /^[a-z][a-z\-'.]{1,}$/.test(word) && /^[A-Z]/.test(word) && !GENERIC_WORDS.has(w);
-    });
+    const words = seg.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
     const dupOfHead = (() => {
-      const headWords = new Set(head.toLowerCase().split(/\s+/));
+      const headWords = new Set(trimmedHead.toLowerCase().split(/\s+/));
       const overl = words.filter(w => headWords.has(w)).length;
-      return words.length > 0 && overl / words.length >= 0.6; // ≥60% overlap with head
+      return words.length > 0 && overl / words.length >= 0.6;
     })();
-    // Prepositional tail clauses ("for Business, College", "with Microphone",
-    // "for Android iOS") are marketplace stuffing — including when they start
-    // MID-segment ("1TB SSD Laptops for Business"). Cut the segment at the
-    // first standalone for/with; a brandish remainder before the cut is kept.
-    let segText = seg;
-    const prepMatch = segText.match(/\s+(?:for|with)\s+/i);
-    if (prepMatch && prepMatch.index && prepMatch.index > 0) {
-      segText = segText.slice(0, prepMatch.index).trim();
-    }
+    let segText = cutPrepTail(seg);
     if (!segText) continue;
-    const keptWords = segText.toLowerCase().split(/[\s/&+().,'"°]+/).filter(Boolean);
-    const keptBrandish = segText.split(/\s+/).some(word => {
-      const w = word.toLowerCase();
-      return /^[a-z][a-z\-'.]{1,}$/.test(word) && /^[A-Z]/.test(word) && !GENERIC_WORDS.has(w);
-    });
-    if (isGenericSegment(segText) || dupOfHead || (!keptBrandish && keptWords.length <= 4)) {
-      continue; // drop trailing appendage
-    }
+    const keptWords = segText.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
+    const keptBrandish = segText.split(/\s+/).some(w => isBrandish(w));
+    if (dupOfHead || (!keptBrandish && keptWords.length <= 4)) continue;
     kept.push(segText);
   }
 
   const cleaned = kept.join(', ');
-  // Degenerate guards: too short to be a real title, or head itself was emptied.
   if (cleaned.length < 12) return rawTitle;
   return cleaned;
 }
