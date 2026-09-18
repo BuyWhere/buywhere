@@ -518,7 +518,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
   return {
     id: productId,
-    name: item.name || item.title || "Untitled product",
+    // BUY-83036: decode HTML entities (&#8243;, &#8217;, etc.) at ingestion
+    // boundary so every downstream consumer (cards, schema, SVG) gets clean text.
+    name: decodeEntities(item.name || item.title || "Untitled product"),
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: displayMerchant,
@@ -542,7 +544,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     href,
     // BUY-76340 / BUY-79241: ProductGridCard prefers affiliateUrl for /r/direct.
     affiliateUrl,
-    brand: item.brand || null,
+    brand: item.brand ? decodeEntities(item.brand) : null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
     // BUY-72906: keep the upstream merchant/market country available for
