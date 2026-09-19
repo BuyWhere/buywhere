@@ -372,6 +372,33 @@ function deduplicateItems(items: Record<string, unknown>[]) {
   });
 }
 
+// BUY-75921: strip keyword-stuffed trailing content from raw marketplace titles.
+// Uses the same normalizeProductTitle from api/src/lib/response.ts so BFF and FastAPI
+// share the same normalizer. Lazy-import avoids circular deps at module load.
+let _normalizeProductTitle: ((row: Record<string, unknown>) => string) | null = null;
+async function normalizeTitle(title: string): Promise<string> {
+  if (!_normalizeProductTitle) {
+    const mod = await import('../../../../../api/src/lib/response');
+    _normalizeProductTitle = mod.normalizeProductTitle;
+  }
+  return _normalizeProductTitle({ title });
+}
+
+// BUY-75921: normalize titles in search results before ranking/returning.
+// Strips marketplace keyword appendages (spec dumps, compatibility lists,
+// IPX ratings, Bluetooth versions in the tail) so cards show brand + model.
+async function normalizeItemTitles(items: Record<string, unknown>[]): Promise<void> {
+  await Promise.all(items.map(async (item) => {
+    const raw = (item.title as string) || (item.name as string) || '';
+    if (!raw || raw.length <= 40) return;
+    const normalized = await normalizeTitle(raw);
+    if (normalized !== raw) {
+      item.title = normalized;
+      item.name = normalized;
+    }
+  }));
+}
+
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
   const { isDevice, isStorage } = classifyDeviceQuery(query);
@@ -480,13 +507,15 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      // BUY-75921: normalize titles before ranking/dedupe
-      const itemsWithNormalizedTitles = normalizeItemTitles(data[itemKey] as Record<string, unknown>[]);
-      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(itemsWithNormalizedTitles, countryCode), query);
-      if (itemKey !== 'data' && data.data) data.data = data[itemKey];
-      if (itemKey !== 'items' && data.items) data.items = data[itemKey];
-      if (itemKey !== 'results' && data.results) data.results = data[itemKey];
-      if (itemKey !== 'products' && data.products) data.products = data[itemKey];
+      // BUY-75921: normalize titles BEFORE ranking so downstream display sees clean names.
+      const items: Record<string, unknown>[] = data[itemKey] as Record<string, unknown>[];
+      await normalizeItemTitles(items);
+      const ranked = rankAndClassifyItems(normalizeUpstreamItems(items, countryCode), query);
+      data[itemKey] = ranked;
+      if (itemKey !== 'data' && data.data) data.data = ranked;
+      if (itemKey !== 'items' && data.items) data.items = ranked;
+      if (itemKey !== 'results' && data.results) data.results = ranked;
+      if (itemKey !== 'products' && data.products) data.products = ranked;
     }
 
     return NextResponse.json(data);

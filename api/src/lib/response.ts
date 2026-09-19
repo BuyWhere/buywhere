@@ -303,36 +303,29 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
     return candidates.reduce((a, b) => (a.length <= b.length ? a : b));
   }
 
-  // Multi-segment: trim the head segment, then apply trailing-segment drop logic.
-  const rawHead = cutPrepTail(segments[0]);
-  const trimmedHead = trimTrailingGeneric(rawHead);
+  // BUY-75921 v8: keep ONLY the first comma/pipe segment. Trailing segments are
+  // marketplace keyword stuffing — "5 Year Warranty, Noise Isolation, Samsung, Kids…",
+  // "32 Preset EQs via APP". Brand + core model live in the head; trim it and return.
+  const polish = (text: string): string => {
+    let out = cutPrepTail(text);
+    const trimmed = trimTrailingGeneric(out);
+    if (trimmed.length >= 12 && trimmed.length <= out.length) out = trimmed;
+    out = out
+      .replace(/\s*[)\]}]+$/, '')
+      .replace(/[\s,;:\-|/]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (out.length > 55) {
+      const words = out.split(/\s+/);
+      let endIdx = words.length;
+      while (endIdx > 1 && words.slice(0, endIdx).join(' ').length > 55) endIdx--;
+      const capped = words.slice(0, endIdx).join(' ');
+      if (capped.length >= 12) out = capped;
+    }
+    return out.length >= 12 ? out : text;
+  };
 
-  const kept = [trimmedHead];
-  for (let i = 1; i < segments.length; i++) {
-    const seg = segments[i];
-    const words = seg.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
-    const dupOfHead = (() => {
-      const headWords = new Set(trimmedHead.toLowerCase().split(/\s+/));
-      const overl = words.filter(w => headWords.has(w)).length;
-      return words.length > 0 && overl / words.length >= 0.6;
-    })();
-    let segText = cutPrepTail(seg);
-    if (!segText) continue;
-    const keptWords = segText.toLowerCase().split(/[\s/&+().,'"\xb0]+/).filter(Boolean);
-    const keptBrandish = segText.split(/\s+/).some(w => isBrandish(w));
-    // BUY-75921 v6: drop segments that are long keyword-stuffing descriptions
-    // (>8 words) AND contain ≥2 generic fillers. They read as filler, not as
-    // identity. Real product segments are short ("IPX8 Waterproof") or
-    // generic-light ("Sony WF-1000XM5"). Short 2-8 word segments unaffected.
-    const keptGenerics = keptWords.filter(w => GENERIC_WORDS.has(w)).length;
-    const isLongStuffing = keptWords.length > 8 && keptGenerics >= 2;
-    if (dupOfHead || (!keptBrandish && keptWords.length <= 4) || isLongStuffing) continue;
-    kept.push(segText);
-  }
-
-  const cleaned = kept.join(', ');
-  if (cleaned.length < 12) return rawTitle;
-  return cleaned;
+  return polish(segments[0]);
 }
 
 // BUY-80652: filter REST fallback rows to native currency for the requested market.
