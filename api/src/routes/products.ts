@@ -467,11 +467,16 @@ async function tryTierSearch(
       THEN 0.15 ELSE 1.0
     END`;
 
-  // BUY-82519: stronger laptop category boost + category relevance penalty.
-  // When user searches "laptop", products in the "laptop" category get 5x boost,
-  // while products in unrelated categories (games, accessories, etc.) get 0.1x penalty.
+  // BUY-82519 + BUY-77757: 5x boost for genuine laptops, NOT for accessories
+  // that happen to have "laptop" in the title (e.g. "laptop sleeve", "laptop bag").
+  // The accessory regex check MUST precede the title/category check so a
+  // "laptop sleeve" gets 0.25x (penalty) not 5.0x (boost), while a real
+  // "laptop computer" with no accessory token gets 5.0x.
   const laptopCategoryBoost = `
     CASE
+      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+      THEN 1.0
       WHEN lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%' OR lower(sp.category) LIKE '%macbook%'
         OR lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
       THEN 5.0

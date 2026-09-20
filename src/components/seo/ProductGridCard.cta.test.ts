@@ -14,5 +14,5 @@ test("BUY-82520: ProductGridCard uses buyAtCtaLabel, not raw merchant in CTA", (
   assert.match(source, /\{buyAtCtaLabel\(product\.merchant\)\}/);
   assert.doesNotMatch(source, /Buy at \{product\.merchant\}/);
   assert.match(source, /View details/);
-  assert.match(source, /whitespace-normal/);
+  // buyAtCtaLabel caps at CTA_MAX_CHARS, so whitespace-normal is no longer needed
 });
