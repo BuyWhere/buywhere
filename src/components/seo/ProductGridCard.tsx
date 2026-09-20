@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { captureProductCardClick } from "@/lib/posthog-client";
+import { buyAtCtaLabel } from "@/lib/merchant-name";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
 
 function formatPrice(price: number | null, currency: string) {
@@ -95,8 +96,8 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         className={`block ${compact ? "" : "group-hover:opacity-95"}`}
       >
         <div
-          className={`relative isolate overflow-hidden bg-slate-100 ${aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]}`}
-          style={{ overflow: "hidden", maxWidth: "100%" }}
+          className={`relative isolate overflow-hidden bg-slate-100 min-w-0 max-w-full rounded-t-[27px] aspect-[4/3]`}
+          style={{ overflow: "hidden" }}
         >
           <ProductGridImage
             src={product.imageUrl || ""}
@@ -172,7 +173,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
                 rel="noopener noreferrer nofollow sponsored"
                 className={`inline-flex max-w-full whitespace-nowrap min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
               >
-                Buy at {product.merchant}
+                {buyAtCtaLabel(product.merchant)}
               </a>
             ) : (
               <span

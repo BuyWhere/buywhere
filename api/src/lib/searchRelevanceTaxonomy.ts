@@ -204,16 +204,17 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   'portable monitor', 'external monitor', 'screen extender',
   'external display', 'travel monitor', 'second screen', 'triple monitor',
   'privacy screen', 'privacy filter',
-  // Cleaning (screen cleaners, sprays, wipes)
+  // Cleaning (screen cleaners, sprays, wipes) — also add bare forms
   'screen cleaner', 'cleaning spray', 'screen wipes', 'cleaning wipes',
-  'screen cleaning',
+  'screen cleaning', 'cleaner', 'cleaners',
   // Pre-existing tokens from the original regex. Note: bare 'pad'/'pads' is
   // omitted because it matches inside model names like "ThinkPad" and
   // "IdeaPad" — the multi-word forms ('cooling pad', 'mouse pad',
   // 'mousepad') still cover the actual accessory intent without false-
   // positive risk on real laptop model names.
   'skin', 'skins', 'sleeve', 'sleeves', 'cover', 'covers', 'case', 'cases',
-  'stand', 'stands', 'mount', 'mounts', 'cooler', 'coolers', 'bag', 'bags', 'bagpack', 'bagpacks', 'backpack', 'backpacks', 'pannier', 'panniers',
+  'stand', 'stands', 'arm', 'arms', 'mount', 'mounts', 'cooler', 'coolers',
+  'bag', 'bags', 'bagpack', 'bagpacks', 'backpack', 'backpacks', 'pannier', 'panniers',
   'sticker', 'stickers', 'decal', 'decals', 'cooling pad',
   'mat', 'mats', 'mouse pad', 'mousepad',
   'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs', 'lock', 'locks',
@@ -223,6 +224,10 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // BUY-82519: diagnostic/repair kits and bags outranked computers on q=laptop.
   'diagnostic', 'diagnostics', 'repair kit', 'tablet kit', 'pouch', 'pouches',
   'usb led lamp', 'led lamp', 'reading lamp', 'usb lamp',
+  // BUY-77757: furniture/arm tokens caught by bare-word additions above. Add
+  // 'desk'/'desks' bare so "laptop desks" and "laptop desks for home office"
+  // both match without needing the full phrase.
+  'desk', 'desks',
   // Keyboard when paired with a laptop context. Bare 'keyboard' is omitted
   // because it would match legitimate keyboards sold as laptop bundles or
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
