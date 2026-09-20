@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACTIVE_BLOG_SLUGS as GENERATED_ACTIVE_BLOG_SLUGS } from "@/lib/active-blog-slugs";
 import { isInternalPageview } from "@/lib/pageview-internal";
+import { getCategoryBySlug } from "@/lib/taxonomy";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -857,24 +858,33 @@ export async function middleware(request: NextRequest) {
   // BUY-77134: /compare/{cc} or /compare/{cc1}/{cc2} redirect for unsupported countries.
   // Supported single: us, sg. Supported pairs: us/sg, sg/us.
   // Any other single or pair → friendly 404.
+  // BUY-82112: Category slugs (electronics, fashion, beauty, etc.) are NOT country
+  // codes — let them through to their static category pages under src/app/compare/[slug]/.
   const compareMatch = pathname.match(/^\/compare\/([^/]+)(?:\/([^/]+))?\/?$/);
   if (compareMatch) {
     const cc1 = compareMatch[1].toLowerCase();
     const cc2 = compareMatch[2]?.toLowerCase();
 
-    // Check if valid single country (us or sg for now)
-    const validSingle = cc1 === "us" || cc1 === "sg";
-    // Check if valid pair (us/sg or sg/us)
-    const validPair =
-      (cc1 === "us" && cc2 === "sg") || (cc1 === "sg" && cc2 === "us");
+    // BUY-82112: If the first segment is a known product category slug (and there
+    // is no second segment), allow it through — category pages live at
+    // src/app/compare/[slug]/ and handle their own routing.
+    if (!cc2 && getCategoryBySlug(cc1)) {
+      // fall through — do not redirect category slugs to /not-found
+    } else {
+      // Check if valid single country (us or sg for now)
+      const validSingle = cc1 === "us" || cc1 === "sg";
+      // Check if valid pair (us/sg or sg/us)
+      const validPair =
+        (cc1 === "us" && cc2 === "sg") || (cc1 === "sg" && cc2 === "us");
 
-    if (!validSingle && !validPair) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/not-found";
-      url.searchParams.set("type", "compare");
-      url.searchParams.set("country1", cc1);
-      if (cc2) url.searchParams.set("country2", cc2);
-      return tagAgent(NextResponse.redirect(url, 302));
+      if (!validSingle && !validPair) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        url.searchParams.set("type", "compare");
+        url.searchParams.set("country1", cc1);
+        if (cc2) url.searchParams.set("country2", cc2);
+        return tagAgent(NextResponse.redirect(url, 302));
+      }
     }
   }
 
