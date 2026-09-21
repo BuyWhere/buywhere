@@ -50,3 +50,14 @@ body {
   color: #F5F7FF;
   opacity: 1;
 }
+
+/* BUY-83430: homepage / SEO catalog snapshot — mobile void under LIVE CATALOG SNAPSHOT.
+ * VidMee 390x844: ~350px empty gap between "Open full search" and the dark-blue guide.
+ * Collapse any inherited min-height and cap padding-bottom at 24px below 640px.
+ * Desktop (≥640px) is unchanged. */
+@media (max-width: 639px) {
+  .catalog-snapshot-section {
+    min-height: auto;
+    padding-bottom: 24px;
+  }
+}

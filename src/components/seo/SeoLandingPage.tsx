@@ -228,15 +228,30 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         )}
 
         {/* BUY-77662: product grid appears ABOVE the hero CTA so buy links are
-            above the fold. Moved before the hero section. */}
-        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
+            above the fold. Moved before the hero section.
+            BUY-83430: on mobile (≤640px) a leftover min-height + py-16 left
+            ~350px of empty slate between "Open full search" and the dark-blue
+            hero. Collapse min-height and cap padding-bottom at 24px (pb-6)
+            below sm; desktop py-16 is unchanged. */}
+        <section
+          data-catalog-snapshot-section
+          className={`catalog-snapshot-section min-h-0 bg-slate-50 ${
+            config.compactCatalogCards ? "py-6" : "py-16 max-sm:min-h-0 max-sm:pt-8 max-sm:pb-6"
+          }`}
+        >
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+              {/* BUY-83431: axe target-size — text-only link was <48px on mobile.
+                  Restyle as inline-flex CTA with min-h/min-w 48px + 12px/20px padding. */}
+              <Link
+                href={shopperCta.href}
+                prefetch={false}
+                className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-md px-5 py-3 text-sm font-semibold text-amber-900 hover:bg-amber-50 hover:text-amber-950 underline-offset-4 hover:underline"
+              >
                 Open full search
               </Link>
             </div>
