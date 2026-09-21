@@ -99,3 +99,12 @@ test("BUY-66319: no programmatic router.prefetch( call exists in SeoLandingPage.
     `SeoLandingPage.tsx contains ${offending.length} router.prefetch( call(s). BUY-66319: programmatic prefetch on this component would re-introduce the cold-crawler 404 even with prefetch={false} on each <Link>.`,
   );
 });
+
+test("BUY-83429: Open full search uses WCAG-AA brand color + arrow (not amber-900)", () => {
+  const match = source.match(/<Link[^>]*>[\s\S]*?Open full search[\s\S]*?<\/Link>/);
+  assert.ok(match, "expected an Open full search <Link> in SeoLandingPage.tsx");
+  const tag = match[0];
+  assert.match(tag, /text-blue-700|text-indigo-600/, "Open full search must use text-blue-700 or text-indigo-600 (WCAG AA vs white)");
+  assert.doesNotMatch(tag, /text-amber-900/, "Open full search must not use low-contrast text-amber-900 (#78350F/#8C531B)");
+  assert.match(tag, /→|aria-hidden="true"/, "Open full search must include an arrow/chevron for brand CTA consistency");
+});
