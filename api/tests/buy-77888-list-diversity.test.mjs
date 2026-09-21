@@ -15,8 +15,9 @@ describe('BUY-77888 list diversity', () => {
     assert.match(productsSource, /const LIST_MERCHANT_CAP = 2/);
     assert.match(productsSource, /const LIST_DIVERSITY_FETCH = 20000/);
     assert.match(listRoute, /list:v4:/);
-    assert.match(listRoute, /diversifyListRows/);
     assert.match(listRoute, /applyListDiversity/);
-    assert.match(listRoute, /merchant_rn/);
+    assert.match(listRoute, /listVariantDedupKey/);
+    assert.match(listRoute, /sortProvided \? limit : LIST_DIVERSITY_FETCH/);
+    assert.match(listRoute, /sortProvided \? offset : 0/);
   });
 });
