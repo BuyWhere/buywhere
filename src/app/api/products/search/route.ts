@@ -293,31 +293,26 @@ function deduplicateItems(items: Record<string, unknown>[]) {
   });
 }
 
-// BUY-75921: strip keyword-stuffed trailing content from raw marketplace titles.
-// Uses the same normalizeProductTitle from api/src/lib/response.ts so BFF and FastAPI
-// share the same normalizer. Lazy-import avoids circular deps at module load.
-let _normalizeProductTitle: ((row: Record<string, unknown>) => string) | null = null;
-async function normalizeTitle(title: string): Promise<string> {
-  if (!_normalizeProductTitle) {
-    const mod = await import('../../../../../api/src/lib/response');
-    _normalizeProductTitle = mod.normalizeProductTitle;
-  }
-  return _normalizeProductTitle({ title });
+// BUY-75921 / BUY-83429: do NOT import api/src/lib/response from this BFF
+// route. Next webpack follows that graph into ioredis (api/src/config.ts)
+// and `next build` fails. Keep a local, sync title trim here so the site
+// image compiles. FastAPI still owns the full shared normalizer.
+function normalizeTitle(title: string): string {
+  const raw = title.replace(/\s+/g, ' ').trim();
+  if (raw.length <= 40) return raw;
+  return raw.slice(0, 50);
 }
 
-// BUY-75921: normalize titles in search results before ranking/returning.
-// Strips marketplace keyword appendages (spec dumps, compatibility lists,
-// IPX ratings, Bluetooth versions in the tail) so cards show brand + model.
-async function normalizeItemTitles(items: Record<string, unknown>[]): Promise<void> {
-  await Promise.all(items.map(async (item) => {
+function normalizeItemTitles(items: Record<string, unknown>[]): void {
+  for (const item of items) {
     const raw = (item.title as string) || (item.name as string) || '';
-    if (!raw || raw.length <= 40) return;
-    const normalized = await normalizeTitle(raw);
+    if (!raw || raw.length <= 40) continue;
+    const normalized = normalizeTitle(raw);
     if (normalized !== raw) {
       item.title = normalized;
       item.name = normalized;
     }
-  }));
+  }
 }
 
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
