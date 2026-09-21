@@ -148,49 +148,36 @@ test("formatPrice never emits NaN, a bare .00, or an empty string", () => {
 // Regression tests for BUY-71638 (re-applied after the silent scope-creep
 // revert in 2d53dc31 / BUY-72387 — f369fdc9).
 //
-// QA repro: /search?q=laptop&country=US rendered mixed currencies (SGD,
-// INR, TRY) under the US country filter. The fix is to ALWAYS honor the
-// selected-country currency at display time, regardless of the API row's
-// source-row currency. The numeric price value is not FX-converted (no
-// rates table exists); only the displayed currency code tracks the country
-// the user picked.
-//
-// A parallel runnable guard lives in
-// SearchResultsClient.currencyDisplay.test.mjs that runs under `node --test`
-// in CI (the .ts file is documentation-only — Node 22 cannot resolve the
-// `from "./SearchResultsClient"` extensionless import without a TS loader).
-test("normalizeProduct always stores the selected-country currency (US filter)", () => {
+// BUY-80921: listing currency_code drives the glyph. Country is not FX.
+test("normalizeProduct keeps listing currency on a US filter (PHP Datablitz)", () => {
   const product = normalizeProduct(
     {
-      id: "54452825",
-      title: "GIGABYTE GAMING A16 Gaming Laptop - RTX 5060 - AMD Ryzen 7 260",
-      price: { amount: 1349.99, currency: "SGD" }, // API row carries SGD
-      merchant: "newegg_us",
+      id: "datablitz-1",
+      title: "MSI Gaming Laptop",
+      price: { amount: 45950, currency: "PHP" },
+      merchant: "Datablitz",
     },
-    "USD", // user picked United States
+    "USD",
   );
-  assert.equal(product.price, 1349.99);
-  assert.equal(product.currency, "USD", "expected normalizeProduct to override API currency with selected-country currency");
-  assert.equal(formatPrice(product.price, product.currency), "$1,349.99");
+  assert.equal(product.price, 45950);
+  assert.equal(product.currency, "PHP");
+  const rendered = formatPrice(product.price, product.currency);
+  assert.ok(!rendered.startsWith("$"), rendered);
+  assert.ok(rendered.includes("₱") || rendered.includes("PHP"), rendered);
 });
 
-test("normalizeProduct honors selected-country currency for INR/TRY rows too", () => {
-  // The exact QA-reported cases: an INR row and a TRY row under the US filter.
-  for (const apiCurrency of ["INR", "TRY"]) {
+test("normalizeProduct keeps SGD / INR / TRY listing currencies under US filter", () => {
+  for (const apiCurrency of ["SGD", "INR", "TRY"]) {
     const product = normalizeProduct(
       {
         id: "1",
-        title: `Cross-border ${apiCurrency} listing that should not leak through`,
+        title: `Cross-border ${apiCurrency} listing`,
         price: { amount: 7499, currency: apiCurrency },
         merchant: "google_shopping",
       },
       "USD",
     );
-    assert.equal(
-      product.currency,
-      "USD",
-      `expected ${apiCurrency} API row under US filter to display in USD`,
-    );
+    assert.equal(product.currency, apiCurrency);
   }
 });
 
@@ -199,11 +186,11 @@ test("normalizeProduct falls back to selected-country currency when API omits on
     {
       id: "1",
       title: "Laptop without price currency in API response",
-      price: { amount: 1299 }, // no currency on the row
+      price: { amount: 1299 },
       merchant: "best_buy_us",
     },
     "SGD",
   );
   assert.equal(product.currency, "SGD");
-  assert.equal(formatPrice(product.price, product.currency), "SGD 1,299.00");
+  assert.equal(formatPrice(product.price, product.currency), "S$1,299.00");
 });

@@ -56,6 +56,7 @@ export type SearchApiItem = {
   price_amount?: number | string | null;
   price_currency?: string | null;
   currency?: string | null;
+  currency_code?: string | null;
   click_url?: string | null;
   source?: string | null;
   merchant?: string | null;
@@ -258,18 +259,57 @@ function isPlausiblePrice(price: number | null, product: { name: string; categor
   return true;
 }
 
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  SGD: 'en-SG',
+  PHP: 'en-PH',
+  MYR: 'en-MY',
+  IDR: 'id-ID',
+  THB: 'th-TH',
+  VND: 'vi-VN',
+  AUD: 'en-AU',
+  GBP: 'en-GB',
+  EUR: 'en-IE',
+  INR: 'en-IN',
+  JPY: 'ja-JP',
+};
+
+// BUY-80921: Intl.NumberFormat('en-SG') emits "$" for SGD (same glyph as USD).
+// Force the S$ prefix so Singapore listings are visually distinct from USD.
 function formatPrice(price: number | null, currency: string) {
   if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
+  const code = (currency || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) {
+    const amount = price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return code ? `${amount} ${code}` : `${amount}`;
+  }
+
   try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
+    const formatted = new Intl.NumberFormat(CURRENCY_LOCALE[code] || 'en-US', {
       style: 'currency',
-      currency,
+      currency: code,
       maximumFractionDigits: 2,
     }).format(price);
+    if (code === 'SGD') {
+      return formatted.replace(/^\$/, 'S$').replace(/^US\$/, 'S$');
+    }
+    return formatted;
   } catch {
-    return `${currency} ${price.toFixed(2)}`;
+    const amount = price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${amount} ${code}`;
   }
+}
+
+function listingCurrencyFromItem(item: SearchApiItem): string | null {
+  const nested =
+    item.price && typeof item.price === 'object' && 'currency' in item.price
+      ? item.price.currency
+      : null;
+  const raw = nested || item.price_currency || item.currency || item.currency_code;
+  if (typeof raw !== 'string') return null;
+  const code = raw.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : null;
 }
 
 // BUY-72350: c1.neweggimages.com serves HTTP 400 (AkamaiGHost bot-detection)
@@ -660,13 +700,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     // BUY-65559: drop implausible sentinel prices to null so the card renders
     // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
     price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
-    // BUY-71638: always store the selected-country display currency so the card
-    // formats in the user's chosen country even when the API returned a row
-    // whose source-row currency was different (e.g. an SGD-priced Newegg-ish
-    // ingest row leaking into a US country filter). The numeric value is NOT
-    // FX-converted — only the displayed currency code tracks the selected
-    // country, matching the QA acceptance criterion for f369fdc9.
-    currency: fallbackCurrency,
+    // BUY-80921: listing currency_code drives the glyph. Country is a
+    // market filter, not an FX conversion. Missing/unknown codes fall
+    // back to the selected-country currency (formatPrice then shows ISO
+    // if Intl rejects the code).
+    currency: listingCurrencyFromItem(item) || fallbackCurrency,
     // BUY-72907: prefer the domain extracted from the product URL (the actual
     // retailer the user would visit) over the platform-level merchant/source
     // field. A Wellbots product scraped via Shopify should show "Wellbots" from
@@ -836,7 +874,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
-function SearchCard({ product, currency }: { product: SearchCardProduct; currency: string }) {
+function SearchCard({ product }: { product: SearchCardProduct }) {
   // BUY-67973: track image lifecycle so the literal "Product image" text no
   // longer sits on top of loaded imagery. We render three mutually exclusive
   // states:
@@ -989,11 +1027,8 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
               passes WCAG AA 4.5:1 against the white card background. */}
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            {/* BUY-71638: use the Selected-country currency for display, not the
-                per-item source currency. The QA repro (f369fdc9) was a US
-                filter showing SGD/INR/TRY prices because each row rendered
-                its own currency. */}
-            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, currency)}</p>
+            {/* BUY-80921: format from the listing currency, never the page locale. */}
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -1645,7 +1680,7 @@ export default function SearchResultsClient({
                     className="grid max-w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
-                      <SearchCard key={product.id} product={product} currency={activeCountry.currency} />
+                      <SearchCard key={product.id} product={product} />
                     ))}
                   </div>
 

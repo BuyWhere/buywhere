@@ -318,7 +318,9 @@ export function resolveHeroTitle(
 ): string {
   if (!config.heroTitleTemplate) return config.heroTitle;
 
+  const pageCcy = (config.currency || "USD").toUpperCase();
   const prices = products
+    .filter((p) => !p.currency || String(p.currency).toUpperCase() === pageCcy)
     .map((p) => (p.price !== null && p.price !== undefined ? Number(p.price) : null))
     .filter((n): n is number => n !== null && Number.isFinite(n) && n > 0);
 
