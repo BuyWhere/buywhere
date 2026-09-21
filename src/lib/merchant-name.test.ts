@@ -157,3 +157,9 @@ test("BUY-82739: ingest-lane merchant yields Newegg from merchant_id/url", () =>
     "View at Newegg",
   );
 });
+test("BUY-81155: raw domain merchant strings become a store name", () => {
+  assert.equal(stripMerchantTenantSuffix("Www Datablitz Com Ph"), "Datablitz");
+  assert.equal(stripMerchantTenantSuffix("www.datablitz.com.ph"), "Datablitz");
+  assert.equal(stripMerchantTenantSuffix("datablitz.com.ph"), "Datablitz");
+  assert.equal(stripMerchantTenantSuffix("www.boat-lifestyle.com"), "Boat Lifestyle");
+});

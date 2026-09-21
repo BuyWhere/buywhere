@@ -105,7 +105,15 @@ const REGION_SUFFIXES = new Set([
  */
 export function stripMerchantTenantSuffix(value?: string | null): string {
   if (!value) return '';
-  const tokens = value.split(/[\s_.-]+/).filter(Boolean);
+  // BUY-81155: raw storefront hosts ("Www Datablitz Com Ph", "www.datablitz.com.ph")
+  // must not render as title-cased domain fragments.
+  let normalized = value.trim();
+  if (/^www[\s._-]/i.test(normalized)) {
+    normalized = normalized.replace(/^www[\s._-]+/i, '');
+  }
+  normalized = normalized.replace(/\.(?:com|co|net|org|io|store|shop)(?:\.[a-z]{2})?$/i, '');
+  normalized = normalized.replace(/\.(?:ph|in|sg|my|th|id|vn|pk|bd|lk)$/i, '');
+  const tokens = normalized.split(/[\s_.-]+/).filter(Boolean);
   if (tokens.length === 0) return value;
 
   // Drop a leading numeric ingest ID (e.g. "BUY30590" in "BUY30590 RETAILER
@@ -136,10 +144,10 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
   // "Bestbuy" — then strip regional suffixes such as "Sg" / "Us" before alias
   // lookup so "Decathlon Sg" renders as the retailer, not a country-tagged
   // source identifier.
-  while (remaining.length > 1 && TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase())) {
-    remaining.pop();
-  }
-  while (remaining.length > 1 && REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())) {
+  while (remaining.length > 1 && (
+    TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase()) ||
+    REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())
+  )) {
     remaining.pop();
   }
 
