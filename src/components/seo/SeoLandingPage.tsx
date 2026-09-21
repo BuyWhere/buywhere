@@ -236,8 +236,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-800 underline-offset-4 hover:underline">
                 Open full search
+                <span aria-hidden="true">→</span>
               </Link>
             </div>
 
