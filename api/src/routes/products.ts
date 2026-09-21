@@ -822,6 +822,37 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
+const LIST_DIVERSITY_FETCH = 20000;
+const LIST_MERCHANT_CAP = 2;
+
+function listVariantDedupKey(row: Record<string, unknown>): string {
+  const meta = (row.metadata as Record<string, unknown> | null) || {};
+  const productId = typeof meta.product_id === 'string' || typeof meta.product_id === 'number'
+    ? String(meta.product_id)
+    : '';
+  return productId ? `pid:${productId}` : `sku:${row.source_id || row.sku || row.id}`;
+}
+
+function applyListDiversity(rows: Record<string, unknown>[], limit: number, offset: number): Record<string, unknown>[] {
+  const seenProducts = new Set<string>();
+  const merchantCounts = new Map<string, number>();
+  const cappedRows: Record<string, unknown>[] = [];
+
+  for (const row of rows) {
+    const productKey = listVariantDedupKey(row);
+    if (seenProducts.has(productKey)) continue;
+    seenProducts.add(productKey);
+
+    const merchant = String(row.domain || row.merchant_id || '').toLowerCase();
+    const merchantCount = merchantCounts.get(merchant) || 0;
+    if (merchantCount < LIST_MERCHANT_CAP) {
+      merchantCounts.set(merchant, merchantCount + 1);
+      cappedRows.push(row);
+    }
+  }
+
+  return cappedRows.slice(offset, offset + limit);
+}
 
 router.get(
   '/',
@@ -865,12 +896,13 @@ router.get(
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc
-    const sortParam = (req.query.sort as string) || 'created_at';
+    const sortProvided = typeof req.query.sort === 'string' && req.query.sort.trim() !== '';
+    const sortParam = sortProvided ? (req.query.sort as string) : 'created_at';
     const sortColumn = LIST_SORT_COLUMNS[sortParam] || 'created_at';
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v2:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v4:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -1001,6 +1033,7 @@ router.get(
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
+      const fetchLimit = sortProvided ? limit : LIST_DIVERSITY_FETCH;
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE} products
@@ -1009,7 +1042,7 @@ router.get(
            AND products.price > 0
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, limit, offset]
+        [...params, fetchLimit, sortProvided ? offset : 0]
       );
     } finally {
       listClient.release(true); // release back to pool, rolling back any open transaction
@@ -1017,7 +1050,10 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) =>
+    const listRows = sortProvided
+      ? dataResult.rows
+      : applyListDiversity(dataResult.rows as Record<string, unknown>[], limit, offset);
+    const data = listRows.map((row) =>
       buildProduct(row as Record<string, unknown>, currency, false)
     );
 
