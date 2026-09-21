@@ -408,7 +408,19 @@ async function tryTierSearch(
   let merchantCountryFilter = '';
   if (p.countryCode === 'US') {
     // Exclude common foreign TLDs from US search results
-    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae' AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th' AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np' AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk')`;
+    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.de.%'
+      AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.com.kw'
+      AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.co.in'
+      AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.com.ph'
+      AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
+      AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg'
+      AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
+      AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd'
+      AND sp.merchant_id NOT ILIKE '%.lk' AND sp.merchant_id NOT ILIKE '%.com.pk'
+      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
+    ))`;
   } else if (p.countryCode === 'SG') {
     // Exclude foreign TLDs from SG search
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae' AND sp.merchant_id NOT ILIKE '%.com.%' AND sp.merchant_id NOT ILIKE '%.co.%')`;
@@ -1363,9 +1375,28 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
+      // Explicit country_code is a HARD filter (BUY-81155).
+      // NULL country_code rows leaked PH/IN merchants into US search as
+      // dollar-prefixed PHP/INR prices (datablitz.com.ph, boat-lifestyle.com).
+      baseConditions.push(`country_code = $${baseIdx}`);
       baseParams.push(countryCode);
       baseIdx++;
+      const ccUpper = countryCode.toUpperCase();
+      if (ccUpper === 'US') {
+        baseConditions.push(`(merchant_id IS NULL OR (
+          merchant_id NOT ILIKE '%.de' AND merchant_id NOT ILIKE '%.de.%'
+          AND merchant_id NOT ILIKE '%.kw' AND merchant_id NOT ILIKE '%.com.kw'
+          AND merchant_id NOT ILIKE '%.sa' AND merchant_id NOT ILIKE '%.ae'
+          AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in'
+          AND merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
+          AND merchant_id NOT ILIKE '%.my' AND merchant_id NOT ILIKE '%.th'
+          AND merchant_id NOT ILIKE '%.id' AND merchant_id NOT ILIKE '%.sg'
+          AND merchant_id NOT ILIKE '%.vn' AND merchant_id NOT ILIKE '%.np'
+          AND merchant_id NOT ILIKE '%.pk' AND merchant_id NOT ILIKE '%.bd'
+          AND merchant_id NOT ILIKE '%.lk' AND merchant_id NOT ILIKE '%.com.pk'
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
+        ))`);
+      }
     }
     if (category) {
       baseConditions.push(`category ILIKE $${baseIdx}`);
