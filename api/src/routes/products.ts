@@ -407,8 +407,16 @@ async function tryTierSearch(
   // Filter out known foreign TLDs when searching US to keep only US merchants.
   let merchantCountryFilter = '';
   if (p.countryCode === 'US') {
-    // Exclude common foreign TLDs from US search results
-    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae' AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th' AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np' AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk')`;
+    // BUY-81155: exclude PH/IN (and other foreign) storefronts even when
+    // products.country_code is NULL or mis-tagged US. Match both ccTLD and
+    // compound domains (datablitz.com.ph, boat-lifestyle.com via .co.in).
+    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
+      AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
+      AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk'
+      AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
+    ))`;
   } else if (p.countryCode === 'SG') {
     // Exclude foreign TLDs from SG search
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae' AND sp.merchant_id NOT ILIKE '%.com.%' AND sp.merchant_id NOT ILIKE '%.co.%')`;
@@ -1363,9 +1371,18 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
+      // Explicit country_code is a HARD filter (BUY-81155 / BUY-80881).
+      // NULL country_code rows (datablitz.com.ph, boat-lifestyle.com, etc.)
+      // must NOT leak into every market search.
+      baseConditions.push(`country_code = $${baseIdx}`);
       baseParams.push(countryCode);
       baseIdx++;
+      if (countryCode === 'US') {
+        baseConditions.push(`(merchant_id IS NULL OR (
+          merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
+          AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
+        ))`);
+      }
     }
     if (category) {
       baseConditions.push(`category ILIKE $${baseIdx}`);
