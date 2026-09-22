@@ -416,6 +416,7 @@ async function tryTierSearch(
       AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
       AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk'
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
+      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
     ))`;
   } else if (p.countryCode === 'SG') {
     // Exclude foreign TLDs from SG search
@@ -1381,6 +1382,7 @@ router.get(
         baseConditions.push(`(merchant_id IS NULL OR (
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
           AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
         ))`);
       }
     }

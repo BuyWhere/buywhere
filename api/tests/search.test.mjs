@@ -944,6 +944,55 @@ describe('NL search — Redis caching behavior', () => {
 // BUY-69621: device-query vs storage-category exclusion regression.
 // Verifies the HARD filter SQL fragment is present in candidate WHERE clauses
 // for device queries and absent for storage queries (positive control).
+
+// BUY-81155: explicit country_code must be a HARD SQL filter (no NULL leak)
+// and US search must exclude PH/IN merchant domains like datablitz.com.ph.
+describe('BUY-81155 US country hard-filter (no PHP/INR leak)', () => {
+  let server;
+  let port;
+
+  before(async () => {
+    const express = require('express');
+    const productsRouter = require('../dist/routes/products').default;
+    const app = express();
+    app.use(express.json());
+    app.use('/v1/products', productsRouter);
+    server = http.createServer(app);
+    await new Promise(r => server.listen(0, r));
+    port = server.address().port;
+  });
+  after(() => { server?.close(); });
+  beforeEach(() => { setupDefaultMocks(); });
+
+  it('archive path uses country_code = $N without OR IS NULL', async () => {
+    const res = await fetch(
+      `http://localhost:${port}/v1/products/search?q=laptop&country_code=US&_tier=0`,
+      { headers: { Authorization: 'Bearer test-key' } },
+    );
+    assert.equal(res.status, 200);
+    const archiveCalls = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products')
+    );
+    assert.ok(archiveCalls.length > 0, 'expected archive query');
+    const sql = archiveCalls.map(c => c.arguments[0]).join('\n');
+    assert.ok(/country_code = \$/.test(sql), 'must hard-filter country_code');
+    assert.ok(!/country_code = \$\d+ OR country_code IS NULL/.test(sql), 'must not leak NULL country_code');
+    assert.ok(/datablitz\.com\.ph/.test(sql) || /NOT ILIKE '%\.com\.ph'/.test(sql), 'must exclude PH merchant domains');
+  });
+
+  it('tier path excludes datablitz.com.ph / boat-lifestyle.com for US', async () => {
+    const res = await fetch(
+      `http://localhost:${port}/v1/products/search?q=wireless+headphones&country_code=US&_tier=1`,
+      { headers: { Authorization: 'Bearer test-key' } },
+    );
+    assert.equal(res.status, 200);
+    const sqlCalls = queryMock.mock.calls.filter(c => typeof c.arguments[0] === 'string');
+    const sql = sqlCalls.map(c => c.arguments[0]).join('\n');
+    assert.ok(/datablitz\.com\.ph/.test(sql) || /NOT ILIKE '%\.com\.ph'/.test(sql), 'must exclude PH domains');
+    assert.ok(/boat-lifestyle\.com/.test(sql), 'must exclude known IN merchant boat-lifestyle.com');
+  });
+});
+
 describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   let server;
   let port;
@@ -1261,4 +1310,3 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
     }
   });
 });
-
