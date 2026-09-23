@@ -236,14 +236,18 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
         {/* BUY-77662: product grid appears ABOVE the hero CTA so buy links are
             above the fold. Moved before the hero section. */}
-        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
+        {/* BUY-83805: mobile py-16 on the non-compact snapshot + line-height-only
+            "Open full search" (~22px) failed WCAG 44×44 and left ~120px blank
+            under the white/slate snapshot. Compact pages (laptop-singapore)
+            keep py-4 sm:py-6; everyone else uses py-8 sm:py-16. */}
+        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-4 sm:py-6" : "py-8 sm:py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
+            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-4 sm:mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-800 underline-offset-4 hover:underline">
+              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 px-1 py-2 text-sm font-semibold text-blue-700 hover:text-blue-800 underline-offset-4 hover:underline">
                 Open full search
                 <span aria-hidden="true">→</span>
               </Link>
