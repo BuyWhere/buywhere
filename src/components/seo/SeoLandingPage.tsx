@@ -16,7 +16,7 @@ import {
 import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
 import AgentMarketingBlock from "@/components/AgentMarketingBlock";
-import { formatCheckedStamp, getOrUpdatePageLastmod, isPlaceholderLastmod, serializeHashable } from "@/lib/page-content-hash";
+import { catalogCheckedStamp, formatCheckedStamp, getOrUpdatePageLastmod, isPlaceholderLastmod, serializeHashable } from "@/lib/page-content-hash";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -200,12 +200,19 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   // Article.dateModified mirrors the visible "Updated <date>" stamp exactly.
   const schema = buildSeoLandingSchema(config, products, checked.iso);
 
+  // BUY-81044: Quick Answer "Prices checked" is catalog recency, not editorial
+  // lastmod. JSON-LD dateModified stays hash-stable; the honesty field uses
+  // max(product.updatedAt) clamped to now, or "recently" when unknown.
+  const pricesChecked = catalogCheckedStamp(products);
+  const answerChecked = {
+    iso: pricesChecked.iso ?? "",
+    text: pricesChecked.text,
+  };
+
   // BUY-74928 [OPENAI-CHANNEL]: 40-60-word plain-text answer block above the
-  // fold. Built from the same live products the price table renders, and the
-  // "Prices checked <date>" mirrors the JSON-LD dateModified exactly
-  // (directive §5). Returns null when the live catalog has fewer than 2 priced
-  // offers — we never invent a "next retailer" or a delta.
-  const answerBlock = buildAnswerBlock(config, products, checked);
+  // fold. Built from the same live products the price table renders.
+  // Returns null when the live catalog has fewer than 2 priced offers.
+  const answerBlock = buildAnswerBlock(config, products, answerChecked);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
