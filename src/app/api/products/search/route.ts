@@ -381,6 +381,9 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${API_KEY}`,
       },
       cache: 'no-store',
+      // BUY-83427: API search already degrades at SEARCH_HANDLER_TIMEOUT_MS (~10s).
+      // Without an abort, a hung upstream socket stalls Next SSR (~60s TTFB).
+      signal: AbortSignal.timeout(12_000),
     });
 
     const data = await response.json().catch(() => null);

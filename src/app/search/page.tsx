@@ -117,6 +117,11 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 // the SSR limit to the REST API's working limit=10 ensures both paths show the
 // same ranked first page. The client-side fetch handles pagination separately.
 const SSR_FETCH_LIMIT = 10;
+// BUY-83427: never block HTML on the catalog search. The BFF/API path can sit
+// on handler_timeout (~10s) and a same-origin SSR fetch of /api/products/search
+// stacked with Next's render budget produced ~61s TTFB with no product cards.
+// Abort and render the interactive shell; the client fetch is the source of truth.
+const SSR_FETCH_TIMEOUT_MS = 2500;
 
 async function fetchInitialResults(
   query: string,
@@ -152,6 +157,7 @@ async function fetchInitialResults(
     const response = await fetch(`${origin}/api/products/search?${params.toString()}`, {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
+      signal: AbortSignal.timeout(SSR_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) return null;
     const data = await response.json();
