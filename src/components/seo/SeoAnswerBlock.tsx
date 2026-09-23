@@ -34,9 +34,17 @@ export function SeoAnswerBlock({ block, intent }: { block: AnswerBlock; intent: 
           {verdict}
         </p>
         <p className="answer-block-checked mt-3 text-sm text-slate-700">
-          Prices checked{" "}
-          <time dateTime={block.checkedIso}>{block.checkedText}</time>
-          {" "}across {block.retailerCount} retailer{block.retailerCount === 1 ? "" : "s"}.
+          {block.checkedIso ? (
+            <>
+              Prices checked{" "}
+              <time dateTime={block.checkedIso}>{block.checkedText}</time>
+              {" "}across {block.retailerCount} retailer{block.retailerCount === 1 ? "" : "s"}.
+            </>
+          ) : (
+            <>
+              Prices updated recently across {block.retailerCount} retailer{block.retailerCount === 1 ? "" : "s"}.
+            </>
+          )}
         </p>
       </div>
     </section>

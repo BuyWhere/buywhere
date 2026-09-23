@@ -96,7 +96,7 @@ export function ProductGridCard({ product, compact = false, pathname }: { produc
         className={`block ${compact ? "" : "group-hover:opacity-95"}`}
       >
         <div
-          className={`relative isolate overflow-hidden bg-slate-100 aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]`}
+          className={`relative isolate overflow-hidden bg-slate-100 aspect-[4/3] min-w-0 max-w-full rounded-t-[27px] max-sm:max-h-[200px] max-sm:aspect-video max-sm:object-contain`}
           style={{ overflow: "hidden", maxWidth: "100%" }}
         >
           <ProductGridImage
