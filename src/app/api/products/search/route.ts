@@ -403,6 +403,8 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${API_KEY}`,
       },
       cache: 'no-store',
+      // BUY-83802: do not inherit the API's 10s degraded hang.
+      signal: AbortSignal.timeout(4000),
     });
 
     const data = await response.json().catch(() => null);
@@ -436,9 +438,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(
-      { error: 'search_unavailable', message: 'Search service unavailable' },
-      { status: 502 },
-    );
+    return NextResponse.json({
+      data: [],
+      items: [],
+      results: [],
+      products: [],
+      total: 0,
+      degraded: true,
+      hint: 'Search timed out, try again',
+      meta: { total: 0, degraded: true, status: 'degraded' },
+    });
   }
 }

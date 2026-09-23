@@ -1287,6 +1287,11 @@ export default function SearchResultsClient({
       setOffset(typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
     } catch (caughtError) {
       if (signal.aborted) {
+        if (mode === 'replace' && signal.reason === 'timeout') {
+          setDegraded(true);
+          setDegradedHint('Search timed out, try again');
+          setError(null);
+        }
         return;
       }
 
@@ -1315,13 +1320,17 @@ export default function SearchResultsClient({
     }
 
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort('timeout'), 6000);
 
     void fetchResults({
       mode: 'replace',
       signal: controller.signal,
     });
 
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [fetchResults]);
 
   useEffect(() => {

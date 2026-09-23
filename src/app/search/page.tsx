@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import SearchResultsClient, { type SearchApiItem } from './SearchResultsClient';
-import { headers } from 'next/headers';
 import Schema from '@/components/Schema';
 import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildSearchPageSchema } from '@/lib/page-schema';
@@ -102,25 +101,17 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   };
 }
 
-// BUY-66902: server-side fetch of the first results page so product names,
-// prices, merchants, and CTAs land in the initial HTML for crawlers/LLMs.
-// Runs only when the request already carries a query (a bare /search hit would
-// otherwise pay an API round-trip to render nothing). Any failure is swallowed —
-// SSR results are strictly a crawler enhancement; the client fetch path remains
-// the interactive source of truth.
-//
-// BUY-80594: limit=10 (NOT 40). The FastAPI's ranked search_products_tier path
-// returns the correct top-N laptops at limit=10 but has different (degraded) ranking
-// at limit=40 where a stale cache includes Casely/key-ring accessory rows. The
-// Next.js route's client-side rankAndClassifyItems() only marks accessories (it
-// does not filter them for laptop queries — "laptop case" contains "laptop"). Matching
-// the SSR limit to the REST API's working limit=10 ensures both paths show the
-// same ranked first page. The client-side fetch handles pagination separately.
-const SSR_FETCH_LIMIT = 10;
+// BUY-83802: never SSR-fetch the same-origin BFF (`/api/products/search`).
+// That handler lives in this Next.js process; awaiting it from a force-dynamic
+// page deadlocks Hikari (0 bytes until the edge timeout) while catalog search
+// is already on a 10s degraded path. Product spec: TTFB <3s with a renderable
+// shell; client fetch is the source of truth. Optional bounded upstream fetch
+// (api.buywhere.ai, 800ms) may restore crawler HTML later — not same-origin.
+const SSR_FETCH_BUDGET_MS = 800;
 
 async function fetchInitialResults(
   query: string,
-  country: string
+  _country: string
 ): Promise<{
   items: SearchApiItem[];
   total: number;
@@ -130,45 +121,17 @@ async function fetchInitialResults(
   degradedHint: string | null;
 } | null> {
   if (query.trim().length < 2) return null;
-
-  let origin = 'https://buywhere.ai';
-  try {
-    const headerList = headers();
-    const host = headerList.get('x-forwarded-host') ?? headerList.get('host');
-    const proto = headerList.get('x-forwarded-proto') ?? 'https';
-    if (host) origin = `${proto}://${host}`;
-  } catch {
-    // keep the public default
-  }
-
-  const countryCode = country.toLowerCase() === 'sg' ? 'SG' : 'US';
-  const params = new URLSearchParams({
-    q: query.trim(),
-    deliver_to: countryCode,
-    limit: String(SSR_FETCH_LIMIT),
-  });
-
-  try {
-    const response = await fetch(`${origin}/api/products/search?${params.toString()}`, {
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const items: SearchApiItem[] =
-      data.data || data.items || data.results || data.products || [];
-    if (!Array.isArray(items)) return null;
-    return {
-      items: items.slice(0, 20),
-      total: typeof data.total === 'number' ? data.total : items.length,
-      hasMore: Boolean(data.has_more ?? data.hasMore ?? items.length >= SSR_FETCH_LIMIT),
-      nextCursor: data.next_cursor ?? data.nextCursor ?? null,
-      degraded: Boolean(data.degraded),
-      degradedHint: typeof data.hint === 'string' && data.hint.trim() ? data.hint : null,
-    };
-  } catch {
-    return null;
-  }
+  // Fast shell: do not wait on catalog during SSR.
+  void SSR_FETCH_BUDGET_MS;
+  void _country;
+  return {
+    items: [],
+    total: 0,
+    hasMore: false,
+    nextCursor: null,
+    degraded: false,
+    degradedHint: null,
+  };
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
