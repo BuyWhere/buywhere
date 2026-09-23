@@ -129,6 +129,20 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
+// BUY-78003 / BUY-81345: REST serializers used to call buildProduct without
+// merchantMap, so merchant_name / merchant_slug were always null.
+async function mapProducts(
+  rows: Array<Record<string, unknown>>,
+  currency: string,
+  compact: boolean,
+) {
+  const merchantMap = await lookupMerchantMap(
+    db,
+    rows.map((row) => (row.merchant_id as string | null) ?? null),
+  );
+  return rows.map((row) => buildProduct(row, currency, compact, merchantMap));
+}
+
 function restDestinationPresent(countryCode?: string | null, deliverTo?: string | null): boolean {
   // BUY-79591: diagnostic.deliver_to_present is the request-level fact that a
   // buyer-market signal was passed (deliver_to / country / country_code / cc),
@@ -300,7 +314,7 @@ async function tryIdentifierLookup(
 
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const products = await mapProducts(pageRows as Array<Record<string, unknown>>, p.currency, p.compact);
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
     const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
@@ -710,7 +724,7 @@ async function tryTierSearch(
       : rows;
     const hasMore = filteredRows.length > p.limit;
     const pageRows = hasMore ? filteredRows.slice(0, p.limit) : filteredRows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const products = await mapProducts(pageRows as Array<Record<string, unknown>>, p.currency, p.compact);
     // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
     // matched but the currency post-filter emptied the page. Archive for
     // head terms (iphone) times out at ~8s → emptiness_reason=api_error
@@ -724,7 +738,7 @@ async function tryTierSearch(
     if (useChildTable && wantCur && served.length < MIN_RESULTS_THRESHOLD) {
       // Fallback: serve unfiltered rows if filtering returned too few
       const fallbackRows = filteredRows.slice(0, p.limit);
-      served = fallbackRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+      served = await mapProducts(fallbackRows as Array<Record<string, unknown>>, p.currency, p.compact);
     }
     const productsOut = served;
     // BUY-77514: do not count the over-fetch sentinel row in meta.total.
@@ -1025,9 +1039,7 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
-    );
+    const data = await mapProducts(dataResult.rows as Array<Record<string, unknown>>, currency, false);
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
     // grows from real /v1 list traffic. Fire-and-forget; idempotency is
@@ -1596,8 +1608,7 @@ router.get(
 
       const responseTimeMs = Date.now() - requestStart;
       const wantCur = countryCode ? (currency || '').toUpperCase() : '';
-      const fallbackProducts = dataResult.rows
-        .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
+      const fallbackProducts = (await mapProducts(dataResult.rows as Array<Record<string, unknown>>, currency, compact))
         .filter((prod) => {
           if (!wantCur) return true;
           const cur = String(prod.price?.currency || '').toUpperCase();
@@ -2115,8 +2126,7 @@ router.get(
     const responseTimeMs = Date.now() - requestStart;
 
     const wantCur = countryCode ? (currency || '').toUpperCase() : '';
-    const products = dataResult.rows
-      .map((row) => buildProduct(row as Record<string, unknown>, currency, compact))
+    const products = (await mapProducts(dataResult.rows as Array<Record<string, unknown>>, currency, compact))
       .filter((prod) => {
         if (!wantCur) return true;
         const cur = String(prod.price?.currency || '').toUpperCase();
@@ -2386,9 +2396,7 @@ router.get(
 
       const sampleDeals = dealResult.rows;
       total = sampleDeals.length;
-      deals = sampleDeals.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false)
-      );
+      deals = await mapProducts(sampleDeals as Array<Record<string, unknown>>, currency, false);
     } catch (err: unknown) {
       // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
       const pgErr = err as { code?: string };
@@ -2456,9 +2464,7 @@ router.get(
     const { text, values } = buildCompareProductsQuery(ids);
     const result = await db.query(text, values);
 
-    const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false)
-    );
+    const products = await mapProducts(result.rows as Array<Record<string, unknown>>, 'SGD', false);
 
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
@@ -2863,7 +2869,7 @@ router.get(
          SELECT id, sku AS source_id, source AS domain, url,
                 NULL::text AS affiliate_url,
                 title, price, currency, image_url, metadata, updated_at,
-                region, country_code, category_path
+                region, country_code, category_path, merchant_id
          FROM ${FEATURED_TABLE}
          WHERE is_active = true
            AND country_code = $1
@@ -2943,7 +2949,7 @@ router.get(
     }
 
     const pagedRows = distinctRows.slice(offset, offset + limit);
-    const products = pagedRows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
+    const products = await mapProducts(pagedRows as Array<Record<string, unknown>>, currency, compact);
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2995,7 +3001,7 @@ router.get(
     }
 
     const row = result.rows[0];
-    const product = buildProduct(row as Record<string, unknown>, 'SGD', false);
+    const [product] = await mapProducts([row as Record<string, unknown>], 'SGD', false);
 
     if (req.apiKeyRecord) {
       const elapsedMs = Date.now() - start;
@@ -3361,7 +3367,7 @@ export async function warmSearchCache(): Promise<void> {
       if (hasMore) result.rows.pop();
       const total = result.rows.length + (hasMore ? 1 : 0);
 
-      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
+      const products = await mapProducts(result.rows as Array<Record<string, unknown>>, currency, false);
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
