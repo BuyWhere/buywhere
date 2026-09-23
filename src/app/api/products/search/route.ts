@@ -460,6 +460,10 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${API_KEY}`,
       },
       cache: 'no-store',
+      // BUY-83186: never let the Next BFF hang past the edge idle timeout.
+      // Catalog search currently returns degraded after ~10s; abort earlier so
+      // /search HTML still streams. Client-side fetch remains the source of truth.
+      signal: AbortSignal.timeout(4000),
     });
 
     const data = await response.json().catch(() => null);

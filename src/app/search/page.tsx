@@ -149,9 +149,14 @@ async function fetchInitialResults(
   });
 
   try {
+    // BUY-83186: Hikari/Railway proxy idle-timeouts with 0 bytes if this SSR
+    // fetch never returns. Upstream catalog search currently degrades at ~10s;
+    // abort well under the edge timeout so /search?q= still renders the client
+    // shell (HTTP 200) instead of hanging as HTTP 000.
     const response = await fetch(`${origin}/api/products/search?${params.toString()}`, {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
+      signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) return null;
     const data = await response.json();
