@@ -50,10 +50,10 @@ export default function AgentMarketingBlock({
             </h3>
             <pre
               tabIndex={0}
-              className="bg-slate-950 rounded-lg p-3 text-xs font-mono overflow-x-auto max-w-full whitespace-pre leading-relaxed text-slate-200"
+              className="bg-slate-950 rounded-lg p-3 text-xs font-mono overflow-x-auto leading-relaxed text-slate-200"
               aria-label="Keyless GET example for this page"
             >
-              <code className="block min-w-0 whitespace-pre">{keylessExample}</code>
+              <code>{keylessExample}</code>
             </pre>
             <p className="mt-2 text-xs text-slate-400">
               No API key required for read endpoints — register for higher rate

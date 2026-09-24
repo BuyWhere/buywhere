@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { classifyUserAgent, hashIp, clientIp } from '../lib/botClass';
 import { generateShopeeSgDeeplink, isAffiliateWrapped } from '../lib/involveAsia';
 import { createHash } from 'crypto';
-import { db, catalogDb } from '../config';
+import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
 import { fallbackForBrokenDestination } from '../lib/brokenDestinationFallbacks';
 import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -117,10 +117,6 @@ const DEFAULT_ALLOWED_DOMAINS = [
   'polypet.com.sg',
   'pupsik.sg',
   'robinsons.com.sg',
-  // BUY-80402: Mega Discount Store — live SG robot-vacuum catalog merchant.
-  // /r/direct/{id} must 302 to megadiscountstore.com.sg, not the homepage
-  // fallback, when AFFILIATE_STRICT_ALLOWLIST=1 is set in prod.
-  'megadiscountstore.com.sg',
   // Global / US retailers (country=us revenue path — BUY-60383/BUY-60606)
   'amazon.com',
   'amazon.co.uk',
@@ -215,120 +211,6 @@ function normalizeQuerySlug(slug: string): string {
   }
 }
 
-function escHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
-}
-
-const INTENT_SSR_TIMEOUT_MS = 2500;
-const INTENT_SSR_LIMIT = 12;
-const LIVE_INTENT_CHILD_COUNTRIES = new Set(['SG', 'US']);
-
-function intentCountryFromReq(req: Request): string {
-  const raw = firstQueryValue(req.query.country)
-    || firstQueryValue(req.query.deliver_to)
-    || firstQueryValue(req.query.country_code)
-    || 'SG';
-  const cc = raw.toUpperCase();
-  return LIVE_INTENT_CHILD_COUNTRIES.has(cc) ? cc : 'SG';
-}
-
-function intentPageHtml(opts: {
-  query: string;
-  slug: string;
-  country: string;
-  products: Array<{
-    id: string;
-    title: string;
-    price: string | number | null;
-    currency: string | null;
-    image_url: string | null;
-    domain: string | null;
-    url: string | null;
-  }>;
-}): string {
-  const title = `Best ${opts.query} deals — BuyWhere`;
-  const desc = `Compare ${opts.query} prices in ${opts.country}. Shop merchant offers via BuyWhere.`;
-  const cards = opts.products.map((p) => {
-    const priceNum = p.price == null ? null : Number(p.price);
-    const priceHtml = priceNum != null && Number.isFinite(priceNum)
-      ? `<div class="price">${escHtml(p.currency || 'SGD')} ${priceNum.toFixed(2)}</div>`
-      : '';
-    const href = `/r/direct/${encodeURIComponent(String(p.id))}`;
-    return `<article class="product-card">
-  ${p.image_url ? `<img src="${escHtml(p.image_url)}" alt="${escHtml(p.title)}" loading="lazy">` : ''}
-  <h2><a href="${href}" rel="sponsored">${escHtml(p.title.slice(0, 120))}</a></h2>
-  ${priceHtml}
-  <div class="merchant">${escHtml(p.domain || 'merchant')}</div>
-  <a class="cta" href="${href}" rel="sponsored">View deal</a>
-</article>`;
-  }).join('\n');
-
-  const empty = opts.products.length === 0
-    ? `<p class="empty-state">No live ${escHtml(opts.query)} offers right now. Try another search.</p>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escHtml(title)}</title>
-<meta name="description" content="${escHtml(desc)}">
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.5}
-  h1{font-size:1.6rem}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:20px}
-  .product-card{border:1px solid #e5e5e5;border-radius:8px;padding:14px}
-  .product-card img{max-width:100%;height:140px;object-fit:contain}
-  .price{font-weight:700;color:#0a7c59}
-  .merchant{color:#555;font-size:.9em}
-  .cta{display:inline-block;margin-top:8px;padding:8px 14px;background:#0a7c59;color:#fff;border-radius:6px;text-decoration:none;font-size:.9em}
-  .empty-state{color:#555}
-  a{color:#0969da}
-</style>
-</head>
-<body>
-<nav><a href="/">BuyWhere</a></nav>
-<h1>Best ${escHtml(opts.query)} deals</h1>
-<p>Live merchant offers for ${escHtml(opts.query)} (${escHtml(opts.country)}).</p>
-${empty}
-<div class="grid">${cards}</div>
-</body>
-</html>`;
-}
-
-async function loadIntentProducts(query: string, country: string): Promise<Array<{
-  id: string;
-  title: string;
-  price: string | number | null;
-  currency: string | null;
-  image_url: string | null;
-  domain: string | null;
-  url: string | null;
-}>> {
-  const table = `products_partitioned_${country.toLowerCase()}`;
-  const like = `%${query.replace(/[%_]/g, '')}%`;
-  const sql = `
-    SELECT id, title, price, currency, image_url, source AS domain, url
-      FROM ${table}
-     WHERE is_active = true
-       AND price IS NOT NULL AND price > 0
-       AND title ILIKE $1
-     ORDER BY updated_at DESC NULLS LAST
-     LIMIT $2`;
-  const result = await withTimeout(
-    catalogDb.query(sql, [like, INTENT_SSR_LIMIT]),
-    INTENT_SSR_TIMEOUT_MS,
-    `${table} intent SSR`,
-  );
-  return result.rows || [];
-}
-
 // GET /r?u=<url> — legacy public shortcut used by human-facing links and some
 // partner embeds. BUY-77001: the trailing-slash middleware now passes /r/?u=...
 // through, but Express matches the bare /r path to no handler and falls through
@@ -401,32 +283,16 @@ const legacyUrlRedirectHandler = async (req: Request, res: Response) => {
   res.redirect(302, destinationUrl);
 };
 
-// GET /r/:query — BUY-80542: SSR product cards on the affiliate funnel.
-// Never 302 to /search (that was a SEV-1 regression of the P6.1 funnel).
-// Catalog lookup is a short child-table ILIKE; timeout/miss → empty-state 200
-// (unknown slug) rather than a silent search redirect.
+// GET /r/:query — public shortcut used by legacy human-facing links.
+// Do not require API auth and do not run broad catalog scans on the redirect path.
 const queryRedirectHandler = async (req: Request, res: Response) => {
-  const slug = String(req.params.query || '');
-  const query = normalizeQuerySlug(slug);
+  const query = normalizeQuerySlug(req.params.query || '');
   if (!query) {
-    res.status(404).type('text/html').send('<h1>Not found</h1>');
+    res.redirect(302, FALLBACK_URL);
     return;
   }
 
-  const country = intentCountryFromReq(req);
-  let products: Awaited<ReturnType<typeof loadIntentProducts>> = [];
-  try {
-    products = await loadIntentProducts(query, country);
-  } catch (err) {
-    console.warn('[redirect] intent SSR lookup failed:', (err as Error).message);
-  }
-
-  const html = intentPageHtml({ query, slug, country, products });
-  const status = products.length > 0 ? 200 : 404;
-  res.status(status);
-  res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
-  res.set('X-Robots-Tag', 'ai-index');
-  res.type('text/html').send(html);
+  res.redirect(302, `${FALLBACK_URL}/search?q=${encodeURIComponent(query)}`);
 };
 
 // GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
@@ -490,7 +356,7 @@ const redirectHandler = async (req: Request, res: Response) => {
   if (!destinationUrl) {
     try {
       const productResult = await withTimeout(
-        catalogDb.query(
+        db.query(
           probeEnabled
             ? `SELECT url, merchant_id, url_status FROM products WHERE id = $1`
             : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`,
@@ -506,40 +372,6 @@ const redirectHandler = async (req: Request, res: Response) => {
       }
     } catch (err) {
       console.warn('[redirect] products lookup failed:', (err as Error).message);
-    }
-  }
-
-  // BUY-80402: SG (and other fast-country) catalog rows live on
-  // products_partitioned_{cc}, not the 413GB parent `products` table.
-  // Intent-page /r/direct/{id} for megadiscountstore.com.sg therefore missed
-  // the parent lookup and 302'd to FALLBACK_URL. One UNION ALL of PK probes
-  // (planner uses each child's id index; never scans the parent).
-  if (!destinationUrl && /^\d+$/.test(String(productId))) {
-    // Prefer SG then US — the two markets that serve /r/direct intent-page
-    // traffic. Sequential so a missing child table cannot fail the whole
-    // lookup (UNION ALL of 14 tables did that in prod).
-    const CHILD_CCS = ['sg', 'us'];
-    const urlStatusSelect = probeEnabled ? 'url_status' : 'NULL::text AS url_status';
-    for (const cc of CHILD_CCS) {
-      if (destinationUrl) break;
-      const table = `products_partitioned_${cc}`;
-      try {
-        const childResult = await withTimeout(
-          catalogDb.query(
-            `SELECT url, merchant_id, ${urlStatusSelect} FROM ${table} WHERE id = $1 LIMIT 1`,
-            [productId]
-          ),
-          LOOKUP_TIMEOUT_MS,
-          `${table} lookup`
-        );
-        if (childResult.rows.length > 0) {
-          destinationUrl = childResult.rows[0].url;
-          merchantId = childResult.rows[0].merchant_id || 'unknown';
-          urlStatus = childResult.rows[0].url_status || null;
-        }
-      } catch (err) {
-        console.warn(`[redirect] ${table} lookup failed:`, (err as Error).message);
-      }
     }
   }
 

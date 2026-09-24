@@ -179,8 +179,6 @@ class BuyWhereClient:
             qs["currency"] = str(params["currency"])
         if params.get("min_discount") is not None:
             qs["min_discount"] = str(params["min_discount"])
-        if params.get("category"):
-            qs["category"] = str(params["category"])
         if params.get("limit") is not None:
             qs["limit"] = str(params["limit"])
         if params.get("offset") is not None:

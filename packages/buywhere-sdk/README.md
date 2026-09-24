@@ -54,6 +54,44 @@ const client = new BuyWhereSDK({
 });
 ```
 
+## Search
+
+The `search` namespace provides full-text and semantic product search via `GET /v1/products/search`:
+
+```ts
+import type { SearchResponse, SearchModeOption } from '@buywhere/sdk';
+
+const client = createClient('bw_live_your_api_key');
+
+// Basic search
+const results = await client.search.search('wireless headphones', {
+  country: 'US',
+  limit: 10,
+});
+
+// With mode: keyword (FTS only), semantic (vector only), or hybrid (RRF blend, default)
+const semanticResults = await client.search.search('laptop for coding', {
+  country: 'SG',
+  mode: 'semantic' as SearchModeOption,
+});
+
+// Check what search mode actually ran (honesty envelope)
+const response = await client.search.search('smartphone', { country: 'US' });
+const sm = response.search_mode;
+console.log(`Requested: ${sm?.requested_mode}, Executed: ${sm?.executed_mode}`);
+```
+
+Supported `SearchParams`:
+
+- `query` (required) — search query
+- `country`, `currency`, `region` — location and pricing context
+- `limit`, `offset` — pagination (limit max 50)
+- `price_min`, `price_max` — price range filter
+- `platform` — filter by platform/merchant
+- `mode` — `keyword` | `semantic` | `hybrid` (default: `hybrid`)
+
+The `search_mode` envelope on `SearchResponse` tells agent developers exactly what engine ran and whether a fallback occurred.
+
 ## Compare, price history & deals
 
 ```ts

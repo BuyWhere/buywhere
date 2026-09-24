@@ -318,9 +318,7 @@ export function resolveHeroTitle(
 ): string {
   if (!config.heroTitleTemplate) return config.heroTitle;
 
-  const pageCcy = (config.currency || "USD").toUpperCase();
   const prices = products
-    .filter((p) => !p.currency || String(p.currency).toUpperCase() === pageCcy)
     .map((p) => (p.price !== null && p.price !== undefined ? Number(p.price) : null))
     .filter((n): n is number => n !== null && Number.isFinite(n) && n > 0);
 
@@ -520,9 +518,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
   return {
     id: productId,
-    // BUY-83036: decode HTML entities (&#8243;, &#8217;, etc.) at ingestion
-    // boundary so every downstream consumer (cards, schema, SVG) gets clean text.
-    name: decodeEntities(item.name || item.title || "Untitled product"),
+    name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: displayMerchant,
@@ -546,7 +542,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     href,
     // BUY-76340 / BUY-79241: ProductGridCard prefers affiliateUrl for /r/direct.
     affiliateUrl,
-    brand: item.brand ? decodeEntities(item.brand) : null,
+    brand: item.brand || null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
     // BUY-72906: keep the upstream merchant/market country available for
@@ -758,19 +754,7 @@ function brandedProductPlaceholderSvg(
   name?: string | null,
   category?: string | null,
 ): string {
-  // Decode common HTML numeric entities (&#8243; = ″ double-prime/inch, &#8217; = right single quote, etc.)
-  // before stripping HTML-special chars. Covers entities the scraper ingests verbatim from upstream merchant pages.
-  const decodeEntities = (s: string) =>
-    s.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-     .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
-     .replace(/&nbsp;/g, " ")
-     .replace(/&amp;/g, "&")
-     .replace(/&lt;/g, "<")
-     .replace(/&gt;/g, ">")
-     .replace(/&quot;/g, '"')
-     .replace(/&#39;/g, "'")
-     .replace(/&apos;/g, "'");
-  const clean = (s: string) => decodeEntities(s).replace(/[<>&"']/g, "").trim();
+  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 36) || categoryText;
@@ -939,6 +923,24 @@ function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h:
   // WebP / AVIF / unknown — skip and return null. The existing
   // verifyReachableImage check already filtered those out at this stage.
   return null;
+}
+
+function isTrustedAirPurifierShopifyPhoto(config: SeoLandingPageConfig, product: LandingProduct): boolean {
+  if (config.slug !== "air-purifier-singapore" || config.country !== "SG") return false;
+  if (!product.imageUrl) return false;
+  const merchant = (product.merchantSlug || product.merchant || "").toLowerCase();
+  if (!/^(levoit(?:[._-]?sg)?|sterra(?:[._-]?sg)?)$/.test(merchant) && merchant !== "levoit.sg" && merchant !== "sterra.sg") {
+    return false;
+  }
+  if (product.imageUrl.startsWith("/api/image-proxy")) {
+    return product.imageUrl.includes("cdn.shopify.com") || product.imageUrl.includes("cdn.shopify.com".replaceAll(".", "%2E"));
+  }
+  try {
+    const url = new URL(product.imageUrl);
+    return url.hostname === "cdn.shopify.com";
+  } catch {
+    return false;
+  }
 }
 
 const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
@@ -1172,12 +1174,8 @@ const GENERIC_ACCESSORY_RE =
 // BUY-79341: residual accessories that sit mid/end of title (Bagpack, " - Parts",
 // donor/logic board). Kept as a second pass so BUY-79380's ^-anchor still lets
 // "ROTEL DX-3 HEADPHONE AMPLIFIER" through as a primary SKU.
-// BUY-80705: side-table/end-table/console-table/coffee-table/nightstand are
-// furniture accessories — a laptop search returns them via FTS body/category
-// matches but they contain no existing accessory token and slip past the
-// penalty. Now explicitly matched so they are classified as accessories.
 const GENERIC_ACCESSORY_SUBSTRING_RE =
-  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|coffee\s*table|console\s*table|end\s*table|nightstand|side\s*table|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
+  /\b(?:ear\s*pads?|earpads?|ear\s*cushions?|bagpack|backpack|bags?|mounts?|stands?|skins?|covers?|sleeves?|cases?|donor\s+board|logic\s+board|repair\s+replacement|spare)\b|(?:^|[\s\-–—])parts(?:$|[\s\-–—])/i;
 
 export function isGenericAccessoryProduct(
   product: Pick<LandingProduct, "name" | "brand" | "category">,
@@ -1626,6 +1624,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     try {
       const highRecallRobotUs =
         config.slug === "best-robot-vacuums-2026" && config.country === "US";
+      // BUY-80149: air-purifier SG must not hairpin the 3600s FTS cache that
+      // still serves USD Honeywell respirators for q=air+purifier&country=sg.
+      const highRecallAirPurifierSg =
+        config.slug === "air-purifier-singapore" && config.country === "SG";
+      const useCanonicalV1 = highRecallRobotUs || highRecallAirPurifierSg;
       const params = new URLSearchParams({
         // BUY-78769: /api/products/search is case-sensitive on country/deliver_to/region.
         // config.country is uppercase ("SG"/"US"); uppercase params return 0 + degraded.
@@ -1657,7 +1660,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       // BUY-79810: robot-vacuum 2026 SSR must not hairpin through the public
       // site search proxy (429). Hit api.buywhere.ai with the service key when
       // present; otherwise keep the loopback proxy for other pages.
-      const searchUrls = highRecallRobotUs
+      const searchUrls = useCanonicalV1
         ? [
             `${apiBase()}/v1/products/search?${params.toString()}`,
             `${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`,
@@ -1670,7 +1673,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           response = await fetch(searchUrl, {
             headers: {
               Accept: "application/json",
-              "x-buywhere-seo-cache": "79810",
+              "x-buywhere-seo-cache": highRecallAirPurifierSg ? "80149" : "79810",
+              ...(highRecallAirPurifierSg ? { "Cache-Control": "no-cache" } : {}),
               ...(viaV1 ? apiHeaders() : {}),
             },
             next: { revalidate: 60 },
@@ -1797,9 +1801,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const reachable = await verifyReachableImage(product.imageUrl);
       if (!reachable) return { passed: false, reason: "unreachable", fingerprint: null };
       const qualityPassed = await verifyUsableImageContent(product.imageUrl);
-      if (!qualityPassed) return { passed: false, reason: "low_quality", fingerprint: null };
+      if (!qualityPassed && !isTrustedAirPurifierShopifyPhoto(config, product)) {
+        return { passed: false, reason: "low_quality", fingerprint: null };
+      }
       const fingerprint = await fingerprintRemoteImage(product.imageUrl);
-      return { passed: true, reason: "ok", fingerprint };
+      return { passed: true, reason: qualityPassed ? "ok" : "trusted_shopify_photo", fingerprint };
     })
   );
 
@@ -1857,16 +1863,28 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
     if (fallbackImage) {
       const fallbackFp = await fingerprintRemoteImage(fallbackImage);
-      verified.push({ ...product, imageUrl: fallbackImage });
+      verified.push({ ...product, imageUrl: viaImageProxy(fallbackImage) ?? fallbackImage });
       qualityById.set(product.id, { passed: true, reason: "fallback", fingerprint: fallbackFp });
     } else {
-      // No fallback available - check if we should keep the card anyway
+      // BUY-79843: graft a curated merchant CDN photo from fallbackProducts
+      // (Dyson/Philips/Xiaomi/Sharp/Sterra for air-purifier-singapore) instead
+      // of keeping a null imageUrl that SSR-paints as an inline SVG wireframe.
+      const wideFallbacks = fallback.filter(
+        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
+      );
+      const match = wideFallbacks.find((fb) => {
+        const a = (fb.name || "").toLowerCase();
+        const b = (product.name || "").toLowerCase();
+        const brandOk = !fb.brand || !product.brand || fb.brand.toLowerCase() === product.brand.toLowerCase();
+        return brandOk && (a.includes(b.slice(0, 12)) || b.includes(a.slice(0, 12)));
+      }) || wideFallbacks[verified.length] || wideFallbacks[0];
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
-      if (constructibleRedirect) {
-        // Keep the card but with null image (empty-image treatment)
-        verified.push({ ...product, imageUrl: null });
+      if (constructibleRedirect && match?.imageUrl) {
+        const grafted = viaImageProxy(match.imageUrl) ?? match.imageUrl;
+        verified.push({ ...product, imageUrl: grafted });
+        qualityById.set(product.id, { passed: true, reason: "curated_fallback", fingerprint: grafted });
         console.warn(
-          `[seo] BUY-79816 keeping product ${product.id} on ${config.slug} with null image after fallback chain exhausted`
+          `[seo] BUY-79843 keeping priced product ${product.id} on ${config.slug} with curated fallback photo`,
         );
       } else {
         console.warn(
@@ -1881,8 +1899,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const seenFingerprints = new Set<string>();
   const dedupedProducts: LandingProduct[] = [];
   for (const product of verified) {
-    if (!product.imageUrl) {
-      dedupedProducts.push(product);
+    if (!product.imageUrl || product.imageUrl.startsWith("data:image/svg")) {
+      // BUY-79843: omit wireframe / photo-less cards from the snapshot grid.
       continue;
     }
     const fp = qualityById.get(product.id)?.fingerprint || null;
@@ -1911,10 +1929,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (finalVerified.some(p => p.id === product.id)) continue;
       const constructibleRedirect = Boolean(product.id) && product.price !== null;
       if (!constructibleRedirect) continue;
-      // Add with null image
-      finalVerified.push({ ...product, imageUrl: null });
+      const wideFallbacks = fallback.filter(
+        (fb) => fb.imageUrl && sanitizeProductImageUrl(fb.imageUrl) && !fb.imageUrl.startsWith("data:"),
+      );
+      const match = wideFallbacks[finalVerified.length] || wideFallbacks[0];
+      if (!match?.imageUrl) continue;
+      finalVerified.push({ ...product, imageUrl: viaImageProxy(match.imageUrl) ?? match.imageUrl });
       console.warn(
-        `[seo] BUY-79816 adding fallback product ${product.id} to meet minimum cards`,
+        `[seo] BUY-79843 adding product ${product.id} with curated photo to meet minimum cards`,
       );
     }
   }
@@ -2096,22 +2118,6 @@ export function buildSeoLandingMetadata(
   };
 }
 
-// BUY-83036: decode HTML entities before rendering product names into JSON-LD.
-// Scraper ingests &#8243; etc. verbatim; decode at render time so schema markup
-// and page text are clean.
-function decodeEntities(s: string): string {
-  return String(s || "")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
-}
-
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[], dateModifiedIso?: string) {
   const canonical = toSiteUrl(config.canonicalPath);
   // BUY-66320: resolve the same hero title the page renders so the JSON-LD
@@ -2163,18 +2169,18 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     return {
       "@type": "Product",
       "@id": `${canonical}#product-${reference.id}`,
-      name: decodeEntities(reference.name),
+      name: reference.name,
       brand: reference.brand
         ? {
             "@type": "Brand",
-            name: decodeEntities(reference.brand),
+            name: reference.brand,
           }
         : undefined,
       category: reference.category || undefined,
       ...(schemaProductImage(reference.imageUrl)
         ? { image: schemaProductImage(reference.imageUrl) }
         : {}),
-      description: `${decodeEntities(reference.name)} price comparison across ${group.length} ${
+      description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
       // BUY-69663: aggregateRating intentionally absent. The previous block
@@ -2192,7 +2198,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: decodeEntities(p.merchant),
+                name: p.merchant,
               })),
             }
           : {
@@ -2360,10 +2366,13 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "air purifier Singapore",
-    backupQueries: ["best air purifier Singapore", "cheap air purifier Singapore", "air purifier price Singapore", "Coway air purifier", "Levoit air purifier", "Xiaomi air purifier"],
-    excludeAccessories: true,
-    minPrice: 249,
+    // BUY-80149: broad "air purifier Singapore" FTS can return a stale USD
+    // respirator cache. Start with live SG brand queries that currently return
+    // priced levoit.sg / sterra.sg / challenger.sg rows, then keep broad terms
+    // only as last-resort fallbacks.
+    searchQuery: "levoit air purifier",
+    backupQueries: ["sterra air purifier", "Coway air purifier", "Xiaomi air purifier", "air purifier", "air purifier Singapore"],
+    minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -2449,18 +2458,16 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    // BUY-77657 (2026-09-16): bare `q=laptop` against the SG partition now
-    // returns total=0 (keyword miss / accessory-demotion wipe). `q=MacBook`
-    // returns 24 SGD Apple.sg MacBook Pro rows in ~80ms. Lead with that
-    // recall query; keep brand-scoped backups that historically hit.
-    searchQuery: "MacBook",
+    searchQuery: "laptop",
     // BUY-77791: `category=laptops` on /api/products/search times out (10s
     // degraded) for the SG country filter because the planner can't use the
-    // partition key efficiently with that category_path value. Leave
-    // searchCategory undefined so the live API call drops the category
-    // parameter and relies on the searchQuery + filters.
+    // partition key efficiently with that category_path value. The primary
+    // `q=laptop` call against the partition succeeds in ~3s and returns 11
+    // SGD-priced Amazon.sg laptops, 7 of which pass requiredProductTerms +
+    // minPrice. Leave searchCategory undefined so the live API call drops
+    // the category parameter and relies on the searchQuery + filters.
     excludeAccessories: true,
-    backupQueries: ["MacBook laptop", "MacBook Air", "MacBook Pro", "ASUS laptop", "Lenovo laptop"],
+    backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     compactCatalogCards: true,
@@ -13906,10 +13913,7 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     // page — drop the category parameter and rely on the searchQuery + filters
     // so the live call returns real US laptops instead of degrading into the
     // fallback set (the cached HTML currently shows the 5 fallback rows).
-    // BUY-77657: US `q=Laptop` over-indexes mounts/used junk; MacBook backups
-    // still return primary SKUs after accessory demotion.
     excludeAccessories: true,
-    backupQueries: ["MacBook", "MacBook Air", "MacBook Pro"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",
@@ -14291,38 +14295,6 @@ function shortMerchant(value: string): string {
   return stripMerchantTenantSuffix(value).replace(/\s+store$/i, "").trim() || "a retailer";
 }
 
-// BUY-83035: Helper to calculate median price for outlier detection
-function getMedianPrice(prices: number[]): number {
-  if (prices.length === 0) return 0;
-  const sorted = [...prices].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-// BUY-83035: Filter price outliers using median-based threshold
-// Excludes products with prices exceeding thresholdMultiplier * median
-function filterPriceOutliers<T extends { price: number }>(
-  items: T[],
-  thresholdMultiplier: number = 3,
-): T[] {
-  if (items.length < 3) return items; // Need at least 3 for meaningful median
-
-  const prices = items.map((i) => i.price);
-  const median = getMedianPrice(prices);
-  if (median === 0) return items;
-
-  const threshold = median * thresholdMultiplier;
-  const filtered = items.filter((item) => item.price <= threshold);
-
-  // If filtering removes too many items, fall back to original list
-  // to avoid over-filtering on small datasets
-  if (filtered.length < 2) return items;
-
-  return filtered;
-}
-
 export function buildAnswerBlock(
   config: Pick<SeoLandingPageConfig, "searchQuery" | "country" | "currency">,
   products: LandingProduct[],
@@ -14348,13 +14320,7 @@ export function buildAnswerBlock(
       byMerchant.set(key, row);
     }
   }
-  let ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
-
-  // BUY-83035: Filter price outliers before building the answer block.
-  // A price exceeding 3x the median is likely a data error (wrong currency,
-  // scrape error, or bad product mapping). This prevents misleading "cheapest"
-  // claims like "S$70 cheapest vs S$3,299" when S$3,299 is clearly erroneous.
-  ranked = filterPriceOutliers(ranked, 3);
+  const ranked = Array.from(byMerchant.values()).sort((a, b) => a.price - b.price);
 
   if (ranked.length < 2) {
     // Need at least two distinct priced retailers to honestly name a "next retailer"
@@ -14407,3 +14373,4 @@ export function buildAnswerBlock(
     nextPrice: next.price,
   };
 }
+

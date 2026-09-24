@@ -72,7 +72,7 @@ const REST_BUYER_FUNNEL_ENDPOINTS = new Set([
 ]);
 
 const router = Router();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10); // BUY-82929: raised from 1000 to handle sakura IO saturation
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 // BUY-78735: MCP clients (and the 5s 0-byte hang probes) abort well before PG's
 // 30s statement_timeout. Bound catalog_search / get_deals / FBP to a wall-clock
 // so tools/call always flushes a JSON degraded envelope. PG timeout is kept
@@ -674,7 +674,7 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au), country (SG, US, VN, MY, ...) and category filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
+    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters. BUY-74597 degraded contract: when the discount-index scan cannot complete inside the user-facing timeout, this tool returns a 200-OK envelope with `meta.status="degraded"`, `meta.emptiness_reason="api_error"` with `meta.degraded_kind="timeout"` (or `"partial_timeout"` / `"auth_failure"`), `meta.confidence="low"`, and `meta.diagnostic.timed_out_stage` (typically `offer_aggregation`). It never returns an unqualified empty result when the cause is timeout, auth failure, upstream exception, or circuit breaker. Branch on `meta.degraded === true` or `meta.status === "degraded"`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -685,7 +685,6 @@ const TOOLS = [
         deliver_to: { type: 'string', description: 'Treat as REQUIRED for buyer-facing use: ISO-3166 country of the END USER (e.g. "SG", "US"). Without it results are not shipping-ranked and may be undeliverable. Preferred over country_code/country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
-        category: { type: 'string', description: 'Filter deals by product category (e.g. "Electronics", "Beauty", "home_and_kitchen"). Handler matches against category text and category_path[1]; slug-style input is accepted. BUY-76853/BUY-83657.' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -832,7 +831,7 @@ const V2_TOOLS = [
   },
   {
     name: 'get_deals_v2',
-    description: 'REQUIRED deliver_to. Get discounted products sorted by discount percentage. Always pass deliver_to="SG" (or your buyer\'s country). Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au), country (SG, US, VN, MY, ...) and category filters.',
+    description: 'REQUIRED deliver_to. Get discounted products sorted by discount percentage. Always pass deliver_to="SG" (or your buyer\'s country). Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
     inputSchema: {
       type: 'object',
       required: ['deliver_to'],
@@ -843,7 +842,6 @@ const V2_TOOLS = [
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         deliver_to: { type: 'string', description: 'REQUIRED. Buyer delivery country/market (ISO country code, e.g. "SG", "US").' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
-        category: { type: 'string', description: 'Filter deals by product category (e.g. "Electronics", "Beauty", "home_and_kitchen"). Handler matches against category text and category_path[1]; slug-style input is accepted. BUY-76853/BUY-83657.' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -1333,13 +1331,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
             }
-            // BUY-80652: non-child-table countries skip currency in tierWhere but the
-            // detail join has no currency filter, so USD rows pass country_code=SG and
-            // leak into results. Apply native currency on the join to match isolation.
-            if (country && COUNTRY_CURRENCY[country]) {
-              detailParams.push(COUNTRY_CURRENCY[country]);
-              detailConditions.push(`currency = $${detailParams.length}`);
-            }
             if (region) {
               detailParams.push(region);
               detailConditions.push(`region = $${detailParams.length}`);
@@ -1376,20 +1367,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller?: { ap
           } else {
             const tierIds = tierFts.rows.map(r => r.id);
             const ph = tierIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailConditions2 = ['id IN (' + ph + ')', 'is_active = true', 'price > 0'];
-            const detailParams2: unknown[] = [...tierIds];
-            // BUY-80652: mirror Fix A — add native currency to detail join for non-child-table.
-            if (country && COUNTRY_CURRENCY[country]) {
-              detailParams2.push(COUNTRY_CURRENCY[country]);
-              detailConditions2.push(`currency = $${detailParams2.length}`);
-            }
             // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, merchant_id AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code,
                       category, category_path, url_last_checked_at, url_status
-               FROM products WHERE ${detailConditions2.join(' AND ')}`,
-              detailParams2
+               FROM products WHERE id IN (${ph}) AND is_active = true AND price > 0`,
+              tierIds
             );
             // Preserve tier ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -1884,36 +1868,34 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
     // selective), candidates are id-thin, and full rows join only for the
     // returned page. updated_at tiebreak preserved in SQL.
     await dealsClient.query('SET enable_seqscan = off');
-    // BUY-69368: use products table (not search_products) for get_deals.
-    // products has proper deals indexes: idx_buy64112_deals_country_products
-    // (currency, country_code, discount_pct DESC) with is_active/price predicates.
-    // search_products has no country-discount composite index, causing seqscan
-    // timeouts on the 97M-row tier table.
-    // BUY-79200 note: removed search_products reference; see products table query below.
+    // BUY-79200: keep the walk tiny. idx_sp_disc LIMIT 200 is <1ms; 400+ times out
+    // because heap fetches from 78GB search_products scatter. Country partial
+    // idx_sp_disc_* (created alongside this change) makes country filters index-only.
     const candidateLimit = categoryLower ? 200 : 200;
     const candidateParams = [...params, candidateLimit];
     // BUY-79353: use merchant_id as displayed merchant, not source (feed origin).
-    // BUY-69368: query products table with proper deals index predicates:
-    // is_active=true, discount_pct IS NOT NULL, price > 0 — matches idx_buy64112_deals_country_products
     const dataResult = await dealsClient.query(
       `SELECT p.id, p.sku AS source, p.merchant_id AS domain, p.url, p.title,
               p.price,
-              (p.metadata->>'original_price')::numeric AS original_price,
-              p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
-              p.url_last_checked_at, p.url_status,
+              NULL::numeric AS original_price,
+              p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
+              NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, p.category_path
-       FROM products p
+              p.category, NULL::text[] AS category_path
+       FROM search_products p
        WHERE ${whereClause}
-         AND p.is_active = true
-         AND p.discount_pct IS NOT NULL
-         AND p.price > 0
        ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT $${candidateParams.length}`,
       candidateParams
     );
     total = dataResult.rows.length;
-    // Country filtering moved to SQL WHERE (effectiveCountry already in whereClause)
+    if (effectiveCountry) {
+      const cc = effectiveCountry.toUpperCase();
+      dataResult.rows = (dataResult.rows as Record<string, unknown>[]).filter(
+        (r) => String(r.country_code || '').toUpperCase() === cc,
+      );
+      total = dataResult.rows.length;
+    }
     // BUY-77834: post-fetch category filter on the bounded candidate set. SQL
     // WHERE was kept category-free so the (currency, discount_pct DESC) index
     // walk stays bounded. Match caller input against `category` text AND
@@ -1940,59 +1922,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: { apiKeyId
   } catch (e: any) {
     const degradedKind = classifyMcpDegradedKind(e);
     recordMcpCircuitFailure('get_deals', 'offer_aggregation', effectiveCountry || null);
-    console.warn(`[get_deals] BUY-69368: offer_aggregation degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 200)}`);
-
-    // BUY-69368: fall back to REST /v1/products/deals when MCP DB query times out.
-    // The REST endpoint uses a different connection pool and may succeed when MCP fails.
-    const restFallback = await (async () => {
-      try {
-        const params = new URLSearchParams({
-          currency: currency,
-          min_discount: String(minDiscount),
-          limit: String(limit),
-          offset: String(offset),
-        });
-        if (effectiveCountry) params.set('country_code', effectiveCountry);
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), REST_SEARCH_FALLBACK_MS);
-        const bases = [
-          (process.env.BUYWHERE_REST_BASE || '').replace(/\/$/, ''),
-          'http://buywhere-api.railway.internal:8080',
-          'http://buywhere-api.railway.internal:3000',
-          `http://127.0.0.1:${PORT}`,
-          'https://api.buywhere.ai',
-        ].filter(Boolean);
-        for (const base of bases) {
-          try {
-            const resp = await fetch(`${base}/v1/products/deals?${params.toString()}`, {
-              signal: ac.signal,
-            });
-            if (resp.ok) {
-              const data = await resp.json() as { products?: Record<string, unknown>[]; data?: Record<string, unknown>[] };
-              const rows = data.products || data.data || [];
-              clearTimeout(timer);
-              console.warn(`[get_deals] BUY-69368: REST fallback succeeded n=${rows.length}`);
-              return buildSearchResponse(
-                rows as unknown as ReturnType<typeof buildProduct>[],
-                rows.length,
-                limit,
-                offset,
-                Date.now() - t0,
-                false,
-                true, // degraded
-              );
-            }
-          } catch (_) { /* try next base */ }
-        }
-        clearTimeout(timer);
-      } catch (_) { /* fallback failed */ }
-      return null;
-    })();
-
-    if (restFallback) {
-      return restFallback;
-    }
-
+    console.warn(`[get_deals] BUY-74597: offer_aggregation degraded (${degradedKind}) — returning MCP degraded envelope`);
     return buildMcpDegradedSearchResponse({
       tool: 'get_deals',
       stage: 'offer_aggregation',
@@ -2325,12 +2255,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
-    if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
+    if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
-      const allRows = restFbp.best_price
-        ? [restFbp.best_price, ...restFbp.alternatives]
-        : restFbp.alternatives;
+      const allRows = [restFbp.best_price, ...restFbp.alternatives];
       const rowToUsd = (r: Record<string, unknown>) => {
         const price = r.price as { amount: number; currency: string } | null;
         if (!price?.amount) return 0;
@@ -2351,14 +2279,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       return {
         best_price: guarded[0] ?? null,
         alternatives: guarded.slice(1),
-        meta: {
-          ...restFbp.meta,
-          degraded: true,
-          degraded_kind: 'circuit_open',
-          emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
-          confidence: guarded.length === 0 ? 'low' : 'medium',
-          guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0,
-        },
+        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
       };
     }
     return buildMcpDegradedBestPriceResponse({
@@ -2508,12 +2429,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
     const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
-    if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
+    if (restFbp && restFbp.best_price) {
       console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
-      const allRows = restFbp.best_price
-        ? [restFbp.best_price, ...restFbp.alternatives]
-        : restFbp.alternatives;
+      const allRows = [restFbp.best_price, ...restFbp.alternatives];
       const rowToUsd = (r: Record<string, unknown>) => {
         const price = r.price as { amount: number; currency: string } | null;
         if (!price?.amount) return 0;
@@ -2534,14 +2453,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       return {
         best_price: guarded[0] ?? null,
         alternatives: guarded.slice(1),
-        meta: {
-          ...restFbp.meta,
-          degraded: true,
-          degraded_kind: degradedKind,
-          emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
-          confidence: guarded.length === 0 ? 'low' : 'medium',
-          guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0,
-        },
+        meta: { ...restFbp.meta, guard_applied: (restFbp.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0 },
       };
     }
     return buildMcpDegradedBestPriceResponse({

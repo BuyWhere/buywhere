@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 import { toSiteUrl } from "@/lib/site-url";
-import { resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
 
 const API_INTERNAL_URL = (
   process.env.BUYWHERE_API_INTERNAL_URL ||
@@ -43,7 +42,6 @@ interface ApiProductItem {
   brand?: string | null;
   merchant?: string | null;
   merchant_name?: string | null;
-  merchant_id?: string | null;
   updated_at?: string | null;
   click_url?: string | null;
   affiliate_redirect_url?: string | null;
@@ -77,13 +75,7 @@ function mapApiProduct(item: ApiProductItem): ProductDetail {
     image_url: item.image_url ?? null,
     category: item.category ?? undefined,
     brand: item.brand ?? undefined,
-    merchant_name:
-      resolveMerchantDisplayName({
-        merchant: item.merchant,
-        merchant_name: item.merchant_name,
-        merchant_id: item.merchant_id,
-        url: item.url ?? item.product_url,
-      }) || undefined,
+    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
     data_updated_at: item.updated_at ?? undefined,
     affiliate_redirect_url: item.affiliate_redirect_url ?? null,
     click_url: item.click_url ?? null,
@@ -203,7 +195,7 @@ export default async function ProductIdCompatibilityPage({ params }: PageProps) 
   if (!product) notFound();
 
   const productName = product.name ?? product.title ?? `BuyWhere catalog product ${productId}`;
-  const merchantName = stripMerchantTenantSuffix(product.merchant_name) || "BuyWhere catalog";
+  const merchantName = product.merchant_name ?? "BuyWhere catalog";
   const pagePath = `/products/${productId}`;
   const description =
     product.description ??
@@ -313,7 +305,7 @@ export default async function ProductIdCompatibilityPage({ params }: PageProps) 
             )}
             <p className="text-sm text-gray-600 mb-6">{description}</p>
             <div className="flex flex-wrap gap-3">
-              {ctaUrl && <a href={ctaUrl} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">{viewAtCtaLabel(merchantName)}<span aria-hidden="true">→</span></a>}
+              {ctaUrl && <a href={ctaUrl} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">View at {merchantName}<span aria-hidden="true">→</span></a>}
               <Link href="/compare" className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-6 py-3 text-base font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50">Compare products</Link>
             </div>
             {product.category && <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>}

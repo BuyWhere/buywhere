@@ -1,5 +1,6 @@
 import type {
   SearchParams,
+  SearchModeOption,
   CompareParams,
   DealsParams,
   DealsFeedParams,
@@ -24,6 +25,7 @@ export class ValidationError extends Error {
 
 const VALID_COUNTRIES = ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'] as const;
 const VALID_REGIONS = ['us', 'sea'] as const;
+const VALID_SEARCH_MODES: readonly SearchModeOption[] = ['keyword', 'semantic', 'hybrid'];
 const VALID_PERIODS = ['7d', '30d', '90d', '1y'] as const;
 const VALID_SORT_OPTIONS = ['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'] as const;
 
@@ -85,6 +87,16 @@ export function validateSearchParams(params: SearchParams): void {
   if (params.price_max !== undefined) {
     if (!isNumber(params.price_max) || params.price_max < 0) {
       throw new ValidationError('price_max must be a non-negative number', 'price_max', params.price_max);
+    }
+  }
+
+  if (params.mode !== undefined) {
+    if (!VALID_SEARCH_MODES.includes(params.mode)) {
+      throw new ValidationError(
+        `mode must be one of: ${VALID_SEARCH_MODES.join(', ')}`,
+        'mode',
+        params.mode
+      );
     }
   }
 

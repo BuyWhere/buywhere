@@ -105,15 +105,7 @@ const REGION_SUFFIXES = new Set([
  */
 export function stripMerchantTenantSuffix(value?: string | null): string {
   if (!value) return '';
-  // BUY-81155: raw storefront hosts ("Www Datablitz Com Ph", "www.datablitz.com.ph")
-  // must not render as title-cased domain fragments.
-  let normalized = value.trim();
-  if (/^www[\s._-]/i.test(normalized)) {
-    normalized = normalized.replace(/^www[\s._-]+/i, '');
-  }
-  normalized = normalized.replace(/\.(?:com|co|net|org|io|store|shop)(?:\.[a-z]{2})?$/i, '');
-  normalized = normalized.replace(/\.(?:ph|in|sg|my|th|id|vn|pk|bd|lk)$/i, '');
-  const tokens = normalized.split(/[\s_.-]+/).filter(Boolean);
+  const tokens = value.split(/[\s_-]+/).filter(Boolean);
   if (tokens.length === 0) return value;
 
   // Drop a leading numeric ingest ID (e.g. "BUY30590" in "BUY30590 RETAILER
@@ -144,10 +136,10 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
   // "Bestbuy" — then strip regional suffixes such as "Sg" / "Us" before alias
   // lookup so "Decathlon Sg" renders as the retailer, not a country-tagged
   // source identifier.
-  while (remaining.length > 1 && (
-    TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase()) ||
-    REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())
-  )) {
+  while (remaining.length > 1 && TRAILING_FILLER.has(remaining[remaining.length - 1].toLowerCase())) {
+    remaining.pop();
+  }
+  while (remaining.length > 1 && REGION_SUFFIXES.has(remaining[remaining.length - 1].toLowerCase())) {
     remaining.pop();
   }
 
@@ -169,92 +161,6 @@ export function stripMerchantTenantSuffix(value?: string | null): string {
   }
 
   return remaining.map(titleCase).join(' ');
-}
-
-const CTA_MAX_CHARS = 18;
-
-/**
- * BUY-82520: CTA copy on SEO product cards. Wrapping alone still clipped
- * host-style names ("Challenger.Com") mid-word because overflow-hidden on
- * the card shell + nowrap descendants cut "Buy at Challenger.C" / "View ".
- * Strip a trailing TLD / host so "Challenger.Com" → "Challenger", then
- * hard-cap length so "Buy at {label}" stays fully readable.
- */
-export function ctaMerchantLabel(value?: string | null): string {
-  const cleaned = stripMerchantTenantSuffix(value);
-  if (!cleaned) return '';
-  const withoutHost = cleaned
-    .replace(/\.(?:com|net|org|io|co|sg|ai|store|shop)(?:\.[a-z]{2})?$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const label = withoutHost || cleaned;
-  if (label.length <= CTA_MAX_CHARS) return label;
-  const cut = label.slice(0, CTA_MAX_CHARS).replace(/[\s.-]+$/g, '');
-  return cut || label.slice(0, CTA_MAX_CHARS);
-}
-
-export function buyAtCtaLabel(value?: string | null): string {
-  const label = ctaMerchantLabel(value);
-  return label ? `Buy at ${label}` : 'Buy';
-}
-
-/** BUY-82739: PDP/grid CTA — never render raw slugs like "newegg_us". */
-export function viewAtCtaLabel(value?: string | null): string {
-  const label = ctaMerchantLabel(value);
-  return label ? `View at ${label}` : 'View';
-}
-
-const INGEST_LANE_ID = /^buy\d+/i;
-const COUNTRY_SLUG = /^[a-z0-9]+_(?:us|sg|my|ph|th|id|vn|au|ca|uk|gb|de|fr)$/i;
-
-function looksLikeIngestLane(value?: string | null): boolean {
-  if (!value) return true;
-  const trimmed = value.trim();
-  if (!trimmed) return true;
-  const first = trimmed.split(/[\s_.-]+/).filter(Boolean)[0] ?? '';
-  if (INGEST_LANE_ID.test(first) || INGEST_LANE_ID.test(trimmed)) return true;
-  // Raw catalog slugs like newegg_us must not win over merchant_id/url.
-  if (COUNTRY_SLUG.test(trimmed) && !trimmed.includes('.')) return true;
-  return false;
-}
-
-function hostnameFromUrl(url?: string | null): string {
-  if (!url) return '';
-  try {
-    const host = new URL(url).hostname.replace(/^www\./i, '');
-    if (!host || host.endsWith('buywhere.ai')) return '';
-    return host;
-  } catch {
-    return '';
-  }
-}
-
-/**
- * BUY-82739: pick a public merchant string. Catalog rows often set
- * `merchant` to an ingest lane (`buy79179_targeted`) while the real
- * retailer is on `merchant_id` (`newegg.com`) or the product URL host.
- * Prefer those over the lane so CTAs never read "View at Targeted".
- */
-export function resolveMerchantDisplayName(input: {
-  merchant?: string | null;
-  merchant_name?: string | null;
-  merchant_id?: string | null;
-  merchant_slug?: string | null;
-  url?: string | null;
-}): string {
-  const ranked = [
-    input.merchant_name,
-    input.merchant_id,
-    input.merchant_slug,
-    hostnameFromUrl(input.url),
-    input.merchant,
-  ];
-  for (const candidate of ranked) {
-    if (!candidate || looksLikeIngestLane(candidate)) continue;
-    const cleaned = stripMerchantTenantSuffix(candidate);
-    if (cleaned) return cleaned;
-  }
-  return stripMerchantTenantSuffix(input.merchant) || '';
 }
 
 // Title-case every whitespace-separated word in a token, lowercasing the

@@ -10,13 +10,12 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "MacBook",
+  "searchQuery": "laptop",
   "backupQueries": [
-    "MacBook Air",
-    "MacBook Pro",
-    "MacBook laptop",
+    "MacBook",
     "Windows laptop",
-    "student laptop"
+    "student laptop",
+    "business laptop"
   ],
   "minPrice": 300,
   "requiredProductTerms": [

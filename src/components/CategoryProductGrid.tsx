@@ -1,7 +1,6 @@
 import Image from "next/image";
 import type { CategoryProduct, CategoryProductCountry } from "@/lib/category-products";
 import { getCategoryProductLocale } from "@/lib/category-products";
-import { viewAtCtaLabel } from "@/lib/merchant-name";
 
 function formatPrice(price: number, currency: string, locale: string): string {
   try {
@@ -94,7 +93,7 @@ export default function CategoryProductGrid({
                         rel="nofollow sponsored"
                         className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
                       >
-                        {viewAtCtaLabel(product.merchant)}
+                        View at {product.merchant}
                       </a>
                     </div>
                   </div>
