@@ -372,16 +372,20 @@ async function findBestPriceViaRestFallback(opts: {
       || (nested && typeof nested === 'object' && (nested as { currency?: string }).currency)
       || p.priceCurrency || COUNTRY_CURRENCY[opts.country] || 'SGD';
     const title = p.name || p.title;
+    const merchant = p.brand?.name || p.seller || p.merchant || null;
     return {
       id: p.sku || p['@id'] || p.id,
       title,
       name: title,
       price: { amount: amount != null ? Number(amount) : null, currency: String(curr).toUpperCase() },
       currency: String(curr).toUpperCase(),
-      merchant: p.brand?.name || p.seller || p.merchant || null,
+      // BUY-80524: Cart/v1 agents read both merchant and merchant_name.
+      merchant,
+      merchant_name: merchant,
       url: p.url || (offers && typeof offers === 'object' ? offers.url : null) || null,
       image_url: Array.isArray(p.image) ? p.image[0] : p.image,
       country_code: opts.country,
+      url_status: (p as { url_status?: string }).url_status || 'ok',
     };
   });
   // BUY-80323: REST isolation can miss nested offer currency; drop USD leaks on MY/SG.
@@ -2322,9 +2326,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const CANDIDATE_POOL = Math.max(limit * 10, 100); // BUY-79945: 50-row window was too small — accessories dominated FTS and pushed the actual product out before filtering
 
+  // BUY-80524: catalog GIN can hang 5–8s past Cart's budget, causing the first
+  // v1 call to return null amount while REST has priced results. Start REST in
+  // parallel so the first call returns a priced envelope if catalog is slow.
+  const FBP_REST_RACE_MS = parseInt(process.env.MCP_FBP_REST_RACE_MS || '2500', 10);
+  const restFallbackPromise = findBestPriceViaRestFallback({ productName, country, t0 }).catch(() => null);
+
   // BUY-74597: short-circuit when this tool/stage/country has tripped its breaker.
   if (isMcpCircuitOpen('find_best_price', 'catalog_search', country || null)) {
-    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    const restFbp = await restFallbackPromise;
     if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
       console.warn(`[find_best_price] BUY-74579: circuit_open — REST fallback n=${restFbp.meta.total} country=${country}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
@@ -2380,6 +2390,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
+  // BUY-80524: race the catalog scan against the REST fallback so a slow GIN
+  // plan cannot make the first v1 call return a null-amount envelope while REST
+  // already has priced rows. Catalog stays authoritative when it finishes in
+  // time; REST wins only when catalog is slower than FBP_REST_RACE_MS.
+  const doCatalogWork = async (): Promise<{ rows: Record<string, unknown>[] } | { best_price: unknown; alternatives: unknown[]; meta: Record<string, unknown> }> => {
   let bestPriceClient: PoolClient | null = null;
   let result: { rows: Record<string, unknown>[] } | undefined;
   try {
@@ -2502,12 +2517,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       })),
     };
     recordMcpCircuitSuccess('find_best_price', 'catalog_search', country || null);
+    return result!;
   } catch (e: any) {
     const degradedKind = classifyMcpDegradedKind(e);
     console.warn(`[find_best_price] catalog_search degraded (${degradedKind}) — ${e?.code ?? ''} ${String(e?.message ?? e).slice(0, 300)}`);
     recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
     console.warn(`[find_best_price] BUY-74597: catalog_search degraded (${degradedKind}) — trying REST fallback`);
-    const restFbp = await findBestPriceViaRestFallback({ productName, country, t0 });
+    const restFbp = await restFallbackPromise;
     if (restFbp && (restFbp.best_price || restFbp.alternatives.length > 0)) {
       console.warn(`[find_best_price] BUY-74579: query degraded — REST fallback n=${restFbp.meta.total} kind=${degradedKind}`);
       // BUY-80322: apply geo guard to REST fallback results (same as MCP path)
@@ -2556,14 +2572,115 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-56185: discard connections poisoned by statement_timeout
     if (bestPriceClient) releaseClientSafely(bestPriceClient);
   }
+  };
+
+  // Race: if catalog takes longer than FBP_REST_RACE_MS, adopt the REST result.
+  type CatalogResult = { rows: Record<string, unknown>[] };
+  let catalogResult: CatalogResult | undefined;
+  let restResult: Awaited<typeof restFallbackPromise> | undefined;
+  try {
+    const raced = await Promise.race([
+      doCatalogWork().then(r => ({ kind: 'catalog' as const, result: r })),
+      new Promise<{ kind: 'rest'; result: Awaited<typeof restFallbackPromise> }>((resolve) =>
+        setTimeout(() => resolve({ kind: 'rest', result: restFallbackPromise as unknown as Awaited<typeof restFallbackPromise> }), FBP_REST_RACE_MS)
+      ),
+    ]);
+    if (raced.kind === 'rest') {
+      restResult = raced.result;
+      catalogResult = undefined;
+    } else {
+      catalogResult = raced.result as CatalogResult;
+    }
+  } catch (e: any) {
+    const degradedKind = classifyMcpDegradedKind(e);
+    console.warn(`[find_best_price] BUY-80524 race threw — ${String(e?.message ?? e).slice(0, 200)}`);
+    recordMcpCircuitFailure('find_best_price', 'catalog_search', country || null);
+    restResult = await restFallbackPromise;
+    if (restResult && (restResult.best_price || restResult.alternatives.length > 0)) {
+      const allRows = restResult.best_price
+        ? [restResult.best_price, ...restResult.alternatives]
+        : restResult.alternatives;
+      const rowToUsd = (r: Record<string, unknown>) => {
+        const price = r.price as { amount: number; currency: string } | null;
+        if (!price?.amount) return 0;
+        const fxRate = rates[price.currency] ?? CURRENCY_RATES[price.currency] ?? 1;
+        return price.amount * fxRate;
+      };
+      const geo = applyFbpGeoAndHighOutlierGuard({
+        rows: allRows as unknown as Record<string, unknown>[],
+        requestedCountry: country,
+        rowToUsd,
+        deviceType: deviceFilter.type,
+      });
+      const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
+      const guarded = rankFbpHardwareFirst(native);
+      return {
+        best_price: guarded[0] ?? null,
+        alternatives: guarded.slice(1),
+        meta: {
+          ...restResult.meta,
+          degraded: true,
+          degraded_kind: degradedKind,
+          emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
+          confidence: guarded.length === 0 ? 'low' : 'medium',
+          guard_applied: geo.geoDropped > 0 || geo.highDropped > 0,
+        },
+      };
+    }
+    return buildMcpDegradedBestPriceResponse({
+      productName,
+      country,
+      responseTimeMs: Date.now() - t0,
+      kind: degradedKind,
+      stage: 'catalog_search',
+      deliverToPresent,
+    });
+  }
+
+  // If REST won the race, adopt its result directly.
+  if (restResult && (restResult.best_price || restResult.alternatives.length > 0)) {
+    console.warn(`[find_best_price] BUY-80524: REST won race n=${restResult.meta.total} country=${country}`);
+    const allRows = restResult.best_price
+      ? [restResult.best_price, ...restResult.alternatives]
+      : restResult.alternatives;
+    const rowToUsd = (r: Record<string, unknown>) => {
+      const price = r.price as { amount: number; currency: string } | null;
+      if (!price?.amount) return 0;
+      const fxRate = rates[price.currency] ?? CURRENCY_RATES[price.currency] ?? 1;
+      return price.amount * fxRate;
+    };
+    const geo = applyFbpGeoAndHighOutlierGuard({
+      rows: allRows as unknown as Record<string, unknown>[],
+      requestedCountry: country,
+      rowToUsd,
+      deviceType: deviceFilter.type,
+    });
+    if (geo.geoDropped > 0 || geo.highDropped > 0) {
+      console.log(`[find_best_price] BUY-80322 REST fallback geo guard: geoDropped=${geo.geoDropped} highDropped=${geo.highDropped} product="${productName}" country=${country}`);
+    }
+    const native = filterNativeCurrencyRows(geo.rows as unknown as Record<string, unknown>[], country);
+    const guarded = rankFbpHardwareFirst(native);
+    return {
+      best_price: guarded[0] ?? null,
+      alternatives: guarded.slice(1),
+      meta: {
+        ...restResult.meta,
+        degraded: true,
+        degraded_kind: 'rest_faster',
+        emptiness_reason: guarded.length === 0 ? 'api_error' : undefined,
+        confidence: guarded.length === 0 ? 'low' : 'medium',
+        guard_applied: (restResult.meta.guard_applied as boolean) || geo.geoDropped > 0 || geo.highDropped > 0,
+      },
+    };
+  }
 
   // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
   // BUY-75839: rows with NULL/empty category are kept — NULL cannot prove a mismatch, and
   // sources like US ingestors (Shopify bulk) often leave category NULL, so stripping them
   // entirely would return 0 results even when valid products exist.
-  if (category && result && result.rows.length > 0) {
+  if (category && catalogResult && catalogResult.rows.length > 0) {
     const catLower = category.toLowerCase();
-    result.rows = result.rows.filter(r => {
+    catalogResult.rows = catalogResult.rows.filter(r => {
       const rowCat = ((r.category as string) || '').trim();
       if (!rowCat) return true; // keep unknown-category rows
       return rowCat.toLowerCase().includes(catLower);
@@ -2617,7 +2734,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let guardApplied = false;
   let medianUsd: number | null = null;
   let minAllowedUsd: number | null = null;
-  let finalRows = result ? result.rows.filter(r => !isAccessory(r)) : [];
+  let finalRows = catalogResult ? catalogResult.rows.filter(r => !isAccessory(r)) : [];
   // BUY-76206: if ALL results are accessories, fall back to the unfiltered set
   // rather than returning empty. The SQL found products; returning nothing is
   // worse than returning accessories (the user can refine the query).
@@ -2627,7 +2744,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // and nothing but accessories matched, say so instead of substituting a different
   // product. Callers get an explicit reason rather than a misleading answer.
   const looksLikeExactModel = /[a-z]+[-\s]?\d{2,}|\d{2,}[a-z]{1,3}\b/i.test(productName);
-  if (finalRows.length === 0 && result && result.rows.length > 0 && looksLikeExactModel) {
+  if (finalRows.length === 0 && catalogResult && catalogResult.rows.length > 0 && looksLikeExactModel) {
     return {
       best_price: null,
       alternatives: [],
@@ -2642,8 +2759,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       },
     };
   }
-  if (finalRows.length === 0 && result && result.rows.length > 0) {
-    finalRows = result.rows;
+  if (finalRows.length === 0 && catalogResult && catalogResult.rows.length > 0) {
+    finalRows = catalogResult.rows;
   }
 
   if (finalRows.length >= 3) {
@@ -2654,7 +2771,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       : sortedUsd[mid];
     minAllowedUsd = (medianUsd as number) * 0.15;
     const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
-    const allRows = result ? result.rows.filter(r => !isAccessory(r)) : finalRows;
+    const allRows = catalogResult ? catalogResult.rows.filter((r: Record<string, unknown>) => !isAccessory(r)) : finalRows;
     if (filtered.length > 0) {
       finalRows = filtered;
       guardApplied = filtered.length < allRows.length;
@@ -2689,18 +2806,36 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     const price = extractNumericPrice(r.price);
     const curr = ((r.currency as string) || currency).toUpperCase();
     const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    const merchant = r.domain as string || null;
     return {
       id: r.id,
       title: r.title,
       name: r.title,
       price: { amount: price, currency: curr },
       normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
-      merchant: r.domain as string,
+      merchant,
+      merchant_name: merchant,
       url: r.url as string,
       image_url: r.image_url as string,
       country_code: r.country_code as string,
+      url_status: (r.url_status as string) || 'ok',
     };
   });
+
+  // BUY-80524: if catalog rows have no finite amount, prefer the REST envelope.
+  // This catches pg numeric coercion failures where catalog returned rows but
+  // all amounts are null/NaN.
+  const catalogHasPrice = data.some((row) => {
+    const amt = extractNumericPrice(row.price);
+    return amt != null && amt > 0;
+  });
+  if (!catalogHasPrice) {
+    const restFbp = await restFallbackPromise;
+    if (restFbp && restFbp.best_price) {
+      console.warn(`[find_best_price] BUY-80524: catalog unpriced — REST fallback n=${restFbp.meta.total}`);
+      return restFbp;
+    }
+  }
 
   return {
     best_price: data[0] ?? null,
