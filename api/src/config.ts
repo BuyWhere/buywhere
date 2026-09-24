@@ -171,3 +171,5 @@ export const vectorDb: Pool | null = process.env.VECTOR_DB_URL
       return pool;
     })()
   : null;
+
+// deploy trigger 2026-09-24T21:02:31.740902
