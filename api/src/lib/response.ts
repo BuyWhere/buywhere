@@ -106,6 +106,140 @@ export function regionForCountry(countryCode: string | null | undefined): string
   return null;
 }
 
+// BUY-75921: normalize titles in cached responses to strip keyword-stuffing.
+// Cache stores raw DB titles; this applies normalizeProductTitle to cached hits.
+export function normalizeProductTitle(row: Record<string, unknown>): string {
+  const rawTitle = ((row.title as string) || '').replace(/\s+/g, ' ').trim();
+  if (rawTitle.length <= 40) return rawTitle;
+
+  const GENERIC_WORDS = new Set([
+    'earbuds', 'earphones', 'headphones', 'headset', 'buds', 'ear',
+    'wireless', 'bluetooth', 'tw', 'tws', 'true', 'in-ear', 'inear', 'in', 'on-ear', 'over-ear',
+    'anc', 'noise', 'cancelling', 'canceling', 'cancellation', 'active', 'enc',
+    'hi-fi', 'hifi', 'stereo', 'bass', 'deep', 'clear', 'calls', 'call', 'mic', 'mics',
+    'microphone', 'hd', 'sound', 'audio', 'sport', 'sports', 'running', 'workout', 'gym',
+    'waterproof', 'water', 'resistant', 'sweatproof', 'ipx7', 'ipx5', 'ipx6', 'ip68',
+    'playtime', 'battery', 'charging', 'case', 'led', 'display', 'digital',
+    '3.5mm', 'usb', 'usb-c', 'type-c', 'jack', 'aux', 'mp3', 'player', 'players',
+    'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
+    'smart', 'watch', 'fitness', 'tracker', 'laptop', 'notebook', 'computer', 'pc',
+    'speaker', 'speakers', 'portable', 'subwoofer', 'soundbar', 'phone', 'phones',
+    'charger', 'adapter', 'cable', 'cables', 'power', 'bank', 'fast',
+    'new', 'hot', 'sale', 'best', 'free', 'shipping', 'delivery', 'gift', 'original',
+    'genuine', 'quality', 'premium', 'high', 'pro', 'max', 'mini', 'plus', 'ultra',
+    'inch', 'mm', 'mah', 'hours', 'hrs', 'gb', 'tb', 'rgb',
+  ]);
+
+  const isGenericToken = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return GENERIC_WORDS.has(lo) || /^[\d.,:x\xd7*\-]+$/.test(w) || /^ipx?\d/i.test(w) ||
+      /^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/i.test(w);
+  };
+
+  const isBrandish = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return w.length >= 2 && /^[A-Z]/.test(w) && /^[a-z]/i.test(w) && !GENERIC_WORDS.has(lo);
+  };
+
+  const isModelToken = (w: string): boolean =>
+    /^[A-Z][A-Z0-9]{1,}[0-9][A-Za-z0-9]*$/.test(w) || /^[A-Z]{2,}[0-9]/.test(w);
+
+  const isMeaningful = (w: string): boolean => {
+    if (isModelToken(w)) return true;
+    const lo = w.toLowerCase();
+    if (GENERIC_WORDS.has(lo)) return false;
+    if (/^[\d.,:x\xd7*\-]+$/.test(w)) return false;
+    return /^[a-z]/i.test(w) && w.length >= 3;
+  };
+
+  const trimTrailingGeneric = (segment: string): string => {
+    const words = segment.split(/\s+/);
+    if (words.length <= 2) return segment;
+    let anchorIdx = -1;
+    for (let i = 0; i < words.length; i++) { if (isModelToken(words[i])) { anchorIdx = i; break; } }
+    if (anchorIdx < 0) { for (let i = 0; i < words.length; i++) { if (isMeaningful(words[i])) { anchorIdx = i; break; } } }
+    if (anchorIdx < 0) return segment;
+    const kept: string[] = [];
+    for (let i = anchorIdx; i < words.length; i++) { if (isGenericToken(words[i])) break; kept.push(words[i]); }
+    if (kept.length === 0) return segment;
+    const result = kept.join(' ');
+    return result.length < 12 ? segment : result;
+  };
+
+  const cutPrepTail = (text: string): string => {
+    const m = text.match(/\s+(?:for|with)\s+/i);
+    if (m && m.index && m.index > 0) return text.slice(0, m.index).trim();
+    return text;
+  };
+
+  const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
+
+  if (segments.length < 2) {
+    if (rawTitle.length > 50) {
+      const words = rawTitle.split(/\s+/);
+      let endIdx = words.length; let dropped = 0;
+      while (endIdx > 0 && dropped < 20 && words.slice(0, endIdx).join(' ').length > 50) { endIdx--; dropped++; }
+      if (dropped > 0) { const capped = words.slice(0, endIdx).join(' '); if (capped.length >= 12) return capped; }
+    }
+    const trimmed = trimTrailingGeneric(rawTitle);
+    const backTrim = (() => {
+      let base = rawTitle.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      if (base.length < 12) base = rawTitle;
+      const words = base.split(/\s+/);
+      if (words.length <= 4) return base;
+      let endIdx = words.length; let dropped = 0;
+      while (endIdx > 0 && dropped < 8) { if (isGenericToken(words[endIdx - 1])) { endIdx--; dropped++; } else break; }
+      if (endIdx === words.length || endIdx === 0) return base;
+      const r = words.slice(0, endIdx).join(' ');
+      return r.length < 12 ? base : r;
+    })();
+    const candidates = [trimmed, backTrim].filter(t => t.length >= 12 && t.length <= rawTitle.length);
+    if (candidates.length === 0) return rawTitle;
+    return candidates.reduce((a, b) => (a.length <= b.length ? a : b));
+  }
+
+  const polish = (text: string): string => {
+    let out = cutPrepTail(text);
+    const trimmed = trimTrailingGeneric(out);
+    if (trimmed.length >= 12 && trimmed.length <= out.length) out = trimmed;
+    out = out.replace(/\s*[)\]}]+$/, '').replace(/[\s,;:\-|/]+$/, '').replace(/\s+/g, ' ').trim();
+    if (out.length > 55) {
+      const words = out.split(/\s+/);
+      let endIdx = words.length;
+      while (endIdx > 1 && words.slice(0, endIdx).join(' ').length > 55) endIdx--;
+      const capped = words.slice(0, endIdx).join(' ');
+      if (capped.length >= 12) out = capped;
+    }
+    return out.length >= 12 ? out : text;
+  };
+
+  return polish(segments[0]);
+}
+
+// BUY-80652: filter REST fallback rows to native currency for the requested market.
+export function filterNativeCurrencyRows(rows: Record<string, unknown>[], country: string): Record<string, unknown>[] {
+  const expectedCurrency = COUNTRY_CURRENCY[country] || 'SGD';
+  return rows.filter((row) => {
+    const price = row.price;
+    let rowCurrency = '';
+    if (price && typeof price === 'object' && !Array.isArray(price)) {
+      const p = price as { currency?: string };
+      rowCurrency = (p.currency || '').toUpperCase();
+    }
+    if (rowCurrency && rowCurrency !== expectedCurrency) return false;
+    return true;
+  });
+}
+
+export function extractRowCurrency(row: Record<string, unknown>): string {
+  const price = row.price;
+  if (price && typeof price === 'object' && !Array.isArray(price)) {
+    const p = price as { currency?: string };
+    return (p.currency || '').toUpperCase();
+  }
+  return '';
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
