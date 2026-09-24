@@ -59,7 +59,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v31-b75921v6'; // v29: BUY-75921 v4 title normalization; v31: v6 adds long-stuffing drop + single-segment backward trim (cached bodies hold raw stuffed titles)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v32-buy81461'; // v32: BUY-81461 — Cache-Control: no-store on search responses; evict v31 poisoned entries
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -1277,7 +1277,7 @@ router.get(
             queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
             req,
           });
-          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('Cache-Control', 'no-store'); // BUY-81461: prevent edge CDN cache poisoning — stale 0-byte for non-gzip AE
           res.set('X-Cache', 'HIT');
           return res.json(parsed);
         }
@@ -1305,7 +1305,7 @@ router.get(
           if (Array.isArray(semProducts) && semProducts.length === 0 && semParsed?.meta && !semParsed.meta.emptiness_reason) {
             Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
           }
-          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('Cache-Control', 'no-store'); // BUY-81461: prevent edge CDN cache poisoning
           res.set('X-Cache', 'HIT-SEMANTIC');
           return res.json(semParsed);
         }

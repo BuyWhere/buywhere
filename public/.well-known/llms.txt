@@ -8,7 +8,7 @@ BuyWhere is an agent-native product catalog API for AI agents and LLM applicatio
 - Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
 - **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
 - Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
-- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime target (live history: https://status.buywhere.ai)
+- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime
 
 ## Quick Start for Agents
 1. Get a free API key: POST https://api.buywhere.ai/v1/auth/register
@@ -37,20 +37,9 @@ BuyWhere is an agent-native product catalog API for AI agents and LLM applicatio
 MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
-### MCP Tools (13 total, generated from the MCP tools/list registry)
-- search_products
-- get_product
-- compare_products
-- get_deals
-- list_categories
-- find_best_price
-- find_similar
-- ingest_products (write; authenticated merchants only)
-- search_products_v2
-- get_product_v2
-- compare_products_v2
-- get_deals_v2
-- find_best_price_v2
+### MCP Tools
+Read tools (v1): search_products, get_product, compare_products, get_deals, list_categories, find_best_price, find_similar.
+Read tools (v2, structured results): search_products_v2, get_product_v2, compare_products_v2, get_deals_v2, find_best_price_v2.
 Write tool: ingest_products (authenticated merchants only).
 1. **search_products / search_products_v2** — Full-text, semantic, or hybrid search with merchant, price, category, country, and deliver_to filters.
 2. **get_product / get_product_v2** — Full product details by BuyWhere product ID.

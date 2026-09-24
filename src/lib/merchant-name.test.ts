@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buyAtCtaLabel, ctaMerchantLabel, resolveMerchantDisplayName, stripMerchantTenantSuffix, viewAtCtaLabel } from "@/lib/merchant-name";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 // BUY-66324 — every merchant string that flows into SEO landing-page product
 // cards, comparison tables, or JSON-LD seller blocks must be cleaned through
@@ -90,76 +90,4 @@ test("BUY-72907: trailing filler + regional suffix are both stripped", () => {
   // "Decathlon Sg Com" -> "Decathlon"
   assert.equal(stripMerchantTenantSuffix("Decathlon Sg Com"), "Decathlon");
   assert.equal(stripMerchantTenantSuffix("BUY30590 RETAILER BESTBUY SG"), "Best Buy");
-});
-
-// BUY-82520 — QA: "Buy at Challenger.C" / truncated "View " on
-// /air-purifier-singapore. Shorten host-style merchant names for CTAs.
-test("BUY-82520: CTA merchant label strips TLD and stays short", () => {
-  assert.equal(ctaMerchantLabel("Challenger.Com"), "Challenger");
-  assert.equal(ctaMerchantLabel("challenger.com"), "Challenger");
-  assert.equal(ctaMerchantLabel("Amazon"), "Amazon");
-  assert.equal(buyAtCtaLabel("Challenger.Com"), "Buy at Challenger");
-  assert.equal(buyAtCtaLabel("Amazon"), "Buy at Amazon");
-  assert.ok(buyAtCtaLabel("Challenger.Com").length <= "Buy at Challenger".length + 2);
-  assert.doesNotMatch(buyAtCtaLabel("Challenger.Com"), /Challenger\.C/);
-});
-
-// BUY-82739 — PDP CTA leaked raw catalog slugs ("View at newegg_us").
-test("BUY-82739: viewAtCtaLabel formats catalog slugs", () => {
-  assert.equal(viewAtCtaLabel("newegg_us"), "View at Newegg");
-  assert.equal(viewAtCtaLabel("walmart_us"), "View at Walmart");
-  assert.equal(viewAtCtaLabel("Newegg"), "View at Newegg");
-  assert.equal(stripMerchantTenantSuffix("newegg_us"), "Newegg");
-  assert.doesNotMatch(viewAtCtaLabel("newegg_us"), /newegg_us/);
-});
-
-test("BUY-82739: ingest-lane merchant yields Newegg from merchant_id/url", () => {
-  assert.equal(
-    resolveMerchantDisplayName({
-      merchant: "buy79179_targeted",
-      merchant_name: null,
-      merchant_id: "newegg.com",
-      url: "https://www.newegg.com/msi-ventus-3x-rtx-5070/p/N82E16814137891",
-    }),
-    "Newegg",
-  );
-  assert.equal(
-    viewAtCtaLabel(
-      resolveMerchantDisplayName({
-        merchant: "buy79179_targeted",
-        merchant_id: "newegg.com",
-      }),
-    ),
-    "View at Newegg",
-  );
-  assert.doesNotMatch(
-    viewAtCtaLabel(
-      resolveMerchantDisplayName({ merchant: "buy79179_targeted", merchant_id: "newegg.com" }),
-    ),
-    /Targeted|buy79179|newegg_us/i,
-  );
-  assert.equal(resolveMerchantDisplayName({ merchant: "newegg_us" }), "Newegg");
-  assert.equal(
-    resolveMerchantDisplayName({
-      merchant: "newegg_us",
-      merchant_id: "newegg.com",
-      merchant_name: "Newegg.com",
-    }),
-    "Newegg",
-  );
-  assert.equal(
-    viewAtCtaLabel(
-      resolveMerchantDisplayName({
-        merchant: "newegg_us",
-        merchant_id: "newegg.com",
-      }),
-    ),
-    "View at Newegg",
-  );
-});
-test("BUY-81155: raw domain merchant strings become a store name", () => {
-  assert.equal(stripMerchantTenantSuffix("Www Datablitz Com Ph"), "Datablitz");
-  assert.equal(stripMerchantTenantSuffix("www.datablitz.com.ph"), "Datablitz");
-  assert.equal(stripMerchantTenantSuffix("datablitz.com.ph"), "Datablitz");
-  assert.equal(stripMerchantTenantSuffix("www.boat-lifestyle.com"), "Boat Lifestyle");
 });

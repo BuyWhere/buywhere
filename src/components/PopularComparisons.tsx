@@ -71,7 +71,7 @@ export function PopularComparisons({ variant = "hero" }: PopularComparisonsProps
           </p>
           <h2 className="text-3xl font-bold text-gray-900">Popular price guides</h2>
         </div>
-        <div className="grid gap-5 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+        <div className="grid gap-5 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-5">
           {MARKETING_PAGES.map((page) => (
             <Link
               key={page.slug}

@@ -266,36 +266,6 @@ export function clampLastmodToNow(iso: string, now = new Date()): string {
   return date.getTime() > now.getTime() ? now.toISOString() : date.toISOString();
 }
 
-
-/**
- * BUY-81044: "Prices checked" must come from catalog recency (product
- * updatedAt / price_updated_at), never editorial dateModified or a mock
- * crawl string. Future timestamps are ignored. Missing recency renders as
- * "recently" without inventing a calendar day.
- */
-export function catalogCheckedStamp(
-  products: Array<{ updatedAt?: string | null }>,
-  now = new Date(),
-): { iso: string | null; text: string } {
-  const nowMs = now.getTime();
-  const times = products
-    .map((product) => Date.parse(product.updatedAt || ""))
-    .filter((ts) => Number.isFinite(ts) && ts <= nowMs);
-  if (times.length === 0) {
-    return { iso: null, text: "recently" };
-  }
-  const latest = new Date(Math.max(...times));
-  return {
-    iso: latest.toISOString(),
-    text: latest.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }),
-  };
-}
-
 export function formatCheckedStamp(stamp: PageStamp): { iso: string; text: string } {
   const clampedIso = clampLastmodToNow(stamp.lastmod);
   const date = new Date(clampedIso);

@@ -53,7 +53,7 @@ export function HomeProductSearch() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mb-10 px-4 sm:px-0" style={{ boxSizing: 'border-box', maxWidth: 'calc(100% - 2rem)' }}>
+    <div className="max-w-3xl mx-auto mb-10">
       <form
         onSubmit={handleSubmit}
         className="grid gap-3"
@@ -123,7 +123,7 @@ export function HomeProductSearch() {
                     setQuery(example);
                     submitQuery(example);
                   }}
-                  className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white bg-white px-3 py-2 min-h-11 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-none"
+                  className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
                 >
                   {example}
                 </button>
