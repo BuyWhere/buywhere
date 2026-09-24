@@ -113,7 +113,7 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-nowrap items-center justify-start gap-2 text-sm text-white px-2 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex flex-nowrap items-center justify-center gap-2 text-sm text-white px-2 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <span className="shrink-0 font-semibold text-white/90 self-center">Try:</span>
               {exampleQueries.map((example) => (
                 <button
