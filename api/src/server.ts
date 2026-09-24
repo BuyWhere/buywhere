@@ -16,7 +16,6 @@ import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
 import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
-import adminKpiRouter from './routes/adminKpi';
 import seoPagesRouter from './routes/seoPages';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
@@ -43,9 +42,6 @@ import adminFxRefreshRouter from './routes/admin/fxRefresh';
 import adminProbesRouter from './routes/admin/probes';
 import adminMetricsTruthRouter from './routes/admin/metricsTruth';
 import { db, redis } from './config';
-// Imported (not require()d by path string) so tsc emits the JSON into dist/;
-// the runtime require found no file there and the route answered 500.
-import chatgptOpenApiSpec from './routes/chatgpt-openapi.json';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -88,17 +84,7 @@ export function createApp() {
     res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
-  // BUY OOM 2026-09-08/09: the API died twice with "Reached heap limit", both
-  // times during peak ingest, both stacks inside JSON.parse. A 10MB body expands
-  // to many times that as a live object graph, so a handful of concurrent ingest
-  // batches exhausted a ~1GB heap on their own.
-  //
-  // 4MB is sized from the actual batch shape: INGEST_BATCH_LIMIT defaults to 1000
-  // products at roughly 1-2KB of JSON each, so a full batch is ~1-2MB. 4MB leaves
-  // 2x headroom while more than halving the worst case. Clients sending larger
-  // bodies now get a 413 telling them to split, instead of contributing to an OOM
-  // that takes the whole public API down for everyone.
-  app.use(express.json({ limit: process.env.INGEST_BODY_LIMIT || '4mb' }));
+  app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(compression());
 
@@ -121,12 +107,7 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
-      // "which code is actually running" must be a GET, not an assumption. Railway
-      // injects RAILWAY_GIT_COMMIT_SHA at build; absent (local dev) it says so
-      // honestly instead of pretending. Retires the prod==main guesswork class
-      // (same fix as Flow's healthz fingerprint, 2026-09-04).
-      commit: (process.env.RAILWAY_GIT_COMMIT_SHA ?? 'unknown').slice(0, 9),
-      fix: 'BUY-80177-sea-failfast',
+      fix: 'BUY-79598-v2',
     });
   });
 
@@ -211,7 +192,7 @@ export function createApp() {
 
   // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
   app.get('/chatgpt-openapi.json', (_req, res) => {
-    res.json(chatgptOpenApiSpec);
+    res.json(require('./routes/chatgpt-openapi.json'));
   });
 
   // AI crawler headers for public endpoints (Perplexity, GPTBot, etc.)
@@ -336,7 +317,6 @@ export function createApp() {
 
   // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
   app.use('/admin/comparison-pages', adminCompareRouter);
-  app.use('/admin/kpi', adminKpiRouter);
 
   // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
   app.use('/api', clicksRouter);

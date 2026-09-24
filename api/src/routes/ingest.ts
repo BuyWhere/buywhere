@@ -23,35 +23,6 @@ const COUNTRY_TO_CURRENCY: Record<string, string> = {
   'VN': 'VND',
 };
 
-// BUY-81096 follow-up: rescue mislabelled currencies rather than rejecting real
-// products. taodecor.vn sends dong amounts labelled USD (price=450000 "USD" is
-// 450,000 VND, about seventeen dollars). One merchant accounted for 767 of 1,201
-// ceiling rejections in a sampled window -- 64%. The price ceiling is behaving
-// correctly: 450,000 USD IS absurd. The number is right and the LABEL is wrong,
-// and no ceiling can fix that at any threshold.
-//
-// Deliberately narrow. This only ever runs on a row already headed for
-// hard_reject, and only re-labels when the price becomes plausible under the
-// merchant's own TLD currency. It cannot loosen anything that currently passes;
-// it can only rescue something currently thrown away.
-//
-// NOT derived from merchants.country -- that mapping is unreliable (kynkyny.com
-// is registered SG while pricing in rupees). This uses the domain's own TLD,
-// which the merchant chose, and demands the magnitude agree.
-const TLD_TO_CURRENCY: Record<string, string> = {
-  vn: 'VND', id: 'IDR', th: 'THB', my: 'MYR', ph: 'PHP',
-  jp: 'JPY', kr: 'KRW', sg: 'SGD', au: 'AUD',
-};
-
-function currencyFromMerchantTld(merchantId: string): string | null {
-  // Match the FINAL label only. An earlier version matched the first 2-letter
-  // group and captured "co" from alat.co.id / graphpack.co.th, silently
-  // returning null for every two-part ccTLD -- caught by the test table below.
-  const m = /\.([a-z]{2})$/i.exec(String(merchantId).trim().toLowerCase());
-  if (!m) return null;
-  return TLD_TO_CURRENCY[m[1]] ?? null;
-}
-
 // Load merchant-level currency overrides from env var JSON:
 // INGEST_CURRENCY_OVERRIDES='{"merchant_id_A": "USD", "merchant_id_B": "EUR"}'
 let merchantCurrencyOverrides: Record<string, string> = {};
@@ -435,51 +406,10 @@ function validateProduct(item: unknown, index: number, source: string): { valid:
     return { valid: null, error: err('Missing or invalid price (must be >= 0)', 'validation_price_non_positive') };
   }
   // BUY-73321: reject price outliers at ingest time to protect search result quality.
-  let priceCurrency = typeof p.currency === 'string' ? p.currency : 'SGD';
-  let priceCheck = validatePrice(p.price, priceCurrency);
-
-  // Currency-rescue: only for CEILING rejects, never for below-minimum (price=0
-  // is a genuinely absent price, not a mislabel), and only if the merchant's TLD
-  // currency makes the same number plausible.
-  if (priceCheck.verdict === 'hard_reject' && !/below minimum/.test(priceCheck.reason || '')) {
-    const merchantForTld = typeof p.merchant_id === 'string' ? p.merchant_id : '';
-    const tldCurrency = currencyFromMerchantTld(merchantForTld);
-    if (tldCurrency && tldCurrency !== priceCurrency.toUpperCase()) {
-      const retry = validatePrice(p.price, tldCurrency);
-      if (retry.verdict !== 'hard_reject') {
-        console.warn(
-          `[ingest] currency relabelled: merchant=${merchantForTld} sku=${sku} ` +
-          `price=${p.price} ${priceCurrency}->${tldCurrency} (was: ${priceCheck.reason})`
-        );
-        priceCurrency = tldCurrency;
-        priceCheck = retry;
-        (p as Record<string, unknown>).currency = tldCurrency;
-      }
-    }
-  }
-
+  const priceCurrency = typeof p.currency === 'string' ? p.currency : 'SGD';
+  const priceCheck = validatePrice(p.price, priceCurrency);
   if (priceCheck.verdict === 'hard_reject') {
-    // BUY-81096: distinct code so scrapers can histogram hard_reject vs outlier.
-    // The code is returned in the response body only, which is ephemeral -- the
-    // outlier branch below logs but this one did not, so the rejections we most
-    // needed to count were the ones leaving no trace. Log with a stable prefix so
-    // hard_reject can be counted server-side, independent of which scraper build
-    // is running and immune to the insert/update mode confound in lane metrics.
-    // VOLUME: price=0 is ~75% of all hard_rejects (~38k lines/hour at peak) and
-    // carries no per-row information the batch histogram does not already give.
-    // The API OOM'd on 2026-09-08 under heap pressure from high-volume per-row
-    // logging, so the cheap lines are dropped and the informative ones kept:
-    // ceiling rejections are how the .vn/USD currency mislabelling was found.
-    if (!/below minimum/.test(priceCheck.reason || '')) console.warn(
-      // merchant_id included so the price=0 population can be attributed:
-      // some upstream merchants publish "0" in their own Store API ("contact
-      // for price"), in which case rejection is CORRECT and the loss is not
-      // recoverable. Without the merchant we cannot separate those from a
-      // genuine parse failure, and the two imply opposite actions.
-      `[ingest] price hard_reject: source=${source} merchant=${p.merchant_id} sku=${sku} ` +
-      `price=${p.price} ${priceCurrency} — ${priceCheck.reason}`
-    );
-    return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_hard_reject') };
+    return { valid: null, error: err(priceCheck.reason || 'Price outside valid range', 'validation_price_outlier') };
   }
   if (priceCheck.verdict === 'outlier') {
     console.warn(`[ingest] price outlier: sku=${sku} price=${p.price} ${priceCurrency} — ${priceCheck.reason}`);
@@ -1024,42 +954,12 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       }
     }
 
-    // Per-batch rejection histogram. Most validation rejections (missing sku,
-    // merchant_id, title, non-numeric price, missing url) return an error code
-    // and log NOTHING -- the reason lives only in the response body, which the
-    // scraper discards. A merchant rejecting 239 of 243 rows was therefore
-    // undiagnosable. One aggregated line per batch instead of one per product
-    // keeps volume proportional to batches, not to rows.
-    // BUY-81810: the histogram below is the ONLY record of WHY rows failed, and it
-    // went to stdout only. ingestion_runs stored rows_failed with error_message
-    // NULL, so 'why did 2,449 products fail today' was unanswerable from SQL and
-    // took hours of log archaeology. Persist the summary onto the run row.
-    let rejectSummary: string | null = null;
-    if (errors.length > 0) {
-      const rejectMerchant =
-        (Array.isArray(req.body?.products) && req.body.products.length > 0
-          ? (req.body.products[0] as Record<string, unknown>)?.merchant_id
-          : undefined) ?? 'unknown';
-      const byCode: Record<string, number> = {};
-      for (const e of errors) { const c = e.code ?? 'unknown'; byCode[c] = (byCode[c] ?? 0) + 1; }
-      const hist = Object.entries(byCode)
-        .sort((a, b) => b[1] - a[1])
-        .map(([c, n]) => `${c}=${n}`)
-        .join(' ');
-      console.warn(
-        `[ingest] reject histogram: source=${source} merchant=${rejectMerchant} ` +
-        `batch=${Array.isArray(req.body?.products) ? req.body.products.length : 0} ` +
-        `failed=${rowsFailed} ${hist}`
-      );
-      rejectSummary = `merchant=${rejectMerchant} failed=${rowsFailed} ${hist}`.slice(0, 480);
-    }
-
     const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
     if (runId !== null) {
       await withDbRetry(
         () => db.query(
-          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, error_message = $5, finished_at = NOW() WHERE id = $6`,
-          [status, rowsInserted, rowsUpdated, rowsFailed, rejectSummary, runId]
+          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`,
+          [status, rowsInserted, rowsUpdated, rowsFailed, runId]
         ),
         'mark run complete'
       ).catch(() => {});

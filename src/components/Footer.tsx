@@ -9,7 +9,7 @@ export default function Footer() {
     <>
       <NewsletterBanner />
       <footer role="contentinfo" aria-label="Site footer" className="bg-gray-50 border-t border-gray-200 mt-auto pb-safe">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 pb-[132px] md:pb-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 pb-28 md:pb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="font-bold text-lg text-indigo-600 mb-3">
@@ -55,16 +55,6 @@ export default function Footer() {
             <ul aria-labelledby="footer-h-connect" className="space-y-2 text-sm text-gray-500" role="list">
               <li role="listitem"><a href="https://t.me/buywhere_bot" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Telegram</a></li>
               <li><a href="https://github.com/BuyWhere/buywhere-mcp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">GitHub</a></li>
-              <li>
-                <a
-                  href="https://www.toolpilot.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-indigo-600"
-                >
-                  Featured on ToolPilot
-                </a>
-              </li>
             </ul>
           </div>
         </div>
@@ -73,23 +63,8 @@ export default function Footer() {
           <div className="mb-4">
             <AffiliateDisclosure variant="inline" />
           </div>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-500">
             <span tabIndex={0} aria-label={`Copyright ${COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.`}>© {COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.</span>
-            <a
-              href="https://www.toolpilot.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex shrink-0 opacity-90 hover:opacity-100"
-              aria-label="Featured on ToolPilot"
-            >
-              {/* Official ToolPilot footer badge (brand guidelines). BUY-83777 */}
-              <img
-                src="/badges/toolpilot-featured-black.png"
-                alt="Featured on ToolPilot"
-                width={150}
-                height={33}
-              />
-            </a>
           </div>
         </div>
       </div>

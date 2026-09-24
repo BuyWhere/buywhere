@@ -63,7 +63,6 @@ const NOISE_WORDS = new Set([
   'buy', 'purchase', 'order', 'get', 'find', 'show', 'give',
   'want', 'need', 'looking',
   'cheap', 'cheaper', 'cheapest', 'affordable', 'expensive',
-  'budget',
   'price', 'prices', 'cost', 'costs',
   'deal', 'deals', 'discount', 'sale',
 ]);
@@ -181,14 +180,6 @@ function cleanQueryText(text: string): string {
   // "OLED TVs" becomes 'ole' & 'tvs', matching only 6 legacy rows). Irregular
   // catalog plurals that fail stemming get rewritten to the singular lexeme.
   cleaned = cleaned.replace(/\btvs\b/gi, 'tv');
-
-  // BUY-80215: "android tablet" ANDs two high-df tokens on search_products
-  // (~2k noisy matches) and times out the 4s SG child-FTS budget → 0 rows.
-  // Rewrite to a distinctive on-intent phrase that still matches Galaxy Tab /
-  // Idea Tab / Pad SKUs after the catalog title repair.
-  if (/\bandroid\s+tablets?\b/i.test(cleaned)) {
-    cleaned = cleaned.replace(/\bandroid\s+tablets?\b/gi, 'galaxy tab');
-  }
 
   return cleaned;
 }

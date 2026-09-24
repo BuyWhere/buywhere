@@ -62,8 +62,8 @@ export function SeoLivePricesSnippet({ config }: { config: SeoLandingPageConfig 
               No auth required for low-volume reads. Returns the same merchant metadata
               this page ranks on.
             </p>
-            <pre className="mt-4 overflow-x-auto max-w-full rounded-xl bg-slate-950/70 p-4 text-xs leading-5 text-emerald-200 ring-1 ring-white/10 whitespace-pre">
-              <code className="block whitespace-pre">{restCurl}</code>
+            <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950/70 p-4 text-xs leading-5 text-emerald-200 ring-1 ring-white/10">
+              <code>{restCurl}</code>
             </pre>
           </li>
 
@@ -96,8 +96,8 @@ export function SeoLivePricesSnippet({ config }: { config: SeoLandingPageConfig 
               Higher rate limits and MCP access need a key. Register takes one POST; the
               free tier is enough for most prototypes.
             </p>
-            <pre className="mt-4 overflow-x-auto max-w-full rounded-xl bg-slate-950/70 p-4 text-xs leading-5 text-emerald-200 ring-1 ring-white/10 whitespace-pre">
-              <code className="block whitespace-pre">{registerCurl}</code>
+            <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950/70 p-4 text-xs leading-5 text-emerald-200 ring-1 ring-white/10">
+              <code>{registerCurl}</code>
             </pre>
           </li>
         </ol>

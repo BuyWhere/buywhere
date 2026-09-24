@@ -8,7 +8,7 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'query', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable', 'region', 'mode']);
+const ALLOWED_PARAMS = new Set(['q', 'query', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable', 'region']);
 // BUY-69727: Full device-query + storage-category detection for client-side demotion.
 // Mirrors the isDeviceQuery / isStorageQuery logic from api/src/lib/searchRelevanceTaxonomy.ts
 // to ensure all-words scanning (not just first word).
@@ -60,10 +60,6 @@ function isStorageCategoryItem(item: Record<string, unknown>): boolean {
   return STORAGE_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
 }
 
-// BUY-80705: side-table/end-table/console-table/coffee-table/nightstand are
-// furniture accessories that rank above real laptops for "laptop" queries.
-// They contain no existing accessory token and slip past the penalty — now
-// explicitly listed so they are classified as accessories and demoted.
 const ACCESSORY_KEYWORDS = [
   'adapter',
   'battery',
@@ -71,8 +67,6 @@ const ACCESSORY_KEYWORDS = [
   'case',
   'charger',
   'charging',
-  'coffee table',
-  'console table',
   'cover',
   'ear pad',
   'ear pads',
@@ -80,18 +74,15 @@ const ACCESSORY_KEYWORDS = [
   'ear cushions',
   'earcup',
   'earcups',
-  'end table',
   'foam',
   'holder',
   'mount',
-  'nightstand',
   'pad',
   'pads',
   'part',
   'parts',
   'protector',
   'replacement',
-  'side table',
   'sleeve',
   'stand',
   'strap',
@@ -259,14 +250,6 @@ function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
   if (!hasAccessoryKeyword) return false;
   if (queryWords.length === 0) return true;
 
-  // BUY-80662: when the query itself is a device token (laptop, phone, …)
-  // accessory SKUs still contain that token ("Casely laptop case"). Matching
-  // query-word coverage must NOT keep them in the primary bucket — REST
-  // search_products_tier already ranked computers first; this BFF pass
-  // previously promoted cases back to the head.
-  const { isDevice, isStorage } = classifyDeviceQuery(queryWords.join(' '));
-  if (isDevice && !isStorage) return true;
-
   const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
   return matchedQueryWords / queryWords.length < 0.5;
 }
@@ -291,28 +274,6 @@ function deduplicateItems(items: Record<string, unknown>[]) {
     seen.add(key);
     return true;
   });
-}
-
-// BUY-75921 / BUY-83429: do NOT import api/src/lib/response from this BFF
-// route. Next webpack follows that graph into ioredis (api/src/config.ts)
-// and `next build` fails. Keep a local, sync title trim here so the site
-// image compiles. FastAPI still owns the full shared normalizer.
-function normalizeTitle(title: string): string {
-  const raw = title.replace(/\s+/g, ' ').trim();
-  if (raw.length <= 40) return raw;
-  return raw.slice(0, 50);
-}
-
-function normalizeItemTitles(items: Record<string, unknown>[]): void {
-  for (const item of items) {
-    const raw = (item.title as string) || (item.name as string) || '';
-    if (!raw || raw.length <= 40) continue;
-    const normalized = normalizeTitle(raw);
-    if (normalized !== raw) {
-      item.title = normalized;
-      item.name = normalized;
-    }
-  }
 }
 
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
@@ -379,22 +340,9 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  // BUY-80662: REST ranking is gated on deliver_to (ISO-2). Passing `country` or
-  // `country_code` routes the Node API onto search_products_smoke_rank (Casely
-  // cases for q=laptop). Mirror country onto deliver_to, then DROP country/
-  // country_code/region so the BFF hits the same path as public REST.
-  const countryCode = (
-    upstreamParams.get('deliver_to') ||
-    upstreamParams.get('country') ||
-    upstreamParams.get('country_code') ||
-    'US'
-  ).toUpperCase();
-  if (!upstreamParams.get('deliver_to') && countryCode.length === 2) {
-    upstreamParams.set('deliver_to', countryCode);
-  }
-  upstreamParams.delete('country');
-  upstreamParams.delete('country_code');
-  upstreamParams.delete('region');
+  // BUY-72906: REMOVED the country -> country_code rename. The FastAPI backend
+  // expects 'country' (not 'country_code'), so we now pass it through unchanged.
+  // The deliver_to + include_unshippable params now handle the region filtering.
 
   try {
     const response = await fetch(`${API_BASE_URL}/v1/products/search?${upstreamParams.toString()}`, {
@@ -403,8 +351,6 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${API_KEY}`,
       },
       cache: 'no-store',
-      // BUY-83802: do not inherit the API's 10s degraded hang.
-      signal: AbortSignal.timeout(4000),
     });
 
     const data = await response.json().catch(() => null);
@@ -417,6 +363,7 @@ export async function GET(request: NextRequest) {
     }
 
     const query = upstreamParams.get('q') ?? '';
+    const countryCode = upstreamParams.get('country') ?? upstreamParams.get('country_code') ?? 'US';
     const fallback = isDegradedZero(data) ? pickSearchFallback(query, countryCode) : null;
 
     if (fallback) {
@@ -425,28 +372,18 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      // BUY-75921: normalize titles BEFORE ranking so downstream display sees clean names.
-      const items: Record<string, unknown>[] = data[itemKey] as Record<string, unknown>[];
-      await normalizeItemTitles(items);
-      const ranked = rankAndClassifyItems(normalizeUpstreamItems(items, countryCode), query);
-      data[itemKey] = ranked;
-      if (itemKey !== 'data' && data.data) data.data = ranked;
-      if (itemKey !== 'items' && data.items) data.items = ranked;
-      if (itemKey !== 'results' && data.results) data.results = ranked;
-      if (itemKey !== 'products' && data.products) data.products = ranked;
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
+      if (itemKey !== 'data' && data.data) data.data = data[itemKey];
+      if (itemKey !== 'items' && data.items) data.items = data[itemKey];
+      if (itemKey !== 'results' && data.results) data.results = data[itemKey];
+      if (itemKey !== 'products' && data.products) data.products = data[itemKey];
     }
 
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({
-      data: [],
-      items: [],
-      results: [],
-      products: [],
-      total: 0,
-      degraded: true,
-      hint: 'Search timed out, try again',
-      meta: { total: 0, degraded: true, status: 'degraded' },
-    });
+    return NextResponse.json(
+      { error: 'search_unavailable', message: 'Search service unavailable' },
+      { status: 502 },
+    );
   }
 }

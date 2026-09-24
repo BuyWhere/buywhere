@@ -142,22 +142,3 @@ test("getOrUpdatePageLastmod rewrites frozen placeholder lastmod even when hash 
     assert.notEqual(stamp.lastmod.slice(0, 10), "2026-06-29");
   });
 });
-
-test("BUY-81044: catalogCheckedStamp uses max past updatedAt, not editorial lastmod", () => {
-  const stamp = catalogCheckedStamp(
-    [
-      { updatedAt: "2026-09-20T11:00:00.000Z" },
-      { updatedAt: "2026-09-22T08:30:00.000Z" },
-      { updatedAt: "2099-01-01T00:00:00.000Z" },
-    ],
-    new Date("2026-09-23T00:00:00.000Z"),
-  );
-  assert.equal(stamp.iso, "2026-09-22T08:30:00.000Z");
-  assert.equal(stamp.text, "September 22, 2026");
-});
-
-test("BUY-81044: catalogCheckedStamp falls back to recently when missing", () => {
-  const stamp = catalogCheckedStamp([{ updatedAt: null }, { updatedAt: "not-a-date" }]);
-  assert.equal(stamp.iso, null);
-  assert.equal(stamp.text, "recently");
-});

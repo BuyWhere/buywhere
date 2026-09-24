@@ -188,6 +188,13 @@ const SG_MERCHANT_SLUGS: ReadonlySet<string> = new Set([
   // catalog. The bare "shopify" entry plus candidateAllowlistSlugs()'s
   // shopify_* prefix fallback match shopify_<anything> to this entry.
   "shopify",
+  // BUY-80149: live SGD air-purifier catalog is levoit.sg / sterra.sg.
+  // Domain first-labels and underscore variants so affiliate-stripped rows
+  // still pass the SG merchant allowlist on /air-purifier-singapore.
+  "levoit",
+  "levoit_sg",
+  "sterra",
+  "sterra_sg",
 ]);
 
 // BUY-74862 Day 2: Malaysia storefront slugs. MY pages surface

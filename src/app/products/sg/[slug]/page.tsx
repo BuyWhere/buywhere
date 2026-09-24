@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveSGProductRoute } from "@/lib/sg-product-route";
 import { buildAffiliateRedirectUrl, buildAffiliateRedirectFromMerchantUrl } from "@/lib/click-attribution";
-import { viewAtCtaLabel } from "@/lib/merchant-name";
 
 interface PageProps {
   params: { slug: string };
@@ -245,7 +244,7 @@ export default async function SGProductSlugPage({ params }: PageProps) {
                                 data-affiliate-redirect="sg-product-table"
                                 className="text-indigo-600 font-semibold hover:text-indigo-800"
                               >
-                                {viewAtCtaLabel(p.merchant)}
+                                View at {p.merchant}
                               </a>
                             </td>
                           </tr>
@@ -274,7 +273,7 @@ export default async function SGProductSlugPage({ params }: PageProps) {
                           data-affiliate-redirect="sg-product-card"
                           className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
                         >
-                          {viewAtCtaLabel(p.merchant)}
+                          View at {p.merchant}
                           <span aria-hidden="true" className="ml-1">→</span>
                         </a>
                       </div>
