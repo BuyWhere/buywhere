@@ -583,6 +583,18 @@ export async function middleware(request: NextRequest) {
     return tagAgent(NextResponse.redirect(url, 301));
   }
 
+  // BUY-83979: /compare/gaming-laptops-us has no compare page or markdown doc;
+  // content lives at /best-gaming-laptops-us which is an indexed SEO landing page.
+  if (normalizedForDead === "/compare/gaming-laptops-us") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/best-gaming-laptops-us";
+    return tagAgent(NextResponse.redirect(url, 301));
+  }
+
+  // BUY-83979: /compare/laptop-singapore has a static page at
+  // src/app/compare/laptop-singapore/page.tsx — the country-code gate below
+  // no longer blocks it. No redirect needed; the page renders directly.
+
   // Moved content: product index pages now redirect to their country pages
   if (normalizedForDead === "/products/us") {
     const url = request.nextUrl.clone();
@@ -857,9 +869,12 @@ export async function middleware(request: NextRequest) {
 
   // BUY-77134: /compare/{cc} or /compare/{cc1}/{cc2} redirect for unsupported countries.
   // Supported single: us, sg. Supported pairs: us/sg, sg/us.
-  // Any other single or pair → friendly 404.
+  // Any other known-unsupported country pair → friendly 404.
   // BUY-82112: Category slugs (electronics, fashion, beauty, etc.) are NOT country
   // codes — let them through to their static category pages under src/app/compare/[slug]/.
+  // BUY-83979: Do NOT gate non-2-letter segments as country codes. Paths like
+  // "laptop-singapore" and "gaming-laptops-us" are SEO landing pages or content
+  // pages handled by the App Router — block only actual 2-letter country codes.
   const compareMatch = pathname.match(/^\/compare\/([^/]+)(?:\/([^/]+))?\/?$/);
   if (compareMatch) {
     const cc1 = compareMatch[1].toLowerCase();
@@ -870,19 +885,26 @@ export async function middleware(request: NextRequest) {
     // src/app/compare/[slug]/ and handle their own routing.
     if (!cc2 && getCategoryBySlug(cc1)) {
       // fall through — do not redirect category slugs to /not-found
-    } else {
-      // Check if valid single country (us or sg for now)
-      const validSingle = cc1 === "us" || cc1 === "sg";
-      // Check if valid pair (us/sg or sg/us)
+    } else if (!cc2 && cc1.length === 2 && !(cc1 === "us" || cc1 === "sg")) {
+      // BUY-83979: Only gate 2-letter segments as unsupported country codes.
+      // Multi-word slugs like "laptop-singapore" and "gaming-laptops-us" are
+      // not country codes — let them through to the App Router for static
+      // pages (src/app/compare/laptop-singapore/) or the catch-all route.
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      url.searchParams.set("type", "compare");
+      url.searchParams.set("country1", cc1);
+      return tagAgent(NextResponse.redirect(url, 302));
+    } else if (cc2) {
+      // Two-segment pair — validate as country codes only
       const validPair =
         (cc1 === "us" && cc2 === "sg") || (cc1 === "sg" && cc2 === "us");
-
-      if (!validSingle && !validPair) {
+      if (!validPair) {
         const url = request.nextUrl.clone();
         url.pathname = "/not-found";
         url.searchParams.set("type", "compare");
         url.searchParams.set("country1", cc1);
-        if (cc2) url.searchParams.set("country2", cc2);
+        url.searchParams.set("country2", cc2);
         return tagAgent(NextResponse.redirect(url, 302));
       }
     }
