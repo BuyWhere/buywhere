@@ -65,7 +65,7 @@ export default function AgentMarketingBlock({
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">
               Discovery endpoints
             </h3>
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2 text-sm break-words [&_a]:break-words">
               <li>
                 <a
                   href="https://api.buywhere.ai/mcp"
