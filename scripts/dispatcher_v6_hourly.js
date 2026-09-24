@@ -309,6 +309,7 @@ async function ensureCanonicalTable(client) {
       ['drain_only_hour', 'boolean DEFAULT false'],
       ['non_drain_runs', 'integer DEFAULT 0'],
       ['trailing_non_drain_median', 'bigint'],
+      ['failure_issue_id', 'text'],
     ];
 
     for (const [name, definition] of optionalColumns) {
