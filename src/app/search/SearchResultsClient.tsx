@@ -17,6 +17,7 @@ import { SortDropdown, normalizeSortMode, type SortMode } from './SortDropdown';
 import { FilterSidebar, type FacetOption } from './FilterSidebar';
 import { FilterChipRow } from './FilterChipRow';
 import { FilterBottomSheet } from './FilterBottomSheet';
+import { formatPriceForCurrency } from '@/lib/currency';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -275,16 +276,7 @@ function isPlausiblePrice(price: number | null, product: { name: string; categor
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null || !Number.isFinite(price)) return 'Price unavailable';
-
-  try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
+  return formatPriceForCurrency(price, currency, 2);
 }
 
 // BUY-72350: c1.neweggimages.com serves HTTP 400 (AkamaiGHost bot-detection)

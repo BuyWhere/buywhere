@@ -11,6 +11,7 @@ import { DealScoreBadge } from '@/components/compare/DealScoreBadge';
 import { useCompare } from '@/lib/compare-context';
 import { type DataFreshness } from '@/lib/freshness';
 import ComparisonShareButton from '@/components/compare/ComparisonShareButton';
+import { formatPriceForCurrency } from '@/lib/currency';
 
 export interface CompareProduct {
   id: string;
@@ -49,15 +50,7 @@ interface CompareProductsGridProps {
 
 function formatPrice(price: number | null, currency: string): string {
   if (price === null) return 'Price unavailable';
-  try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
+  return formatPriceForCurrency(price, currency, 2);
 }
 
 function getFreshnessTier(lastUpdated: string | null): DataFreshness {

@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import { useCompare } from '@/lib/compare-context';
 import type { SearchCardProduct } from '@/app/search/SearchResultsClient';
+import { formatPriceForCurrency } from '@/lib/currency';
 
 interface CompareSelectButtonProps {
   product: SearchCardProduct;
@@ -11,15 +12,7 @@ interface CompareSelectButtonProps {
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) return null;
-  try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
+  return formatPriceForCurrency(price, currency, 2);
 }
 
 export const CompareSelectButton = memo(function CompareSelectButton({

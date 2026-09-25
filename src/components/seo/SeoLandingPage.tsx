@@ -17,17 +17,13 @@ import { toSiteUrl } from "@/lib/site-url";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
 import AgentMarketingBlock from "@/components/AgentMarketingBlock";
 import { formatCheckedStamp, getOrUpdatePageLastmod, isPlaceholderLastmod, serializeHashable } from "@/lib/page-content-hash";
+import { formatPriceForCurrency } from "@/lib/currency";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
     return "Price unavailable";
   }
-
-  return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
+  return formatPriceForCurrency(price, currency, 0);
 }
 
 const DEFAULT_SHOPPER_CTA = {

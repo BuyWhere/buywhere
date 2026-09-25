@@ -1,6 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
+import { formatPriceForCurrency } from '@/lib/currency';
 
 interface SparklineBar {
   date: string;
@@ -15,15 +16,7 @@ interface CompareBarChartProps {
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
-  try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
+  return formatPriceForCurrency(price, currency, 2);
 }
 
 function formatDate(dateStr: string): string {

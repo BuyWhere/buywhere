@@ -1,6 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
+import { formatPriceForCurrency } from '@/lib/currency';
 
 type DealScore = 'great_deal' | 'good_deal' | 'fair_price' | 'high_price';
 
@@ -46,11 +47,7 @@ export const DealScoreBadge = memo(function DealScoreBadge({
 }: DealScoreBadgeProps) {
   const config = scoreConfig[score] ?? scoreConfig.fair_price;
 
-  const formattedSavings = new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Math.abs(percentVsAvg));
+  const formattedSavings = formatPriceForCurrency(Math.abs(percentVsAvg), currency, 0);
 
   const savingsLabel = percentVsAvg < 0
     ? `${formattedSavings} below average`
