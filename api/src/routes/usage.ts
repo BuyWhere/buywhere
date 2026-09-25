@@ -16,7 +16,7 @@ const router = Router();
 //
 // Also returns today + month_to_date totals and a generated_at / source meta
 // block so consumers can tell snapshot age + provenance.
-router.get('/counters', requireApiKey, async (req: Request, res: Response) => {
+const counters = async (req: Request, res: Response) => {
   const days = Math.min(Math.max(parseInt((req.query.days as string) || '30', 10), 1), 90);
 
   const daily = await db.query(
@@ -78,6 +78,10 @@ router.get('/counters', requireApiKey, async (req: Request, res: Response) => {
       source: 'query_log',
     },
   });
-});
+};
+
+router.get('/counters', requireApiKey, counters);
+// GET /v1/usage — documented read-matrix path; same rollup as /counters.
+router.get('/', requireApiKey, counters);
 
 export default router;

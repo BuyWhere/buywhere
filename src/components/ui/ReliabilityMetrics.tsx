@@ -58,10 +58,10 @@ export function ReliabilityMetrics({
       badgeColor: 'bg-blue-100 text-blue-700',
     },
     {
-      label: 'Uptime',
+      label: 'Uptime target',
       value: uptime,
       sublabel: 'Last 90 days',
-      badge: 'SLA',
+      badge: 'Target',
       badgeColor: 'bg-indigo-100 text-indigo-700',
     },
     {

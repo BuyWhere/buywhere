@@ -63,7 +63,7 @@ const comparisonRows: ComparisonRow[] = [
   {
     dimension: 'Reliability',
     scraping: 'Unpredictable — blocks, captchas, rate limits',
-    buywhere: '99.9% uptime SLA, no blocks',
+    buywhere: '99.9% uptime target (measured history on the status page), no blocks',
   },
   {
     dimension: 'Freshness',

@@ -147,7 +147,7 @@ export default function IntegratePage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across 900,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), list_categories (browse available categories), and find_best_price (cheapest current listing across 900,000+ merchants)."
+          text: "BuyWhere exposes thirteen MCP tools: search_products (full-text product search across 900,000+ merchants), get_product (product details by ID), compare_products (side-by-side comparison of 2–10 products), get_deals (discounted products sorted by discount percentage), list_categories (browse available categories), and find_best_price (cheapest current listing across 900,000+ merchants)."
         }
       },
       {
@@ -281,7 +281,7 @@ export default function IntegratePage() {
               MCP tools
             </p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900">
-              6 tools available via MCP
+              13 tools available via MCP
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-slate-600">
               Each tool maps to a BuyWhere API endpoint. The MCP server handles
