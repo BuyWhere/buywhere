@@ -2614,8 +2614,9 @@ router.get(
       }
     }
 
+    const mainQ = quarantinePriceOutliers(filteredProducts);
     const responseBody = buildSearchResponse(
-      filteredProducts,
+      mainQ.kept,
       total,
       limit,
       offset,
@@ -2627,6 +2628,7 @@ router.get(
       filteredProducts.length === 0 ? buildRestNoMatchEmptiness(countryCode, deliverTo) : null,
     );
     (responseBody as unknown as Record<string, unknown>).search_mode = { ...modeExec };
+    if (mainQ.removed) ((responseBody as unknown as Record<string, unknown>).meta as Record<string, unknown>).price_outliers_quarantined = mainQ.removed;
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
