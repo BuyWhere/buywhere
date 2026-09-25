@@ -11,6 +11,7 @@ import {
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 import { apiBase, apiHeaders } from "@/lib/server-api";
 import { createHash } from "node:crypto";
+import { formatPriceForCurrency } from "@/lib/currency";
 
 const BASE_URL = "https://buywhere.ai";
 
@@ -325,11 +326,7 @@ export function resolveHeroTitle(
   if (prices.length === 0) return config.heroTitle;
 
   const floor = Math.min(...prices);
-  const formatted = new Intl.NumberFormat(config.currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency: config.currency,
-    maximumFractionDigits: 0,
-  }).format(floor);
+  const formatted = formatPriceForCurrency(floor, config.currency, 0);
 
   return config.heroTitleTemplate.replace(/\{floorPrice\}/g, formatted);
 }

@@ -5,17 +5,13 @@ import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import { attachProductCardClickAttribution, buildAffiliateRedirectUrl } from "@/lib/click-attribution";
 import { captureProductCardClick } from "@/lib/posthog-client";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
+import { formatPriceForCurrency } from "@/lib/currency";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
     return "Price unavailable";
   }
-
-  return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
+  return formatPriceForCurrency(price, currency, 0);
 }
 
 export function ProductGridCard({ product, compact = false, pathname }: { product: LandingProduct; compact?: boolean; pathname?: string | null }) {

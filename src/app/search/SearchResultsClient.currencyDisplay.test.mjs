@@ -93,11 +93,18 @@ function normalizeProductCurrency(rowCurrency, fallbackCurrency) {
 
 function formatPrice(price, currency) {
   if (price === null || !Number.isFinite(price)) return 'Price unavailable';
+  // Mirror of `@/lib/currency.formatPriceForCurrency` so the invariant
+  // tests below agree with what production renders. BUY-81045 added the
+  // `currencyDisplay: "code"` branch so SGD amounts render as "SGD 1,234.50"
+  // (unambiguous with USD).
+  const DISAMBIGUATE = new Set(['SGD', 'MYR', 'HKD', 'NTD', 'BND']);
   try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
+    const cur = String(currency || '').toUpperCase();
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency,
+      currency: cur || 'USD',
       maximumFractionDigits: 2,
+      ...(DISAMBIGUATE.has(cur) ? { currencyDisplay: 'code' } : {}),
     }).format(price);
   } catch {
     return `${currency} ${price.toFixed(2)}`;
@@ -132,10 +139,12 @@ test('BUY-71638: invariant — INR/TRY rows under US filter also render as USD',
 });
 
 test('BUY-71638: invariant — SGD filter renders SGD for any source currency', () => {
-  // formatPrice uses locale `en-SG` for SGD currency, which renders
-  // SGD amounts as "$1,234.50" (the Singapore dollar sign, not the
-  // ISO code). This was fixed in commit fdd47cd7 (BUY-71643) so the SG
-  // country filter shows S$X not SGD X.XX.
+  // BUY-81045 fix: formatPrice now routes through the shared
+  // `@/lib/currency` `formatPriceForCurrency` helper, which renders
+  // SGD with `currencyDisplay: "code"` ("SGD 1,234.50") — explicit and
+  // not visually identical to USD. The previous "en-SG locale emits
+  // bare $" assumption was a regression: en-SG ships the same `$`
+  // glyph as en-US, so /laptop-singapore cards looked like USD.
   for (const apiCurrency of ['USD', 'INR', 'TRY', null, undefined]) {
     const displayCurrency = normalizeProductCurrency(apiCurrency, 'SGD');
     assert.equal(
@@ -143,7 +152,17 @@ test('BUY-71638: invariant — SGD filter renders SGD for any source currency', 
       'SGD',
       `expected ${apiCurrency} API row under SG filter to display in SGD`
     );
-    assert.equal(formatPrice(1234.5, displayCurrency), '$1,234.50');
+    // SGD must NOT render as bare "$" — that's the BUY-81045 regression
+    // the QA defect caught. Acceptable forms: "SGD 1,234.50" or "S$1,234.50".
+    const rendered = formatPrice(1234.5, displayCurrency);
+    assert.ok(
+      /^S(GD|\$)/.test(rendered),
+      `expected SGD amount to render with explicit SGD/S$ prefix, got: ${rendered}`
+    );
+    assert.ok(
+      !rendered.startsWith('$1'),
+      `expected SGD amount NOT to start with bare "$", got: ${rendered}`
+    );
   }
 });
 
@@ -161,5 +180,26 @@ test('BUY-71638: invariant — helper is exposed via __test__ for direct unit co
     source,
     /__test__\s*=\s*\{[\s\S]*normalizeProduct[\s\S]*\}/,
     'expected normalizeProduct to be exported via __test__'
+  );
+});
+
+test('BUY-81045: SearchResultsClient routes formatPrice through the shared currency helper', () => {
+  // The local formatPrice() in SearchResultsClient must call
+  // formatPriceForCurrency(price, currency, 2) — NOT raw Intl.NumberFormat
+  // with the broken en-SG locale. If this guard fails, SGD/MYR/HKD amounts
+  // will regress back to the bare-"$" output the QA defect caught.
+  assert.match(
+    source,
+    /import\s*\{[^}]*formatPriceForCurrency[^}]*\}\s*from\s*["']@\/lib\/currency["']/,
+    'expected SearchResultsClient to import formatPriceForCurrency from @/lib/currency'
+  );
+  assert.match(
+    source,
+    /formatPriceForCurrency\(\s*price\s*,\s*currency\s*,\s*2\s*\)/,
+    'expected SearchResultsClient to call formatPriceForCurrency(price, currency, 2) — the shared SGD-aware helper'
+  );
+  assert.ok(
+    !/new\s+Intl\.NumberFormat\([^)]*['"]en-SG['"]/.test(source),
+    'expected NO inline Intl.NumberFormat("en-SG", ...) — the buggy locale that emits bare $'
   );
 });

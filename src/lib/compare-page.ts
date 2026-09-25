@@ -1,3 +1,5 @@
+import { formatPriceForCurrency } from "@/lib/currency";
+
 export type ComparisonOffer = {
   id: string;
   name: string;
@@ -162,14 +164,5 @@ export function findBestOffer(offers: ComparisonOffer[]): ComparisonOffer | null
 
 export function formatOfferPrice(price: number | null, currency: string): string {
   if (price === null) return "Price unavailable";
-
-  try {
-    return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
+  return formatPriceForCurrency(price, currency, 2);
 }
