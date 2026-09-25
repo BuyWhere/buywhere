@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
-import { formatPriceForCurrency } from '@/lib/currency';
+import { formatPriceWithDecimals } from '@/lib/currency';
 
 interface SparklineBar {
   date: string;
@@ -16,7 +16,7 @@ interface CompareBarChartProps {
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
-  return formatPriceForCurrency(price, currency, 2);
+  return formatPriceWithDecimals(price, currency);
 }
 
 function formatDate(dateStr: string): string {

@@ -11,7 +11,7 @@ import { DealScoreBadge } from '@/components/compare/DealScoreBadge';
 import { useCompare } from '@/lib/compare-context';
 import { type DataFreshness } from '@/lib/freshness';
 import ComparisonShareButton from '@/components/compare/ComparisonShareButton';
-import { formatPriceForCurrency } from '@/lib/currency';
+import { formatPriceWithDecimals } from '@/lib/currency';
 
 export interface CompareProduct {
   id: string;
@@ -50,7 +50,7 @@ interface CompareProductsGridProps {
 
 function formatPrice(price: number | null, currency: string): string {
   if (price === null) return 'Price unavailable';
-  return formatPriceForCurrency(price, currency, 2);
+  return formatPriceWithDecimals(price, currency);
 }
 
 function getFreshnessTier(lastUpdated: string | null): DataFreshness {

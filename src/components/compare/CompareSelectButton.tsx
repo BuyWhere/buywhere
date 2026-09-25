@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { useCompare } from '@/lib/compare-context';
 import type { SearchCardProduct } from '@/app/search/SearchResultsClient';
-import { formatPriceForCurrency } from '@/lib/currency';
+import { formatPriceWithDecimals } from '@/lib/currency';
 
 interface CompareSelectButtonProps {
   product: SearchCardProduct;
@@ -12,7 +12,7 @@ interface CompareSelectButtonProps {
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) return null;
-  return formatPriceForCurrency(price, currency, 2);
+  return formatPriceWithDecimals(price, currency);
 }
 
 export const CompareSelectButton = memo(function CompareSelectButton({
@@ -21,6 +21,9 @@ export const CompareSelectButton = memo(function CompareSelectButton({
 }: CompareSelectButtonProps) {
   const { isInCompare, addToCompare, removeFromCompare } = useCompare();
   const active = isInCompare(product.id);
+  const label = active
+    ? `Remove ${product.name} from compare`
+    : `Add ${product.name} to compare`;
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -46,13 +49,18 @@ export const CompareSelectButton = memo(function CompareSelectButton({
 
   return (
     <button
+      type="button"
       onClick={handleClick}
-      className={`inline-flex items-center justify-center rounded-full border text-sm font-medium transition-all ${className} ${
+      // BUY-82741: keep the VidMee/axe `.product-card__action-btn` hook and
+      // expose both aria-label + title so icon-only compare control is named
+      // for AT and hover/tooltip users.
+      className={`product-card__action-btn inline-flex items-center justify-center rounded-full border text-sm font-medium transition-all ${className} ${
         active
-          ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-          : 'border-slate-200 bg-white/95 text-slate-500 hover:border-amber-200 hover:text-amber-700'
+          ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+          : 'border-slate-200 bg-white/95 text-slate-700 hover:border-amber-200 hover:text-amber-800'
       }`}
-      aria-label={active ? `Remove ${product.name} from compare` : `Add ${product.name} to compare`}
+      aria-label={label}
+      title={label}
       aria-pressed={active}
     >
       <svg
