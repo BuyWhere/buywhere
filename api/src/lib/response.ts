@@ -367,6 +367,56 @@ export function normalizeProductTitle(row: Record<string, unknown>): string {
   return polish(segments[0]);
 }
 
+// bwbench-20260925155316 finding 3: ingest lanes and platform buckets leaked as the
+// buyer-visible merchant ("shopify_buy30620_crate", "shopify", "google_shopping"),
+// which the external observer rightly scores as an internal/fixture merchant. The
+// store is the URL host; show that instead. The raw `source` column is untouched.
+const GENERIC_MERCHANT_RE = /^(shopify|woocommerce|google_shopping|gs_commoncrawl_discovery|cc-shopify-discover|shopify_(?:buy\d+|unharvested|stock_wave|stock|hunt|crate|scout)[a-z0-9_]*|stock_wave_[a-z0-9_]+|github_[a-z0-9_]+)$/i;
+export function isGenericMerchant(value: string | null | undefined): boolean {
+  return !!value && GENERIC_MERCHANT_RE.test(value.trim());
+}
+export function merchantHostFromUrl(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+export function displayMerchant(raw: string, url: unknown): string {
+  if (!isGenericMerchant(raw)) return raw;
+  return merchantHostFromUrl(url) ?? raw;
+}
+
+// bwbench-20260925155316 finding 3: a page of Dyson Airwrap results carried 42,000,
+// 36,900 and 1.99 "USD" rows next to 2,300-2,700 ones — Shopify products.json has no
+// currency and the drain defaulted to USD. Until provenance is fixed at ingest, keep
+// such rows off the page: quarantine prices further than 20x below or 8x above the
+// page median, only when the page has at least 5 priced rows and no more than half
+// would be removed (a bimodal page is left alone rather than guessed at).
+export function quarantinePriceOutliers<T extends { price?: { amount?: unknown } | null }>(
+  items: T[],
+  opts: { minN?: number; lowDiv?: number; highMul?: number } = {},
+): { kept: T[]; removed: number } {
+  const minN = opts.minN ?? 5, lowDiv = opts.lowDiv ?? 20, highMul = opts.highMul ?? 8;
+  const amts = items
+    .map((it) => Number(it.price?.amount))
+    .filter((a) => Number.isFinite(a) && a > 0)
+    .sort((a, b) => a - b);
+  if (amts.length < minN) return { kept: items, removed: 0 };
+  const mid = amts.length >> 1;
+  const median = amts.length % 2 ? amts[mid] : (amts[mid - 1] + amts[mid]) / 2;
+  if (!(median > 0)) return { kept: items, removed: 0 };
+  const isOutlier = (it: T) => {
+    const a = Number(it.price?.amount);
+    return Number.isFinite(a) && a > 0 && (a < median / lowDiv || a > median * highMul);
+  };
+  const removed = items.filter(isOutlier).length;
+  if (removed === 0 || removed * 2 > items.length) return { kept: items, removed: 0 };
+  return { kept: items.filter((it) => !isOutlier(it)), removed };
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -421,7 +471,8 @@ export function buildProduct(
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
-  const merchant = (row.domain as string) || '';
+  const merchantRaw = (row.domain as string) || '';
+  const merchant = displayMerchant(merchantRaw, row.url);
   const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
 
   // BUY-67318: hide all buy-side fields when the probe worker has confirmed
@@ -488,7 +539,7 @@ export function buildProduct(
     merchant_name: (() => {
       const mid = (row.merchant_id as string) || '';
       const entry = mid && merchantMap ? merchantMap[mid] : undefined;
-      return entry?.name ?? null;
+      return entry?.name ?? (isGenericMerchant(merchantRaw) ? merchantHostFromUrl(row.url) : null);
     })(),
     merchant_slug: (() => {
       const mid = (row.merchant_id as string) || '';

@@ -9,7 +9,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, marketCurrencyConsistencySql, normalizeProductTitle } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, marketCurrencyConsistencySql, normalizeProductTitle, quarantinePriceOutliers } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -338,7 +338,9 @@ async function tryIdentifierLookup(
     // paging signal, but a precise number wrong by orders of magnitude. has_more carries
     // "there are more"; total reports only what this page can account for.
     const total = p.offset + pageRows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
+    const archiveQ = quarantinePriceOutliers(products);
+    const responseBody = buildSearchResponse(archiveQ.kept, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
+    if (archiveQ.removed) (responseBody.meta as Record<string, unknown>).price_outliers_quarantined = archiveQ.removed;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
@@ -968,8 +970,10 @@ async function tryTierSearch(
         if (wantCur === 'USD' && Number.isFinite(amt) && amt >= 20000) return false;
         return true;
       });
-    const hasMore = isolated.length > p.offset + p.limit;
-    const productsOut = isolated.slice(p.offset, p.offset + p.limit);
+    const quarantined = quarantinePriceOutliers(isolated);
+    const isolatedQ = quarantined.kept;
+    const hasMore = isolatedQ.length > p.offset + p.limit;
+    const productsOut = isolatedQ.slice(p.offset, p.offset + p.limit);
     // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
     // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
     // already true and thousands more rows existed - neither a real count nor an honest
@@ -978,6 +982,7 @@ async function tryTierSearch(
     const total = p.offset + productsOut.length;
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
+    if (quarantined.removed) (responseBody.meta as Record<string, unknown>).price_outliers_quarantined = quarantined.removed;
     responseBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     // Disclose how the currency scope was decided (evaluator: "explicit versus inferred
