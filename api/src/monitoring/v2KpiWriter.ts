@@ -256,6 +256,28 @@ async function flushOnce(pool: Pool): Promise<void> {
         `INSERT INTO monitoring.mcp_empty_responses (${cols.join(', ')}) VALUES ${valuesSql.join(', ')}`,
         params
       );
+
+      // BUY-71542: api_error empties must write monitoring.alert_history.
+      // market CHECK allows only sg/us/my/th/vn/id/ph — fall back to sg.
+      const ALLOWED_ALERT_MARKETS = new Set(['sg', 'us', 'my', 'th', 'vn', 'id', 'ph']);
+      const apiErrors = emptyRows.filter((r) => r.emptiness_reason === 'api_error');
+      if (apiErrors.length > 0) {
+        const aSql: string[] = [];
+        const aParams: unknown[] = [];
+        for (let i = 0; i < apiErrors.length; i++) {
+          const r = apiErrors[i];
+          const raw = String(r.region || 'sg').toLowerCase();
+          const market = ALLOWED_ALERT_MARKETS.has(raw) ? raw : 'sg';
+          const base = i * 4;
+          aSql.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
+          aParams.push(market, 0, 'api_error', `tool=${r.tool_name} emptiness_reason=api_error`);
+        }
+        await client.query(
+          `INSERT INTO monitoring.alert_history (market, p95_ms, kind, predicate_fails_reason)
+           VALUES ${aSql.join(', ')}`,
+          aParams
+        );
+      }
     }
 
     await client.query('COMMIT');
@@ -333,17 +355,18 @@ export function recordV2KpiSink(input: {
 }): void {
   const { toolName, args, apiKey, result, statusCode } = input;
 
-  // Defensive gating: not a v2 tool, OR is internal probe, OR transport error.
-  if (!V2_TOOLS.has(toolName)) return;
   const isInternal = classifyIsInternal(apiKey);
   if (isInternal) return; // gate metric is external-agent only
   if (statusCode >= 400) return; // only successful (200 OK) responses
+  // BUY-71542: v1 tools still write mcp_empty_responses + api_error alerts.
+  // deliver_to_calls stays v2-only below.
 
   const resultCount = extractResultCount(result);
   const meta = extractMeta(result);
   const calledAt = new Date();
 
   if (resultCount !== null && resultCount >= 1) {
+    if (!V2_TOOLS.has(toolName)) return;
     const deliverTo = deriveDeliverTo(args);
     const deliverToInferred = !(typeof args?.deliver_to === 'string' && args.deliver_to.trim());
     // gate_passed = deliver_to was present OR inferred from country_code/country.

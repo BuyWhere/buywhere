@@ -213,6 +213,30 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     );
   });
 
+  it('BUY-80220 boosts primary devices and demotes accessories above pure ts_rank', () => {
+    const src = readProductsSource();
+    assert.ok(
+      /const primaryDeviceBoost = `/.test(src),
+      'Expected primaryDeviceBoost multiplier for iPhone/iPad/AirPods/tablet/TV/audio searches'
+    );
+    assert.ok(
+      /const deviceAccessoryPenalty = `/.test(src),
+      'Expected deviceAccessoryPenalty multiplier to demote cases/mounts/glass/AppleCare'
+    );
+    assert.ok(
+      /\$\{primaryDeviceBoost\.replace\(\/sp\\\.\/g, 'c\.'\)\}/.test(src),
+      'Expected search_products FTS rank to apply primaryDeviceBoost inside the bounded top CTE'
+    );
+    assert.ok(
+      /\$\{deviceAccessoryPenalty\.replace\(\/sp\\\.\/g, 'c\.'\)\}/.test(src),
+      'Expected search_products FTS rank to apply deviceAccessoryPenalty inside the bounded top CTE'
+    );
+    assert.ok(
+      /BUY-80220: boost primary devices and demote accessory SKUs above pure ts_rank\.[\s\S]*THEN 3\.0 ELSE 1\.0[\s\S]*THEN 0\.08 ELSE 1\.0/.test(src),
+      'Expected archive products FTS path to boost devices and strongly demote accessories before ts_rank ordering'
+    );
+  });
+
   it('BUY-64151 releaseClientSafely discards transaction-poisoned clients (transactionStatus === 3)', () => {
     const src = fs.readFileSync(mcpTsPath, 'utf8');
     const match = src.match(/function\s+releaseClientSafely\s*\([\s\S]*?\n\}\n/);

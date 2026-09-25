@@ -10,14 +10,13 @@
   "country": "SG",
   "currency": "SGD",
   "locale": "en_SG",
-  "searchQuery": "gaming monitor",
+  "searchQuery": "4K monitor",
   "backupQueries": [
-    "monitor 4K",
-    "gaming monitor 4K",
-    "monitor Samsung",
-    "monitor LG"
+    "27 inch 4K monitor",
+    "32 inch 4K monitor",
+    "4K UHD monitor"
   ],
-  "minPrice": 150,
+  "minPrice": 250,
   "requiredProductTerms": [
     "4k",
     "monitor",

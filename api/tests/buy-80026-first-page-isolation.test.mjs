@@ -25,12 +25,27 @@ describe('BUY-80026 first-page isolation vs pagination', () => {
     );
   });
 
-  it('isolation paginates with slice(offset, offset + limit)', () => {
+  it('keyword FTS ranks before LIMIT/OFFSET (BUY-80321)', () => {
+    const src = fs.readFileSync(mcpTs, 'utf8');
+    const kwStart = src.indexOf('BUY-72082: Keyword (FTS) path via search_products tier');
+    const kwEnd = src.indexOf('No FTS — browse mode', kwStart);
+    const kwBlock = src.slice(kwStart, kwEnd);
+    assert.match(kwBlock, /ORDER BY \$\{rankExpr\} DESC/);
+    assert.match(kwBlock, /LIMIT \$\{sqlLimit\} OFFSET \$\{sqlOffset\}/);
+    assert.equal(
+      /FROM cand ORDER BY rank DESC LIMIT/.test(kwBlock),
+      false,
+      'CTE still LIMITs before rank — first page is GIN-bitmap order, not ts_rank',
+    );
+  });
+
+  it('isolation does not re-slice offset on already-paged child-table FTS', () => {
     const src = fs.readFileSync(mcpTs, 'utf8');
     const isoStart = src.indexOf('BUY-79497: isolate requested market');
     const isoEnd = src.indexOf('BUY-79642: SEA markets', isoStart);
     const iso = src.slice(isoStart, isoEnd);
+    assert.match(iso, /alreadyPaged/);
+    assert.match(iso, /filtered\.slice\(\s*0\s*,\s*limit\s*\)/);
     assert.match(iso, /filtered\.slice\(\s*offset\s*,\s*offset\s*\+\s*limit\s*\)/);
-    assert.doesNotMatch(iso, /filtered\.slice\(\s*0\s*,\s*limit\s*\)/);
   });
 });

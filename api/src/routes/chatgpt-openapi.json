@@ -73,13 +73,17 @@
     },
     "/products/deals": {
       "get": {
-        "summary": "Get current deals and discounts across Singapore merchants",
+        "summary": "Get current deals and discounts in the buyer's market",
         "operationId": "getDeals",
-        "description": "Find active promotions, flash sales, and discounts. Returns products sorted by discount percentage with original and current prices.",
+        "description": "Find active discounts, sorted by discount percentage with original and current prices. Pass deliver_to (the end user's ISO country) so results are in that market's currency and each item carries an availability label; add include_unshippable=false to keep only products the user can receive.",
         "parameters": [
-          { "name": "min_discount", "in": "query", "schema": { "type": "number", "default": 10 }, "description": "Minimum discount percentage (0-90)" },
+          { "name": "min_discount", "in": "query", "schema": { "type": "number", "default": 10 }, "description": "Minimum discount percentage. Discounts of 80 percent or more are excluded as implausible list-price inflation, so useful values are 0-79." },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 }, "description": "Number of results" },
-          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Pagination offset" }
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Pagination offset" },
+          { "name": "deliver_to", "in": "query", "schema": { "type": "string", "example": "US" }, "description": "ISO-3166 alpha-2 country of the end user. Sets the market currency when currency is omitted, and labels each item availability: local, ships_to_you, unavailable or unknown. Recommended for buyer-facing use." },
+          { "name": "include_unshippable", "in": "query", "schema": { "type": "boolean", "default": true }, "description": "With deliver_to, set false to drop items that cannot be delivered there (meta.total reflects the kept items)." },
+          { "name": "country_code", "in": "query", "schema": { "type": "string", "example": "SG" }, "description": "Restrict to listings from this ISO-3166 alpha-2 country. Also sets the currency when currency is omitted. Alias: country." },
+          { "name": "currency", "in": "query", "schema": { "type": "string", "example": "USD" }, "description": "ISO-4217 currency of the listings to return. Default: the currency of country_code, else of deliver_to, else SGD." }
         ],
         "responses": {
           "200": {
@@ -94,7 +98,7 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "string", "format": "uuid" },
+                          "id": { "type": "string", "description": "Numeric product id (as a string)" },
                           "title": { "type": "string" },
                           "price": { "type": "number" },
                           "original_price": { "type": "number" },

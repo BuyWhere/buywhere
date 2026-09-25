@@ -114,6 +114,27 @@ describe('BUY-75313 keyless read path', () => {
     assert.match(hint.url, /auth\/register\?verify=false/);
   });
 
+  it('BUY-80256: PROBE_IPS skip anonymous daily cap', async () => {
+    redisStore.clear();
+    process.env.PROBE_IPS = '203.0.113.9';
+    const app = express();
+    app.set('trust proxy', true);
+    app.get('/v1/products/search', allowAnonymous, (req, res) => res.json({ ok: true, internal: req.apiKeyRecord.isInternal }));
+    for (const k of ['a']) {
+      void k;
+    }
+    // seed daily at cap then request from probe IP
+    const first = await request(app, { path: '/v1/products/search', headers: { 'X-Forwarded-For': '203.0.113.9' } });
+    assert.equal(first.status, 200);
+    for (const k of redisStore.keys()) {
+      if (String(k).includes('rl:anon:daily:')) redisStore.set(k, 9999);
+    }
+    const r = await request(app, { path: '/v1/products/search', headers: { 'X-Forwarded-For': '203.0.113.9' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.ok, true);
+    delete process.env.PROBE_IPS;
+  });
+
   it('keyed request is unaffected (still requireApiKey path)', async () => {
     redisStore.clear();
     const app = express();

@@ -317,12 +317,16 @@ function clientIp(req: Request): string {
   return first || req.ip || req.socket?.remoteAddress || '0.0.0.0';
 }
 
+// BUY-80256: fleet droplet egress. QA/heartbeats share this NAT; without it in
+// PROBE_IPS the anonymous daily=1000 counter 429s every keyless GET from the box.
+const KNOWN_FLEET_EGRESS_IPS = ['168.144.134.188'];
+
 function isProbeIp(ip: string): boolean {
   const probe = (process.env.PROBE_IPS || process.env.INTERNAL_PROBE_IPS || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  if (probe.includes(ip)) return true;
+  if (probe.includes(ip) || KNOWN_FLEET_EGRESS_IPS.includes(ip)) return true;
   if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
     return process.env.NODE_ENV !== 'production';
   }
@@ -384,6 +388,19 @@ export async function allowAnonymous(req: Request, res: Response, next: NextFunc
   const ip = clientIp(req);
   const ipHash = createHash('sha256').update(ip).digest('hex').slice(0, 32);
   const limits = TIER_LIMITS.anonymous ?? { rpm: 60, daily: 1000 };
+  // BUY-80256: fleet/QA probes share one DigitalOcean NAT IP. Counting them
+  // against anonymous daily=1000 429s every keyless GET from the droplet
+  // (and any other tenant behind the same egress) for the rest of UTC day.
+  // isProbeIp already marks the record internal; skip Redis quota for those IPs.
+  if (isProbeIp(ip)) {
+    attachAnonymousRecord(req, ipHash, 0, limits.daily, limits.rpm);
+    res.set('X-RateLimit-Limit', String(limits.rpm));
+    res.set('X-RateLimit-Remaining', String(limits.rpm));
+    res.set('X-RateLimit-Limit-Day', String(limits.daily));
+    res.set('X-RateLimit-Remaining-Day', String(limits.daily));
+    next();
+    return;
+  }
   const now = Date.now();
   const minuteWindow = Math.floor(now / 60000);
   const dayKey = new Date().toISOString().slice(0, 10);

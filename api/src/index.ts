@@ -10,6 +10,7 @@ import { startP95Runner } from './jobs/p95Runner';
 import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
 import { startDiskSpaceRunner } from './jobs/diskSpaceRunner';
 import { startFxRefreshScheduler } from './jobs/fxRefreshRunner';
+import { startCatalogHealthProbe } from './lib/catalogHealth';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -40,6 +41,9 @@ async function start() {
 
   // BUY-54078 / BUY-52476: refresh fx_rates every 6 hours (frankfurter + open.er-api fallback).
   startFxRefreshScheduler();
+
+  // Catalog liveness verdict for /health (2026-09-25, see lib/catalogHealth.ts).
+  startCatalogHealthProbe();
 
   // Refresh category materialized views + Redis caches every 5 min so counts stay
   // current as products are ingested, and the Redis TTL (600s) never expires cold.

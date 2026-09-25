@@ -23,7 +23,7 @@ const origLoad = Module._load;
 
 function loadRouter() {
   Module._load = function (request, parent, isMain) {
-    if (request === '../config') return { db: fakeDb };
+    if (request === '../config') return { db: fakeDb, catalogDb: fakeDb };
     if (request === '../analytics/posthog') return { trackAffiliateClick: () => {} };
     return origLoad.apply(this, arguments);
   };

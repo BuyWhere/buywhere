@@ -113,11 +113,27 @@ async function loadMerchants() {
       consumerSecret: m.consumer_secret || '',
     }));
 }
+// WooCommerce Store API (/wp-json/wc/store/v1) returns prices as integer strings in
+// the currency's MINOR unit, with prices.currency_minor_unit alongside: senheng.com.my
+// sends price "209900" for a MYR 2,099.00 washer. Parsing that string directly stored
+// every 2-decimal price at 100x; the MYR ceiling (325,000) only rejected the dearest
+// ones, so everything cheaper went into the catalog at 100x. The v3 REST API path
+// (normalizeV3Product) already returns major units and is not touched.
+function storeApiMajorUnits(p) {
+  const pr = p.prices;
+  if (pr && pr.price !== undefined && pr.price !== null && pr.price !== '') {
+    const mu = Number.isInteger(pr.currency_minor_unit) ? pr.currency_minor_unit : 2;
+    const minor = parseFloat(pr.price);
+    return Number.isFinite(minor) ? minor / 10 ** mu : 0;
+  }
+  return parseFloat(p.price || '') || 0;
+}
+
 function normalizeStoreProduct(p, merchant) {
   const name = String(p.name || p.title || '').trim();
   if (!name) return null;
   const sku = p.sku || p.id?.toString() || '';
-  const price = p.prices?.price || p.price || '';
+  const price = storeApiMajorUnits(p);
   const currency = p.prices?.currency_code || merchant.currency || 'USD';
   const description = (p.description || '').replace(/<[^>]*>/g, '').trim();
   const image = (p.images && p.images[0]?.src) || p.images?.[0] || '';
@@ -129,7 +145,7 @@ function normalizeStoreProduct(p, merchant) {
     upc: p.upc || '',
     ean: p.ean || '',
     brand: p.brand || '',
-    price: parseFloat(price) || 0,
+    price,
     currency,
     description: description.slice(0, 500),
     image_url: image,

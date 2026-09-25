@@ -21,7 +21,7 @@ const Module = require('module');
 const origLoad = Module._load;
 
 Module._load = function (request, parent, isMain) {
-  if (request === '../config') return { db: fakeDb };
+  if (request === '../config') return { db: fakeDb, catalogDb: fakeDb };
   if (request === '../analytics/posthog') return { trackAffiliateClick: () => {} };
   return origLoad.apply(this, arguments);
 };

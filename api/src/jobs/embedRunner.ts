@@ -57,13 +57,20 @@ if (!FLOWAI_KEY) {
   console.error('[embed-runner] FLOWAI_EMBED_API_KEY is not set — embedding is disabled');
   process.exit(0);
 }
+// A worker that cannot do its job must not exit success — a green deployment
+// that embeds nothing is a refusal reporting success (the 09-04 incident: six
+// days of SUCCESS status over zero work). exit(1) makes Railway show the
+// deployment CRASHED/backing-off: an honest, visible, alarmed state.
 if (!vectorDb) {
-  console.error('[embed-runner] VECTOR_DB_URL is not set — embedding is disabled');
-  process.exit(0);
+  console.error('[embed-runner] FATAL: VECTOR_DB_URL is not set — cannot embed');
+  process.exit(1);
 }
 if (!replicaDb) {
-  console.error('[embed-runner] REPLICA_DATABASE_URL is not set — replica-only embedding is disabled');
-  process.exit(0);
+  // Cutover (09-04): the read source is SOURCE_DATABASE_URL (catalog primary,
+  // set only at cutover). REPLICA_DATABASE_URL is retired with the GCP replica
+  // and must never be re-set — a second writer starts if it is.
+  console.error('[embed-runner] FATAL: SOURCE_DATABASE_URL is not set — waiting for cutover config; refusing to report success');
+  process.exit(1);
 }
 
 const liveVectorDb = vectorDb;

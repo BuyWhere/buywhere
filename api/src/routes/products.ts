@@ -2,17 +2,18 @@ import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
+import { fetchFromLiveChildren } from '../lib/liveChildLookup';
 import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey, allowAnonymous, attachQuotaHint } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, normalizeProductTitle } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, SUPPORTED_REGIONS, marketCurrencyConsistencySql, normalizeProductTitle } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded, LAPTOP_ACCESSORY_PG_RE_SOURCE, isDeviceUnitQuery, deviceUnitAccessoryExclusionFragment, deviceUnitAccessoryExclusionFragmentProducts, isBareDeviceQuery, NON_COMPUTER_TITLE_PG_RE_SOURCE, BARE_DEVICE_QUERY_TOKENS } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 import { liveUrlCondition, outboundProbeEnabled } from '../lib/outboundLinkHealth';
@@ -59,7 +60,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v32-buy81461'; // v32: BUY-81461 — Cache-Control: no-store on search responses; evict v31 poisoned entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v32-buy81461'; // v32: BUY-81461 — Cache-Control: no-store on search responses; evict v31 poisoned entries (v25 base + v28-v31 BUY-75921 title normalization bumps)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -70,6 +71,21 @@ const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
 const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
+// ISO-3166-1 alpha-2 (+ EU/UK aliases kept for existing integrators). A syntactically
+// valid but nonexistent code (XX, ZZ) must 400, not silently return global results.
+const ISO_3166_ALPHA2 = new Set('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW EU UK'.split(' '));
+// BWEXT-20464093 round 2: the fixture identity ALSO lives in the source column —
+// the response's "merchant" field is literally `source AS domain`, so filtering
+// merchant_id alone left 34 crate contexts in the 09-05 external run (the
+// ambiguous-selector class: one concept, two columns). NULL-safe via coalesce:
+// a NULL source must not exclude the row.
+function fixtureMerchantExclusion(prefix = ''): string {
+  const cols = [`${prefix}merchant_id`, `${prefix}source`];
+  const pats = ["'^shopify_buy[0-9]+_crate$'", "'(^|[_-])(test|demo|sandbox|staging)([_-]|$)'"];
+  return '(' + cols.map((c) => pats.map((p) => `coalesce(${c},'') !~ ${p}`).join(' AND ')).join(' AND ') + ')';
+}
+const FIXTURE_MERCHANT_EXCLUSION = fixtureMerchantExclusion();
+
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
@@ -225,6 +241,7 @@ async function tryIdentifierLookup(
     id: IdentifierDetection; countryCode?: string; currency: string; limit: number; offset: number;
     minPrice?: number; maxPrice?: number; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
+  requestedMode?: string | null;
     deliverTo?: string; includeUnshippable?: boolean;
   },
 ): Promise<boolean> {
@@ -241,6 +258,7 @@ async function tryIdentifierLookup(
     // BUY-79353: domain filter should match merchant_id (actual retailer), not source (feed origin).
     if (p.domain) { conds.push(`sp.merchant_id = $${i}`); params.push(p.domain); i++; }
     conds.push(`sp.is_active = true`);
+  conds.push(fixtureMerchantExclusion('sp.'));
     conds.push(`sp.price > 0`);
     // BUY-67318: same dead-link gate on identifier-lookup path.
     if (outboundProbeEnabled()) {
@@ -303,7 +321,6 @@ async function tryIdentifierLookup(
       const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
       emptyBody.source = source;
       emptyBody.identifier_kind = p.id.kind;
-      emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
       annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
       redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Identifier-Lookup', p.id.kind);
@@ -314,13 +331,16 @@ async function tryIdentifierLookup(
 
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = await mapProducts(pageRows as Array<Record<string, unknown>>, p.currency, p.compact);
-    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + pageRows.length + (hasMore ? 1 : 0);
+    const products = await mapProducts(pageRows as Array<Record<string, unknown>>, p.currency, p.compact); // BUY-78003: merchantMap
+    // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
+    // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
+    // already true and thousands more rows existed - neither a real count nor an honest
+    // paging signal, but a precise number wrong by orders of magnitude. has_more carries
+    // "there are more"; total reports only what this page can account for.
+    const total = p.offset + pageRows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore) as unknown as Record<string, unknown>;
     responseBody.source = source;
     responseBody.identifier_kind = p.id.kind;
-    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.id.raw);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
     res.set('X-Identifier-Lookup', p.id.kind);
@@ -350,6 +370,12 @@ async function tryTierSearch(
     compact: boolean; requestStart: number; cacheKey: string;
     deliverTo?: string; includeUnshippable?: boolean;
     source?: string; scrapedVia?: string;
+    requestedMode?: string | null;
+    // False when currency is only the SGD default (no currency, country or deliver_to).
+    currencyRequested?: boolean;
+    // True when the currency scope comes from deliver_to alone: results stay in the
+    // buyer's currency, and an empty scope answers honestly instead of via the archive.
+    deliverToScoped?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -359,7 +385,9 @@ async function tryTierSearch(
   // child table (MCP already does this). search_products + country_code recheck
   // times out at 4s for head terms (phone/laptop) because idx_sp_fts_my/us are
   // INVALID and even idx_sp_fts_sg still expands a huge bitmap.
-  const ccUpper = (p.countryCode || '').toUpperCase();
+  // BUY-82726: deliver_to=SG/US without country used to skip the child table
+  // (PH Datablitz / JP cases / CZ $25k Airs). Buyer market is the isolation country.
+  const ccUpper = (p.countryCode || p.deliverTo || '').toUpperCase();
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
   const ftsTable = useChildTable
     ? `products_partitioned_${ccUpper.toLowerCase()}`
@@ -369,6 +397,11 @@ async function tryTierSearch(
   // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
   // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
   const storageExcl = deviceStorageExclusionFragment(p.q);
+  // BUY-80415: drop cases/ear-tips/skins/pouches from the cand window for
+  // unit queries (iphone / airpods). Penalty-only ranking cannot recover
+  // when LIMIT 200 is 100% accessories. Skip when the query itself names
+  // an accessory (case, tips, charger).
+  const unitAccessoryExcl = isDeviceUnitQuery(p.q) ? deviceUnitAccessoryExclusionFragment(p.q) : '';
   // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
   // writes 'home-living' for electronics) while products.metadata carries the
   // true category. The cand-CTE exclusion above cannot see metadata; this
@@ -389,15 +422,40 @@ async function tryTierSearch(
   // mismatch vs Shopify USD labelled SG). Isolate currency in the JS
   // post-filter below. Keep SQL currency only on the parent search_products
   // table (and when the caller passed explicit price bounds).
-  if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
+  // With no market in the request, currency is only the SGD default. Keep it as an SG-first
+  // SCOPE (that slice is much cleaner than the USD-heavy global table: removing it outright
+  // raised top-10 accessory contamination from 0% to 50% on AirPods Pro 3), but make it
+  // widenable: $widenIdx=true turns the filter off. When the scoped query finds nothing
+  // (Kindle Paperwhite: 2 SGD matches, both cases, vs 1,591 USD) we re-run the same indexed
+  // query widened instead of the unindexed title-LIKE fallback that hit the 4s cap.
+  let widenIdx = 0;
+  if (p.currency && !useChildTable && p.currencyRequested === false && p.minPrice == null && p.maxPrice == null) {
+    conds.push(`(sp.currency = $${i} OR $${i + 1}::boolean)`); params.push(p.currency, false); widenIdx = i + 1; i += 2;
+  }
+  else if (p.currency && !useChildTable) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   else if (p.currency && (p.minPrice != null || p.maxPrice != null)) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; }
   // Child partition already scoped to country; extra country_code predicate
   // can push the planner off the per-partition GIN onto a seq scan.
   if (p.countryCode && !useChildTable) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (useChildTable) { conds.push('sp.is_active = true'); }
-  // BUY-67318: same dead-link gate on the tier path. Child tables inherit
-  // the `url_status` columns from the parent partition.
-  if (outboundProbeEnabled()) {
+  conds.push(fixtureMerchantExclusion('sp.'));
+  // BUY-67318: same dead-link gate on the tier path.
+  //
+  // BWEXT-9DFD3159 (2026-09-10): the original comment said "child tables inherit the
+  // url_status columns from the parent partition" — true, but `sp` is only a partition
+  // child when useChildTable is set. Otherwise ftsTable is `search_products`, a separate
+  // FTS table that inherits nothing and HAS NO url_status column. With
+  // PROBE_OUTBOUND_LINKS=1 in production, every non-child-table tier query therefore threw
+  //   column sp.url_status does not exist
+  // which the catch at the bottom of tryTierSearch swallowed, logging "[tier] fell back to
+  // archive" and returning false. Fail-open meant results still looked correct, so nothing
+  // alarmed — while the ENTIRE accessory-penalty ranking (searchRelevanceTaxonomy) never
+  // executed. Confirmed dead: no X-Search-Tier header on any query, _tier=1 and _tier=0
+  // byte-identical, 219 such errors in one log sample. This is the CRITICAL 26%/100%
+  // accessory-contamination finding.
+  //
+  // Apply the gate only where the column actually exists.
+  if (outboundProbeEnabled() && useChildTable) {
     conds.push(liveUrlCondition('sp'));
   }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
@@ -416,34 +474,52 @@ async function tryTierSearch(
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   // BUY-72744: exclude synthetic Amazon rows in tier search.
   const synthAmazonExcl = "NOT (sp.merchant_id = 'amazon.com' AND (length(sp.sku) != 10 OR (sp.country_code = 'US' AND sp.currency = 'SGD')))";
-  // BUY-82519: exclude foreign merchant domains when searching by country.
-  // Products have country_code=US but merchant domain is foreign (.de, .kw, etc.).
-  // Filter out known foreign TLDs when searching US to keep only US merchants.
+  // BUY-82519 / BUY-82726: merchant-home-market filter; deliver_to counts as market.
+  const cc = (p.countryCode || p.deliverTo || '').toUpperCase();
   let merchantCountryFilter = '';
-  if (p.countryCode === 'US') {
-    // BUY-81155: exclude PH/IN (and other foreign) storefronts even when
-    // products.country_code is NULL or mis-tagged US. Match both ccTLD and
-    // compound domains (datablitz.com.ph, boat-lifestyle.com via .co.in).
+  if (cc === 'US') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
-      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
-      AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
-      AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
-      AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk'
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.de.%'
+      AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.com.kw'
+      AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph'
+      AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
+      AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg'
+      AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
+      AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd'
+      AND sp.merchant_id NOT ILIKE '%.lk' AND sp.merchant_id NOT ILIKE '%.com.pk'
+      AND sp.merchant_id NOT ILIKE '%.jp' AND sp.merchant_id NOT ILIKE 'amazon_jp'
+      AND sp.merchant_id NOT ILIKE '%.uk' AND sp.merchant_id NOT ILIKE '%.co.uk'
+      // BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
     ))`;
-  } else if (p.countryCode === 'SG') {
-    // Exclude foreign TLDs from SG search
-    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae' AND sp.merchant_id NOT ILIKE '%.com.%' AND sp.merchant_id NOT ILIKE '%.co.%')`;
+  } else if (cc === 'SG') {
+    merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
+      sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw'
+      AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
+      AND sp.merchant_id NOT ILIKE '%.com.kw'
+      AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%_ph'
+      AND sp.merchant_id NOT ILIKE '%.jp' AND sp.merchant_id NOT ILIKE 'amazon_jp'
+    ))`;
   }
-  const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl + merchantCountryFilter;
+  const filterSql = ' AND ' + (conds.length ? conds.join(' AND ') + ' AND ' : '') + synthAmazonExcl
+    + merchantCountryFilter
+    + (useChildTable ? '' : ' AND ' + marketCurrencyConsistencySql('sp'));
   const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
-  // BUY-79497: overfetch so a currency post-filter can still fill `limit`.
-  // BUY-82928: increase over-fetch multiplier significantly for child tables since
-  // currency post-filter drops most results (SG has predominantly USD-priced products).
-  const overfetchMultiplier = useChildTable ? 25 : 8;
-  const limitIdx = i; params.push(Math.min((p.limit + 1) * overfetchMultiplier, 500)); i++;
-  const offsetIdx = i; params.push(p.offset); i++;
-  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+  // BUY-79497 / BUY-80194 / BUY-82726: overfetch so a currency post-filter can
+  // still fill `limit`. Do NOT SQL-OFFSET here — isolation must run first
+  // (BUY-80026). Child FTS previously OFFSET then restored USD Shopify when
+  // SGD isolation emptied the page (BUY-79827 leftover).
+  const fetchCap = Math.min((p.limit + p.offset + 1) * 8, 200);
+  const limitIdx = i; params.push(fetchCap); i++;
+  // BUY-82726: on child tables, surface native-currency rows before USD Shopify
+  // labelled as SG (PlayStation 5 / country=sg was returning joesge USD).
+  let nativeCurPrefix = '';
+  if (useChildTable && p.currency) {
+    const nativeCurIdx = i; params.push(p.currency); i++;
+    nativeCurPrefix = `(sp.currency = $${nativeCurIdx}) DESC NULLS LAST, `;
+  }
+  const orderPrefix = nativeCurPrefix + (dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '');
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
@@ -467,6 +543,16 @@ async function tryTierSearch(
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1.0
     END`;
+  // BUY-80570: bare-device query demotion — for queries like "laptop" with no
+  // accessory intent, demote non-computer titles (exact "Laptop", wooden notebook,
+  // FSX listings) by 0.05x so real laptops rise to top.
+  const isBareDevice = isBareDeviceQuery(p.q);
+  const bareDeviceQueryDemotion = isBareDevice ? `
+    CASE
+      WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}'
+        OR lower(sp.title) = lower($${qIdx})
+      THEN 0.05 ELSE 1.0
+    END` : '1.0';
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
   // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
   // plainto_tsquery('english','phone')), so the query falls through to title LIKE
@@ -483,38 +569,59 @@ async function tryTierSearch(
   // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
   const phoneAccessoryPenalty = `
     CASE
-      WHEN lower(sp.title) ~* '\\mphone\\M'
-        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter)\\M'
+      WHEN lower(sp.title) ~* '\\m(phone|iphone)\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits|mp4)\\M'
           OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
       THEN 0.15 ELSE 1.0
     END`;
-
-  // BUY-82519 + BUY-77757: 5x boost for genuine laptops, NOT for accessories
-  // that happen to have "laptop" in the title (e.g. "laptop sleeve", "laptop bag").
-  // The accessory regex check MUST precede the title/category check so a
-  // "laptop sleeve" gets 0.25x (penalty) not 5.0x (boost), while a real
-  // "laptop computer" with no accessory token gets 5.0x.
-  const laptopCategoryBoost = `
+  // BUY-80415 verify: boost titles that contain the full query phrase
+  // (iPhone 16 over iPhone 17 / MP4 skins) and PS5 Pro consoles over DualSense.
+  const deviceExactBoost = `
     CASE
-      WHEN sp.title ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-        OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
-      THEN 1.0
-      WHEN lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%' OR lower(sp.category) LIKE '%macbook%'
-        OR lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
-      THEN 5.0
-      WHEN lower(sp.category) IS NOT NULL AND lower(sp.category) != ''
-        AND lower(sp.category) NOT LIKE '%laptop%' AND lower(sp.category) NOT LIKE '%notebook%'
-        AND lower(sp.category) NOT LIKE '%macbook%' AND lower(sp.category) NOT LIKE '%computer%'
-        AND lower(sp.category) NOT LIKE '%electronics%'
-      THEN 0.1
+      WHEN lower(sp.title) LIKE '%' || lower($${qIdx}) || '%' THEN 5.0
       ELSE 1.0
     END`;
+  const deviceControllerPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(mp4|dualsense|controller|controllers)\\M'
+      THEN 0.05 ELSE 1.0
+    END`;
+  const deviceConsoleBoost = `
+    CASE
+      WHEN lower($${qIdx}) ~* '(ps5|playstation)'
+        AND lower(sp.title) ~* '\\m(console)\\M'
+        AND lower(sp.title) !~* '\\m(controller|dualsense)\\M'
+      THEN 8.0 ELSE 1.0
+    END`;
+
   const laptopBoost = `
     CASE
       WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
         OR lower(sp.category) LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-80662 BUY-82519: for bare "laptop" queries, boost computer categories and
+  // demote unrelated ones (Games, Bags) even when the title contains "laptop".
+  // "Laptop Mounts", "Laptop Cases", "Phone Stands" etc. have category LIKE '%laptop%'
+  // but are accessory products — exclude them from the 5.0 boost so the 0.25x accessory
+  // penalty or the non-laptop-category 0.1x demotion can push them below real computers.
+  const laptopCategoryBoost = isBareDevice ? `
+    CASE
+      WHEN (lower(sp.category) LIKE '%laptop%' OR lower(sp.category) LIKE '%notebook%'
+        OR lower(sp.category) LIKE '%macbook%' OR lower(sp.category) LIKE '%computer%'
+        OR lower(sp.category) LIKE '%ultrabook%' OR lower(sp.category) LIKE '%chromebook%')
+        AND NOT (
+          lower(sp.category) ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+          OR lower(sp.title)    ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
+        )
+      THEN 5.0
+      WHEN lower(sp.category) IS NOT NULL AND lower(sp.category) != ''
+        AND lower(sp.category) NOT LIKE '%laptop%' AND lower(sp.category) NOT LIKE '%notebook%'
+        AND lower(sp.category) NOT LIKE '%macbook%' AND lower(sp.category) NOT LIKE '%computer%'
+        AND lower(sp.category) NOT LIKE '%electronics%' AND lower(sp.category) NOT LIKE '%pc%'
+      THEN 0.1
+      ELSE 1.0
+    END` : '1.0';
   // BUY-77644: project the columns needed for ranking into the cand CTE so the
   // top CTE can rank against the bounded candidate set without a second join to
   // search_products. The old plan joined search_products in top (BUY-54980) which
@@ -525,7 +632,7 @@ async function tryTierSearch(
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
@@ -537,11 +644,15 @@ async function tryTierSearch(
       -- BUY-54980/BUY-77644: rank columns are now in cand, so no join needed here.
       -- The CASE expressions reference the cand alias (c.*) directly.
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
-            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
@@ -549,7 +660,44 @@ async function tryTierSearch(
     FROM top JOIN ${ftsTable} sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
+
+
+  // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
+  // products parent table JOIN that causes 500s during ingest load (1-2 hr
+  // INSERT transactions hold ShareUpdateExclusiveLock, blocking the tier search
+  // HOT-path for every REST search request -> 500.
+  // MCP search_products already uses this pattern (direct child-table FTS +
+  // bounded PK lookup -> no ingest contention). The child table has all columns
+  // needed for search results (affiliate_url = NULL, matching MCP contract).
+  const childCols = `sp.id, sp.merchant_id AS domain, sp.url, NULL::text AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
+    sp.source AS _source`;
+  const childMkQuery = (match: string, extraFilter = '') => `
+    WITH cand AS (
+      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}
+      LIMIT 200
+    ), top AS (
+      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
+            (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
+            (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
+      FROM cand c
+      ORDER BY rank DESC LIMIT 200
+    )
+    SELECT ${childCols}, top.rank AS _fts_rank
+    FROM top JOIN ${ftsTable} sp ON sp.id = top.id
+    ORDER BY ${orderPrefix}top.rank DESC
+    LIMIT $${limitIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
@@ -566,31 +714,50 @@ async function tryTierSearch(
         OR sp.category ~* '${LAPTOP_ACCESSORY_PG_RE_SOURCE}'
       THEN 0.25 ELSE 1
     END`;
+  // BUY-80570: bare-device query title fallback demotion — same 0.05x factor
+  // for non-computer titles when query is a bare device term.
+  const bareDeviceTitleDemotion = isBareDevice ? `
+    CASE
+      WHEN lower(sp.title) ~* '${NON_COMPUTER_TITLE_PG_RE_SOURCE}'
+        OR lower(sp.title) = lower($${qIdx})
+      THEN 0.05 ELSE 1.0
+    END` : '1.0';
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
   // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
   // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
+      -- BWEXT-9DFD3159 (2026-09-10): the OR-lexeme string ($2) is pushed into
+      -- params for every tier query, but this fallback referenced only $1. Postgres cannot
+      -- infer a type for a parameter that is never used and rejects the whole statement with
+      --   could not determine data type of parameter $2
+      -- so the tier threw, the catch swallowed it, and search silently fell back to the
+      -- archive with no accessory penalty. It only ever fired when lexemes.length === 1,
+      -- which is why single-word queries such as laptop were affected while iPhone 17 Pro
+      -- was not. Pre-existing; it stayed hidden while the url_status error killed every
+      -- tier query first. Typed no-op reference, exactly as andMatch already does.
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%') AND $${orIdx}::text IS NOT NULL${filterSql}${storageExcl}${unitAccessoryExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    LIMIT $${limitIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM ${ftsTable} sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}${unitAccessoryExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN ${ftsTable} sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+    ORDER BY ${orderPrefix}((${laptopCategoryBoost}) * (${bareDeviceTitleDemotion}) * (${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty}) * (${deviceExactBoost}) * (${deviceControllerPenalty}) * (${deviceConsoleBoost})) DESC, sp.id DESC
+    LIMIT $${limitIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
       SELECT sp.id FROM ${ftsTable} sp
@@ -601,7 +768,7 @@ async function tryTierSearch(
       AND NOT (
         lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
         OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers)\\M'
-      )${filterSql}${storageExcl}
+      )${filterSql}${storageExcl}${unitAccessoryExcl}
       ORDER BY sp.id DESC
       LIMIT 1000
     )
@@ -609,7 +776,7 @@ async function tryTierSearch(
     FROM pcand JOIN ${ftsTable} sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
 
   let client: PoolClient;
   try { client = await servingReadDbConnect(); } catch { return false; }
@@ -633,15 +800,59 @@ async function tryTierSearch(
     // BUY-77812: always lead with FTS. The phone-category regex scan on
     // search_products (and even on 667k-row SG child) can eat the 4s timeout
     // before FTS ever runs. Child-table FTS is ~8ms for LIMIT 5.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    // BUY-80719: use childMkQuery for child table queries to avoid the products
+    // parent table JOIN that causes 500s during ingest lock contention.
+    const ftsQuery = useChildTable ? childMkQuery : mkQuery;
+    let rows = (await client.query(ftsQuery(andMatch), params)).rows;
+    // Widenable scope (SGD default / deliver_to-derived currency): top the page up from
+    // the widened query when the scoped market cannot fill it, keeping scoped rows first.
+    // After the accessory exclusion, "Dyson V15" has 2 genuine SGD listings; returning a
+    // 2-row page (or, at zero rows, the 4s title-LIKE timeout -> archive) serves the buyer
+    // worse than their market's rows followed by labelled rows from elsewhere.
+    let scopeWidened = false;
+    if (widenIdx && rows.length <= p.limit) {
+      params[widenIdx - 1] = true;
+      const wide = (await client.query(ftsQuery(andMatch), params)).rows;
+      const seen = new Set(rows.map((r) => String((r as Record<string, unknown>).id)));
+      const added = wide.filter((r) => !seen.has(String((r as Record<string, unknown>).id)));
+      scopeWidened = added.length > 0;
+      rows = [...rows, ...added];
+    }
     // BUY-77812: on child tables, FTS is the only cheap path. Title LIKE /
     // phone-category regex seq-scan even a 1.1M-row US child under catalog IO
     // starvation (Oracle INITCAP aggregations) and always eat the 4s
     // statement_timeout → archive degraded 10s. Empty FTS (MY=343 rows, 0
     // 'phone' hits) must fail fast so we can return 200 empty, not degraded.
-    const skipSlowFallbacks = useChildTable;
+    // A deliver_to-scoped market with no FTS match must not fall into the title-LIKE
+    // scans either: on search_products they always exceed the 4s cap (see the headterm
+    // note above) and hand the request to the unranked, mixed-currency archive.
+    const skipSlowFallbacks = useChildTable || !!p.deliverToScoped;
     if (rows.length === 0 && !skipSlowFallbacks && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
+    }
+    // BUY-80415: child-table AND FTS is 0-row when search_vector is NULL
+    // (SG AirPods Pro 3 units: 6 priced titles, sv NULL). Title ILIKE is
+    // bounded LIMIT 1000 on the country child (~667k SG) and recovers those
+    // rows without the 97M-row archive. Keep phone-category regex skipped.
+    // Set when a best-effort recall step fails (typically statement_timeout under IO
+    // load). An empty page after such a failure is "could not answer", not "no match",
+    // and must say so rather than masquerade as a successful empty result.
+    let childFallbackFailed = false;
+    if (rows.length === 0 && useChildTable) {
+      // Prefix LIKE 'AirPods Pro 3%' misses "Apple AirPods Pro 3".
+      // enable_seqscan=off also makes LIKE fallbacks abort the 4s tx.
+      // SAVEPOINT + seqscan on so a timeout cannot poison FTS/empty path.
+      await client.query('SAVEPOINT child_title_fb');
+      try {
+        await client.query(`SET LOCAL enable_seqscan = on`);
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+        if (rows.length === 0) {
+          rows = (await client.query(titleFallbackQuery, params)).rows;
+        }
+      } catch {
+        childFallbackFailed = true;
+        await client.query('ROLLBACK TO SAVEPOINT child_title_fb').catch(() => {});
+      }
     }
     if (rows.length === 0) {
       // BUY-77644: broad OR fallbacks on multi-word queries union huge posting lists
@@ -651,7 +862,7 @@ async function tryTierSearch(
       // Single-lexeme head terms keep the OR fallback because their posting lists are
       // smaller and the archive path is already fast for them.
       if (rows.length === 0 && lexemes.length === 1) {
-        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+        rows = (await client.query(ftsQuery(orMatch), params)).rows;   // recall fallback
       }
       if (!skipSlowFallbacks) {
         if (rows.length === 0 && isGenericPhoneQuery) {
@@ -673,12 +884,28 @@ async function tryTierSearch(
     if (dtIdx && rows.length > 0) {
       await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
       try {
-        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
+        const localRows = (await client.query(ftsQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
         if (localRows.length > 0) {
           const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
           rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit + 1);
         }
       } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* local pass is best-effort — global rows already in hand */ }
+    }
+    // BWEXT-9DFD3159 (2026-09-10): de-duplicate by product id before responding.
+    // Every tier query LEFT JOINs affiliate_links on (product_id, merchant_id); a product
+    // with more than one affiliate row is multiplied by that join, so the same product can
+    // occupy several slots on one page. The deliver_to local-pass above de-dupes the GLOBAL
+    // rows against the local ones but never de-dupes within either set. Measured on
+    // deliver_to=SG immediately after the tier was restored: 29 rows returned, 22 distinct.
+    // Order-preserving, so ranking is untouched - this only removes repeats.
+    {
+      const seenIds = new Set<string>();
+      rows = rows.filter((r) => {
+        const id = String((r as Record<string, unknown>).id);
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      });
     }
     await client.query('COMMIT');
     client.release();
@@ -687,12 +914,31 @@ async function tryTierSearch(
       // Falling through to the 97M-row archive burns the remaining handler
       // budget (8–10s degraded). Empty is the truthful answer for thin
       // markets (MY=343) and is cheaper than a timeout for US under IO load.
-      if (useChildTable) {
+      if (useChildTable || p.deliverToScoped) {
         if (res.headersSent) return true;
+        if (childFallbackFailed) {
+          // The title fallback that recovers FTS misses failed, so zero rows is not
+          // evidence of no match. Answer with the same degraded envelope the handler
+          // timeout uses, under a short TTL, never as a cacheable "no match".
+          const degradedBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, true, false, restEchoDest(p.countryCode, p.deliverTo), buildRestApiErrorEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
+          degradedBody.source = 'search_products_tier';
+          degradedBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: 'tier_fallback_timeout' };
+          annotateDeliverTo(degradedBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+          redis.set(p.cacheKey, JSON.stringify(degradedBody), 'EX', SEARCH_DEGRADED_CACHE_TTL_SECONDS).catch(() => {});
+          res.set('X-Search-Tier', '1');
+          res.json(degradedBody);
+          return true;
+        }
         const emptyBody = buildSearchResponse([], 0, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, false, restEchoDest(p.countryCode, p.deliverTo), buildRestNoMatchEmptiness(p.countryCode, p.deliverTo)) as unknown as Record<string, unknown>;
         emptyBody.source = 'search_products_tier';
-        emptyBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
+        emptyBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
         annotateDeliverTo(emptyBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+        if (p.deliverToScoped && !useChildTable) {
+          // Decision 2026-09-12: a buyer market's results stay in that market's currency.
+          // Widening to other markets' listings was tried and reverted; say so instead.
+          (emptyBody.meta as Record<string, unknown>).hint =
+            `No listings for this query in the ${p.deliverTo} market. Results are limited to that market's currency; try another deliver_to, or omit deliver_to to search all markets.`;
+        }
         redis.set(p.cacheKey, JSON.stringify(emptyBody), 'EX', 60).catch(() => {});
         res.set('X-Search-Tier', '1');
         res.json(emptyBody);
@@ -701,52 +947,48 @@ async function tryTierSearch(
       return false;
     }
     if (res.headersSent) return true;
-    // BUY-82928: apply currency filter BEFORE slicing to page size.
-    // This ensures we keep enough results after filtering for child tables with
-    // mixed currencies (e.g., SG has many USD-priced products).
-    // However, for markets like SG where the catalog is predominantly USD-priced,
-    // skip currency filtering entirely to return meaningful results.
-    const isolateCur = !!(p.countryCode && p.currency);
-    // BUY-82928: skip currency isolation for SG - most products are USD-priced
-    const skipCurrencyFilter = p.countryCode === 'SG';
-    const wantCur = (isolateCur && !skipCurrencyFilter) ? (p.currency || '').toUpperCase() : '';
-    const filteredRows = wantCur
-      ? rows.filter((r) => {
-          const row = r as Record<string, unknown>;
-          const price = row.price;
-          let rowCurrency = '';
-          if (price && typeof price === 'object' && !Array.isArray(price)) {
-            rowCurrency = (price as { currency?: string }).currency?.toUpperCase() || '';
-          }
-          if (rowCurrency && rowCurrency !== wantCur) return false;
-          return true;
-        })
-      : rows;
-    const hasMore = filteredRows.length > p.limit;
-    const pageRows = hasMore ? filteredRows.slice(0, p.limit) : filteredRows;
-    const products = await mapProducts(pageRows as Array<Record<string, unknown>>, p.currency, p.compact);
-    // BUY-79827: do NOT fall through to the 97M-row archive when child FTS
-    // matched but the currency post-filter emptied the page. Archive for
-    // head terms (iphone) times out at ~8s → emptiness_reason=api_error
-    // even though products_partitioned_sg has live iPhone rows (USD
-    // Shopify labelled SG). Serve the child hits without currency
-    // isolation — leaking USD is a truthful in-market listing; api_error
-    // is not. BUY-79497 archive fallback stays for empty child FTS only.
-    // BUY-82928: with skipCurrencyFilter for SG, fallback is rarely needed.
-    let served = products;
-    const MIN_RESULTS_THRESHOLD = Math.max(5, Math.floor(p.limit * 0.4));
-    if (useChildTable && wantCur && served.length < MIN_RESULTS_THRESHOLD) {
-      // Fallback: serve unfiltered rows if filtering returned too few
-      const fallbackRows = filteredRows.slice(0, p.limit);
-      served = await mapProducts(fallbackRows as Array<Record<string, unknown>>, p.currency, p.compact);
-    }
-    const productsOut = served;
-    // BUY-77514: do not count the over-fetch sentinel row in meta.total.
-    const total = p.offset + productsOut.length + (hasMore && productsOut.length >= p.limit ? 1 : 0);
+
+    const isolateCur = !!((p.countryCode || p.deliverTo) && p.currency);
+    const wantCur = isolateCur ? (p.currency || '').toUpperCase() : '';
+    // BUY-78003: merchantMap through REST serializers.
+    const isolated = (await mapProducts(rows as Array<Record<string, unknown>>, p.currency, p.compact))
+      .filter((prod) => {
+        if (!wantCur) return true;
+        const cur = String(prod.price?.currency || '').toUpperCase();
+        // Drop mismatches AND missing currency (NULL was leaking USD Shopify).
+        // BUY-80194: never restore PHP/USD/etc. leaks when isolation empties the
+        // page — that filled US+SG catalog_search with PH-priced generic SKUs.
+        // BUY-82726: BUY-79827 leftover restore path was still live on main.
+
+        if (cur !== wantCur) return false;
+        const amt = Number(prod.price?.amount);
+        const title = String(prod.title || '');
+        // CZK / JPY / PHP amounts mislabelled as USD (MacBook Air M4 CZ 24990).
+        if (wantCur === 'USD' && Number.isFinite(amt) && amt >= 8000 && /\bCZ\b|jádrov|jádr/i.test(title)) return false;
+        if (wantCur === 'USD' && Number.isFinite(amt) && amt >= 20000) return false;
+        return true;
+      });
+    const hasMore = isolated.length > p.offset + p.limit;
+    const productsOut = isolated.slice(p.offset, p.offset + p.limit);
+    // BWEXT (2026-09-11): meta.total used to ADD the over-fetch sentinel, contradicting
+    // its own BUY-77514 comment. A page of 37 reported total=38 while has_more was
+    // already true and thousands more rows existed - neither a real count nor an honest
+    // paging signal, but a precise number wrong by orders of magnitude. has_more carries
+    // "there are more"; total reports only what this page can account for.
+    const total = p.offset + productsOut.length;
     const responseBody = buildSearchResponse(productsOut, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, hasMore && productsOut.length >= p.limit) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
-    responseBody.search_mode = { requested_mode: null, executed_mode: 'keyword', fallback_reason: null };
+    responseBody.search_mode = { requested_mode: p.requestedMode ?? null, executed_mode: 'keyword', fallback_reason: null };
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+    // Disclose how the currency scope was decided (evaluator: "explicit versus inferred
+    // currency scopes and fallback disclosure"). explicit = caller named currency,
+    // country or deliver_to; inferred_default = the SGD default with no market stated;
+    // widened = that default could not fill the page and rows from other markets follow.
+    if (responseBody.meta && typeof responseBody.meta === 'object') {
+      const meta = responseBody.meta as Record<string, unknown>;
+      meta.currency = p.currency;
+      meta.currency_scope = scopeWidened ? 'widened' : (p.currencyRequested === false ? 'inferred_default' : 'explicit');
+    }
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
       const rp = p.cacheKey.split(':');
@@ -764,23 +1006,26 @@ async function tryTierSearch(
   }
 }
 
-async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
+type QueryEmbedResult = { vector: string | null; failure?: 'embed_timeout' | 'query_embed_failed' };
+async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<QueryEmbedResult> {
   try {
-    // v2 (2026-09-02): when FLOWAI_EMBED_API_KEY is set, embed via Flow (flow-embed-1,
-    // 1024-dim) to match embedding_v2 — the same contract the MCP path already uses.
-    // Distinct cache prefix so 512-dim gemini vectors are never mixed with 1024-dim.
+    // v2 (restored 2026-09-03): FLOWAI_EMBED_API_KEY -> flow-embed-1 (1024-dim, matches
+    // embedding_v2). Distinct cache prefix keeps 512-dim gemini vectors separate.
     const flowKey = process.env.FLOWAI_EMBED_API_KEY ?? '';
     const ver = flowKey ? 'v2' : 'v1';
     const embedKey = `qembed:${ver}:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
-    if (cached) return cached;
+    if (cached) return { vector: cached };
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
     const vector = await embedQuery(query, flowKey || geminiKey);
-    await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
-    return vector;
+    await redis.set(embedKey, vector, 'EX', 86400).catch(() => {});
+    return { vector };
   } catch (err) {
     console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
-    return null;
+    // A timeout is not an outage: name the failure so the honesty fields can.
+    // Returned per-call (never module state — concurrent searches must not
+    // cross-contaminate each other's fallback_reason).
+    return { vector: null, failure: (err as Error).message === 'embed_timeout' ? 'embed_timeout' as const : 'query_embed_failed' as const };
   }
 }
 
@@ -844,36 +1089,40 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
-const LIST_DIVERSITY_FETCH = 20000;
+// BUY-77888: default recency browse over-fetches then caps merchants / Shopify variants
+// so a single ingest batch cannot occupy the entire first page.
+const LIST_DIVERSITY_FETCH = 100000;
 const LIST_MERCHANT_CAP = 2;
 
-function listVariantDedupKey(row: Record<string, unknown>): string {
+function listVariantKey(row: Record<string, unknown>): string {
   const meta = (row.metadata as Record<string, unknown> | null) || {};
-  const productId = typeof meta.product_id === 'string' || typeof meta.product_id === 'number'
-    ? String(meta.product_id)
-    : '';
+  const productId = meta?.product_id as string | undefined;
   return productId ? `pid:${productId}` : `sku:${row.source_id || row.sku || row.id}`;
 }
 
-function applyListDiversity(rows: Record<string, unknown>[], limit: number, offset: number): Record<string, unknown>[] {
-  const seenProducts = new Set<string>();
+function listMerchantKey(row: Record<string, unknown>): string {
+  return String(row.merchant_id || row.domain || row.source || 'unknown');
+}
+
+function diversifyListRows(
+  rows: Record<string, unknown>[],
+  offset: number,
+  limit: number,
+): Record<string, unknown>[] {
+  const seenVariants = new Set<string>();
   const merchantCounts = new Map<string, number>();
-  const cappedRows: Record<string, unknown>[] = [];
-
+  const kept: Record<string, unknown>[] = [];
   for (const row of rows) {
-    const productKey = listVariantDedupKey(row);
-    if (seenProducts.has(productKey)) continue;
-    seenProducts.add(productKey);
-
-    const merchant = String(row.domain || row.merchant_id || '').toLowerCase();
-    const merchantCount = merchantCounts.get(merchant) || 0;
-    if (merchantCount < LIST_MERCHANT_CAP) {
-      merchantCounts.set(merchant, merchantCount + 1);
-      cappedRows.push(row);
-    }
+    const variant = listVariantKey(row);
+    if (seenVariants.has(variant)) continue;
+    const merchant = listMerchantKey(row);
+    const n = merchantCounts.get(merchant) || 0;
+    if (n >= LIST_MERCHANT_CAP) continue;
+    seenVariants.add(variant);
+    merchantCounts.set(merchant, n + 1);
+    kept.push(row);
   }
-
-  return cappedRows.slice(offset, offset + limit);
+  return kept.slice(offset, offset + limit);
 }
 
 router.get(
@@ -978,14 +1227,14 @@ router.get(
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    // BUY-77664: child tables for hydrated markets (SG/US) are the fast list path.
+    // BUY-77664: child tables for hydrated markets (SG/US/PH) are the fast list path.
     // BUY-79280: products_partitioned_{de,au,jp,gb} (and most other LIST children)
     // are frozen May-22 snapshots (~3k–78k rows, max id ~37M). Fresh Shopper
     // catchup (BUY-79240) landed on the parent `products` table (ids 7e9 / 9e18,
     // updated_at 2026-09-01). Routing those markets at the child table made
     // GET /v1/products p1 look 110 days stale while catalog MAX(updated_at)
     // was current. Only use a child table when it is a known live copy.
-    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US', 'PH']);
     const LIST_TABLE =
       /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
@@ -1003,7 +1252,7 @@ router.get(
     // BUY-79280: parent `products` for DE/AU/JP/GB has mixed id spaces (legacy
     // ~37M, Shopper 7e9, snowflake 9e18). ORDER BY id DESC therefore misses the
     // 7e9 catchup rows that are the actual newest updated_at. idx_products_country_code
-    // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US
+    // + updated_at DESC is ~50-90ms on primary for these four markets; child SG/US/PH
     // still use id DESC on the PK (ids there are monotonic snowflakes).
     const orderBy = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
       ? `ORDER BY ${TABLE_ALIAS}.id DESC`
@@ -1048,34 +1297,69 @@ router.get(
     try {
       // BUY-79280: parent-table updated_at DESC for frozen children is ~50-90ms
       // on primary; keep 8s so a cold replica catch-up does not 500 the list.
+      const applyListDiversity = sortColumn !== 'price' && sortColumn !== 'title';
       await listClient.query(
-        `SET statement_timeout = '${LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
+        `SET statement_timeout = '${applyListDiversity ? '8s' : LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
       );
       // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
-      const fetchLimit = sortProvided ? limit : LIST_DIVERSITY_FETCH;
-      dataResult = await listClient.query(
-        `SELECT ${SELECT_COLUMNS}
-         FROM ${LIST_TABLE} products
-         ${whereClause}
-           AND products.price IS NOT NULL
-           AND products.price > 0
-         ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, fetchLimit, sortProvided ? offset : 0]
-      );
+      if (!applyListDiversity) {
+        dataResult = await listClient.query(
+          `SELECT ${SELECT_COLUMNS}
+           FROM ${LIST_TABLE} products
+           ${whereClause}
+             AND products.price IS NOT NULL
+             AND products.price > 0
+           ${orderBy}
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, limit, offset]
+        );
+      } else {
+        // BUY-77888: rank inside a recency window so one Shopify ingest cannot
+        // occupy page 1. SQL ROW_NUMBER keeps the first LIST_MERCHANT_CAP SKUs
+        // per merchant (and one Shopify variant per product_id) before LIMIT.
+        const recencyRank = LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
+          ? 'products.id DESC'
+          : 'products.updated_at DESC, products.id DESC';
+        dataResult = await listClient.query(
+          `WITH recency AS (
+             SELECT ${SELECT_COLUMNS}
+             FROM ${LIST_TABLE} products
+             ${whereClause}
+               AND products.price IS NOT NULL
+               AND products.price > 0
+             ${orderBy}
+             LIMIT $${idx}
+           )
+           SELECT *
+           FROM (
+             SELECT recency.*,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY COALESCE(recency.merchant_id, recency.domain, recency.source_id::text)
+                      ORDER BY ${recencyRank.replace('products.', 'recency.')}
+                    ) AS merchant_rn,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY COALESCE(recency.metadata->>'product_id', recency.source_id::text)
+                      ORDER BY ${recencyRank.replace('products.', 'recency.')}
+                    ) AS variant_rn
+             FROM recency
+           ) ranked
+           WHERE ranked.merchant_rn <= ${LIST_MERCHANT_CAP}
+             AND ranked.variant_rn = 1
+           ORDER BY ${recencyRank.replace('products.', 'ranked.')}
+           LIMIT $${idx + 1} OFFSET $${idx + 2}`,
+          [...params, LIST_DIVERSITY_FETCH, limit, offset]
+        );
+      }
     } finally {
       listClient.release(true); // release back to pool, rolling back any open transaction
     }
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const listRows = sortProvided
-      ? dataResult.rows
-      : applyListDiversity(dataResult.rows as Record<string, unknown>[], limit, offset);
-    const data = await mapProducts(listRows as Array<Record<string, unknown>>, currency, false);
+    const data = await mapProducts(dataResult.rows as Array<Record<string, unknown>>, currency, false); // BUY-78003: merchantMap
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
     // grows from real /v1 list traffic. Fire-and-forget; idempotency is
@@ -1114,6 +1398,23 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.search'),
   asyncHandler(async (req: Request, res: Response) => {
+    // BWEXT-39EA51D3 (2026-09-10): MUST run before any req.query read. The site's search
+    // page sends price_min/price_max/merchant while this handler reads
+    // min_price/max_price/merchant_id, and because unknown parameters were silently
+    // ignored those filters were SILENT NO-OPS in production. First attempt at this fix
+    // was placed lower in the handler and did nothing, because merchantId (l.1148) and
+    // minPrice/maxPrice (l.1162-63) had already been captured - deployed and verified
+    // still-broken before this correction. Canonical name always wins if both are sent.
+    for (const [alias, canonical] of [
+      ['price_min', 'min_price'],
+      ['price_max', 'max_price'],
+      ['merchant', 'merchant_id'],
+    ] as const) {
+      if (req.query[alias] !== undefined && req.query[canonical] === undefined) {
+        req.query[canonical] = req.query[alias];
+      }
+    }
+
     // BUY-33987: hard ceiling on the entire request. Even if the per-statement
     // `SET LOCAL statement_timeout` races with the pool's on-connect
     // `SET statement_timeout = 30000`, the response will fire at 5s and the
@@ -1166,9 +1467,13 @@ router.get(
     const countryCode = explicitCountry || cc; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
-    // Infer default currency from country_code when not explicitly provided.
-    // Price filters (min_price/max_price) apply in this inferred currency.
-    const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
+    // Infer default currency from country_code, else from deliver_to (the buyer's
+    // market — BWEXT-78A3634B: deliver_to=US with no country used to default the
+    // whole response shape to SGD), else SGD. Price filters apply in this currency.
+    const dtForCurrency = ((req.query.deliver_to as string) || '').toUpperCase();
+    const currency = (req.query.currency as string)
+      || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : null)
+      || (dtForCurrency ? (COUNTRY_CURRENCY[dtForCurrency] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const rawPage = parseInt((req.query.page as string) || '0');
     const rawOffset = parseInt((req.query.offset as string) || '0');
@@ -1180,8 +1485,7 @@ router.get(
     // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
     // correct. Keyword archive path honors buildSortOrder end-to-end.
     const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
-    // BWEXT-69EEE94E mode honesty (declared before the parse so the 10s watchdog
-    // closure can reference it): what engine actually ran + why any fallback.
+    // BWEXT-69EEE94E mode honesty: what engine actually ran + why any fallback.
     modeExec.requested_mode = rawMode ?? null;
     if (sortRequested && rawMode && rawMode !== 'keyword') modeExec.fallback_reason = 'sort_forces_keyword';
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
@@ -1191,6 +1495,8 @@ router.get(
 
     // BWEXT-B40E8514: invalid enum/range/pagination inputs must 400 with field-level
     // errors instead of silently clamping to a misleading 200.
+    // NOTE (2026-09-03): this block was wiped once by a stale-checkout commit
+    // (f5f4e556) — it is tripwired in CI; do not remove without failing the tripwire.
     {
       const verrs: Array<{ field: string; issue: string }> = [];
       const rawLimitStr = req.query.limit as string | undefined;
@@ -1201,6 +1507,7 @@ router.get(
       }
       for (const [f, v] of [['country_code', req.query.country_code], ['country', req.query.country], ['cc', req.query.cc], ['deliver_to', req.query.deliver_to]] as const) {
         if (v !== undefined && !/^[A-Za-z]{2}$/.test(String(v))) verrs.push({ field: f, issue: 'must be a 2-letter ISO country code' });
+        else if (v !== undefined && !ISO_3166_ALPHA2.has(String(v).toUpperCase())) verrs.push({ field: f, issue: 'is not a recognized ISO-3166 country code' });
       }
       const vMin = req.query.min_price !== undefined ? Number(req.query.min_price) : undefined;
       const vMax = req.query.max_price !== undefined ? Number(req.query.max_price) : undefined;
@@ -1213,6 +1520,42 @@ router.get(
       if (rawModeCheck !== undefined && !VALID_SEARCH_MODES.has(rawModeCheck)) {
         verrs.push({ field: 'mode', issue: "must be one of 'keyword', 'semantic', 'hybrid'" });
       }
+      // BWEXT-39EA51D3: unknown query parameters were accepted SILENTLY. deals=true,
+      // deals=false and an invented zzzbogus=1 all returned byte-identical rows, so a
+      // caller could not tell a supported filter from a typo, and a filter that does not
+      // exist looked like a filter that found nothing. Reject with the offending field
+      // named, matching the field-level shape above.
+      //
+      // Allow-list is derived from the parameters this handler actually reads, not from
+      // documentation, so it cannot drift from behaviour.
+      //
+      // Gated by STRICT_QUERY_PARAMS (default on). Rejecting unknown parameters is a
+      // breaking change for any caller already sending junk; the flag makes rollback a
+      // variable change rather than a redeploy if a first-party surface turns out to
+      // send something unlisted.
+      if ((process.env.STRICT_QUERY_PARAMS ?? 'on') !== 'off') {
+        const SEARCH_ALLOWED_PARAMS = new Set([
+          '_tier', 'availability', 'brand', 'category', 'category_id', 'category_path',
+          'cc', 'compact', 'country', 'country_code', 'currency', 'deliver_to', 'domain',
+          'fields', 'include_unshippable', 'limit', 'max_price', 'merchant_id',
+          'min_price', 'mode', 'offset', 'page', 'q', 'query', 'region', 'scraped_via',
+          'sort', 'sort_by', 'source', 'source_page',
+          // First-party aliases normalised above.
+          'price_min', 'price_max', 'merchant',
+          // 'cursor' is sent by src/app/search/SearchResultsClient.tsx and is NOT read by
+          // this handler, which paginates on offset. Allow-listed so the site does not 400,
+          // but it is genuinely ignored and its intended semantics are unverified - do not
+          // map it to offset without confirming the client's meaning. Tracked, not silent.
+          'cursor',
+        ]);
+        const unknown = Object.keys(req.query).filter((k) => !SEARCH_ALLOWED_PARAMS.has(k));
+        if (unknown.length > 0) {
+          for (const k of unknown.slice(0, 10)) {
+            verrs.push({ field: k, issue: 'is not a supported query parameter for this endpoint' });
+          }
+        }
+      }
+
       if (verrs.length > 0) {
         res.status(400).json({ error: { code: 'invalid_request', message: 'One or more query parameters are invalid.', details: verrs } });
         return;
@@ -1289,25 +1632,29 @@ router.get(
         const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
         let semVec: string | null = null;
         const semGk = process.env.GEMINI_API_KEY ?? '';
-        if (semGk || process.env.FLOWAI_EMBED_API_KEY) semVec = await getCachedQueryEmbedding(q, semGk);
+        if (semGk) semVec = (await getCachedQueryEmbedding(q, semGk)).vector;
         const semHit = await semLookup(redis, semScope, qNorm, semVec);
         res.locals.semScope = semScope;
         res.locals.semQNorm = qNorm;
         res.locals.semVec = semVec;
         res.locals.semCacheKey = cacheKey;
         if (semHit) {
-          res.locals.cacheHit = true;
           const semParsed = JSON.parse(semHit.body);
-          semParsed.cached = true;
-          semParsed.semantic_cache = true;
-          semParsed.response_time_ms = Date.now() - requestStart;
           const semProducts = semParsed.products || semParsed.results || semParsed.data || [];
-          if (Array.isArray(semProducts) && semProducts.length === 0 && semParsed?.meta && !semParsed.meta.emptiness_reason) {
-            Object.assign(semParsed.meta, buildRestNoMatchEmptiness(countryCode, deliverTo));
+          const semEmpty = Array.isArray(semProducts) && semProducts.length === 0;
+          // BUY-80215: empty semantic hits fossilize no_match for SG head terms
+          // (iphone) even when products_partitioned_sg has priced SKUs.
+          if (semEmpty) {
+            res.locals.cacheHit = false;
+          } else {
+            res.locals.cacheHit = true;
+            semParsed.cached = true;
+            semParsed.semantic_cache = true;
+            semParsed.response_time_ms = Date.now() - requestStart;
+            res.set('Cache-Control', 'no-store'); // BUY-81461: prevent edge CDN cache poisoning
+            res.set('X-Cache', 'HIT-SEMANTIC');
+            return res.json(semParsed);
           }
-          res.set('Cache-Control', 'no-store'); // BUY-81461: prevent edge CDN cache poisoning
-          res.set('X-Cache', 'HIT-SEMANTIC');
-          return res.json(semParsed);
         }
       }
     } catch (_) {
@@ -1355,12 +1702,22 @@ router.get(
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain: source, compact, requestStart, cacheKey,
         deliverTo, includeUnshippable,
+        // deliver_to ranks and labels availability; it never filters (see dtIdx). Its derived
+        // currency is therefore a widenable scope, like the SGD default: strict while the
+        // market has listings, widened only when it has none (deliver_to=SG "Kindle
+        // Paperwhite": 2 SGD rows, both cases -> 4s title-LIKE timeout -> archive).
+        currencyRequested: Boolean((req.query.currency as string) || countryCode || dtForCurrency),
+        deliverToScoped: Boolean(dtForCurrency && !countryCode && !(req.query.currency as string)),
         source, scrapedVia,
+        requestedMode: rawMode ?? null,
       });
       if (handled) return;
     }
 
-    const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    const baseConditions: string[] = ['is_active = true', 'price > 0',
+      // Internal fixture merchants must never reach ranking (BWEXT-20464093):
+      // deploy crates and test/demo/staging shops won implausible best-price picks.
+      FIXTURE_MERCHANT_EXCLUSION];
     // BUY-67318: when the outbound probe flag is on, exclude confirmed-dead
     // (HTTP 404/410) URLs from search results so we never surface a buy button
     // pointing at a dead retailer page. No-op when PROBE_OUTBOUND_LINKS is
@@ -1380,6 +1737,13 @@ router.get(
     // queries. Unqualified `category` matches the unaliased `products` table.
     const storageExclProducts = deviceStorageExclusionFragmentProducts(q);
     if (storageExclProducts) baseConditions.push(`1 = 1${storageExclProducts}`);
+    // BWEXT-9DFD3159: unit-query accessory exclusion on the products-side paths
+    // (base FTS, hybrid candidates, semantic post-filter all flow through
+    // baseConditions). Tier already applies its sp-qualified twin.
+    if (isDeviceUnitQuery(q)) baseConditions.push(`1 = 1${deviceUnitAccessoryExclusionFragmentProducts(q)}`);
+    // Market/currency consistency (see lib/response.ts): unqualified, like the
+    // conditions above, so every consumer of baseConditions gets it.
+    baseConditions.push(marketCurrencyConsistencySql(''));
     const baseParams: unknown[] = [];
     let baseIdx = 1;
     // BUY-79497: keep SQL currency AND only for explicit price bounds. A hard
@@ -1650,8 +2014,10 @@ router.get(
           const cur = String(prod.price?.currency || '').toUpperCase();
           return cur === wantCur;
         });
+      // Only reached after the main query hit statement_timeout: an empty page here
+      // (e.g. every recovered row filtered out by currency) is a degraded answer.
       const responseBody = buildSearchResponse(
-        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
+        fallbackProducts, total, limit, offset, responseTimeMs, false, fallbackProducts.length === 0 ? true : undefined, hasMore
       );
       (responseBody as unknown as Record<string, unknown>).search_mode = { requested_mode: modeExec.requested_mode, executed_mode: 'keyword', fallback_reason: modeExec.fallback_reason ?? source };
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
@@ -1797,7 +2163,7 @@ router.get(
           // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
           // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
           // filter after materialization. Without a (country_code, updated_at)
-          // index, scanning 370M++ fresh SG rows took seconds per query, and the
+          // index, scanning 300M+ fresh SG rows took seconds per query, and the
           // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
           // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
           // (idx_products_search_country) bounds the scan to matching products only,
@@ -1940,8 +2306,9 @@ router.get(
       // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
-        if (!queryVector) modeExec.fallback_reason = 'query_embed_failed';
+        const embedRes = await getCachedQueryEmbedding(q, geminiKey);
+        const queryVector = embedRes.vector;
+        if (!queryVector) modeExec.fallback_reason = embedRes.failure ?? 'query_embed_failed';
         if (queryVector) {
           try {
             // BUY-63271: mark a savepoint before any local (client) queries so a statement
@@ -1954,8 +2321,8 @@ router.get(
             // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
             // to FTS silently — that would make semantic = keyword (the original bug). Instead,
             // we return 0 results, which at least makes semantic DIFFERENT from keyword.
-            // v2 path orders by the same halfvec expression the HNSW index is built on;
-            // anything else falls back to a sequential scan.
+            // v2 path orders by the same halfvec expression idx_pe_v2_hnsw_half is built
+            // on; anything else seq-scans 8M+ rows and hits the handler watchdog.
             const semanticCandidates = flowEmbedKey !== ''
               ? await activeVectorDb.query<{ product_id: string }>(
                   `SELECT product_id FROM product_embeddings
@@ -1990,21 +2357,61 @@ router.get(
 
             let rankedCandidateIds = filteredSemanticIds;
             if (searchMode === 'hybrid') {
-              const ftsCandidates = await client.query<{ id: string }>(
-                `WITH fts_cand AS MATERIALIZED (
-                   SELECT id, search_vector
-                   FROM products
-                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                   LIMIT ${CANDIDATE_CAP}
-                 ), fts_top AS (
-                   SELECT id
-                   FROM fts_cand
-                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-                   LIMIT 200
-                 )
-                 SELECT id FROM fts_top`,
-                searchParams
-              );
+              // BUY-80684: hybrid FTS candidates were scanning the full products table
+              // (402M rows, 21GB parent GIN) causing P95 ~8s. Route to search_products
+              // (97M rows, 2.2GB partial GIN idx_sp_fts_us for US) — same optimization
+              // already proven in tryTierSearch. Reuse the tier's indexed WHERE conditions
+              // so the partial GIN is used instead of the parent table's full GIN.
+              //
+              // Match tryTierSearch exactly: country_code + is_active trigger the partial
+              // GIN; omit SgFreshnessGuardrail (SG-only, irrelevant for hybrid rank-only).
+              const ccUpper = (countryCode || '').toUpperCase();
+              const useSpChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
+              const spFtsTable = useSpChildTable
+                ? `products_partitioned_${ccUpper.toLowerCase()}`
+                : 'search_products';
+              const spConds: string[] = [];
+              const spParams: unknown[] = [];
+              let si = 1;
+              // BUY-79497: no hard currency predicate on child table FTS (planner mismatch
+              // vs USD Shopify labelled SG). Only apply when NOT using child table.
+              if (currency && !useSpChildTable) { spConds.push(`sp.currency = $${si}`); spParams.push(currency); si++; }
+              if (!useSpChildTable) { spConds.push(marketCurrencyConsistencySql('sp')); }
+              if (useSpChildTable) { spConds.push('sp.is_active = true'); }
+              // BUY-80684: match the tier's partial-GIN trigger: country_code on parent path.
+              // Child partitions are already country-scoped.
+              if (countryCode && !useSpChildTable) { spConds.push(`sp.country_code = $${si}`); spParams.push(countryCode); si++; }
+              // BUY-67318: same dead-link gate as tier path.
+              // BUY-80926: url_status exists on the US/SG child partitions but NOT on
+              // search_products — with only deliver_to set, ccUpper is empty, the query
+              // routes to search_products and threw (caught as fallback_reason=vector_error,
+              // killing hybrid entirely). Gate on the child table; candidates from the
+              // ungated path are still dead-link-filtered by the products-side conditions.
+              if (outboundProbeEnabled() && useSpChildTable) { spConds.push(liveUrlCondition('sp')); }
+              if (minPrice != null && Number.isFinite(minPrice)) { spConds.push(`sp.price >= $${si}`); spParams.push(minPrice); si++; }
+              if (maxPrice != null && Number.isFinite(maxPrice)) { spConds.push(`sp.price <= $${si}`); spParams.push(maxPrice); si++; }
+              if (brand) { spConds.push(`sp.brand ILIKE $${si}`); spParams.push(`%${brand}%`); si++; }
+              if (domain) { spConds.push(`sp.merchant_id = $${si}`); spParams.push(domain); si++; }
+              if (source) { spConds.push(`sp.source = $${si}`); spParams.push(source); si++; }
+              if (scrapedVia) { spConds.push(`sp.scraped_via = $${si}`); spParams.push(scrapedVia); si++; }
+              if (category) { spConds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${si})`); spParams.push(category); si++; }
+              const spWhere = spConds.length ? `WHERE ${spConds.join(' AND ')}` : '';
+              // RRF rank param: reuse ftsParamIdx from the outer query — same $N placeholder.
+              const ftsCandQuery = `
+                WITH fts_cand AS MATERIALIZED (
+                  SELECT id, search_vector
+                  FROM ${spFtsTable} sp
+                  ${spWhere}
+                    AND sp.search_vector @@ plainto_tsquery('english', $${ftsParamIdx})
+                  LIMIT ${CANDIDATE_CAP}
+                ), fts_top AS (
+                  SELECT id
+                  FROM fts_cand
+                  ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                  LIMIT 200
+                )
+                SELECT id FROM fts_top`;
+              const ftsCandidates = await client.query<{ id: string }>(ftsCandQuery, spParams);
               rankedCandidateIds = mergeRrfCandidateIds(
                 ftsCandidates.rows.map((row) => row.id),
                 filteredSemanticIds,
@@ -2154,7 +2561,8 @@ router.get(
     if (typeof hasMore === 'undefined') {
       hasMore = dataResult.rows.length > limit;
       if (hasMore) dataResult.rows.pop();
-      total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+      // BWEXT (2026-09-11): see note above - no sentinel inflation; has_more is the signal.
+      total = offset + dataResult.rows.length;
     } else if (dataResult.rows.length > limit) {
       dataResult.rows = dataResult.rows.slice(0, limit);
     }
@@ -2273,17 +2681,32 @@ router.get(
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
-    const currency = (req.query.currency as string) || 'SGD';
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const minDiscount = parseFloat((req.query.min_discount as string) || '10');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
+    const category = ((req.query.category as string | undefined) || '').trim();
 
     // F24b (2026-08-22): deals honors deliver_to like search — annotation happens
     // post-cache on both paths so cached bodies stay per-request neutral.
     const deliverTo = (req.query.deliver_to as string | undefined)?.toUpperCase() || undefined;
     const includeUnshippable = req.query.include_unshippable !== 'false';
-    const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    // Buyer market decides the currency when the caller does not name one, the same
+    // precedence search (currency > country > deliver_to) and MCP get_deals use.
+    // Defaulting to SGD regardless made deliver_to=US return SGD deals, identical to
+    // SG, and country_code=US AND currency=SGD match almost nothing.
+    const currency = (req.query.currency as string)
+      || (countryCode ? COUNTRY_CURRENCY[countryCode] : undefined)
+      || (deliverTo ? COUNTRY_CURRENCY[deliverTo] : undefined)
+      || 'SGD';
+    // BUY-81812: cache key bumped to v2. The discount-ceiling fix shipped correctly but
+    // /deals answers from a 3600s redis cache, so pre-fix responses (every 90%-off
+    // x10 artifact) kept being served from keys written before the deploy. The redis
+    // instance is only reachable on railway.internal, so it cannot be flushed from
+    // outside; versioning the key orphans every stale entry immediately and they age
+    // out on their own TTL. Bump this whenever the deals PREDICATE changes.
+    // v3: market-currency consistency filter (mislabelled foreign rows excluded).
+    const cacheKey = `deals:v4:${currency}:${countryCode || ''}:${minDiscount}:${category}:${limit}:${offset}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -2317,8 +2740,8 @@ router.get(
             data: [],
             meta: {
               total: 0,
-              limit: 20,
-              offset: 0,
+              limit,
+              offset,
               response_time_ms: Date.now() - start,
               cached: false,
               degraded: true,
@@ -2353,6 +2776,25 @@ router.get(
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
+    // Fixture exclusion + plausibility bounds apply in BOTH branches — the first
+    // fix landed only in the else-leg while prod uses the generated column,
+    // so a $2M gag listing kept headlining /deals (BWEXT-552F936D).
+    dealConditions.push(FIXTURE_MERCHANT_EXCLUSION);
+    // BUY-81812: `<= price * 10` admits EXACTLY 10x, which is the signature of the
+    // scale artifact we actually have: 47 of 50 sampled deals had an original/price
+    // ratio of exactly 10.0 and every one reported 90 percent off. Strict `<` plus an
+    // explicit discount ceiling. /deals sorts by discount_pct DESC, so an implausible
+    // row does not merely appear - it HEADLINES, burying ~1.1M genuine 10-60 percent deals.
+    dealConditions.push(`(metadata->>'original_price')::numeric < price * 10`);
+    // Ceiling is 80, not 90. 90 removes only the provable exact-10x cluster; sampling the
+    // 80-89 band showed the same inflation (Himalaya UriCare 240ct listed at an 'original'
+    // SGD 368 against a real ~SGD 34, i.e. ~10x, surfacing as 89 percent off). Genuine deep
+    // retail discounts below 80 survive - furniture at 69 percent off is ordinary. 80 is a
+    // judgement call, deliberately conservative: for a comparison product, under-claiming a
+    // discount is recoverable and over-claiming one is not. The real fix is the
+    // metadata->>'original_price' data quality upstream; this stops us publishing it.
+    dealConditions.push(`discount_pct < 80`);
+    dealConditions.push(`(metadata->>'original_price')::numeric < 500000`);
     if (useDiscountCol) {
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
@@ -2365,6 +2807,27 @@ router.get(
     if (countryCode) {
       dealConditions.push(`country_code = $${dealIdx}`);
       dealParams.push(countryCode);
+      dealIdx++;
+    }
+    if (category) {
+      const like = '%' + category.toLowerCase().replace(/[_-]+/g, '%') + '%';
+      dealConditions.push(`(LOWER(COALESCE(category,'')) LIKE $${dealIdx} OR LOWER(COALESCE(array_to_string(category_path, ' '), '')) LIKE $${dealIdx})`);
+      dealParams.push(like);
+      dealIdx++;
+    }
+
+    // Rows whose country_code belongs to a market with a DIFFERENT currency are
+    // mislabelled: on 2026-09-11, 58 of the top 100 SGD deals were US listings
+    // (forever21.com, ecoflow.com, ...) stored as SGD, which buildProduct then
+    // relabels USD by country, so an SG buyer's SGD deals were mostly US-dollar
+    // listings. Exclude only provably inconsistent rows; NULL or unmapped
+    // countries are kept. The data fix is upstream; this stops us serving it.
+    const foreignMarketCountries = Object.entries(COUNTRY_CURRENCY)
+      .filter(([, cur]) => cur !== currency.toUpperCase())
+      .map(([cc]) => cc);
+    if (foreignMarketCountries.length > 0) {
+      dealConditions.push(`(country_code IS NULL OR NOT (country_code = ANY($${dealIdx}::text[])))`);
+      dealParams.push(foreignMarketCountries);
       dealIdx++;
     }
 
@@ -2416,6 +2879,13 @@ router.get(
       const dealOffsetParam = `$${dealOffsetIdx}`;
       dealIdx++;
 
+      // BUY-81330: US/SG/PH/GB live children for deals. Parent `products`
+      // plus currency + discount_pct times out at 4.5s → empty degraded.
+      const LIVE_DEALS_CHILD_COUNTRIES = new Set(['SG', 'US', 'PH', 'GB']);
+      const DEALS_TABLE =
+        countryCode && LIVE_DEALS_CHILD_COUNTRIES.has(countryCode)
+          ? `products_partitioned_${countryCode.toLowerCase()}`
+          : 'products';
       const dealResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
@@ -2423,7 +2893,7 @@ router.get(
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
-         FROM products
+         FROM ${DEALS_TABLE}
          WHERE ${dealWhere}
          ORDER BY ${dealOrderBy}
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`,
@@ -2448,6 +2918,11 @@ router.get(
       dealsClient.release();
     }
 
+    // The Express-side timeout above may already have answered with the degraded
+    // envelope. Sending again threw "Cannot set headers after they are sent" into
+    // asyncHandler (seen 7x in one window) and could still write the late body into
+    // the cache below; bail out instead.
+    if (res.headersSent) return;
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
@@ -2859,7 +3334,7 @@ router.get(
     const offset = Math.max(parseInt((req.query.offset as string) || '0'), 0);
     const compact = req.query.compact === 'true';
 
-    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `featured:v2:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -2901,17 +3376,21 @@ router.get(
     // BUY-77920: do not AND currency into ORDER BY id DESC — newest SG rows are
     // USD and the planner walks the id index for 30s. Featured is "recent
     // in-market listings", not "recent listings in the viewer's currency".
+    // BUY-81330: AND market currency. Featured was country-only, so US
+    // returned EUR latohome.com rows stamped country_code=US. Child tables
+    // are still id-ordered; currency is applied after the live-child route.
     const featuredSql = `
          SELECT id, sku AS source_id, source AS domain, url,
                 NULL::text AS affiliate_url,
                 title, price, currency, image_url, metadata, updated_at,
-                region, country_code, category_path, merchant_id
+                region, country_code, category_path, category, merchant_id
          FROM ${FEATURED_TABLE}
          WHERE is_active = true
            AND country_code = $1
+           AND currency = $2
            AND price IS NOT NULL
          ORDER BY ${LIVE_FEATURED_CHILD_COUNTRIES.has(countryCode) ? 'id' : 'updated_at'} DESC
-         LIMIT $2 OFFSET $3`;
+         LIMIT $3 OFFSET $4`;
 
     // BUY-79500: deduplicate Shopify variant rows so a single product does not
     // occupy every slot in the featured carousel. Shopify stores one row per
@@ -2944,7 +3423,7 @@ router.get(
         try {
           await client.query('BEGIN');
           await client.query(`SET LOCAL statement_timeout = '8s'`);
-          const r = await client.query(featuredSql, [countryCode, fetchLimit, fetchOffset]);
+          const r = await client.query(featuredSql, [countryCode, currency, fetchLimit, fetchOffset]);
           await client.query('COMMIT');
           return r;
         } catch (err) {
@@ -3022,6 +3501,17 @@ router.get(
       console.error('[products/:id] db query error:', err);
       res.status(500).json({ error: 'Internal server error' });
       return;
+    }
+
+    // BWEXT minted-ID: ids that /v1/products just listed can live only in a child table.
+    if (result.rows.length === 0) {
+      result.rows.push(...(await fetchFromLiveChildren(
+        `id, sku AS source_id, source AS domain, url, url_status,
+         title, price, currency, image_url, metadata, updated_at,
+         region, country_code, created_at, description, brand, mpn, gtin,
+         category_path, category, merchant_id, avg_rating, review_count`,
+        [id],
+      )));
     }
 
     if (result.rows.length === 0) {
@@ -3401,7 +3891,8 @@ export async function warmSearchCache(): Promise<void> {
       const result = await db.query(dataQuery, params);
       const hasMore = result.rows.length > limit;
       if (hasMore) result.rows.pop();
-      const total = result.rows.length + (hasMore ? 1 : 0);
+      // BWEXT (2026-09-11): see note above - no sentinel inflation; has_more is the signal.
+      const total = result.rows.length;
 
       const products = await mapProducts(result.rows as Array<Record<string, unknown>>, currency, false);
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);

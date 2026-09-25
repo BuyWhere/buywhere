@@ -425,11 +425,13 @@ export function sendOpenApiSpec(res: Response) {
           operationId: 'getDeals',
           security: [{ BearerAuth: [] }],
           parameters: [
-            { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' } },
-            { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'Filter by ISO country code. When set, only deals from that country are returned.' },
-            { name: 'min_discount', in: 'query', schema: { type: 'number', default: 10 }, description: 'Minimum discount percentage (0-90)' },
+            { name: 'currency', in: 'query', schema: { type: 'string' }, description: 'ISO-4217 currency of the listings to return. Default: the currency of country_code, else of deliver_to, else SGD.' },
+            { name: 'country_code', in: 'query', schema: { type: 'string' }, description: 'Filter by ISO-3166 alpha-2 country code (alias: country). When set, only deals from that country are returned, in its currency unless currency is given.' },
+            { name: 'min_discount', in: 'query', schema: { type: 'number', default: 10 }, description: 'Minimum discount percentage. Discounts of 80 percent or more are excluded as implausible list-price inflation, so useful values are 0-79.' },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
             { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+            { name: 'deliver_to', in: 'query', schema: { type: 'string' }, description: 'Recommended for buyer-facing use: ISO-3166 country of the end user. Sets the market currency when currency is omitted and labels each item availability (local, ships_to_you, unavailable, unknown).' },
+            { name: 'include_unshippable', in: 'query', schema: { type: 'boolean', default: true }, description: 'With deliver_to, set false to drop items that cannot be delivered there (meta.total reflects the kept items).' },
           ],
           responses: {
             '200': { description: 'Discounted products with price, original_price, and discount_pct' },

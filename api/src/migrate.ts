@@ -1,4 +1,5 @@
 import { db, redis } from './config';
+import { splitSqlStatements, planStatement } from './lib/sqlStatements';
 
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -268,11 +269,18 @@ BEGIN
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
   IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    -- UUID text → BIGINT: strip non-digits and cast. Non-numeric UUIDs become NULL (dropped).
+    -- UUID text -> BIGINT. A subquery is not allowed in an ALTER COLUMN ... USING
+    -- expression ("cannot use subquery in transform expression": this failed on every
+    -- boot), so the conversion lives in a function. Non-numeric values are dropped.
+    CREATE OR REPLACE FUNCTION comparison_ids_to_bigint(ids uuid[]) RETURNS bigint[]
+      LANGUAGE sql IMMUTABLE AS $f$
+        SELECT coalesce(array_agg(v::text::bigint) FILTER (WHERE v::text ~ '^[0-9]+$'), '{}'::bigint[])
+          FROM unnest(ids) AS v
+      $f$;
     ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
-      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
-                  FROM unnest(product_ids::text[]) AS v);
+      USING comparison_ids_to_bigint(product_ids);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
+    DROP FUNCTION comparison_ids_to_bigint(uuid[]);
   END IF;
 END$$;
 
@@ -566,6 +574,22 @@ async function ensureStrictDealsIndexes() {
     ];
 
     for (const expectedIndex of expectedIndexes) {
+      // Never build these at boot on a large table. On 2026-09-11 a deploy found them
+      // missing and ran CREATE INDEX CONCURRENTLY over the full products heap: the
+      // scan starved the catalog (deals n=0, search 10s) and failed /health/db until it
+      // was cancelled. IF NOT EXISTS only protects us while an index (even an invalid
+      // shell) exists; if anyone drops them, the next boot would repeat that outage.
+      // Build them deliberately through the ops-ddl path, or opt in explicitly.
+      if (process.env.BOOT_BUILD_DEALS_INDEXES !== '1') {
+        const present = await db.query(
+          `SELECT 1 FROM pg_class WHERE relkind = 'i' AND relname = $1`,
+          [expectedIndex.name]
+        );
+        if (present.rows.length === 0) {
+          console.warn(`[migration] ${expectedIndex.name} missing on ${expectedIndex.tableName}; not building at boot (set BOOT_BUILD_DEALS_INDEXES=1 or build via ops-ddl).`);
+        }
+        continue;
+      }
       try {
         const client = await db.connect();
         try {
@@ -580,6 +604,48 @@ async function ensureStrictDealsIndexes() {
         console.warn(`[migration] ${expectedIndex.name} strict index verify failed (non-fatal): ${err.message?.slice(0, 200)}`);
       }
     }
+  }
+}
+
+// See lib/sqlStatements.ts for why blocks run one statement at a time.
+async function runMigrationBlock(label: string, sql: string): Promise<void> {
+  let ran = 0;
+  let satisfied = 0;
+  const failed: string[] = [];
+  const needsOpsBuild: string[] = []; // any index, not only products: never built at boot
+  const skipped: string[] = [];
+  for (const raw of splitSqlStatements(sql)) {
+    const plan = planStatement(raw);
+    try {
+      if (plan.kind === 'skip_boot') {
+        skipped.push(`${plan.sql.replace(/\s+/g, ' ').slice(0, 80)} (${plan.reason})`);
+        continue;
+      }
+      if (plan.kind === 'products_index') {
+        const r = await db.query(`SELECT 1 FROM pg_class WHERE relkind = 'i' AND relname = $1`, [plan.name]);
+        if (r.rows.length > 0) satisfied++; else needsOpsBuild.push(plan.name);
+        continue;
+      }
+      if (plan.kind === 'add_column') {
+        const r = await db.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+          [plan.table, plan.column],
+        );
+        if (r.rows.length > 0) { satisfied++; continue; }
+      }
+      await db.query(plan.sql);
+      ran++;
+    } catch (err: any) {
+      failed.push(`${plan.sql.replace(/\s+/g, ' ').slice(0, 80)} -> ${String(err?.message ?? err).slice(0, 140)}`);
+    }
+  }
+  const summary = `[migration] ${label}: ${ran} ran, ${satisfied} already satisfied, ${failed.length} failed, ${needsOpsBuild.length} indexes missing (not built at boot), ${skipped.length} not run at boot`;
+  if (failed.length === 0 && needsOpsBuild.length === 0) console.log(summary);
+  else console.warn(summary);
+  for (const f of failed) console.warn(`[migration]   FAILED ${f}`);
+  for (const k of skipped) console.warn(`[migration]   NOT RUN AT BOOT ${k}`);
+  if (needsOpsBuild.length > 0) {
+    console.warn(`[migration]   indexes missing (build via ops-ddl CREATE INDEX CONCURRENTLY, never at boot): ${needsOpsBuild.join(', ')}`);
   }
 }
 
@@ -604,7 +670,7 @@ export async function runMigrations() {
   // the columns it reads and the probe worker must still have its append-only log.
   try {
     await db.query('SET lock_timeout = 5000');
-    await db.query(`
+    await runMigrationBlock('outbound-link health schema (BUY-67318)', `
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status TEXT NOT NULL DEFAULT 'ok';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_last_checked_at TIMESTAMPTZ;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
@@ -653,8 +719,7 @@ export async function runMigrations() {
   // Run full migration block as-is (best-effort, may fail on extensions or
   // products columns if those tables/perms don't exist yet).
   try {
-    await db.query(MIGRATION);
-    console.log('Full migration completed.');
+    await runMigrationBlock('full migration block', MIGRATION);
   } catch (err: any) {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
@@ -677,9 +742,19 @@ export async function runMigrations() {
     // archive (ops watchdogs cancel >30min CIC by design), so attempting it here
     // just failed with a lock timeout on every deploy.
     const twoCol = await db.query(
-      `SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
-        WHERE i.indrelid = 'products'::regclass AND c.relname = 'products_sku_source_unique'
-          AND i.indisunique AND i.indisvalid`);
+      `SELECT 1 FROM pg_index i
+        WHERE i.indrelid = 'products'::regclass
+          AND i.indisunique AND i.indisvalid AND i.indpred IS NULL
+          -- Match the index by its COLUMNS, not its name. The name check looked for
+          -- products_sku_source_unique while prod's index is
+          -- products_sku_source_unique_constraint, so this guard never fired and
+          -- every boot ran a non-concurrent CREATE UNIQUE INDEX over the full
+          -- products heap: a ShareLock held up to statement_timeout (5 min) per
+          -- replica, queueing every INSERT/UPDATE behind it on each deploy.
+          AND (SELECT array_agg(a.attname::text ORDER BY k.ord)
+                 FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+                 JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum)
+              = ARRAY['sku', 'source']`);
     if (twoCol.rows.length > 0) {
       console.log('[migration] products (sku, source) UNIQUE index valid — skipping 3-col build (BUY-56217 superseded 2026-07-15).');
     } else {
@@ -861,7 +936,7 @@ export async function runMigrations() {
     const client = await db.connect();
     try {
       await client.query('SET statement_timeout = 360000');
-      await client.query(DISCOUNT_PCT_DDL);
+      await runMigrationBlock('discount_pct generated column', DISCOUNT_PCT_DDL);
       console.log('[migration] discount_pct GENERATED column and index verified.');
     } finally {
       client.release();
@@ -873,10 +948,15 @@ export async function runMigrations() {
     if (verify.rows.length === 0 || verify.rows[0].is_generated !== 'ALWAYS') {
       throw new Error(`discount_pct column is missing or not GENERATED (is_generated=${verify.rows[0]?.is_generated})`);
     }
-    const countCheck = await db.query(`SELECT count(*) AS cnt FROM products WHERE discount_pct IS NOT NULL`);
-    console.log(`[migration] discount_pct non-null rows: ${countCheck.rows[0].cnt}`);
+    // A count(*) over products is cancelled by the catalog DDL watchdog after 20s
+    // ("canceling statement due to user request"); it threw here on every boot and
+    // skipped every preflight below. Existence is all this needed to show.
+    const anyRow = await db.query(`SELECT 1 FROM products WHERE discount_pct IS NOT NULL LIMIT 1`);
+    console.log(`[migration] discount_pct populated: ${anyRow.rows.length > 0}`);
   } catch (err: any) {
-    throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
+    // Not fatal to the rest of runMigrations: the preflights below (api_keys, query_log,
+    // pending-verify, merchants) are independent and must still run.
+    console.error(`[migration] discount_pct GENERATED column check failed: ${err.message?.slice(0, 200)}`);
   }
 
   // BUY-30968: Ensure api_keys columns added in BUY-29220/BUY-30073 are present even
@@ -895,11 +975,18 @@ export async function runMigrations() {
   // BUY-31040: Prevent future google-shopping source rows (owner: postgres role via API).
   // IF NOT EXISTS → idempotent; NOT VALID → skips full-table scan (0 rows exist).
   try {
-    await db.query(`
-      ALTER TABLE products
-        ADD CONSTRAINT IF NOT EXISTS products_source_no_legacy_google_shopping
-        CHECK (source <> 'google-shopping'::text) NOT VALID;
-    `);
+    // ADD CONSTRAINT has no IF NOT EXISTS form; the previous text was a syntax error on
+    // every boot. Check pg_constraint, and only add (NOT VALID, no scan) when absent.
+    const con = await db.query(
+      `SELECT 1 FROM pg_constraint WHERE conrelid = 'public.products'::regclass AND conname = 'products_source_no_legacy_google_shopping'`,
+    );
+    if (con.rows.length === 0) {
+      await db.query(`
+        ALTER TABLE products
+          ADD CONSTRAINT products_source_no_legacy_google_shopping
+          CHECK (source <> 'google-shopping'::text) NOT VALID;
+      `);
+    }
     console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
   } catch (err: any) {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
@@ -917,6 +1004,12 @@ export async function runMigrations() {
       -- 2026-08-25 (mcp-railway's INSERT omits degraded_kind, so its rows still landed).
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS job_id TEXT;
       ALTER TABLE query_log ADD COLUMN IF NOT EXISTS degraded_kind TEXT;
+      -- The INSERT in middleware/queryLog.ts also writes tier and is_internal; neither
+      -- column was ever added, so EVERY api-side query_log INSERT failed
+      -- ("column tier does not exist"), and this preflight never ran because the
+      -- discount block threw first (see runMigrationBlock).
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS tier TEXT;
+      ALTER TABLE query_log ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT false;
     `);
     console.log('[migration] query_log telemetry columns ensured (BUY-62708/BUY-74173).');
   } catch (err: any) {
@@ -1000,7 +1093,20 @@ export async function runMigrations() {
 
   // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
   // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
+  // 2026-09-12: this block ran again for the first time since 2026-08-08 and, by
+  // DROP + CREATE TRIGGER, re-enabled a trigger that had been deliberately DISABLED
+  // on products (both replicas raced: "tuple concurrently updated"). At boot we only
+  // check that the trigger exists and report its state; creating or enabling it is a
+  // deliberate ops-ddl action.
   try {
+    const trg = await db.query(
+      `SELECT tgenabled FROM pg_trigger WHERE tgrelid = 'public.products'::regclass AND tgname = 'products_search_vector_trig'`,
+    );
+    if (trg.rows.length > 0) {
+      console.log(`[migration] search_vector trigger present (tgenabled=${trg.rows[0].tgenabled}); not recreated at boot (BUY-24284).`);
+    } else if (process.env.BOOT_CREATE_SEARCH_VECTOR_TRIGGER !== '1') {
+      console.warn('[migration] search_vector trigger MISSING on products; not created at boot (set BOOT_CREATE_SEARCH_VECTOR_TRIGGER=1 or create via ops-ddl) (BUY-24284).');
+    } else {
     const svClient = await db.connect();
     try {
       await svClient.query(`
@@ -1026,13 +1132,18 @@ export async function runMigrations() {
     } finally {
       svClient.release();
     }
+    }
   } catch (err: any) {
     console.warn(`[migration] search_vector trigger creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // Backfill NULL search_vector rows — same 6-min timeout pattern as discount_pct.
   // Non-fatal: the trigger above covers all new writes; this fixes the existing corpus.
-  try {
+  if (process.env.BOOT_SEARCH_VECTOR_BACKFILL !== '1') {
+    // A count(*) over 443M rows, then a full-table UPDATE, on every boot of every
+    // replica: the count alone ran ~50s until the catalog watchdog cancelled it.
+    console.log('[migration] search_vector backfill not run at boot (set BOOT_SEARCH_VECTOR_BACKFILL=1 to opt in).');
+  } else try {
     const backfillClient = await db.connect();
     try {
       await backfillClient.query('SET statement_timeout = 360000'); // 6 min
@@ -1080,9 +1191,9 @@ export async function runMigrations() {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_market_time
+      CREATE INDEX IF NOT EXISTS idx_p95_latency_market_time
         ON monitoring.p95_latency (market, window_end DESC);
-      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_endpoint
+      CREATE INDEX IF NOT EXISTS idx_p95_latency_endpoint
         ON monitoring.p95_latency (endpoint, window_end DESC);
 
       CREATE TABLE IF NOT EXISTS monitoring.alert_history (
@@ -1096,7 +1207,9 @@ export async function runMigrations() {
         resolution_notes  TEXT
       );
 
-      CREATE INDEX IF NOT EXISTS monitoring.idx_alert_history_market_time
+      -- (index names cannot be schema-qualified; this was a syntax error that failed the
+      -- whole block on every boot)
+      CREATE INDEX IF NOT EXISTS idx_alert_history_market_time
         ON monitoring.alert_history (market, triggered_at DESC);
 
       -- Cleanup function: delete rows older than retention_days in both tables.

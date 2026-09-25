@@ -15,7 +15,7 @@ const src = readFileSync(
 );
 
 test('BUY-80441 cache version bumped so stale Redis cannot leak USD pouches', () => {
-  assert.match(src, /tier-child-fts-v19-b80441/);
+  assert.match(src, /tier-child-fts-v20-b80441/);
 });
 
 test('BUY-80441 in-market currency boost is applied in mkQuery rank', () => {
@@ -41,4 +41,9 @@ test('BUY-80441 device-unit queries exclude accessory titles from cand LIMIT', (
   assert.match(src, /deviceAccessoryCandExcl/);
   assert.match(src, /mkQuery\(andMatch, deviceAccessoryCandExcl\)/);
   assert.match(src, /belt pouch\|silicone\|wallet\|tempered glass/);
+});
+
+test('BUY-80441 child-table FTS skips parent products JOIN so partition-only SKUs survive', () => {
+  assert.match(src, /!useChildTable && tierStorageExclusionNeeded/);
+  assert.doesNotMatch(src, /const storageJoinFilter = tierStorageExclusionNeeded\(p\.q\)\n    \? ` JOIN products m/);
 });

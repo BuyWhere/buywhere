@@ -55,7 +55,15 @@ describe('BUY-73753: /v1/products list contract', () => {
   it('projects category_path through the canonical product response', () => {
     const responseSource = readFileSync(join(__dirname, '../src/lib/response.ts'), 'utf8');
     assert.match(responseSource, /category_path/);
-    assert.match(responseSource, /Array\.isArray\(row\.category_path\)/);
+    assert.match(responseSource, /normalizeCategoryPath/);
+    assert.match(responseSource, /row\.metadata/);
+    assert.match(responseSource, /row\.category/);
+  });
+
+  it('projects category through featured rows for category_path fallback', () => {
+    const featuredRouteStart = productsSource.indexOf('// GET /v1/products/featured');
+    const featuredRoute = productsSource.slice(featuredRouteStart);
+    assert.match(featuredRoute, /region, country_code, category_path, category/);
   });
 
   // BUY-74513: when the EXPLAIN count sub-query falls back to pg_class
@@ -98,5 +106,27 @@ describe('BUY-73753: /v1/products list contract', () => {
       listRoute,
       /const LIST_TABLE = \/\^\[A-Z\]\{2\}\$\/\.test\(countryCode\)\s*\n\s*\? `products_partitioned_\$\{countryCode\.toLowerCase\(\)\}`/,
     );
+  });
+});
+
+describe('BUY-81330: featured currency + deals live children', () => {
+  const productsSource = readFileSync(new URL('../src/routes/products.ts', import.meta.url), 'utf8');
+
+  it('filters featured by country AND currency', () => {
+    const featuredRouteStart = productsSource.indexOf('// GET /v1/products/featured');
+    assert.ok(featuredRouteStart > -1, 'featured route marker not found');
+    const featuredRoute = productsSource.slice(featuredRouteStart, featuredRouteStart + 8000);
+    assert.match(featuredRoute, /AND currency = \$2/);
+    assert.match(featuredRoute, /featuredSql, \[countryCode, currency, fetchLimit, fetchOffset\]/);
+    assert.match(featuredRoute, /featured:v2:/);
+  });
+
+  it('routes deals to live child partitions and v4 cache', () => {
+    const dealsStart = productsSource.indexOf("router.get(\n  '/deals'");
+    const compareStart = productsSource.indexOf("router.get(\n  '/compare'");
+    const dealsRoute = productsSource.slice(dealsStart, compareStart);
+    assert.match(dealsRoute, /deals:v4:/);
+    assert.match(dealsRoute, /const LIVE_DEALS_CHILD_COUNTRIES = new Set\(\['SG', 'US', 'PH', 'GB'\]\)/);
+    assert.match(dealsRoute, /FROM \$\{DEALS_TABLE\}/);
   });
 });
