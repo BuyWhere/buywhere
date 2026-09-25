@@ -24,7 +24,7 @@ export function SeoAnswerBlock({ block, intent }: { block: AnswerBlock; intent: 
       data-answer-block="intent"
       data-answer-checked={block.checkedIso}
       data-answer-retailers={block.retailerCount}
-      className="border-b border-amber-100 bg-amber-50/70 px-4 py-6 sm:px-6"
+      className="border-b border-amber-100 bg-amber-50/70 px-4 py-6 sm:px-6 order-2 md:order-none"
     >
       <div className="mx-auto max-w-6xl">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">

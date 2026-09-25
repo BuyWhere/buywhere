@@ -53,7 +53,7 @@ export function HomeProductSearch() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mb-10">
+    <div className="max-w-3xl mx-auto mb-10 px-4 sm:px-0 w-full" style={{ boxSizing: 'border-box', maxWidth: 'calc(100vw - 2rem)' }}>
       <form
         onSubmit={handleSubmit}
         className="grid gap-3"
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36 max-sm:order-2"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem]"
+            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem] max-sm:w-full max-sm:order-1"
           >
             Search catalog
           </button>
@@ -113,8 +113,8 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-row flex-wrap items-start justify-center gap-2 text-sm text-white px-2">
-              <span className="font-semibold text-white/90 self-center">Try:</span>
+            <div className="flex flex-row flex-wrap items-center justify-center gap-2 text-sm text-white px-2 overflow-x-auto max-w-full [&::-webkit-scrollbar]:hidden">
+              <span className="font-semibold text-white/90 self-center shrink-0">Try:</span>
               {exampleQueries.map((example) => (
                 <button
                   key={example}
@@ -123,7 +123,7 @@ export function HomeProductSearch() {
                     setQuery(example);
                     submitQuery(example);
                   }}
-                  className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
+                  className="shrink-0 rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 text-xs leading-tight"
                 >
                   {example}
                 </button>

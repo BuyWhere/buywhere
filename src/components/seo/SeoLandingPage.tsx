@@ -219,7 +219,8 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         {/* BUY-74928: answer block FIRST in DOM order (4seen OAI-SearchBot
             checklist item 1) — before nav-heavy markup, the price table, the
             verdict sentence, and FAQs. Plain text, server-side rendered,
-            visible to crawlers that don't run JS. */}
+            visible to crawlers that don't run JS.
+            BUY-84104: on mobile, hero/H1 should come FIRST visually - order-1. */}
         {answerBlock && (
           <SeoAnswerBlock
             block={answerBlock}
@@ -228,15 +229,16 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         )}
 
         {/* BUY-77662: product grid appears ABOVE the hero CTA so buy links are
-            above the fold. Moved before the hero section. */}
-        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
+            above the fold. Moved before the hero section.
+            BUY-84104: on mobile, hero/H1 should come FIRST visually - use order to fix. */}
+        <section className={`bg-slate-50 order-2 md:order-1 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
                 <h2 id="live-deals" className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+              <Link href={shopperCta.href} prefetch={false} className="inline-flex min-h-11 min-w-[44px] items-center p-2 text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline -m-2">
                 Open full search
               </Link>
             </div>
@@ -251,18 +253,35 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               // still must not render fallbackProducts (BUY-79133).
               null
             ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
-                {(products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? []))).map((product) => (
-                  // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
-                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
-                ))}
-              </div>
+              // BUY-77657 (2026-09-16): do NOT drop live priced rows that lack
+              // imageUrl. Apple.sg MacBook hits (and many US laptop SKUs) have
+              // no raster URL; BUY-80551 hid every card while JSON-LD / H1
+              // still advertised a live floor. ProductGridImage already renders
+              // a branded silhouette when src is empty.
+              <>
+                {(() => {
+                  const displayProducts = (products.length > 0 ? products : (process.env.NODE_ENV === "production" ? [] : (config.fallbackProducts ?? [])));
+                  if (displayProducts.length === 0) return null;
+                  // BUY-82522: never force 4 cols below ~1024px. auto-fit +
+                  // minmax(240px) keeps cards ≥240px (~3 cols at 1000px, 4 at
+                  // max-w-6xl / 1280+). min(100%,240px) avoids overflow on
+                  // sub-240 viewports.
+                  return (
+                    <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),280px))]"}>
+                      {displayProducts.map((product) => (
+                        // BUY-78335: pass pathname so /r/ links include source_page at render time (e.g., "/best-macbooks-us")
+                        <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} pathname={`/${config.slug}`} />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         </section>
 
-        <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
+        <section className="overflow-hidden max-sm:overflow-visible order-1 md:order-2 bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start ${config.compactCatalogCards ? "py-6" : "py-12 lg:py-16"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
