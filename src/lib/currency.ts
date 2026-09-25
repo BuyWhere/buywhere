@@ -1,49 +1,53 @@
-// BUY-81045: Shared currency formatter for every product card, hero price, and
-// comparison widget.
-//
-// ROOT BUG FIXED:
-// `Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD" })` renders
-// as bare "$1,499.00" because the en-SG locale (and every browser ICU shipped
-// as of 2026) outputs the dollar sign symbol `$` for SGD — exactly identical
-// to USD. Shoppers on /laptop-singapore could not distinguish SGD from USD
-// cards, which compounded earlier currency-contamination incidents (see
-// BUY-71638, BUY-71643, BUY-82928).
-//
-// FIX: render SGD explicitly. We pick `currencyDisplay: "code"` so the output
-// is `SGD 1,499.00` — unambiguous, locale-safe, and what the QA defect
-// ("Singapore-localized card prices use S$ or explicit SGD") asked for.
-//
-// All other currencies fall through to the locale-default symbol so USD stays
-// `$1,499.00`, EUR stays `€1.499,00`, JPY stays `¥1,499`, etc. — no regressions.
+/**
+ * Shared currency formatting utilities.
+ * BUY-81045: SGD prices were rendering as bare "$" instead of "SGD" or "S$".
+ * Solution: use currencyDisplay:"code" for SGD to show "SGD 1,499" instead of "$1,499".
+ */
 
-const DISAMBIGUATE_CURRENCIES = new Set(["SGD", "MYR", "HKD", "NTD", "BND"]);
+const CURRENCY_LOCALE_MAP: Record<string, string> = {
+  SGD: "en-SG",
+  USD: "en-US",
+};
 
-export function formatPriceForCurrency(
-  price: number,
-  currency: string,
-  maximumFractionDigits = 2,
-): string {
-  if (!Number.isFinite(price)) {
-    return "Price unavailable";
-  }
+/**
+ * Format a price with proper currency symbol/code.
+ * - SGD displays as "SGD 1,499" (currencyDisplay:"code") to avoid ambiguity with USD
+ * - Other currencies use standard locale formatting
+ */
+export function formatPriceForCurrency(amount: number, currency: string): string {
+  const locale = CURRENCY_LOCALE_MAP[currency] || "en-US";
+
+  // BUY-81045: Use currencyDisplay:"code" for SGD to show explicit "SGD" instead of ambiguous "$"
+  const currencyDisplay = currency === "SGD" ? "code" : "symbol";
+
   try {
-    const currencyUpper = String(currency || "").toUpperCase();
-    const useCodeDisplay = DISAMBIGUATE_CURRENCIES.has(currencyUpper);
-    const formatted = new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: currencyUpper || "USD",
-      maximumFractionDigits,
-      ...(useCodeDisplay ? { currencyDisplay: "code" as const } : {}),
-    }).format(price);
-    // Intl emits "SGD 1,499.00" for code display — keep that as the public
-    // contract. (This branch never triggers for USD/EUR/etc., they stay as
-    // the locale default.)
-    return formatted;
+      currency,
+      currencyDisplay,
+      maximumFractionDigits: 0,
+    }).format(amount);
   } catch {
-    return `${currency} ${price.toFixed(maximumFractionDigits)}`;
+    // Fallback for unknown currencies
+    return `${currency} ${amount.toFixed(0)}`;
   }
 }
 
-// Exported for direct unit-test coverage (see
-// src/lib/currency.sgdDisplay.test.ts).
-export const __test__ = { formatPriceForCurrency, DISAMBIGUATE_CURRENCIES };
+/**
+ * Format a price with explicit decimal places (for deals/savings)
+ */
+export function formatPriceWithDecimals(amount: number, currency: string): string {
+  const locale = CURRENCY_LOCALE_MAP[currency] || "en-US";
+  const currencyDisplay = currency === "SGD" ? "code" : "symbol";
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      currencyDisplay,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}

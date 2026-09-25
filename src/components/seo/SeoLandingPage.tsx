@@ -23,7 +23,8 @@ function formatPrice(price: number | null, currency: string) {
   if (price === null) {
     return "Price unavailable";
   }
-  return formatPriceForCurrency(price, currency, 0);
+
+  return formatPriceForCurrency(price, currency);
 }
 
 const DEFAULT_SHOPPER_CTA = {

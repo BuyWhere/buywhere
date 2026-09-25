@@ -47,7 +47,7 @@ export const DealScoreBadge = memo(function DealScoreBadge({
 }: DealScoreBadgeProps) {
   const config = scoreConfig[score] ?? scoreConfig.fair_price;
 
-  const formattedSavings = formatPriceForCurrency(Math.abs(percentVsAvg), currency, 0);
+  const formattedSavings = formatPriceForCurrency(Math.abs(percentVsAvg), currency || 'USD');
 
   const savingsLabel = percentVsAvg < 0
     ? `${formattedSavings} below average`

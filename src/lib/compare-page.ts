@@ -1,4 +1,4 @@
-import { formatPriceForCurrency } from "@/lib/currency";
+import { formatPriceWithDecimals } from "./currency";
 
 export type ComparisonOffer = {
   id: string;
@@ -164,5 +164,5 @@ export function findBestOffer(offers: ComparisonOffer[]): ComparisonOffer | null
 
 export function formatOfferPrice(price: number | null, currency: string): string {
   if (price === null) return "Price unavailable";
-  return formatPriceForCurrency(price, currency, 2);
+  return formatPriceWithDecimals(price, currency);
 }
