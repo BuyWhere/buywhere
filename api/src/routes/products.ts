@@ -680,7 +680,7 @@ async function tryTierSearch(
   // MCP search_products already uses this pattern (direct child-table FTS +
   // bounded PK lookup -> no ingest contention). The child table has all columns
   // needed for search results (affiliate_url = NULL, matching MCP contract).
-  const childCols = `sp.id, sp.merchant_id AS domain, sp.url, NULL::text AS affiliate_url,
+  const childCols = `sp.id, sp.merchant_id AS domain, sp.merchant_id, sp.url, NULL::text AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
