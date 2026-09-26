@@ -685,11 +685,15 @@ async function tryTierSearch(
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
     sp.source AS _source`;
+  // BUY-84236: a bare head term (hoodie, socks) on a 26-47M-row child costs ~20ms of cold
+  // volume IO per heap page; 200 candidates is ~300 pages. Ranking barely matters for
+  // such terms, so size the candidate set to the page instead (min 60, max 200).
+  const childCandCap = lexemes.length === 1 ? Math.max(60, Math.min(200, (p.limit + p.offset) * 3)) : 200;
   const childMkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
       WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${nativeCurCand}
-      LIMIT 200
+      LIMIT ${childCandCap}
     ), top AS (
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost.replace(/sp\./g, 'c.')}) *
