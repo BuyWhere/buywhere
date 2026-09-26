@@ -879,10 +879,17 @@ export async function getProductSitemapChunk(page: number): Promise<SitemapUrlEn
 export async function getSGProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getSGProducts();
 
+  // BUY-84237: emit 2-segment canonical /products/sg/{merchantSlug}/{id}/.
+  // Single-segment slug form (/products/sg/{slug}-{id}) is 410'd by middleware
+  // (BUY-37750 thin-content de-index; BUY-40757 explicitly allows the 2-segment
+  // route through). merchantSlug = merchant_slug from the API; falls back to a
+  // slugified merchant_id. The isSGRenderable filter in sg-products.ts already
+  // removed foreign-TLD and non-SGD products, so the only remaining entries are
+  // ones whose SG page returns 200.
   return products.map((product: SGProductForSitemap) => ({
-    url: toSiteUrl(`/products/sg/${product.slug}`),
+    url: toSiteUrl(`/products/sg/${product.merchantSlug}/${product.id}`),
     lastModified: product.lastUpdated,
-    changeFrequency: "weekly",
+    changeFrequency: "weekly" as const,
     priority: 0.7,
   }));
 }

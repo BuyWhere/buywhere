@@ -1,7 +1,9 @@
 export interface SGProductForSitemap {
   id: string;
   name: string;
-  slug: string;
+  slug: string;   // single-segment (slug-{id}, backward compat with existing pages)
+  merchantId: string;
+  merchantSlug: string; // used in 2-segment sitemap URL
   lastUpdated: string;
 }
 
@@ -16,24 +18,45 @@ interface ProductListItem {
   price?: { amount?: number | null; currency?: string | null } | number | null;
   currency?: string | null;
   merchant?: string | null;
+  merchant_id?: string | null;
+  merchant_slug?: string | null;
   url?: string | null;
   url_status?: string | null;
 }
 
 // BUY-84237 (2026-09-26): the SG sitemap listed rows tagged country_code=SG whose
 // storefront is foreign (snugglebugz.ca, CAD) — their /products/sg/ page returns 410,
-// which the 4seen guard counted as 506 dead sitemap URLs. Only list what renders.
-const FOREIGN_HOST_RE = /\.(ca|com\.au|co\.uk|uk|com\.ph|ph|my|com\.my|in|co\.in|com\.in|de|fr|it|es|nl|jp|co\.jp|kr|tw|hk|th|co\.th|vn|id|co\.id|nz|co\.nz|ie|us|mx|br|com\.br|ae|sa|kw|pk|bd|lk|np|za|co\.za)$/i;
+// which the 4seen guard counted as 506 dead sitemap URLs. Only list products that
+// actually render in the SG market.
+const FOREIGN_HOST_RE = /\.(ca|com\.au|co\.uk|uk|com\.ph|ph|my|com\.my|in|co\.in|de|fr|it|es|nl|jp|co\.jp|kr|tw|hk|th|co\.th|vn|id|co\.id|nz|co\.nz|ie|us|mx|br|com\.br|ae|sa|kw|pk|bd|lk|np|za|co\.za)$/i;
+
 function hostOf(url: unknown): string {
   if (typeof url !== "string" || !url) return "";
-  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; }
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
+
 export function isSGRenderable(item: ProductListItem): boolean {
-  const cur = (typeof item.price === "object" && item.price ? item.price.currency : item.currency) || null;
+  // Reject products not priced in SGD
+  const priceObj = item.price;
+  const cur =
+    (typeof priceObj === "object" && priceObj ? (priceObj as { currency?: string | null }).currency : null) ||
+    item.currency ||
+    null;
   if (cur && cur.toUpperCase() !== "SGD") return false;
+
+  // Reject known dead URLs
   if (item.url_status === "dead") return false;
-  const host = hostOf(item.url) || String(item.merchant || "").toLowerCase();
+
+  // Reject foreign TLD merchants
+  const host =
+    hostOf(item.url) ||
+    String(item.merchant || "").toLowerCase();
   if (host && FOREIGN_HOST_RE.test(host)) return false;
+
   return true;
 }
 
@@ -62,7 +85,7 @@ export function slugifySGProductName(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -72,6 +95,15 @@ export function slugifySGProductName(name: string): string {
 export function buildSGProductSlug(product: { id: string; name: string }): string {
   const nameSlug = slugifySGProductName(product.name);
   return nameSlug ? `${nameSlug}-${product.id}` : product.id;
+}
+
+export function buildMerchantSlug(merchantId: string, merchantSlug: string | null): string {
+  // merchant_slug from the API is the canonical hyphenated form (e.g. "og-com-sg").
+  // Fall back to slugifying merchant_id when the API didn't provide a slug.
+  if (merchantSlug && merchantSlug.trim()) {
+    return merchantSlug.trim();
+  }
+  return slugifySGProductName(merchantId);
 }
 
 async function fetchSGProductPage(baseUrl: string, apiKey: string, page: number): Promise<ProductListResponse> {
@@ -84,7 +116,7 @@ async function fetchSGProductPage(baseUrl: string, apiKey: string, page: number)
           }
         : undefined,
       next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(15_000),
     }
   );
 
@@ -97,26 +129,34 @@ async function fetchSGProductPage(baseUrl: string, apiKey: string, page: number)
 
 function normalizeSGProductItem(item: ProductListItem): SGProductForSitemap | null {
   const id = String(item._id || item.id || "").trim();
-  if (!id) {
-    return null;
-  }
-  if (!isSGRenderable(item)) {
-    return null;
-  }
+  if (!id) return null;
+
+  // BUY-84237: apply the SG renderability filter before including in sitemap
+  if (!isSGRenderable(item)) return null;
 
   const name = (item.name || item.title || `SG Product ${id}`).trim();
+  const merchantId = String(item.merchant_id ?? item.merchant ?? "").trim();
+  const merchantSlugVal = item.merchant_slug ?? null;
 
   return {
     id,
     name,
     slug: buildSGProductSlug({ id, name }),
-    lastUpdated: item.data_updated_at || item.last_updated || new Date().toISOString(),
+    merchantId,
+    merchantSlug: buildMerchantSlug(merchantId, merchantSlugVal),
+    lastUpdated: item.data_updated_at || item.updated_at || item.last_updated || new Date().toISOString(),
   };
 }
 
 async function loadSGProductsFromApi(): Promise<SGProductForSitemap[]> {
-  const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
-  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const baseUrl =
+    process.env.BUYWHERE_API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
+    "https://api.buywhere.ai";
+  const apiKey =
+    process.env.BUYWHERE_API_KEY ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
+    "";
   const products: SGProductForSitemap[] = [];
   const seenIds = new Set<string>();
   let page = 1;
@@ -127,23 +167,21 @@ async function loadSGProductsFromApi(): Promise<SGProductForSitemap[]> {
 
     for (const item of items) {
       const normalized = normalizeSGProductItem(item);
-      if (!normalized || seenIds.has(normalized.id)) {
-        continue;
-      }
-
+      if (!normalized || seenIds.has(normalized.id)) continue;
       seenIds.add(normalized.id);
       products.push(normalized);
     }
 
     const totalPages = payload.pagination?.total_pages;
     const nextOffset = payload.meta?.next_offset;
-    if (items.length === 0) {
-      break;
-    }
-    if (typeof totalPages === "number" && page >= totalPages) {
-      break;
-    }
-    if (totalPages == null && (nextOffset === null || nextOffset === undefined || items.length < PRODUCT_PAGE_SIZE)) {
+    if (items.length === 0) break;
+    if (typeof totalPages === "number" && page >= totalPages) break;
+    if (
+      totalPages == null &&
+      (nextOffset === null ||
+        nextOffset === undefined ||
+        items.length < PRODUCT_PAGE_SIZE)
+    ) {
       break;
     }
 
@@ -171,7 +209,10 @@ export async function getSGProducts(): Promise<SGProductForSitemap[]> {
         return products;
       })
       .catch((err) => {
-        console.warn('[sg-products] API fetch failed during build, returning empty product list:', err instanceof Error ? err.message : err);
+        console.warn(
+          "[sg-products] API fetch failed during build, returning empty product list:",
+          err instanceof Error ? err.message : err,
+        );
         return [];
       })
       .finally(() => {
