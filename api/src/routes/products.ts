@@ -448,7 +448,7 @@ async function tryTierSearch(
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
   // holds the actual retailer domain (e.g. samsung.com, bestbuy.com).
-  const cols = `sp.id, sp.merchant_id AS domain, sp.url, al.destination_url AS affiliate_url,
+  const cols = `sp.id, sp.merchant_id AS domain, sp.merchant_id, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
