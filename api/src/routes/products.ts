@@ -1452,6 +1452,11 @@ router.get(
     // BUY-76037 (re-applied): filter by ingestion pipeline origin.
     const scrapedVia = req.query.scraped_via as string | undefined;
     const region = req.query.region as string | undefined;
+    // 2026-09-26 (4seen handoff): `region` used to become an unindexed `region = $n`
+    // predicate on the archive path -> 10s statement timeout -> degraded empty page,
+    // while the same query with country= answered in 0.7s. A two-letter region is a
+    // market; treat it as the country alias. Anything else is ignored.
+    const regionAsCountry = region && /^[A-Za-z]{2}$/.test(region.trim()) ? region.trim().toUpperCase() : undefined;
     const category = req.query.category as string | undefined;
     const categoryId = req.query.category_id as string | undefined;
     const categoryPath = (req.query.category_path as string) ? (req.query.category_path as string).split(',').map(p => p.trim()).filter(Boolean) : undefined;
@@ -1467,7 +1472,7 @@ router.get(
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // `cc` is an additional shortcut (BUY-76037).
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
-    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
+    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined) || regionAsCountry)?.toUpperCase() || undefined;
     const cc = (req.query.cc as string | undefined)?.toUpperCase() || undefined;
     const countryCode = explicitCountry || cc; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
@@ -1782,11 +1787,7 @@ router.get(
       baseParams.push(scrapedVia);
       baseIdx++;
     }
-    if (region) {
-      baseConditions.push(`region = $${baseIdx}`);
-      baseParams.push(region);
-      baseIdx++;
-    }
+    // region= is folded into the country alias above; never filtered on directly.
     if (countryCode) {
       // Explicit country_code is a HARD filter (BUY-81155 / BUY-80881).
       // NULL country_code rows (datablitz.com.ph, boat-lifestyle.com, etc.)
