@@ -53,8 +53,10 @@ const normalizeCachedResponse = (parsed: Record<string, unknown>): void => {
 // Sprint A (2026-07-03): env-tunable latency budget. Agents abandon long before
 // 15s; degraded-200s replace 504s below so a slow answer is still an answer.
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
-const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
-const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIER_TIMEOUT_MS || '7000', 10) || 7000);
+// BUY-84236: 15s = the external benchmark's ceiling for a non-degraded answer; a cold term on the
+// 26-47M-row child tables can need 8-12s of volume IO once, then it is cached for an hour.
+const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 15000);
+const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIER_TIMEOUT_MS || '12000', 10) || 12000);
 
 // BUY-65260: slow cold misses can hit the handler timeout before any successful
 // payload exists in Redis. Cache the degraded 200 briefly so replay bursts do not
