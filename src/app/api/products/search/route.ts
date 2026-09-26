@@ -340,6 +340,15 @@ export async function GET(request: NextRequest) {
     }
   });
 
+  // `region` is never forwarded: upstream /v1/products/search with region=<cc> runs ~9 s and
+  // returns degraded/api_error with zero rows (2026-09-26), which emptied every category grid
+  // and every /search?region=sg link. It only ever meant the market, so fold it into `country`.
+  const region = upstreamParams.get('region');
+  if (region && !upstreamParams.get('country') && !upstreamParams.get('country_code')) {
+    upstreamParams.set('country', region.toUpperCase());
+  }
+  upstreamParams.delete('region');
+
   // BUY-72906: REMOVED the country -> country_code rename. The FastAPI backend
   // expects 'country' (not 'country_code'), so we now pass it through unchanged.
   // The deliver_to + include_unshippable params now handle the region filtering.

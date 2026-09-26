@@ -133,7 +133,6 @@ export async function fetchCategoryProducts({
       deliver_to: country,
       include_unshippable: "false",
       limit: String(Math.max(limit * 3, 24)),
-      region: country,
     });
     if (attemptCategory) {
       attemptParams.set("category", attemptCategory);
