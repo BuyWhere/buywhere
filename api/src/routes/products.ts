@@ -797,6 +797,10 @@ async function tryTierSearch(
     // the scan; at 4s they were cancelled and fell to an archive path that cannot serve
     // them either -> api_error empty page. 7s keeps inside the 10s handler budget.
     await client.query(`SET LOCAL statement_timeout = '${TIER_STATEMENT_TIMEOUT_MS}'`);
+    // BUY-84236: at the default 4MB work_mem a 260K-TID GIN bitmap goes lossy (86 lossy
+    // heap blocks, 930 rechecked rows for "jeans"); exact bitmaps read only the pages that
+    // hold the 200 candidates. 64MB is per-sort/hash on this one connection.
+    await client.query(`SET LOCAL work_mem = '64MB'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     // BUY-77812: under catalog IO starvation the US child GIN bitmap still
