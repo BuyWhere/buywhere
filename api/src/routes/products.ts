@@ -517,10 +517,17 @@ async function tryTierSearch(
   // BUY-82726: on child tables, surface native-currency rows before USD Shopify
   // labelled as SG (PlayStation 5 / country=sg was returning joesge USD).
   let nativeCurPrefix = '';
+  let nativeCurIdx = 0;
   if (useChildTable && p.currency) {
-    const nativeCurIdx = i; params.push(p.currency); i++;
+    nativeCurIdx = i; params.push(p.currency); i++;
     nativeCurPrefix = `(sp.currency = $${nativeCurIdx}) DESC NULLS LAST, `;
   }
+  // BUY-84238 (2026-09-26): the 200-row candidate cap ran BEFORE currency isolation,
+  // so on the SG child (26M rows, USD-labelled Shopify majority) the first 200 physical
+  // matches for "samsung" were all USD, isolation dropped every one and the page was
+  // a clean empty although 12.9K in-stock SGD Samsung rows exist. Restrict candidates
+  // to the market currency up front; isolation would discard the others anyway.
+  const nativeCurCand = nativeCurIdx ? ` AND sp.currency = $${nativeCurIdx}` : '';
   const orderPrefix = nativeCurPrefix + (dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '');
 
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
@@ -680,7 +687,7 @@ async function tryTierSearch(
   const childMkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${nativeCurCand}
       LIMIT 200
     ), top AS (
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
