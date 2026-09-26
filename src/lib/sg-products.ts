@@ -12,6 +12,29 @@ interface ProductListItem {
   name?: string;
   data_updated_at?: string;
   last_updated?: string;
+  updated_at?: string;
+  price?: { amount?: number | null; currency?: string | null } | number | null;
+  currency?: string | null;
+  merchant?: string | null;
+  url?: string | null;
+  url_status?: string | null;
+}
+
+// BUY-84237 (2026-09-26): the SG sitemap listed rows tagged country_code=SG whose
+// storefront is foreign (snugglebugz.ca, CAD) — their /products/sg/ page returns 410,
+// which the 4seen guard counted as 506 dead sitemap URLs. Only list what renders.
+const FOREIGN_HOST_RE = /\.(ca|com\.au|co\.uk|uk|com\.ph|ph|my|com\.my|in|co\.in|com\.in|de|fr|it|es|nl|jp|co\.jp|kr|tw|hk|th|co\.th|vn|id|co\.id|nz|co\.nz|ie|us|mx|br|com\.br|ae|sa|kw|pk|bd|lk|np|za|co\.za)$/i;
+function hostOf(url: unknown): string {
+  if (typeof url !== "string" || !url) return "";
+  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; }
+}
+export function isSGRenderable(item: ProductListItem): boolean {
+  const cur = (typeof item.price === "object" && item.price ? item.price.currency : item.currency) || null;
+  if (cur && cur.toUpperCase() !== "SGD") return false;
+  if (item.url_status === "dead") return false;
+  const host = hostOf(item.url) || String(item.merchant || "").toLowerCase();
+  if (host && FOREIGN_HOST_RE.test(host)) return false;
+  return true;
 }
 
 interface ProductListResponse {
@@ -75,6 +98,9 @@ async function fetchSGProductPage(baseUrl: string, apiKey: string, page: number)
 function normalizeSGProductItem(item: ProductListItem): SGProductForSitemap | null {
   const id = String(item._id || item.id || "").trim();
   if (!id) {
+    return null;
+  }
+  if (!isSGRenderable(item)) {
     return null;
   }
 

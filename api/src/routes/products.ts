@@ -54,6 +54,7 @@ const normalizeCachedResponse = (parsed: Record<string, unknown>): void => {
 // 15s; degraded-200s replace 504s below so a slow answer is still an answer.
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
+const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIER_TIMEOUT_MS || '7000', 10) || 7000);
 
 // BUY-65260: slow cold misses can hit the handler timeout before any successful
 // payload exists in Redis. Cache the degraded 200 briefly so replay bursts do not
@@ -791,7 +792,11 @@ async function tryTierSearch(
   try { client = await servingReadDbConnect(); } catch { return false; }
   try {
     await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '4000'`);
+    // BUY-84236 (2026-09-26): broad single tokens (shoes, jeans, jacket) on the 47M-row US
+    // child cost 5-8s of cold GIN posting-list + heap IO before the 200-row cap can stop
+    // the scan; at 4s they were cancelled and fell to an archive path that cannot serve
+    // them either -> api_error empty page. 7s keeps inside the 10s handler budget.
+    await client.query(`SET LOCAL statement_timeout = '${TIER_STATEMENT_TIMEOUT_MS}'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     // BUY-77812: under catalog IO starvation the US child GIN bitmap still
@@ -3821,6 +3826,20 @@ const WARM_SEED_QUERIES: Array<{ q: string; country: string }> = [
   { q: 'gaming mouse', country: 'US' },
   { q: 'monitor', country: 'US' },
   { q: 'mechanical keyboard', country: 'US' },
+  { q: 'shoes', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'shoes', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 'jeans', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'jeans', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 'jacket', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'jacket', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 'dress', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'dress', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 'sneakers', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'sneakers', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 't-shirt', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 't-shirt', country: 'SG' }, // BUY-84236: fashion category head terms
+  { q: 'handbag', country: 'US' }, // BUY-84236: fashion category head terms
+  { q: 'handbag', country: 'SG' }, // BUY-84236: fashion category head terms
 ];
 
 export async function warmSearchCache(): Promise<void> {
