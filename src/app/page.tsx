@@ -287,7 +287,7 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero — comparison-first per BUY-75315 (Richmond decisions 2026-08-26) */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-28 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-8">
             <div className="hero-badge mx-auto inline-flex max-w-[calc(100vw-2rem)] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
               <span className="inline-flex shrink-0 items-center gap-x-1.5">
@@ -308,7 +308,7 @@ export default function HomePage() {
             </p>
           </div>
           <HomeProductSearch />
-          <div className="max-w-3xl mx-auto text-center mt-8 pb-8">
+          <div className="max-w-3xl mx-auto text-center mt-8 pb-12 md:pb-8">
             <p className="text-base font-semibold text-white leading-snug px-4">
               Live product comparisons updated daily — real-time price tracking with a fast, agent-ready API.
             </p>
