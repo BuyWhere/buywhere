@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36 max-sm:order-2"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36 max-sm:order-1"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem] max-sm:w-full max-sm:order-1"
+            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] xl:min-w-[10rem] max-sm:w-full max-sm:order-2"
           >
             Search catalog
           </button>
