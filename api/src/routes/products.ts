@@ -492,7 +492,7 @@ async function tryTierSearch(
       AND sp.merchant_id NOT ILIKE '%.lk' AND sp.merchant_id NOT ILIKE '%.com.pk'
       AND sp.merchant_id NOT ILIKE '%.jp' AND sp.merchant_id NOT ILIKE 'amazon_jp'
       AND sp.merchant_id NOT ILIKE '%.uk' AND sp.merchant_id NOT ILIKE '%.co.uk'
-      // BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
+      -- BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
     ))`;
   } else if (cc === 'SG') {
