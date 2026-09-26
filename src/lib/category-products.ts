@@ -125,10 +125,9 @@ export async function fetchCategoryProducts({
   const collected: CategoryProduct[] = [];
   const seen = new Set<string>();
 
-  for (const query of queries) {
-    if (collected.length >= limit) break;
-
-    const params = new URLSearchParams({
+  // One search call; never throws. Returns [] on timeout/HTTP error/degraded/empty.
+  async function searchOnce(query: string, attemptCategory: string | null): Promise<CategoryProduct[]> {
+    const attemptParams = new URLSearchParams({
       q: query,
       country,
       deliver_to: country,
@@ -136,60 +135,71 @@ export async function fetchCategoryProducts({
       limit: String(Math.max(limit * 3, 24)),
       region: country,
     });
+    if (attemptCategory) {
+      attemptParams.set("category", attemptCategory);
+    }
 
-    const attempts = category ? [category, null] : [null];
+    try {
+      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${attemptParams.toString()}`, {
+        headers: { Accept: "application/json" },
+        next: { revalidate: 60 * 15 },
+        signal: AbortSignal.timeout(6000),
+      });
 
-    for (const attemptCategory of attempts) {
-      if (collected.length >= limit) break;
-
-      const attemptParams = new URLSearchParams(params);
-      if (attemptCategory) {
-        attemptParams.set("category", attemptCategory);
+      if (!response.ok) {
+        console.warn(`[category-products] search HTTP ${response.status} for ${country} query="${query}"`);
+        return [];
       }
 
-      try {
-        const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${attemptParams.toString()}`, {
-          headers: { Accept: "application/json" },
-          next: { revalidate: 60 * 15 },
-          signal: AbortSignal.timeout(8000),
-        });
+      const data = (await response.json()) as SearchApiResponse;
+      const meta = data.meta ?? null;
+      const isDegraded = Boolean(meta?.degraded ?? data.degraded);
+      const total = typeof meta?.total === "number" ? meta.total : data.total;
 
-        if (!response.ok) {
-          console.warn(`[category-products] search HTTP ${response.status} for ${country} query="${query}"`);
-          continue;
-        }
+      if (isDegraded || total === 0) {
+        console.warn(
+          `[category-products] degraded/empty search for ${country} query="${query}": degraded=${isDegraded}, total=${total}`,
+        );
+        return [];
+      }
 
-        const data = (await response.json()) as SearchApiResponse;
-        const meta = data.meta ?? null;
-        const isDegraded = Boolean(meta?.degraded ?? data.degraded);
-        const total = typeof meta?.total === "number" ? meta.total : data.total;
+      const items = data.data || data.items || data.results || [];
+      if (!Array.isArray(items)) return [];
 
-        if (isDegraded || total === 0) {
-          console.warn(
-            `[category-products] degraded/empty search for ${country} query="${query}": degraded=${isDegraded}, total=${total}`,
-          );
-          continue;
-        }
+      const products: CategoryProduct[] = [];
+      for (const item of items) {
+        const product = toCategoryProduct(
+          normalizeComparisonOffer(coerceSearchItem(item as RawSearchItem), config.currency),
+        );
+        if (product) products.push(product);
+      }
+      return products;
+    } catch (err) {
+      console.warn(`[category-products] fetch failure for ${country} query="${query}":`, err);
+      return [];
+    }
+  }
 
-        const items = data.data || data.items || data.results || [];
-        if (!Array.isArray(items) || items.length === 0) continue;
-
-        for (const item of items) {
-          const product = toCategoryProduct(
-            normalizeComparisonOffer(coerceSearchItem(item as RawSearchItem), config.currency),
-          );
-          if (!product) continue;
-          const key = `${product.id}:${product.name.toLowerCase()}:${product.merchant.toLowerCase()}:${product.href}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          collected.push(product);
-          if (collected.length >= limit) break;
-        }
-      } catch (err) {
-        console.warn(`[category-products] fetch failure for ${country} query="${query}":`, err);
-        continue;
+  function merge(batches: CategoryProduct[][]) {
+    for (const batch of batches) {
+      for (const product of batch) {
+        if (collected.length >= limit) return;
+        const key = `${product.id}:${product.name.toLowerCase()}:${product.merchant.toLowerCase()}:${product.href}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        collected.push(product);
       }
     }
+  }
+
+  // Queries run concurrently per round (they used to run one after another, so a slow or
+  // degraded search API turned /us/electronics into a 40-50 s render). Results are merged in
+  // query order, so the page shows the same products as before. Round 1 is category-scoped
+  // when a category is given; round 2 (unscoped) only runs if round 1 came up short.
+  const rounds: (string | null)[] = category ? [category, null] : [null];
+  for (const attemptCategory of rounds) {
+    if (collected.length >= limit) break;
+    merge(await Promise.all(queries.map((query) => searchOnce(query, attemptCategory))));
   }
 
   return collected.slice(0, limit);
