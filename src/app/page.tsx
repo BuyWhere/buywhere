@@ -286,8 +286,8 @@ export default function HomePage() {
 
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero — comparison-first per BUY-75315 (Richmond decisions 2026-08-26) */}
-      <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-28 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
+      <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white pb-safe">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-8">
             <div className="hero-badge mx-auto inline-flex max-w-[calc(100vw-2rem)] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
               <span className="inline-flex shrink-0 items-center gap-x-1.5">
@@ -308,8 +308,8 @@ export default function HomePage() {
             </p>
           </div>
           <HomeProductSearch />
-          <div className="max-w-3xl mx-auto text-center mt-8 pb-12 md:pb-8">
-            <p className="text-base font-semibold text-white leading-snug px-4">
+          <div className="max-w-3xl mx-auto text-center mt-8 pb-8 sm:pb-8 md:pb-10">
+            <p className="text-base font-semibold text-white leading-snug px-4 pb-safe">
               Live product comparisons updated daily — real-time price tracking with a fast, agent-ready API.
             </p>
           </div>
@@ -326,7 +326,7 @@ export default function HomePage() {
               across multiple retailers and ships with a server-rendered table AI crawlers can read.
             </p>
           </div>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { slug: "iphone-16-price-singapore", title: "iPhone 16 — Singapore", tagline: "Compare across authorised resellers" },
               { slug: "best-gaming-laptops-us", title: "Best gaming laptops — US 2026", tagline: "6 top models, priced live" },
@@ -337,7 +337,7 @@ export default function HomePage() {
                 href={`/${slug}`}
                 className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-5 hover:border-indigo-300 hover:bg-indigo-50 transition-colors min-w-0"
               >
-                <h3 className="font-semibold text-gray-900 mb-1 truncate">{title}</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 leading-snug line-clamp-2">{title}</h3>
                 <p className="text-sm text-gray-600">{tagline}</p>
                 <p className="mt-3 text-sm font-medium text-indigo-600">View comparison →</p>
               </Link>
