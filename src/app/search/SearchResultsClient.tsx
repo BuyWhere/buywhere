@@ -896,7 +896,8 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     >
       <div
         // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
+        // BUY-84422: removed border-b border-slate-100 to eliminate visual seam between image and details on mobile
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden bg-white"
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
