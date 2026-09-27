@@ -1071,7 +1071,12 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     >
       <div
         // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
+        // BUY-84422: removed border-b border-slate-100 (old mobile separator) and added
+        //   rounded-t-[20px] to visually blend the image into the card.
+        //   The p-2 padding was removed from <img> — it created an "inner white image box"
+        //   inset that made the image area look like a distinct white block sitting on the
+        //   container, creating a visible seam between image and details on mobile.
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden rounded-t-[20px] bg-white"
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
@@ -1081,7 +1086,7 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
           brand={product.brand}
           merchant={product.merchant}
           category={product.category}
-          className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+          className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain"
         />
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
