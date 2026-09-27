@@ -497,6 +497,9 @@ async function tryTierSearch(
       AND sp.merchant_id NOT ILIKE '%.uk' AND sp.merchant_id NOT ILIKE '%.co.uk'
       -- BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
+      -- BUY-81155 residual: IN storefronts stamped country_code=US / currency=USD
+      -- (boat-lifestyle.com prices are INR, e.g. 1499 rendered as $1,499.00)
+      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com')
     ))`;
   } else if (cc === 'SG') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
@@ -1827,6 +1830,7 @@ router.get(
         baseConditions.push(`(merchant_id IS NULL OR (
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
           AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
         ))`);
       }
     }

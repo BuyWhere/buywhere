@@ -19,4 +19,9 @@ describe('BUY-81155: US search must not leak foreign merchants', () => {
     assert.match(productsSource, /NOT ILIKE '%\.com\.ph'/);
     assert.match(productsSource, /NOT ILIKE '%\.co\.in'/);
   });
+
+  it('excludes boat-lifestyle.com from US search even when country_code is US', () => {
+    assert.match(productsSource, /boat-lifestyle\.com/);
+    assert.match(productsSource, /NOT IN \('boat-lifestyle\.com','www\.boat-lifestyle\.com'\)/);
+  });
 });
