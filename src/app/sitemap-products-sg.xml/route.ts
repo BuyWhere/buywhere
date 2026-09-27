@@ -4,13 +4,8 @@ import {
   getSGProductSitemapEntries,
 } from "@/lib/sitemaps";
 
-// BUY-84237: restore the SG product sitemap now that it emits 2-segment canonical
-// URLs (/products/sg/{merchantSlug}/{id}) instead of single-segment slugs.
-// The single-segment form (/products/sg/{slug}-{id}) was 410'd by middleware
-// (BUY-37750), which is why the previous iteration returned an empty urlset with
-// a guard env-var kill-switch. The 2-segment route is allowed through
-// (BUY-40757) and the isSGRenderable() filter in sg-products.ts ensures only
-// SGD-priced, non-dead, non-foreign-TLD products are listed.
+// BUY-73905: restore a real SG product sitemap. Returning 410 made GSC
+// record sitemap fetch errors even though /products/sg/[slug] pages exist.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";

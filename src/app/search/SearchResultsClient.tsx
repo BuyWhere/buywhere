@@ -896,8 +896,12 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     >
       <div
         // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
-        // BUY-84422: removed border-b border-slate-100 to eliminate visual seam between image and details on mobile
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden bg-white"
+        // BUY-84422: removed border-b border-slate-100 (old mobile separator) and added
+        //   rounded-t-[20px] to visually blend the image into the card.
+        //   The p-2 padding was removed from <img> — it created an "inner white image box"
+        //   inset that made the image area look like a distinct white block sitting on the
+        //   container, creating a visible seam between image and details on mobile.
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden rounded-t-[20px] bg-white"
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
@@ -925,7 +929,10 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             // card image beyond the grid column on desktop. Keep BUY-64736's
             // max-h-[220px] / max-w-full / object-contain bounds so the image
             // can never exceed its 220px-tall card frame.
-            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+            // BUY-84422: removed p-2 — that 8px inset created a visible white-bordered
+            // inner box that made the image area look like a distinct block, creating a
+            // seam between the image and details sections on mobile.
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain"
             style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
             data-testid="search-product-image"
           />

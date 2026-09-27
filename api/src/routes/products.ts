@@ -53,10 +53,8 @@ const normalizeCachedResponse = (parsed: Record<string, unknown>): void => {
 // Sprint A (2026-07-03): env-tunable latency budget. Agents abandon long before
 // 15s; degraded-200s replace 504s below so a slow answer is still an answer.
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
-// BUY-84236: 15s = the external benchmark's ceiling for a non-degraded answer; a cold term on the
-// 26-47M-row child tables can need 8-12s of volume IO once, then it is cached for an hour.
-const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 15000);
-const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIER_TIMEOUT_MS || '12000', 10) || 12000);
+const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
+const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIER_TIMEOUT_MS || '7000', 10) || 7000);
 
 // BUY-65260: slow cold misses can hit the handler timeout before any successful
 // payload exists in Redis. Cache the degraded 200 briefly so replay bursts do not
@@ -807,12 +805,6 @@ async function tryTierSearch(
     // heap blocks, 930 rechecked rows for "jeans"); exact bitmaps read only the pages that
     // hold the 200 candidates. 64MB is per-sort/hash on this one connection.
     await client.query(`SET LOCAL work_mem = '64MB'`);
-    // BUY-84236 root cause (captured plan, 2026-09-26): with a small candidate LIMIT the
-    // planner estimates FTS matches as dense and picks a Seq Scan of the 47M-row child,
-    // walking 40K+ rows / 7K pages before it finds 66 hoodies; cold that is >10s. The GIN
-    // bitmap path reads only the posting list + matching pages. Search never wants a
-    // sequential scan of a child table, so turn it off for this transaction.
-    await client.query(`SET LOCAL enable_seqscan = off`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     // BUY-77812: under catalog IO starvation the US child GIN bitmap still
