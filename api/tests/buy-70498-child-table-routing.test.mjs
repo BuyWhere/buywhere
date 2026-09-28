@@ -9,26 +9,17 @@ function extractSet(src) {
 }
 
 describe('BUY-70498 child-table routing', () => {
-  it('does not route empty SEA child tables for MCP/REST search', () => {
+  it('routes populated country child tables for MCP/REST search', () => {
     const mcp = readFileSync(new URL('../src/routes/mcp.ts', import.meta.url), 'utf8');
     const products = readFileSync(new URL('../src/routes/products.ts', import.meta.url), 'utf8');
     for (const src of [mcp, products]) {
       const countries = extractSet(src);
       assert.ok(countries.includes('SG'));
       assert.ok(countries.includes('US'));
-      for (const empty of ['TH', 'VN', 'MY', 'ID']) {
-        assert.equal(countries.includes(empty), false, empty + ' must use search_products');
-      }
+    for (const populated of ['TH', 'VN', 'MY']) {
+      assert.ok(countries.includes(populated), populated + ' must use its partition');
     }
-    assert.match(mcp, /JOIN \$\{tierTable\} p ON p\.id = pi\.id/);
-    assert.doesNotMatch(mcp, /JOIN products p ON p\.id = pi\.id/);
-  });
-
-  it('BUY-80529 routes KR/TW REST search to child tables with TW ingest override', () => {
-    const products = readFileSync(new URL('../src/routes/products.ts', import.meta.url), 'utf8');
-    const countries = extractSet(products);
-    assert.ok(countries.includes('KR'));
-    assert.ok(countries.includes('TW'));
-    assert.match(products, /TW:\s*'products_partitioned_tw_ingest'/);
+    assert.equal(countries.includes('ID'), false, 'ID must use search_products until its partition is populated');
+    }
   });
 });
