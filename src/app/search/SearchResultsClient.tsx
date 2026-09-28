@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
+import WishlistButton from '@/components/WishlistButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 import { formatPriceWithDecimals } from '@/lib/currency';
@@ -939,7 +940,22 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
         ) : imageState === 'error' || !product.imageUrl ? (
           <BrandedPlaceholder />
         ) : null}
-        <div className="absolute right-2 top-2 z-20">
+        <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-1.5">
+          {/* BUY-84243 / BUY-82212: icon-only save control must expose an
+              accessible name + pressed state. WishlistButton already ships
+              aria-label="Save {name} to wishlist" / aria-pressed. */}
+          <WishlistButton
+            product={{
+              id: String(product.id),
+              name: product.name,
+              image: product.imageUrl || '',
+              currentPrice: product.price !== null ? String(product.price) : null,
+              merchant: product.merchant,
+              buyUrl: product.href,
+              productUrl: product.href,
+            }}
+            className="h-9 w-9"
+          />
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
