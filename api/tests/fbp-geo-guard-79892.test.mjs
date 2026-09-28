@@ -13,13 +13,13 @@ function inferHostCountry(url) {
   try {
     host = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, '');
   } catch { return null; }
-  const FOREIGN = { 'iplanet.one': 'IN', 'mac-center.com': 'CO' };
+  const FOREIGN = { 'iplanet.one': 'IN', 'mac-center.com': 'CO', 'datablitz.com.ph': 'PH', 'compumarts.com': 'EG' };
   const MARKETPLACE = { 'amazon.com': 'US', 'bestbuy.com': 'US', 'walmart.com': 'US', 'tiki.vn': 'VN' };
   if (FOREIGN[host]) return FOREIGN[host];
   if (MARKETPLACE[host]) return MARKETPLACE[host];
   const parts = host.split('.');
   const tld = parts[parts.length - 1];
-  const CC = { in: 'IN', co: 'CO', vn: 'VN', sg: 'SG', uk: 'GB' };
+  const CC = { ch: 'CH', in: 'IN', co: 'CO', ph: 'PH', vn: 'VN', sg: 'SG', uk: 'GB' };
   if (tld === 'uk' && parts[parts.length - 2] === 'co') return 'GB';
   if (CC[tld]) return CC[tld];
   if (tld === 'co' && parts.length >= 2) return 'CO';
@@ -77,4 +77,35 @@ test('BUY-79892 Cart 06:45Z candidate set: US phone not 57504 IN', () => {
   const best = [...out].sort((a, b) => a.price - b.price)[0];
   assert.ok(best.price >= 600 && best.price <= 1500);
   assert.match(best.url, /amazon\.com|bestbuy\.com|walmart\.com/);
+});
+
+test('BUY-81155 US laptop results exclude datablitz.com.ph PHP rows', () => {
+  assert.equal(inferHostCountry('https://www.datablitz.com.ph/products/hp-victus-15-fa2728tx'), 'PH');
+  assert.equal(hostMatches('https://www.datablitz.com.ph/products/hp-victus-15-fa2728tx', 'US'), false);
+
+  const rows = [
+    { title: 'HP Victus 15-FA2728TX Gaming Laptop', price: 45950, url: 'https://www.datablitz.com.ph/products/hp-victus-15-fa2728tx' },
+    { title: 'HP Victus 15-FB3131AX Gaming Laptop', price: 44995, url: 'https://datablitz.com.ph/products/hp-victus-15-fb3131ax' },
+    { title: 'HP Victus 15 Gaming Laptop', price: 749, url: 'https://www.bestbuy.com/site/hp-victus-15-gaming-laptop' },
+    { title: 'HP Victus 15 Laptop', price: 699, url: 'https://www.walmart.com/ip/hp-victus-15-laptop' },
+    { title: 'HP Victus Gaming Laptop', price: 799, url: 'https://www.amazon.com/dp/hp-victus-15' },
+  ];
+
+  const out = applyGuard(rows, 'US', 'laptop');
+  assert.ok(out.every((r) => !String(r.url).includes('datablitz.com.ph')));
+  assert.ok(out.every((r) => r.price < 15000));
+  assert.match(out.map((r) => r.url).join('\n'), /amazon\.com|bestbuy\.com|walmart\.com/);
+});
+
+test('BUY-84617 US laptop results exclude mislabeled Egyptian placeholder rows', () => {
+  assert.equal(inferHostCountry('https://compumarts.com/products/gaming-laptop'), 'EG');
+
+  const rows = [
+    { title: 'Gaming Laptop', price: 1, url: 'https://compumarts.com/products/gaming-laptop' },
+    { title: 'Gaming Laptop Deal', price: null, url: 'https://www.compumarts.com/products/gaming-laptop-deal' },
+    { title: 'HP Victus Gaming Laptop', price: 799, url: 'https://www.bestbuy.com/site/hp-victus-gaming-laptop' },
+  ];
+
+  const out = applyGuard(rows, 'US', 'laptop');
+  assert.deepEqual(out, [rows[2]]);
 });
