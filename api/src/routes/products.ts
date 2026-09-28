@@ -421,15 +421,25 @@ async function tryTierSearch(
   // Filter out known foreign TLDs when searching US to keep only US merchants.
   let merchantCountryFilter = '';
   if (p.countryCode === 'US') {
+    // BUY-84617: never fall back to mistagged/NULL country rows for US search.
+    conds.push("sp.country_code = 'US'");
+    // BUY-84617: compumarts.com is an Egyptian storefront stored under a bare
+    // .com domain and bulk-mislabeled US. Its visible rows also use $1
+    // placeholders, so exclude that merchant and unusable placeholder prices.
+    conds.push('sp.price > 1');
+    conds.push("sp.merchant_id NOT IN ('compumarts.com','www.compumarts.com')");
     // BUY-81155: exclude PH/IN (and other foreign) storefronts even when
     // products.country_code is NULL or mis-tagged US. Match both ccTLD and
-    // compound domains (datablitz.com.ph, boat-lifestyle.com via .co.in).
+    // compound domains (datablitz.com.ph, *.co.in). boat-lifestyle.com is an
+    // Indian (.co.in / boat-lifestyle) storefront stored as a bare .com domain,
+    // so the TLD ILIKEs do NOT catch it — denylist it explicitly.
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
       sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.sa' AND sp.merchant_id NOT ILIKE '%.ae'
       AND sp.merchant_id NOT ILIKE '%.in' AND sp.merchant_id NOT ILIKE '%.ph' AND sp.merchant_id NOT ILIKE '%.my' AND sp.merchant_id NOT ILIKE '%.th'
       AND sp.merchant_id NOT ILIKE '%.id' AND sp.merchant_id NOT ILIKE '%.sg' AND sp.merchant_id NOT ILIKE '%.vn' AND sp.merchant_id NOT ILIKE '%.np'
       AND sp.merchant_id NOT ILIKE '%.pk' AND sp.merchant_id NOT ILIKE '%.bd' AND sp.merchant_id NOT ILIKE '%.lk'
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
+      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','compumarts.com','www.compumarts.com')
     ))`;
   } else if (p.countryCode === 'SG') {
     // Exclude foreign TLDs from SG search
@@ -1426,9 +1436,11 @@ router.get(
       baseParams.push(countryCode);
       baseIdx++;
       if (countryCode === 'US') {
+        baseConditions.push('(price IS NULL OR price > 1)');
         baseConditions.push(`(merchant_id IS NULL OR (
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
           AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','compumarts.com','www.compumarts.com')
         ))`);
       }
     }
