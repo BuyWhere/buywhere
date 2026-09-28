@@ -74,7 +74,7 @@ export default function Nav() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
         <Link href="/" className="mr-4 lg:mr-6 font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
           <span>BuyWhere</span>
         </Link>
