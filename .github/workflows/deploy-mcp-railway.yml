@@ -1,0 +1,123 @@
+# deploy-mcp-railway — deploys MCP service via Railway GraphQL with smoke tests.
+# Uses serviceInstanceDeployV2 so project-scoped Railway tokens work without the Railway CLI gate.
+name: Deploy MCP to Railway
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buywhere-mcp-railway-production
+  cancel-in-progress: false
+
+env:
+  RAILWAY_SERVICE_ID: 9090706e-9515-4b3f-aa72-865dd55dac55
+  RAILWAY_ENVIRONMENT_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+  MCP_URL: https://mcp.buywhere.ai
+
+jobs:
+  guard:
+    name: Verify main-only dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs (BUY-65234)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
+  deploy:
+    name: Deploy mcp-server to Railway
+    runs-on: ubuntu-latest
+    needs: [guard]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Railway deploy of this SHA
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Railway project tokens use Project-Access-Token header (not Authorization: Bearer)
+          echo "Token prefix: ${RAILWAY_TOKEN:0:10}..."
+          set -x
+          RESP=$(curl -sf "$GQL" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          set +x
+          echo "Response: $RESP"
+          DID=$(echo "$RESP" | python3 -c "import json,sys; resp=json.load(sys.stdin); errors=resp.get('errors') or []; deploy_id=(resp.get('data') or {}).get('serviceInstanceDeployV2'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; (print(deploy_id) if deploy_id else (print('::error::Railway serviceInstanceDeployV2 returned no deployment id', file=sys.stderr), sys.exit(1)))")
+          echo "deployment: $DID"
+          for i in $(seq 1 25); do
+            S=$(curl -sf "$GQL" -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "=== Smoke testing ${MCP_URL} ==="
+
+          ok=0
+          for i in $(seq 1 20); do
+            HTTP=$(curl -s -o /tmp/mcp_healthz.out -w "%{http_code}" --max-time 30 "${MCP_URL}/healthz" || echo "000")
+            echo "GET /healthz -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "ERROR: /healthz did not return 200 after deploy"
+            cat /tmp/mcp_healthz.out || true
+            exit 1
+          fi
+
+          plugin_ok=0
+          for i in $(seq 1 12); do
+            HTTP=$(curl -s -o /tmp/mcp_plugin.out -w "%{http_code}" --max-time 30 "${MCP_URL}/.well-known/ai-plugin.json" || echo "000")
+            echo "GET /.well-known/ai-plugin.json -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then
+              plugin_ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$plugin_ok" != "1" ]; then
+            echo "ERROR: /.well-known/ai-plugin.json did not return 200 after deploy"
+            cat /tmp/mcp_plugin.out || true
+            exit 1
+          fi
+
+          INIT=$(curl -sS -X POST "${MCP_URL}/mcp" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"gha-smoke","version":"1.0.0"}}}')
+          echo "$INIT" | jq '.'
+          if ! echo "$INIT" | jq -e '.result.protocolVersion == "2024-11-05" or .error == "missing_api_key"' >/dev/null; then
+            echo "ERROR: MCP initialize smoke test returned unexpected payload"
+            exit 1
+          fi
+
+  regression-guard:
+    name: MCP production regression guard
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run production regression guard
+        env:
+          MCP_ENDPOINT: ${{ env.MCP_URL }}
+          BUYWHERE_MCP_API_KEY: ${{ secrets.BUYWHERE_MCP_API_KEY }}
+        run: node scripts/run-mcp-production-regression-guard.mjs

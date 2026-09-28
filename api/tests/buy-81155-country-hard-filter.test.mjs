@@ -9,7 +9,10 @@ const productsSource = readFileSync(join(__dirname, '../src/routes/products.ts')
 
 describe('BUY-81155: US search must not leak foreign merchants', () => {
   it('hard-filters country_code and excludes PH/IN storefronts', () => {
-    assert.match(productsSource, /if \(countryCode\) \{\s*\/\/ Explicit country_code is a HARD filter[\s\S]*?baseConditions\.push\(`country_code = \$\$\{baseIdx\}`\)/);
+    assert.match(
+      productsSource,
+      /if \(countryCode\) \{\s*\/\/ Explicit country_code is a HARD filter[\s\S]*?baseConditions\.push\(`country_code = \$\$\{baseIdx\}`\)/,
+    );
     assert.doesNotMatch(productsSource, /country_code = \$\$\{baseIdx\} OR country_code IS NULL/);
     assert.match(productsSource, /datablitz\.com\.ph/);
     assert.match(productsSource, /boat-lifestyle\.com/);

@@ -37,29 +37,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
-  title: "BuyWhere — Compare products and prices across 950,000+ stores",
+  title: "BuyWhere — Compare products and prices across 900,000+ stores",
   description:
-    "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
+    "Compare products and prices across 900,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
-    title: "BuyWhere — Compare products and prices across 950,000+ stores",
+    title: "BuyWhere — Compare products and prices across 900,000+ stores",
     description:
-      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
+      "Compare products and prices across 900,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "BuyWhere — compare products and prices across 950,000+ stores",
+        alt: "BuyWhere — compare products and prices across 900,000+ stores",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BuyWhere — Compare products and prices across 950,000+ stores",
+    title: "BuyWhere — Compare products and prices across 900,000+ stores",
     description:
-      "Compare products and prices across 950,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
+      "Compare products and prices across 900,000+ retailers in Singapore and the United States. One search, server-rendered tables, and a REST + MCP API for builders.",
     images: ["/og-image.png"],
     creator: "@buywhere",
   },

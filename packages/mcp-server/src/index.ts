@@ -275,10 +275,6 @@ const TOOLS: Tool[] = [
           default: 20,
         },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
-        category: {
-          type: 'string',
-          description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty").',
-        },
       },
     },
   },

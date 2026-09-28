@@ -54,7 +54,7 @@ const V2_BUYER_TOOLS = new Set([
 const FAST_CHILD_TABLE_COUNTRIES = new Set(['SG','US','AU','GB','CA']);
 
 const router = Router();
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '3000', 10); // BUY-82929: 1s→3s to avoid fast pool exhaustion during sakura IO saturation
 // BUY-78767: MCP clients abort well before a 8–30s PG timeout. Bound catalog
 // tools to a wall-clock so tools/call always flushes JSON. PG timeout is kept
 // slightly under the wall so cancelled queries don't occupy the pool after we
@@ -165,7 +165,7 @@ function isolateRestSearchHits(
   const products = rows.map((r) => {
     const price = r.price;
     const flattened: Record<string, unknown> = { ...r };
-    let rowCurrency = extractRowCurrency(r);
+    let rowCurrency = '';
     if (price && typeof price === 'object' && !Array.isArray(price)) {
       const p = price as { amount?: unknown; currency?: unknown };
       flattened.price = p.amount;
@@ -184,7 +184,10 @@ function isolateRestSearchHits(
       if (cc && cc !== expectedCc) return false;
     }
     if (expectedCur) {
-      const cur = item.rowCurrency;
+      const fromProduct = extractRowCurrency(p);
+      const cur = item.rowCurrency || fromProduct;
+      // BUY-80652: unknown/empty currency on SG/MY Shopify is usually USD —
+      // do not keep it. Prefer empty over a foreign-currency leak.
       if (!cur || cur !== expectedCur) return false;
     }
     return true;
@@ -605,7 +608,6 @@ const TOOLS = [
         market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
-        category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty").' },
       },
     },
   },
@@ -765,7 +767,6 @@ const V2_TOOLS = [
         market: { type: 'string', description: 'Alias for country_code (deprecated, use country_code).' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
-        category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Beauty").' },
       },
     },
   },
@@ -870,7 +871,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // for get_deals (offer_aggregation) and find_best_price where it was actually useful.
 
   // BUY-79497: v8 busts pre-isolation Redis pages (SG USD Shopify / US SGD).
-  const cacheKey = `fts:v14:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v11:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1607,11 +1608,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // ("home_and_kitchen") still match real names like "home & kitchen".
   const category = (args.category as string || '').trim();
   const categoryLower = category.toLowerCase();
-  if (categoryLower) {
-    const like = '%' + categoryLower.replace(/[_-]+/g, '%') + '%';
-    params.push(like);
-    conditions.push(`(LOWER(COALESCE(category,'')) LIKE $${params.length} OR LOWER(COALESCE(array_to_string(category_path, ' '), '')) LIKE $${params.length})`);
-  }
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
@@ -1651,7 +1647,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               p.currency, p.image_url, NULL::jsonb AS metadata, p.updated_at, p.region, p.country_code,
               NULL::timestamptz AS url_last_checked_at, NULL::text AS url_status,
               p.discount_pct,
-              p.category, p.category_path
+              p.category, NULL::text[] AS category_path
        FROM ${dealsTable} p
        WHERE ${whereClause}
        ORDER BY p.discount_pct DESC, p.updated_at DESC

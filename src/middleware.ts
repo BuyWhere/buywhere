@@ -62,6 +62,11 @@ const AGENT_DISCOVERY_HEADERS: [string, string][] = [
   ["X-LLMs-Txt", "https://api.buywhere.ai/llms.txt"],
 ];
 
+function isHtmlRequest(request: NextRequest): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html") || accept.includes("application/xhtml+xml");
+}
+
 function applyBaselineSecurityHeaders(response: NextResponse): NextResponse {
   for (const [key, value] of BASELINE_SECURITY_HEADERS) {
     response.headers.set(key, value);
@@ -689,6 +694,28 @@ export async function middleware(request: NextRequest) {
     url.port = "";
     url.protocol = "https:";
     url.pathname = redirectPath;
+    return tagAgent(NextResponse.redirect(url, 301));
+  }
+
+  // BUY-84631: legacy/broken PDP links from search sometimes used a bare
+  // product slug at the root or `/product/{slug}`. Route those to a useful
+  // search page instead of the branded 404 until the user can select the
+  // canonical `/products/{country}/{slug}/{id}` PDP. The bare-root guard is
+  // intentionally limited to mixed/title-case slugs so lowercase SEO pages keep
+  // their existing routes.
+  const productSlugRedirect = /^\/product\/([^/?#]+)\/?$/.exec(pathname);
+  const bareProductSlugRedirect = /^\/(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z][A-Za-z0-9-]*\/?$/.exec(pathname);
+  if (productSlugRedirect || bareProductSlugRedirect) {
+    const slug = productSlugRedirect?.[1] ?? pathname.slice(1).replace(/\/$/, "");
+    const cleaned = decodeURIComponent(slug)
+      .toLowerCase()
+      .replace(/-[\da-f]{6,}$/i, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const query = cleaned.replace(/-/g, " ").trim() || cleaned;
+    const url = request.nextUrl.clone();
+    url.pathname = "/search";
+    url.search = new URLSearchParams({ q: query, country: "us" }).toString();
     return tagAgent(NextResponse.redirect(url, 301));
   }
 

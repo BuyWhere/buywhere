@@ -55,6 +55,15 @@ test("BUY-77121: bare allowlist slugs still match (no regression)", () => {
   assert.equal(isMerchantAllowedForCountry({ merchant: "amazon" }, "US"), true);
 });
 
+test("BUY-80149: levoit.sg / sterra.sg match SG allowlist", () => {
+  assert.equal(isMerchantAllowedForCountry({ merchant: "levoit" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "levoit_sg" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "levoit.sg" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "sterra" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "sterra_sg" }, "SG"), true);
+  assert.equal(isMerchantAllowedForCountry({ merchant: "sterra.sg" }, "SG"), true);
+});
+
 test("BUY-77121: non-allowlisted merchants still rejected", () => {
   assert.equal(
     isMerchantAllowedForCountry({ merchant: "compumarts.com" }, "US"),

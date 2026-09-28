@@ -14,6 +14,21 @@ import { __test__ } from "./SearchResultsClient";
 
 const { normalizeProduct } = __test__;
 
+test("BUY-84631: search cards link to canonical BuyWhere PDPs", () => {
+  const product = normalizeProduct(
+    {
+      id: "1",
+      title: "HP Victus 15 FA2728TX Gaming Laptop",
+      price: { amount: 899.99, currency: "USD" },
+      url: "/HP-Victus-15-FA2728TX-Gaming-Laptop",
+      click_url: "https://merchant.example/products/hp-victus",
+    },
+    "USD",
+  );
+
+  assert.equal(product.href, "/products/us/hp-victus-15-fa2728tx-gaming-laptop/1");
+});
+
 test("BUY-72907: URL-derived merchant overrides platform source", () => {
   // A Wellbots product that happens to be scraped via Shopify.
   // Should show "Wellbots" from the URL, not "Shopify" from source.

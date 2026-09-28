@@ -175,6 +175,248 @@ export function normalizeCategoryPath(row: Record<string, unknown>): string[] | 
   return null;
 }
 
+// BUY-75921 v5: normalize product titles to remove keyword-stuffed strings.
+// v4 (fc4116ccc): comma/pipe-segment filtering only. Failed because live catalog
+// titles have NO commas — single continuous strings like
+// "E6S Wireless Bluetooth Earphones TWS Bluetooth Headset Wireless Earbuds
+// Noise Cancelling Earphones with Microphone Headphones" pass through unchanged.
+// V5 adds single-segment trimming:
+//   - For single-segment titles: trim trailing generic appendages by accumulating
+//     words from the first meaningful/brandish anchor until a generic filler stops.
+//   - For multi-segment titles: also trim the head segment's trailing generic tail.
+//   - Brandish = capitalized word ≥2 chars not in the generic lexicon.
+//   - Stops trimming at the first generic filler after the brand cluster.
+//   - Prepositional tails ("for X, with Y") trigger a mid-segment cut.
+//   - Falls back to the original whenever the result would be degenerate.
+export function normalizeProductTitle(row: Record<string, unknown>): string {
+  const rawTitle = ((row.title as string) || '').replace(/\s+/g, ' ').trim();
+  if (rawTitle.length <= 40) return rawTitle;
+
+  const GENERIC_WORDS = new Set([
+    // earbud/headphone category
+    'earbuds', 'earphones', 'headphones', 'headset', 'buds', 'ear',
+    'wireless', 'bluetooth', 'tw', 'tws', 'true', 'in-ear', 'inear', 'in', 'on-ear', 'over-ear',
+    'anc', 'noise', 'cancelling', 'canceling', 'cancellation', 'active', 'enc',
+    'hi-fi', 'hifi', 'stereo', 'bass', 'deep', 'clear', 'calls', 'call', 'mic', 'mics',
+    'microphone', 'hd', 'sound', 'audio', 'sport', 'sports', 'running', 'workout', 'gym',
+    'waterproof', 'water', 'resistant', 'sweatproof', 'ipx7', 'ipx5', 'ipx6', 'ip68',
+    'playtime', 'battery', 'charging', 'case', 'led', 'display', 'digital',
+    // connectors/compat
+    '3.5mm', 'usb', 'usb-c', 'type-c', 'jack', 'aux', 'mp3', 'player', 'players',
+    'compatible', 'for', 'with', 'and', '&', 'the', 'of', 'pack',
+    // watch/laptop/speaker/phone generic
+    'smart', 'watch', 'fitness', 'tracker', 'laptop', 'notebook', 'computer', 'pc',
+    'speaker', 'speakers', 'portable', 'subwoofer', 'soundbar', 'phone', 'phones',
+    'charger', 'adapter', 'cable', 'cables', 'power', 'bank', 'fast',
+    // marketing fluff
+    'new', 'hot', 'sale', 'best', 'free', 'shipping', 'delivery', 'gift', 'original',
+    'genuine', 'quality', 'premium', 'high', 'pro', 'max', 'mini', 'plus', 'ultra',
+    // sizes/specs
+    'inch', 'mm', 'mah', 'hours', 'hrs', 'gb', 'tb', 'rgb',
+  ]);
+
+  const isGenericToken = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return GENERIC_WORDS.has(lo) ||
+      /^[\d.,:x\xd7*\-]+$/.test(w) ||
+      /^ipx?\d/i.test(w) ||
+      /^\d+(\.\d+)?(mm|cm|inch|in|gb|tb|mah|w|v|hz)$/i.test(w);
+  };
+
+  // Capitalized word, >= 2 chars, not in generic list — carries product identity.
+  // The 2-char minimum (not 3) allows "HP" and "LG" as valid brand tokens.
+  const isBrandish = (w: string): boolean => {
+    const lo = w.toLowerCase();
+    return w.length >= 2 && /^[A-Z]/.test(w) && /^[a-z]/i.test(w) && !GENERIC_WORDS.has(lo);
+  };
+
+  // Alphanumeric model number: e.g. E6S, TOZO-T10, M110, QCY-HT05.
+  const isModelToken = (w: string): boolean =>
+    /^[A-Z][A-Z0-9]{1,}[0-9][A-Za-z0-9]*$/.test(w) || /^[A-Z]{2,}[0-9]/.test(w);
+
+  // Non-generic, non-numeric word with real content.
+  const isMeaningful = (w: string): boolean => {
+    if (isModelToken(w)) return true;
+    const lo = w.toLowerCase();
+    if (GENERIC_WORDS.has(lo)) return false;
+    if (/^[\d.,:x\xd7*\-]+$/.test(w)) return false;
+    return /^[a-z]/i.test(w) && w.length >= 3;
+  };
+
+  // Trims trailing generic-word appendages from a single-segment title string.
+  // Finds the first meaningful/brandish/model anchor, then accumulates words
+  // forward (including adjacent brandish words and connectors) until the first
+  // generic filler word stops the accumulation. This keeps brand clusters like
+  // "BOWERS & WILKINS" and "WH-1000XM5" intact.
+  const trimTrailingGeneric = (segment: string): string => {
+    const words = segment.split(/\s+/);
+    if (words.length <= 2) return segment;
+
+    // Find the first anchor: model token > meaningful word.
+    let anchorIdx = -1;
+    for (let i = 0; i < words.length; i++) {
+      if (isModelToken(words[i])) { anchorIdx = i; break; }
+    }
+    if (anchorIdx < 0) {
+      for (let i = 0; i < words.length; i++) {
+        if (isMeaningful(words[i])) { anchorIdx = i; break; }
+      }
+    }
+    if (anchorIdx < 0) return segment;
+
+    // Accumulate from anchor forward: keep all brandish words and connectors,
+    // stop ONLY at the first generic filler. This keeps "BOWERS & WILKINS Pi8"
+    // together and "Sony WH-1000XM5" together.
+    const kept: string[] = [];
+    for (let i = anchorIdx; i < words.length; i++) {
+      const w = words[i];
+      if (isGenericToken(w)) break; // first generic filler stops accumulation
+      kept.push(w);
+    }
+    if (kept.length === 0) return segment;
+    const result = kept.join(' ');
+    return result.length < 12 ? segment : result;
+  };
+
+  // Truncate at the first " for " or " with " (mid-segment prepositional tail).
+  const cutPrepTail = (text: string): string => {
+    const m = text.match(/\s+(?:for|with)\s+/i);
+    if (m && m.index && m.index > 0) return text.slice(0, m.index).trim();
+    return text;
+  };
+
+  const segments = rawTitle.split(/\s*[,|]\s*/).filter(Boolean);
+
+  if (segments.length < 2) {
+    // BUY-75921 v7: hard 50-char cap for single-segment titles.
+    // Even after forward + backward trim, spec-dump titles like
+    // "HP Omnibook 5 AI Laptop 16 inch 2K WUXGA 16GB RAM 512GB SSD Win 11 Home"
+    // (71 chars, no comma to split) return unchanged because trimTrailingGeneric
+    // walks forward from the first anchor and stops at "Laptop" (generic), keeping
+    // only ~21 chars — and backward trim finds no trailing generics either.
+    // Both trims return the same ~21-char result; the function picks it and returns
+    // it unchanged.
+    // Fix: when single-segment title > 50 chars, force a backward scan that drops
+    // words from the END until the prefix is ≤50 chars. Catches laptop spec-dumps
+    // AND any earbud strings that slip through forward+backward trim.
+    if (rawTitle.length > 50) {
+      const words = rawTitle.split(/\s+/);
+      let endIdx = words.length;
+      let dropped = 0;
+      while (endIdx > 0 && dropped < 20 && words.slice(0, endIdx).join(' ').length > 50) {
+        endIdx--;
+        dropped++;
+      }
+      if (dropped > 0) {
+        const capped = words.slice(0, endIdx).join(' ');
+        if (capped.length >= 12) return capped;
+      }
+    }
+    // Single segment: try forward trim first (anchor + accumulate forward).
+    const trimmed = trimTrailingGeneric(rawTitle);
+    // BUY-75921 v6: also try backward trim if forward trim didn't reduce the
+    // title. Walks backward dropping generic-only words until a non-generic
+    // word stops it. Catches "BUSFUIVA Beats Studio ... PA-BT05 Wireless
+    // Headset" → drop "Wireless Headset" from the end. Capped at 8 drops.
+    // First strips trailing parenthetical (color/condition) like "(Red)".
+    const backTrim = (() => {
+      let base = rawTitle.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      if (base.length < 12) base = rawTitle;
+      const words = base.split(/\s+/);
+      if (words.length <= 4) return base;
+      let endIdx = words.length;
+      let dropped = 0;
+      while (endIdx > 0 && dropped < 8) {
+        const w = words[endIdx - 1];
+        if (!isGenericToken(w)) break;
+        endIdx--;
+        dropped++;
+      }
+      if (endIdx === words.length || endIdx === 0) return base;
+      const r = words.slice(0, endIdx).join(' ');
+      return r.length < 12 ? base : r;
+    })();
+    // Pick the shortest reasonable result. Guard against degenerate outputs.
+    const candidates = [trimmed, backTrim].filter(t => t.length >= 12 && t.length <= rawTitle.length);
+    if (candidates.length === 0) return rawTitle;
+    return candidates.reduce((a, b) => (a.length <= b.length ? a : b));
+  }
+
+  // BUY-75921 v8: keep ONLY the first comma/pipe segment. Trailing segments are
+  // marketplace keyword stuffing — "5 Year Warranty, Noise Isolation, Samsung, Kids…",
+  // "32 Preset EQs via APP". Brand + core model live in the head; trim it and return.
+  const polish = (text: string): string => {
+    let out = cutPrepTail(text);
+    const trimmed = trimTrailingGeneric(out);
+    if (trimmed.length >= 12 && trimmed.length <= out.length) out = trimmed;
+    out = out
+      .replace(/\s*[)\]}]+$/, '')
+      .replace(/[\s,;:\-|/]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (out.length > 55) {
+      const words = out.split(/\s+/);
+      let endIdx = words.length;
+      while (endIdx > 1 && words.slice(0, endIdx).join(' ').length > 55) endIdx--;
+      const capped = words.slice(0, endIdx).join(' ');
+      if (capped.length >= 12) out = capped;
+    }
+    return out.length >= 12 ? out : text;
+  };
+
+  return polish(segments[0]);
+}
+
+// bwbench-20260925155316 finding 3: ingest lanes and platform buckets leaked as the
+// buyer-visible merchant ("shopify_buy30620_crate", "shopify", "google_shopping"),
+// which the external observer rightly scores as an internal/fixture merchant. The
+// store is the URL host; show that instead. The raw `source` column is untouched.
+const GENERIC_MERCHANT_RE = /^(shopify|woocommerce|google_shopping|gs_commoncrawl_discovery|cc-shopify-discover|shopify_(?:buy\d+|unharvested|stock_wave|stock|hunt|crate|scout)[a-z0-9_]*|stock_wave_[a-z0-9_]+|github_[a-z0-9_]+)$/i;
+export function isGenericMerchant(value: string | null | undefined): boolean {
+  return !!value && GENERIC_MERCHANT_RE.test(value.trim());
+}
+export function merchantHostFromUrl(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+export function displayMerchant(raw: string, url: unknown): string {
+  if (!isGenericMerchant(raw)) return raw;
+  return merchantHostFromUrl(url) ?? raw;
+}
+
+// bwbench-20260925155316 finding 3: a page of Dyson Airwrap results carried 42,000,
+// 36,900 and 1.99 "USD" rows next to 2,300-2,700 ones — Shopify products.json has no
+// currency and the drain defaulted to USD. Until provenance is fixed at ingest, keep
+// such rows off the page: quarantine prices further than 20x below or 8x above the
+// page median, only when the page has at least 5 priced rows and no more than half
+// would be removed (a bimodal page is left alone rather than guessed at).
+export function quarantinePriceOutliers<T extends { price?: { amount?: unknown } | null }>(
+  items: T[],
+  opts: { minN?: number; lowDiv?: number; highMul?: number } = {},
+): { kept: T[]; removed: number } {
+  const minN = opts.minN ?? 5, lowDiv = opts.lowDiv ?? 20, highMul = opts.highMul ?? 8;
+  const amts = items
+    .map((it) => Number(it.price?.amount))
+    .filter((a) => Number.isFinite(a) && a > 0)
+    .sort((a, b) => a - b);
+  if (amts.length < minN) return { kept: items, removed: 0 };
+  const mid = amts.length >> 1;
+  const median = amts.length % 2 ? amts[mid] : (amts[mid - 1] + amts[mid]) / 2;
+  if (!(median > 0)) return { kept: items, removed: 0 };
+  const isOutlier = (it: T) => {
+    const a = Number(it.price?.amount);
+    return Number.isFinite(a) && a > 0 && (a < median / lowDiv || a > median * highMul);
+  };
+  const removed = items.filter(isOutlier).length;
+  if (removed === 0 || removed * 2 > items.length) return { kept: items, removed: 0 };
+  return { kept: items.filter((it) => !isOutlier(it)), removed };
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -229,7 +471,8 @@ export function buildProduct(
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
-  const merchant = (row.domain as string) || '';
+  const merchantRaw = (row.domain as string) || '';
+  const merchant = displayMerchant(merchantRaw, row.url);
   const isAmazonMerchant = merchant.toLowerCase().includes('amazon');
 
   // BUY-67318: hide all buy-side fields when the probe worker has confirmed
@@ -265,7 +508,8 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
-  const title = row.title as string;
+  // BUY-75921: apply title normalization to strip keyword-stuffing
+  const title = normalizeProductTitle(row);
   const categoryPath = normalizeCategoryPath(row);
   const base: CanonicalProduct = {
     id: productId,
@@ -295,7 +539,7 @@ export function buildProduct(
     merchant_name: (() => {
       const mid = (row.merchant_id as string) || '';
       const entry = mid && merchantMap ? merchantMap[mid] : undefined;
-      return entry?.name ?? null;
+      return entry?.name ?? (isGenericMerchant(merchantRaw) ? merchantHostFromUrl(row.url) : null);
     })(),
     merchant_slug: (() => {
       const mid = (row.merchant_id as string) || '';
@@ -540,9 +784,13 @@ export function deriveEmptiness(signals: EmptinessSignals): {
   // BUY-74597: timeout / auth failure / circuit open / upstream exception take
   // precedence over other empty-result heuristics. They always return
   // status=degraded, confidence=low, and a stage diagnostic.
+  // BUY-79931: timeout is degraded_kind only. P2.6 emptiness_reason enum
+  // is locked (no_data|no_match|api_error|quota|region_unsupported|
+  // category_unsupported|deliver_to_missing|invalid_deliver_to). Timeouts
+  // and infra failures map to api_error so REST and MCP share a class.
   if (signals.degradedKind === 'timeout' || signals.degradedKind === 'partial_timeout') {
     return {
-      emptiness_reason: signals.degradedKind,
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'degraded',
@@ -552,12 +800,12 @@ export function deriveEmptiness(signals: EmptinessSignals): {
         timed_out_stage: signals.timedOutStage ?? null,
         ...baseDiag,
       },
-      degraded_kind: signals.degradedKind,
+      degraded_kind: signals.degradedKind === 'partial_timeout' ? 'partial_timeout' : 'timeout',
     };
   }
   if (signals.degradedKind === 'auth_failure') {
     return {
-      emptiness_reason: 'auth_failure',
+      emptiness_reason: 'api_error',
       confidence: 'low',
       diagnostic: {
         engine_status: 'error',

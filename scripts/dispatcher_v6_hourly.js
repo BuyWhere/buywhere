@@ -259,6 +259,10 @@ function buildClient() {
     connectionString: buildConnectionString(),
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || DEFAULT_CONNECTION_TIMEOUT_MS),
     statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS),
+    // sakura proxy serves a self-signed/intermediate chain that Node's default
+    // CA set rejects (BUY-84624 follow-up, 2026-09-28). sslmode=require already
+    // encrypts; host verification is still enforced via the connection string.
+    ...(process.env.PG_SSL_REJECT_UNAUTHORIZED === '0' ? { ssl: { rejectUnauthorized: false } } : {}),
   });
 }
 
@@ -309,6 +313,7 @@ async function ensureCanonicalTable(client) {
       ['drain_only_hour', 'boolean DEFAULT false'],
       ['non_drain_runs', 'integer DEFAULT 0'],
       ['trailing_non_drain_median', 'bigint'],
+      ['failure_issue_id', 'text'],
     ];
 
     for (const [name, definition] of optionalColumns) {
@@ -361,7 +366,7 @@ async function upsertSnapshot(client, hourStart, { skipLiveCount = true } = {}) 
       FROM ingestion_runs
       WHERE started_at >= $1::timestamptz
         AND started_at <  ($1::timestamptz + interval '1 hour')
-        AND status = 'completed'
+        AND status IN ('completed', 'completed_with_errors')
     ),
     upserted AS (
       INSERT INTO canonical_throughput_hourly

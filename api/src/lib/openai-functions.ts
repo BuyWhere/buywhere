@@ -120,10 +120,6 @@ export const BUYWHERE_FUNCTIONS = [
             default: 'SGD',
             description: 'Currency for price display',
           },
-          category: {
-            type: 'string',
-            description: 'Filter by product category name or slug (e.g. "electronics", "fashion")',
-          },
           limit: {
             type: 'integer',
             default: 20,

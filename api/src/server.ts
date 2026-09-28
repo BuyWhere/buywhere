@@ -38,6 +38,7 @@ import { latencyMiddleware } from './monitoring/middleware';
 import { histogramLatencyMiddleware } from './middleware/latency';
 import { agentHeadersMiddleware } from './middleware/agentHeaders';
 import adminUptimeRouter from './routes/admin/uptime';
+import { getCatalogHealth, overallStatus } from './lib/catalogHealth';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
 import adminProbesRouter from './routes/admin/probes';
@@ -117,9 +118,16 @@ export function createApp() {
   app.use(histogramLatencyMiddleware);
 
   // Health check - fast in-process check as required by BUY-3280
+  // 2026-09-25: liveness surfaces now carry the cached catalog verdict (lib/catalogHealth).
+  // HTTP stays 200 here (process IS alive; Railway/Knative must not restart-loop the API
+  // because the database is down). Monitors that want a failing status code for a dead
+  // catalog use /health/catalog below.
   app.get('/health', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
     res.json({
-      status: 'ok',
+      status: overallStatus(),
+      process: 'ok',
+      catalog: getCatalogHealth(),
       ts: new Date().toISOString(),
       // "which code is actually running" must be a GET, not an assumption. Railway
       // injects RAILWAY_GIT_COMMIT_SHA at build; absent (local dev) it says so
@@ -155,7 +163,9 @@ export function createApp() {
   // /api/health — alias for monitors still using the v3 path (BUY-20969)
   app.get('/api/health', (_req, res) => {
     res.json({
-      status: 'ok',
+      status: overallStatus(),
+      process: 'ok',
+      catalog: getCatalogHealth(),
       ts: new Date().toISOString(),
       fix: 'BUY-18176-v5',
     });
@@ -165,7 +175,9 @@ export function createApp() {
   // need a public process-liveness surface, not the auth-gated reporting routes.
   app.get('/api/monitoring/health', (_req, res) => {
     res.json({
-      status: 'ok',
+      status: overallStatus(),
+      process: 'ok',
+      catalog: getCatalogHealth(),
       ts: new Date().toISOString(),
       fix: 'BUY-47470-v1',
     });
@@ -176,10 +188,21 @@ export function createApp() {
   // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.
   app.get('/healthz', (_req, res) => {
     res.json({
-      status: 'ok',
+      status: overallStatus(),
+      process: 'ok',
+      catalog: getCatalogHealth(),
       ts: new Date().toISOString(),
     });
   });
+  // /health/catalog — for external monitors: 200 only while the catalog answers
+  // and the search tier has rows; 503 when the catalog is down; 200+degraded
+  // when only the tier is empty (search still serves from the archive).
+  app.get('/health/catalog', (_req, res) => {
+    const c = getCatalogHealth();
+    res.set('Cache-Control', 'no-store');
+    res.status(c.status === 'down' ? 503 : 200).json({ status: c.status, catalog: c, ts: new Date().toISOString() });
+  });
+
   app.get('/health/redis', async (_req, res) => {
     try {
       const pong = await redis.ping();

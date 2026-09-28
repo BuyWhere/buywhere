@@ -39,7 +39,7 @@ export default function AgentMarketingBlock({
             </h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               BuyWhere is a product catalog API and MCP server for AI agents. One
-              endpoint, one schema, 950,000+ merchants in the US and Singapore.
+              endpoint, one schema, 900,000+ merchants in the US and Singapore.
               Search and compare without scraping or per-merchant integration.
             </p>
           </div>

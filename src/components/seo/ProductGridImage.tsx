@@ -108,8 +108,9 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(alt).slice(0, 26) || categoryText;
-  // BUY-66324: merchant string may need cleanup if it bypassed formatMerchantName upstream.
-  void stripMerchantTenantSuffix(merchant);
+  // BUY-66324: defensive cleanup in case a caller passes a raw merchant
+  // string that bypassed `formatMerchantName` upstream.
+  const cleanedMerchant = stripMerchantTenantSuffix(merchant);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-4 text-center">
@@ -143,18 +144,33 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
           </text>
         </svg>
       </div>
-      {/* BUY-80551: "Photo unavailable" copy removed — it's a trust leak. The brand
-          silhouette already communicates "no photo" visually. First-viewport cards
-          without real images are filtered out at the grid level instead. */}
+      <span className="mt-1 text-xs font-medium text-slate-500">Photo unavailable</span>
+      {(brand || cleanedMerchant) && (
+        <span className="text-[11px] text-slate-400">{brand || cleanedMerchant}</span>
+      )}
     </div>
   );
+}
+
+function isCatalogPhotoSrc(src?: string | null): boolean {
+  if (!src) return false;
+  if (src.startsWith("data:image/svg")) return false;
+  return src.startsWith("http") || src.startsWith("/api/image-proxy");
 }
 
 export function ProductGridImage({ src, alt, brand, merchant, category, className }: ProductGridImageProps) {
   const [hasError, setHasError] = useState(false);
 
-  if (hasError || !src) {
-    return <BrandedPlaceholder alt={alt} brand={brand} merchant={merchant} category={category} />;
+  // BUY-79843: never SSR the branded SVG wireframe into Live Catalog Snapshot.
+  // VidMee treats inline <svg> as an empty catalog even when titles/prices exist.
+  if (hasError || !isCatalogPhotoSrc(src)) {
+    return (
+      <div
+        className="flex h-full w-full items-center justify-center bg-slate-100"
+        data-missing-catalog-photo=""
+        aria-hidden="true"
+      />
+    );
   }
 
   // BUY-65158: Use a plain <img> (not next/image) so the SSR HTML shows the

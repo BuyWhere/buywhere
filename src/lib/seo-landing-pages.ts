@@ -11,6 +11,7 @@ import {
 import { loadIntentPageConfigs } from "@/lib/seo-intent-page-loader";
 import { apiBase, apiHeaders } from "@/lib/server-api";
 import { createHash } from "node:crypto";
+import { formatPriceForCurrency } from "./currency";
 
 const BASE_URL = "https://buywhere.ai";
 
@@ -325,11 +326,7 @@ export function resolveHeroTitle(
   if (prices.length === 0) return config.heroTitle;
 
   const floor = Math.min(...prices);
-  const formatted = new Intl.NumberFormat(config.currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency: config.currency,
-    maximumFractionDigits: 0,
-  }).format(floor);
+  const formatted = formatPriceForCurrency(floor, config.currency);
 
   return config.heroTitleTemplate.replace(/\{floorPrice\}/g, formatted);
 }
@@ -518,7 +515,9 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
   return {
     id: productId,
-    name: item.name || item.title || "Untitled product",
+    // BUY-83036: decode HTML entities (&#8243;, &#8217;, etc.) at ingestion
+    // boundary so every downstream consumer (cards, schema, SVG) gets clean text.
+    name: decodeEntities(item.name || item.title || "Untitled product"),
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: displayMerchant,
@@ -542,7 +541,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     href,
     // BUY-76340 / BUY-79241: ProductGridCard prefers affiliateUrl for /r/direct.
     affiliateUrl,
-    brand: item.brand || null,
+    brand: item.brand ? decodeEntities(item.brand) : null,
     category: item.category || null,
     updatedAt: item.updated_at || null,
     // BUY-72906: keep the upstream merchant/market country available for
@@ -754,7 +753,19 @@ function brandedProductPlaceholderSvg(
   name?: string | null,
   category?: string | null,
 ): string {
-  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  // Decode common HTML numeric entities (&#8243; = ″ double-prime/inch, &#8217; = right single quote, etc.)
+  // before stripping HTML-special chars. Covers entities the scraper ingests verbatim from upstream merchant pages.
+  const decodeEntities = (s: string) =>
+    s.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+     .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+     .replace(/&nbsp;/g, " ")
+     .replace(/&amp;/g, "&")
+     .replace(/&lt;/g, "<")
+     .replace(/&gt;/g, ">")
+     .replace(/&quot;/g, '"')
+     .replace(/&#39;/g, "'")
+     .replace(/&apos;/g, "'");
+  const clean = (s: string) => decodeEntities(s).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 36) || categoryText;
@@ -2080,6 +2091,22 @@ export function buildSeoLandingMetadata(
   };
 }
 
+// BUY-83036: decode HTML entities before rendering product names into JSON-LD.
+// Scraper ingests &#8243; etc. verbatim; decode at render time so schema markup
+// and page text are clean.
+function decodeEntities(s: string): string {
+  return String(s || "")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[], dateModifiedIso?: string) {
   const canonical = toSiteUrl(config.canonicalPath);
   // BUY-66320: resolve the same hero title the page renders so the JSON-LD
@@ -2131,18 +2158,18 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     return {
       "@type": "Product",
       "@id": `${canonical}#product-${reference.id}`,
-      name: reference.name,
+      name: decodeEntities(reference.name),
       brand: reference.brand
         ? {
             "@type": "Brand",
-            name: reference.brand,
+            name: decodeEntities(reference.brand),
           }
         : undefined,
       category: reference.category || undefined,
       ...(schemaProductImage(reference.imageUrl)
         ? { image: schemaProductImage(reference.imageUrl) }
         : {}),
-      description: `${reference.name} price comparison across ${group.length} ${
+      description: `${decodeEntities(reference.name)} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
       // BUY-69663: aggregateRating intentionally absent. The previous block
@@ -2160,7 +2187,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: p.merchant,
+                name: decodeEntities(p.merchant),
               })),
             }
           : {
@@ -2417,16 +2444,18 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
-    searchQuery: "laptop",
+    // BUY-77657 (2026-09-16): bare `q=laptop` against the SG partition now
+    // returns total=0 (keyword miss / accessory-demotion wipe). `q=MacBook`
+    // returns 24 SGD Apple.sg MacBook Pro rows in ~80ms. Lead with that
+    // recall query; keep brand-scoped backups that historically hit.
+    searchQuery: "MacBook",
     // BUY-77791: `category=laptops` on /api/products/search times out (10s
     // degraded) for the SG country filter because the planner can't use the
-    // partition key efficiently with that category_path value. The primary
-    // `q=laptop` call against the partition succeeds in ~3s and returns 11
-    // SGD-priced Amazon.sg laptops, 7 of which pass requiredProductTerms +
-    // minPrice. Leave searchCategory undefined so the live API call drops
-    // the category parameter and relies on the searchQuery + filters.
+    // partition key efficiently with that category_path value. Leave
+    // searchCategory undefined so the live API call drops the category
+    // parameter and relies on the searchQuery + filters.
     excludeAccessories: true,
-    backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
+    backupQueries: ["MacBook laptop", "MacBook Air", "MacBook Pro", "ASUS laptop", "Lenovo laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     compactCatalogCards: true,
@@ -13872,7 +13901,10 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     // page — drop the category parameter and rely on the searchQuery + filters
     // so the live call returns real US laptops instead of degrading into the
     // fallback set (the cached HTML currently shows the 5 fallback rows).
+    // BUY-77657: US `q=Laptop` over-indexes mounts/used junk; MacBook backups
+    // still return primary SKUs after accessory demotion.
     excludeAccessories: true,
+    backupQueries: ["MacBook", "MacBook Air", "MacBook Pro"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",
