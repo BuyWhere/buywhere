@@ -481,6 +481,9 @@ async function tryTierSearch(
   const cc = (p.countryCode || p.deliverTo || '').toUpperCase();
   let merchantCountryFilter = '';
   if (cc === 'US') {
+    if (p.countryCode === 'US') {
+      conds.push("sp.country_code = 'US'");
+    }
     // BUY-84617: Compumarts Egypt is a .com storefront bulk-mislabeled US with $1 placeholders.
     // Require a real price and denylist that merchant even on the US child partition.
     conds.push('sp.price > 1');
