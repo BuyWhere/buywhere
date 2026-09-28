@@ -259,6 +259,10 @@ function buildClient() {
     connectionString: buildConnectionString(),
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || DEFAULT_CONNECTION_TIMEOUT_MS),
     statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS),
+    // sakura proxy serves a self-signed/intermediate chain that Node's default
+    // CA set rejects (BUY-84624 follow-up, 2026-09-28). sslmode=require already
+    // encrypts; host verification is still enforced via the connection string.
+    ...(process.env.PG_SSL_REJECT_UNAUTHORIZED === '0' ? { ssl: { rejectUnauthorized: false } } : {}),
   });
 }
 
