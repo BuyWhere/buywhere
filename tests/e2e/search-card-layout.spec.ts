@@ -7,6 +7,8 @@ test.describe('Search result card layout', () => {
 
     const cards = page.getByTestId('search-product-card');
     await expect(cards.first()).toBeVisible();
+    // BUY-84619: inline FTC disclosure under the results header, near View Deal.
+    await expect(page.getByText(/may earn a commission/i).first()).toBeVisible();
 
     const visibleCardCount = Math.min(await cards.count(), 8);
     expect(visibleCardCount).toBeGreaterThanOrEqual(4);

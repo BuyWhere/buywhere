@@ -13,6 +13,7 @@ import WishlistButton from '@/components/WishlistButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 import { formatPriceWithDecimals } from '@/lib/currency';
+import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -1351,6 +1352,13 @@ export default function SearchResultsClient({
                 ? 'Searching...'
                 : `${total.toLocaleString()} results for “${debouncedQuery}”`}
             </span>
+            <div className="mt-1 font-normal">
+              <AffiliateDisclosure
+                region={activeCountry.apiValue === 'SG' ? 'SG' : 'US'}
+                variant="inline"
+                className="text-[11px] leading-4"
+              />
+            </div>
           </div>
         ) : null}
 
@@ -1582,6 +1590,13 @@ export default function SearchResultsClient({
                     ? `${total.toLocaleString()} results for “${debouncedQuery}”`
                     : `${initialQuery ? `Search results for “${initialQuery}”` : 'Search Products — BuyWhere'}`}
                 </h1>
+                {/* BUY-84619: FTC affiliate disclosure next to SERP View Deal CTAs */}
+                <p className="mt-2">
+                  <AffiliateDisclosure
+                    region={activeCountry.apiValue === 'SG' ? 'SG' : 'US'}
+                    variant="inline"
+                  />
+                </p>
               </div>
 
               {/* BUY-69622: Only render loading indicator after hydration to avoid
