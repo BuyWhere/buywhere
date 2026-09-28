@@ -61,7 +61,7 @@ const TIER_STATEMENT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.SEARCH_TIE
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v33-buy84240'; // v33: BUY-84240 — SELECT merchant_id in tier search so merchant_name resolves; evict v32 entries cached with merchant_name=null. (v32: BUY-81461 no-store; v25 base + v28-v31 BUY-75921 title normalization bumps)
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v34-buy84617'; // v33: BUY-84240 — SELECT merchant_id in tier search so merchant_name resolves; evict v32 entries cached with merchant_name=null. (v32: BUY-81461 no-store; v25 base + v28-v31 BUY-75921 title normalization bumps)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
