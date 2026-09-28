@@ -1826,8 +1826,8 @@ router.get(
         baseConditions.push('(price IS NULL OR price > 1)');
         baseConditions.push(`(merchant_id IS NULL OR (
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
-      AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
-      AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph','compumarts.com','www.compumarts.com')
+          AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph','compumarts.com','www.compumarts.com')
         ))`);
       }
     }
