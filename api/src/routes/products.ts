@@ -500,7 +500,13 @@ async function tryTierSearch(
       -- BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
       -- BUY-81155 residual: IN storefronts stamped country_code=US / currency=USD
+      -- Shopify-prefixed merchant_ids (shopify_boat_lifestyle_com, shopify_products_json_boat_lifestyle_com)
+      -- do not match the exact domain denylist; substring-fence the storefront.
       AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','compumarts.com','www.compumarts.com')
+      AND sp.merchant_id NOT ILIKE '%boat-lifestyle.com%'
+      AND sp.merchant_id NOT ILIKE '%boat_lifestyle_com%'
+      AND sp.merchant_id NOT ILIKE '%datablitz.com.ph%'
+      AND sp.merchant_id NOT ILIKE '%datablitz_com_ph%'
     ))`;
   } else if (cc === 'SG') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
@@ -1827,6 +1833,10 @@ router.get(
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
           AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
           AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph','compumarts.com','www.compumarts.com')
+          AND merchant_id NOT ILIKE '%boat-lifestyle.com%'
+          AND merchant_id NOT ILIKE '%boat_lifestyle_com%'
+          AND merchant_id NOT ILIKE '%datablitz.com.ph%'
+          AND merchant_id NOT ILIKE '%datablitz_com_ph%'
         ))`);
       }
     }
