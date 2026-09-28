@@ -481,6 +481,10 @@ async function tryTierSearch(
   const cc = (p.countryCode || p.deliverTo || '').toUpperCase();
   let merchantCountryFilter = '';
   if (cc === 'US') {
+    // BUY-84617: Compumarts Egypt is a .com storefront bulk-mislabeled US with $1 placeholders.
+    // Require a real price and denylist that merchant even on the US child partition.
+    conds.push('sp.price > 1');
+    conds.push("sp.merchant_id NOT IN ('compumarts.com','www.compumarts.com')");
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
       sp.merchant_id NOT ILIKE '%.de' AND sp.merchant_id NOT ILIKE '%.de.%'
       AND sp.merchant_id NOT ILIKE '%.kw' AND sp.merchant_id NOT ILIKE '%.com.kw'
@@ -496,7 +500,7 @@ async function tryTierSearch(
       -- BUY-81155: compound PH/IN storefront domains (datablitz.com.ph, *.co.in)
       AND sp.merchant_id NOT ILIKE '%.com.ph' AND sp.merchant_id NOT ILIKE '%.co.in' AND sp.merchant_id NOT ILIKE '%.com.in'
       -- BUY-81155 residual: IN storefronts stamped country_code=US / currency=USD
-      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com')
+      AND sp.merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','compumarts.com','www.compumarts.com')
     ))`;
   } else if (cc === 'SG') {
     merchantCountryFilter = ` AND (sp.merchant_id IS NULL OR (
@@ -1818,10 +1822,11 @@ router.get(
       baseParams.push(countryCode);
       baseIdx++;
       if (countryCode === 'US') {
+        baseConditions.push('(price IS NULL OR price > 1)');
         baseConditions.push(`(merchant_id IS NULL OR (
           merchant_id NOT ILIKE '%.ph' AND merchant_id NOT ILIKE '%.com.ph'
           AND merchant_id NOT ILIKE '%.in' AND merchant_id NOT ILIKE '%.co.in' AND merchant_id NOT ILIKE '%.com.in'
-          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph')
+          AND merchant_id NOT IN ('boat-lifestyle.com','www.boat-lifestyle.com','datablitz.com.ph','www.datablitz.com.ph','compumarts.com','www.compumarts.com')
         ))`);
       }
     }
