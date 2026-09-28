@@ -116,6 +116,26 @@ function getCountryOption(value: CountryValue) {
   return COUNTRY_OPTIONS.find((option) => option.value === value) ?? COUNTRY_OPTIONS[0];
 }
 
+function slugifyProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+function resolveProductUrl(item: SearchApiItem, name: string, fallbackCurrency: string): string {
+  const id = String(item.id ?? '').trim();
+  const slug = slugifyProductName(name);
+  if (!id || !slug) return '#';
+
+  const country = fallbackCurrency.toUpperCase() === 'SGD' ? 'sg' : 'us';
+  return `/products/${country}/${slug}/${encodeURIComponent(id)}`;
+}
+
 // BUY-72907: Extract the actual retailer domain from product URLs.
 // Prior behavior: badges showed "Shopify" / "Google Shopping" for ALL products
 // from those platforms, even when the actual store was identifiable (e.g.
@@ -682,7 +702,10 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     scrapedVia,
     source: item.source ?? null,
     imageUrl,
-    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
+    // BUY-84631: search cards must link to BuyWhere PDPs, not bare catalog
+    // slugs from upstream item.url (e.g. /HP-Victus-...), because those routes
+    // 404 in production. The PDP renders the outbound CTA separately.
+    href: resolveProductUrl(item, name, fallbackCurrency),
     // BUY-67977: derive brand from the title when the API does not provide
     // one, so the meta slot renders a consistent brand line across all cards
     // in a grid row (rather than only the rare rows where the ingest lane
