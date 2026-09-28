@@ -94,13 +94,21 @@ function defaultQueryHandler(sql, params) {
   });
 }
 
+function defaultTierQueryHandler(sql, params) {
+  if (defaultQueryHandler(sql, params)) return defaultQueryHandler(sql, params);
+  if (typeof sql === 'string' && sql.includes('FROM products_partitioned_us sp')) {
+    return Promise.resolve({ rows: [makeProduct('tier-1', { title: 'Wireless Headphones', country_code: 'US', currency: 'USD' })] });
+  }
+  return Promise.resolve({ rows: [] });
+}
+
 function setupDefaultMocks() {
   queryMock.mock.resetCalls();
   vectorQueryMock.mock.resetCalls();
   embedQueryMock.mock.resetCalls();
   redisGetMock.mock.resetCalls();
   redisSetMock.mock.resetCalls();
-  queryMock.mock.mockImplementation(defaultQueryHandler);
+  queryMock.mock.mockImplementation(defaultTierQueryHandler);
   vectorQueryMock.mock.mockImplementation(() => Promise.resolve({ rows: [] }));
   embedQueryMock.mock.mockImplementation(() => Promise.resolve('[0.1,0.2,0.3]'));
   redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
@@ -256,14 +264,14 @@ describe('NL search queries — response correctness', () => {
     assert.equal(body.source, 'search_products_tier');
 
     const tierCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp')
     );
     assert.ok(tierCall, 'Expected tier query before archive fallback');
-    assert.ok(!tierCall.arguments[0].includes('sp.currency = $'), 'Currency is rank-only unless price filters are present');
-    // BUY-73321: PRICE_BANDS inserted warnLow (USD=0.5) and warnHigh (USD=15000)
-    // between countryCode and deliverTo. With country_code=US (no min/maxPrice),
-    // params are: [q, or, countryCode, warnLow, warnHigh, deliverTo, limit, offset].
-    assert.deepEqual(tierCall.arguments[1].slice(0, 7), ['wireless headphones', 'wireless | headphones', 'US', 0.5, 15000, 'US', 21]);
+    assert.ok(tierCall.arguments[0].includes("sp.country_code = 'US'"), 'Explicit US search must hard-filter the tier to US rows');
+    assert.ok(!tierCall.arguments[0].includes('sp.currency = $1'), 'Default USD remains an indexable market scope for US search');
+    // BUY-84617: the tier is child-table scoped, so it emits price isolation and
+    // currency scope instead of redundant country/price-band parameters.
+    assert.deepEqual(tierCall.arguments[1].slice(0, 3), ['wireless headphones', 'wireless | headphones', 168]);
   });
 
   it('falls back to archive search when requested tier returns no rows', async () => {
@@ -278,7 +286,7 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK') || sql.includes('SET LOCAL'))) {
         return Promise.resolve({ rows: [] });
       }
-      if (typeof sql === 'string' && sql.includes('FROM search_products sp')) {
+      if (typeof sql === 'string' && sql.includes('FROM products_partitioned_us sp')) {
         tierCalls += 1;
         return Promise.resolve({ rows: [] });
       }
@@ -984,7 +992,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
       );
       assert.equal(res.status, 200);
       const tierCalls = queryMock.mock.calls.filter(
-        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp')
       );
       assert.ok(tierCalls.length > 0, `expected tier query for "${q}"`);
       assert.ok(
@@ -1002,7 +1010,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
       );
       assert.equal(res.status, 200);
       const tierCalls = queryMock.mock.calls.filter(
-        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp')
       );
       assert.ok(tierCalls.length > 0);
       assert.ok(
@@ -1040,7 +1048,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
     );
     assert.equal(res.status, 200);
     const tierCalls = queryMock.mock.calls.filter(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp')
     );
     assert.ok(
       !tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
@@ -1220,7 +1228,7 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
       { headers: { Authorization: 'Bearer test-key' } },
     );
     const tierCalls = queryMock.mock.calls.filter(
-      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp'),
+      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp'),
     );
     assert.ok(tierCalls.length > 0, 'expected at least one tier query');
     assert.ok(
@@ -1237,7 +1245,7 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
       { headers: { Authorization: 'Bearer test-key' } },
     );
     const tierCalls = queryMock.mock.calls.filter(
-      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp'),
+      (c) => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products_partitioned_us sp'),
     );
     assert.ok(tierCalls.length > 0);
     assert.ok(
@@ -1261,4 +1269,3 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
     }
   });
 });
-
