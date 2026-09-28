@@ -697,6 +697,28 @@ export async function middleware(request: NextRequest) {
     return tagAgent(NextResponse.redirect(url, 301));
   }
 
+  // BUY-84631: legacy/broken PDP links from search sometimes used a bare
+  // product slug at the root or `/product/{slug}`. Route those to a useful
+  // search page instead of the branded 404 until the user can select the
+  // canonical `/products/{country}/{slug}/{id}` PDP. The bare-root guard is
+  // intentionally limited to mixed/title-case slugs so lowercase SEO pages keep
+  // their existing routes.
+  const productSlugRedirect = /^\/product\/([^/?#]+)\/?$/.exec(pathname);
+  const bareProductSlugRedirect = /^\/(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z][A-Za-z0-9-]*\/?$/.exec(pathname);
+  if (productSlugRedirect || bareProductSlugRedirect) {
+    const slug = productSlugRedirect?.[1] ?? pathname.slice(1).replace(/\/$/, "");
+    const cleaned = decodeURIComponent(slug)
+      .toLowerCase()
+      .replace(/-[\da-f]{6,}$/i, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const query = cleaned.replace(/-/g, " ").trim() || cleaned;
+    const url = request.nextUrl.clone();
+    url.pathname = "/search";
+    url.search = new URLSearchParams({ q: query, country: "us" }).toString();
+    return tagAgent(NextResponse.redirect(url, 301));
+  }
+
 // BUY-72180: /products/{1-7 digit numeric} hard-404 gate.
   // The [\d{8,}] redirect below only catches 8+ digit IDs. Shorter numeric segments
   // (e.g. /products/1, /products/50, /products/100, /products/250) fall through to
