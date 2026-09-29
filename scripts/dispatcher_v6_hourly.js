@@ -22,6 +22,8 @@ function loadPgClient() {
 const TARGET_INSERTS_PER_HOUR = 150_000;
 const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const DEFAULT_DB_RETRY_ATTEMPTS = 3;
+const DEFAULT_DB_RETRY_DELAY_MS = 1_000;
 const ROUNDHOUSE_HOST = 'roundhouse.proxy.rlwy.net';
 const SOURCE_V6 = 'v6';
 const CYCLE_MARKER_DIRS = [
@@ -264,6 +266,52 @@ function buildClient() {
     // encrypts; host verification is still enforced via the connection string.
     ...(process.env.PG_SSL_REJECT_UNAUTHORIZED === '0' ? { ssl: { rejectUnauthorized: false } } : {}),
   });
+}
+
+function isTransientDbError(error) {
+  const code = error?.code || error?.cause?.code;
+  if (['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EPIPE', '57P01', '57P02', '57P03'].includes(code)) {
+    return true;
+  }
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('connection terminated')
+    || message.includes('connection reset')
+    || message.includes('terminating connection')
+    || message.includes('timeout expired')
+    || message.includes('server closed the connection unexpectedly');
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function positiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+async function runDbAttempt(options, hourStart, target) {
+  const client = options.client || buildClient();
+  const ownsClient = !options.client;
+
+  try {
+    if (ownsClient) await client.connect();
+    await client.query(`SET statement_timeout = ${Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS)}`);
+    await ensureCanonicalTable(client);
+    await upsertSnapshot(client, hourStart, { skipLiveCount: options.skipLiveCount !== false });
+    const metrics = await computeDeltas(client, hourStart, target);
+    metrics.trailing_non_drain_median = await fetchTrailingNonDrainMedian(client, hourStart);
+    const cycleMarkers = collectCycleMarkerInserted(hourStart);
+    metrics.cycle_marker_inserted = cycleMarkers.inserted;
+    metrics.cycle_marker_cycles = cycleMarkers.cycles;
+    const decision = select_v6_throughput_signal(metrics, target);
+    assert_v6_forbidden_patterns(metrics, decision, target);
+    await recordDecision(client, hourStart, decision);
+
+    return { metrics, decision };
+  } finally {
+    if (ownsClient) await client.end().catch(() => {});
+  }
 }
 
 async function ensureCanonicalTable(client) {
@@ -537,30 +585,30 @@ function buildReport(metrics, decision, target = TARGET_INSERTS_PER_HOUR) {
 async function run(options = {}) {
   const hourStart = options.hourStart || completedHour();
   const target = options.target || TARGET_INSERTS_PER_HOUR;
-  const client = options.client || buildClient();
-  const ownsClient = !options.client;
+  const retryAttempts = options.client ? 1 : positiveInteger(process.env.PG_RETRY_ATTEMPTS, DEFAULT_DB_RETRY_ATTEMPTS);
+  const retryDelayMs = positiveInteger(process.env.PG_RETRY_DELAY_MS, DEFAULT_DB_RETRY_DELAY_MS);
 
-  try {
-    if (ownsClient) await client.connect();
-    await client.query(`SET statement_timeout = ${Number(process.env.PG_STATEMENT_TIMEOUT_MS || DEFAULT_STATEMENT_TIMEOUT_MS)}`);
-    await ensureCanonicalTable(client);
-    await upsertSnapshot(client, hourStart, { skipLiveCount: options.skipLiveCount !== false });
-    const metrics = await computeDeltas(client, hourStart, target);
-    metrics.trailing_non_drain_median = await fetchTrailingNonDrainMedian(client, hourStart);
-    const cycleMarkers = collectCycleMarkerInserted(hourStart);
-    metrics.cycle_marker_inserted = cycleMarkers.inserted;
-    metrics.cycle_marker_cycles = cycleMarkers.cycles;
-    const decision = select_v6_throughput_signal(metrics, target);
-    assert_v6_forbidden_patterns(metrics, decision, target);
-    await recordDecision(client, hourStart, decision);
-
-    // BUY-64988: run source_mix_freshness_check.js to stamp
-    // reconciliation_status / reconciliation_gap / reconciliation_reason.
+  let attemptResult;
+  for (let attempt = 1; attempt <= retryAttempts; attempt += 1) {
     try {
-      const freshnessScript = path.resolve(__dirname, 'source_mix_freshness_check.js');
-      if (!fs.existsSync(freshnessScript)) {
-        console.error('[freshness-check:skip] source_mix_freshness_check.js not present');
-      } else {
+      attemptResult = await runDbAttempt(options, hourStart, target);
+      break;
+    } catch (error) {
+      if (attempt >= retryAttempts || !isTransientDbError(error)) throw error;
+      console.error(`[db:retry] transient DB error on attempt ${attempt}/${retryAttempts}: ${error?.message || error}`);
+      await sleep(retryDelayMs * attempt);
+    }
+  }
+
+  const { metrics, decision } = attemptResult;
+
+  // BUY-64988: run source_mix_freshness_check.js to stamp
+  // reconciliation_status / reconciliation_gap / reconciliation_reason.
+  try {
+    const freshnessScript = path.resolve(__dirname, 'source_mix_freshness_check.js');
+    if (!fs.existsSync(freshnessScript)) {
+      console.error('[freshness-check:skip] source_mix_freshness_check.js not present');
+    } else {
       const execFileAsync = promisify(execFile);
       const hourISO = hourStart.toISOString();
       const { stdout, stderr } = await execFileAsync(process.execPath, [
@@ -583,23 +631,20 @@ async function run(options = {}) {
         const errLines = stderr.trim().split('\n');
         console.error('[freshness-check:err]', errLines.slice(0, 3).join('  '));
       }
-      }
-    } catch (freshnessErr) {
-      // Non-blocking guardrail: log but do not fail the dispatcher tick.
-      console.error('[freshness-check:fail]', freshnessErr?.message || freshnessErr);
     }
-
-    return {
-      hourStart: hourStart.toISOString(),
-      target,
-      metrics,
-      decision,
-      shouldFileFailureTicket: should_file_v6_failure_ticket(metrics, target),
-      report: buildReport(metrics, decision, target),
-    };
-  } finally {
-    if (ownsClient) await client.end().catch(() => {});
+  } catch (freshnessErr) {
+    // Non-blocking guardrail: log but do not fail the dispatcher tick.
+    console.error('[freshness-check:fail]', freshnessErr?.message || freshnessErr);
   }
+
+  return {
+    hourStart: hourStart.toISOString(),
+    target,
+    metrics,
+    decision,
+    shouldFileFailureTicket: should_file_v6_failure_ticket(metrics, target),
+    report: buildReport(metrics, decision, target),
+  };
 }
 
 function parseArgs(argv) {
