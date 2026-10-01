@@ -854,7 +854,7 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
-const LIST_DIVERSITY_FETCH = 20000;
+const LIST_DIVERSITY_FETCH = 400;
 const LIST_MERCHANT_CAP = 2;
 
 function listVariantDedupKey(row: Record<string, unknown>): string {
@@ -875,7 +875,7 @@ function applyListDiversity(rows: Record<string, unknown>[], limit: number, offs
     if (seenProducts.has(productKey)) continue;
     seenProducts.add(productKey);
 
-    const merchant = String(row.domain || row.merchant_id || '').toLowerCase();
+    const merchant = String(row.merchant_id || row.domain || '').toLowerCase();
     const merchantCount = merchantCounts.get(merchant) || 0;
     if (merchantCount < LIST_MERCHANT_CAP) {
       merchantCounts.set(merchant, merchantCount + 1);
@@ -934,7 +934,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v4:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v5:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
