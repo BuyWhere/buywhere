@@ -359,7 +359,7 @@ async function tryTierSearch(
   // child table (MCP already does this). search_products + country_code recheck
   // times out at 4s for head terms (phone/laptop) because idx_sp_fts_my/us are
   // INVALID and even idx_sp_fts_sg still expands a huge bitmap.
-  const ccUpper = (p.countryCode || '').toUpperCase();
+  const ccUpper = (p.countryCode || p.deliverTo || '').toUpperCase();
   const useChildTable = FAST_CHILD_TABLE_COUNTRIES.has(ccUpper);
   const ftsTable = useChildTable
     ? `products_partitioned_${ccUpper.toLowerCase()}`
