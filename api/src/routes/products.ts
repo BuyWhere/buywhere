@@ -1669,6 +1669,7 @@ router.get(
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
+      res.set('Cache-Control', 'no-store'); // BUY-81461: same poison prevention as HIT paths
       res.json(responseBody);
     };
 
