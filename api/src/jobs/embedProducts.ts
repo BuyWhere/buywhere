@@ -201,8 +201,35 @@ export async function runEmbedBatch(
 
   let candidates: Array<{ id: string; title: string; description: string | null; price: number | null; updated_at: Date }>;
 
-  if (countryCode) {
+  if (countryCode === 'ALL') {
+    // 2026-10-02: incremental sweep of the LIVE products table in bounded updated_at
+    // windows. Unbounded ORDER BY updated_at (per-country or global) times out on the
+    // 558M-row table; a 30-minute window on idx_products_updated_at returns in ~2s.
+    const WINDOW_MS = 30 * 60 * 1000;
+    const scanLimit = parseInt(process.env.EMBED_SCAN_LIMIT ?? String(Math.max(batchLimit * 10, 1000)), 10);
+    const from = watermark ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const to = new Date(Math.min(from.getTime() + WINDOW_MS, Date.now()));
+    const { rows } = await sourceDb.query<{
+      id: string; title: string; description: string | null; price: number | null; updated_at: Date;
+    }>(
+      `SELECT p.id, p.title, p.description, p.price, p.updated_at
+       FROM products p
+       WHERE p.updated_at > $1 AND p.updated_at <= $2
+         AND p.is_active = true
+         AND p.price > 0
+         AND p.in_stock IS DISTINCT FROM false
+       ORDER BY p.updated_at ASC
+       LIMIT $3`,
+      [from, to, scanLimit]
+    );
+    candidates = rows;
+    // Full window -> resume from the last row; partial window -> jump to the window end.
+    nextWatermark = rows.length >= scanLimit ? rows[rows.length - 1].updated_at : to;
+  } else if (countryCode) {
     // BUY-76503: partition-sweep path.
+    // 2026-10-02: reads the live `products` table (idx_products_updated_at), not the
+    // products_partitioned copies - those stopped receiving writes in Sep and have no
+    // updated_at index, so the ORDER BY timed out on every tick and nothing new was embedded.
     // Scan ONE country partition in updated_at ASC order, starting from watermark.
     // watermark NULL → no lower bound (full backfill from oldest row).
     //
@@ -223,7 +250,7 @@ export async function runEmbedBatch(
       id: string; title: string; description: string | null; price: number | null; updated_at: Date;
     }>(
       `SELECT p.id, p.title, p.description, p.price, p.updated_at
-       FROM products_partitioned p
+       FROM products p
        WHERE p.country_code = $1
          AND p.is_active = true
          AND p.price > 0

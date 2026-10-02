@@ -167,7 +167,21 @@ async function pickNextPartition(sourceDb: Pool, roundRobinIdx: number): Promise
 
 // --- Main tick ---
 
+class CapReached extends Error {}
 let roundRobinIdx = 0;
+// 2026-10-02: a failing tick used to retry the same partition every minute forever
+// (no provider spend - it failed before embedding - but no progress and constant DB load).
+let consecutiveFailures = 0;
+// Spend guard: cap provider calls per UTC day (EMBED_DAILY_CAP, default 100000 products).
+const DAILY_CAP = parseInt(process.env.EMBED_DAILY_CAP ?? '100000', 10);
+let embeddedToday = 0;
+let counterDay = new Date().toISOString().slice(0, 10);
+function resetDailyCounterIfNewDay(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== counterDay) { counterDay = today; embeddedToday = 0; }
+}
+const MAX_FAILURES_BEFORE_BACKOFF = 5;
+const BACKOFF_MS = 30 * 60 * 1000;
 
 async function tick(): Promise<void> {
   if (running) {
@@ -182,7 +196,15 @@ async function tick(): Promise<void> {
   try {
     // 1. Pick the next partition via round-robin, skipping stale-complete ones.
     //    Reads embed_watermark state — use PRIMARY (liveDb), not replica.
-    const partition = await pickNextPartition(liveDb, roundRobinIdx);
+    // 2026-10-02: per-country partitions read frozen products_partitioned copies and timed
+    // out; sweep the live table incrementally instead. Old helper kept for reference.
+    void pickNextPartition;
+    const partition: string | null = 'ALL';
+    resetDailyCounterIfNewDay();
+    if (embeddedToday >= DAILY_CAP) {
+      console.log(`[embed-runner] Daily cap reached (${embeddedToday}/${DAILY_CAP}); skipping until 00:00 UTC`);
+      throw new CapReached();
+    }
     if (!partition) {
       console.log('[embed-runner] All partitions are stale-complete; nothing to sweep this tick');
       // Reset all stale partitions so they get re-scanned tomorrow
@@ -227,8 +249,9 @@ async function tick(): Promise<void> {
         effectiveWatermark,
       );
 
+      embeddedToday += summary.processed;
       console.log(
-        `[embed-runner] ${partition} tick complete — ` +
+        `[embed-runner] ${partition} tick complete (today ${embeddedToday}/${DAILY_CAP}) — ` +
         `processed=${summary.processed} skipped=${summary.skipped} ` +
         `errors=${summary.errors} next_watermark=${summary.nextWatermark?.toISOString() ?? 'END'} ` +
         `duration=${(summary.duration_ms / 1000).toFixed(1)}s`
@@ -258,10 +281,20 @@ async function tick(): Promise<void> {
       const slotIdx = PARTITION_ORDER.indexOf(partition);
       roundRobinIdx = (slotIdx + 1) % PARTITION_ORDER.length;
     }
+    consecutiveFailures = 0;
   } catch (err) {
-    console.error('[embed-runner] Tick failed:', err);
+    if (err instanceof CapReached) { running = false; schedule(); return; }
+    consecutiveFailures++;
+    console.error(`[embed-runner] Tick failed (${consecutiveFailures} in a row):`, err);
+    // Move on to the next partition so one bad partition cannot stall every market.
+    roundRobinIdx = (roundRobinIdx + 1) % PARTITION_ORDER.length;
   } finally {
     running = false;
+  }
+  if (consecutiveFailures >= MAX_FAILURES_BEFORE_BACKOFF) {
+    console.error(`[embed-runner] ALERT: ${consecutiveFailures} consecutive failed ticks; backing off ${BACKOFF_MS / 60000} minutes`);
+    setTimeout(tick, BACKOFF_MS);
+    return;
   }
   schedule();
 }
