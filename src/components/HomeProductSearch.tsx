@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:gap-2 md:flex-row md:items-stretch md:gap-3">
+        <div className="flex flex-col gap-3 rounded-xl bg-white p-2 shadow-lg sm:gap-2 md:flex-row md:items-stretch md:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-lg border border-slate-200 bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="search-input w-full rounded-lg bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36 max-sm:order-1"
+            className="h-[58px] w-full shrink-0 rounded-lg bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 xl:w-36 max-sm:order-1"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
