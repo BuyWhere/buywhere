@@ -38,7 +38,7 @@ export default function NewsletterBanner() {
       aria-label="Newsletter signup"
       className="bg-indigo-50 border-t border-indigo-100"
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <form
           onSubmit={handleSubmit}
           className="flex flex-col sm:flex-row items-center gap-4"

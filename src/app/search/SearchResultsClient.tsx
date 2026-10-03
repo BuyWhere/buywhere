@@ -1006,7 +1006,10 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
         <div className="space-y-1.5">
           <h2
             // BUY-75930: break-words prevents mid-specifier truncation like "2.4GH..."
-            className="line-clamp-2 break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            // BUY-85015: reserve a two-line slot (text-base × leading-snug ≈ 1.375rem
+            // per line → 2.75rem) so 1-line titles don't collapse the block and
+            // leave uneven vertical gaps in the 4-col grid.
+            className="line-clamp-2 min-h-[2.75rem] break-words text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
             title={product.name}
             aria-label={product.name}
           >

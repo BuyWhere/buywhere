@@ -318,7 +318,7 @@ export default function HomePage() {
 
       {/* Live comparison examples — comparison-first per BUY-75315 */}
       <section role="region" aria-label="Live comparisons" className="bg-white py-16 border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">Live comparisons</h2>
             <p className="text-lg text-gray-600 leading-relaxed">
@@ -348,7 +348,7 @@ export default function HomePage() {
 
       {/* Prices second */}
       <section role="region" aria-label="Deals" className="bg-gray-50 py-16 border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">Today&rsquo;s prices</h2>
             <p className="text-lg text-gray-600 leading-relaxed">
@@ -385,7 +385,7 @@ export default function HomePage() {
 
       {/* API third — Developers link */}
       <section role="region" aria-label="API for developers" className="bg-gray-900 py-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-start gap-12">
             <div className="flex-1 text-white">
               <h2 className="text-2xl font-bold mb-4">For AI agents and developers</h2>
@@ -420,7 +420,7 @@ export default function HomePage() {
       {/* Trust strip */}
       <TrustLayer />
       <section role="region" aria-label="Content section" className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Who BuyWhere is for</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -450,7 +450,7 @@ export default function HomePage() {
 
       {/* How it works */}
       <section role="region" aria-label="Content section" className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">How BuyWhere works</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -478,7 +478,7 @@ export default function HomePage() {
 
       {/* Value props */}
       <section role="region" aria-label="Content section" className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Why developers use BuyWhere</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -504,7 +504,7 @@ export default function HomePage() {
 
        {/* Why now */}
        <section role="region" aria-label="Content section" className="py-20 bg-indigo-50">
-         <div className="max-w-6xl mx-auto px-4 sm:px-6">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="max-w-3xl mx-auto text-center">
              <h2 className="text-3xl font-bold text-gray-900 mb-6">Why AI shopping needs a neutral catalog layer</h2>
              <p className="text-gray-600 leading-relaxed mb-4">
@@ -525,7 +525,7 @@ export default function HomePage() {
 
        {/* FAQ */}
       <section role="region" aria-label="Content section" className="py-20 bg-white border-t border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">FAQ for agent builders</h2>
             <p className="text-lg text-gray-600">
@@ -545,7 +545,7 @@ export default function HomePage() {
 
       {/* Price comparisons hub — crawlable entry point into /compare cluster */}
       <section role="region" aria-label="Content section" className="py-16 bg-slate-50 border-t border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-3">Price comparison guides</h2>
             <p className="text-gray-600 leading-relaxed">

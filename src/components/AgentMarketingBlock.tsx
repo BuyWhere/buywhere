@@ -31,7 +31,7 @@ export default function AgentMarketingBlock({
       data-agent-marketing="true"
       className="bg-slate-900 text-slate-100 border-t border-slate-800"
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid gap-8 lg:grid-cols-3">
           <div>
             <h2 className="text-lg font-semibold text-white mb-3">
