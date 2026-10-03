@@ -23,6 +23,11 @@ export async function GET(
     headers.set(key, value);
   }
 
+  // BUY-77000/BUY-81471: force no-store on the upstream fetch so the Next.js
+  // Data Cache and any Railway hikari edge cannot replay a previously
+  // captured 0-byte body for a stale Accept-Encoding/Origin partition.
+  // /v1/products/search is per-request personalized; it must never be
+  // served from a Next.js layer cache.
   const response = await fetch(targetUrl.toString(), {
     method: request.method,
     headers,
@@ -30,10 +35,15 @@ export async function GET(
       request.method !== "GET" && request.method !== "HEAD"
         ? await request.arrayBuffer()
         : undefined,
+    cache: 'no-store',
   });
 
   const responseHeaders = new Headers(response.headers);
-  responseHeaders.delete("transfer-encoding");
+  // BUY-81471: strip any upstream Cache-Control so the buywhere.ai edge
+  // does not store a poisoned body for downstream requests with the
+  // same Accept-Encoding/Origin partition.
+  responseHeaders.set('Cache-Control', 'no-store');
+  responseHeaders.delete('transfer-encoding');
 
   return new Response(response.body, {
     status: response.status,
@@ -66,12 +76,16 @@ export async function HEAD(
   const response = await fetch(targetUrl.toString(), {
     method: "HEAD",
     headers,
+    cache: 'no-store',
   });
+
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.set('Cache-Control', 'no-store');
 
   return new Response(null, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers,
+    headers: responseHeaders,
   });
 }
 
@@ -100,9 +114,11 @@ export async function POST(
     method: "POST",
     headers,
     body: await request.arrayBuffer(),
+    cache: 'no-store',
   });
 
   const responseHeaders = new Headers(response.headers);
+  responseHeaders.set('Cache-Control', 'no-store');
   responseHeaders.delete("transfer-encoding");
 
   return new Response(response.body, {
