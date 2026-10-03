@@ -222,6 +222,9 @@ export const LAPTOP_ACCESSORY_SOFT_TOKENS = [
   // laptop-replacement keyboards; we only penalise laptop-style keyboards
   // when they appear alongside a wireless/bluetooth/foldable signal.
   'wireless keyboard', 'foldable keyboard', 'bluetooth keyboard',
+  // BUY-85012: jewelry + camera-rig holders leaked into q=laptop US.
+  'holder', 'holders', 'laptop holder',
+  'charm', 'charms', 'jewelry', 'jewellery', 'pendant', 'pendants',
 ] as const;
 
 // Postgres ARE regex alternation source. Each token is split on whitespace
