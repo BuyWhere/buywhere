@@ -374,10 +374,19 @@ const ACCESSORY_KEYWORDS = [
   'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
   'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
   'stand', 'stands', 'mat', 'mats', 'tablet',
+  // BUY-85012: jewelry/charms and camera-rig holders leak into q=laptop US
+  // because titles contain the word "laptop" without matching accessory
+  // tokens. Charmco gold charms and 9.Solutions laptop holders ranked in
+  // the above-fold 8.
+  'holder', 'holders',
+  'charm', 'charms', 'jewelry', 'jewellery', 'pendant', 'pendants',
+  'necklace', 'necklaces', 'bracelet', 'bracelets',
 ];
 
 function isAccessoryProduct(product: SearchCardProduct): boolean {
   const titleLower = product.name.toLowerCase();
+  const ALWAYS_ACCESSORY = /\b(charm|charms|jewelry|jewellery|pendant|pendants|necklace|necklaces|bracelet|bracelets)\b/i;
+  if (ALWAYS_ACCESSORY.test(titleLower) || ALWAYS_ACCESSORY.test((product.category || ''))) return true;
 
   // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
   // Strategy: products with accessory keywords are accessories UNLESS the title
@@ -490,6 +499,17 @@ function isCategoryMismatchedForDeviceQuery(query: string, product: SearchCardPr
   return false;
 }
 
+function isGenericDeviceTitle(product: SearchCardProduct, query: string): boolean {
+  const title = product.name.trim().toLowerCase();
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  // BUY-85012: unbranded listings titled exactly "Laptop" ranked #2 for
+  // q=laptop despite having no brand or specs.
+  if (title === q) return true;
+  if (q === 'laptop' && /^(a\s+)?laptops?$/.test(title)) return true;
+  return false;
+}
+
 function rankProduct(product: SearchCardProduct, query: string = ''): number {
   let score = 0;
   // Has usable image
@@ -502,6 +522,13 @@ function rankProduct(product: SearchCardProduct, query: string = ''): number {
   // A "Storage" SSD must not rank among the top "gaming laptop" results even
   // when the marketing title contains "for Gaming PC Gaming Laptop Desktop".
   if (query && isCategoryMismatchedForDeviceQuery(query, product)) score -= 500;
+  // BUY-85012: accessories that mention "laptop" still get the image/price
+  // boost and used to sit above-fold. For device-shaped queries, sink them
+  // the same way category mismatches are sunk.
+  if (query && /\b(laptops?|notebooks?|macbooks?)\b/i.test(query) && isAccessoryProduct(product)) {
+    score -= 500;
+  }
+  if (query && isGenericDeviceTitle(product, query)) score -= 200;
   return score;
 }
 
@@ -727,6 +754,7 @@ export const __test__ = {
   rankProduct,
   sortProductsByRelevance,
   isAccessoryProduct,
+  isGenericDeviceTitle,
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
   hasUsableProductImage,

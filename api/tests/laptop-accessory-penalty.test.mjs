@@ -44,6 +44,8 @@ test("LAPTOP_ACCESSORY_SOFT_TOKENS contains the QA-captured accessory categories
     display: ["portable monitor", "screen extender", "external display", "privacy screen"],
     cleaning: ["screen cleaner", "cleaning spray", "screen wipes"],
     keyboard: ["wireless keyboard", "foldable keyboard", "bluetooth keyboard"],
+    jewelry: ["charm", "charms", "jewelry", "pendant"],
+    holder: ["holder", "holders", "laptop holder"],
     mounts: ["mount", "mounts", "mounting"],
     keyring: ["key ring", "key rings", "keyring", "keyrings", "key-ring", "key-rings", "key chain", "keychain", "key-chain", "lanyard", "charm"],
   };
@@ -76,6 +78,8 @@ test("LAPTOP_ACCESSORY_PG_RE_SOURCE catches QA-captured accessories (regex synta
     "Geyes Foldable Bluetooth Keyboard Portable Folding Wireless Keyboard",
     "CARBONADO 30 L Backpack Gaming Backpack For Laptop",
     "Mesh Poofy Laptop Sleeve",
+    "Laptop Work From Home 14K Gold Charm",
+    "9.Solutions Laptop Holder",
     "RAM Mount Laptop Mount for Truck Cab",
     "Laptop Key Ring Keychain Lanyard",
     "Laptop - Key Ring",
