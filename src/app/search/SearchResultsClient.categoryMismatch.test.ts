@@ -33,6 +33,7 @@ const {
   isCategoryMismatchedForDeviceQuery,
   rankProduct,
   sortProductsByRelevance,
+  isGenericDeviceTitle,
 } = __test__;
 
 interface SearchCardProduct {
@@ -427,4 +428,48 @@ test("BUY-77675: short stems like 'mic' don't false-match unrelated titles", () 
   assert.equal(isAccessoryProduct(card("Microeconomics 101 Textbook", null)), false);
   assert.equal(isAccessoryProduct(card("Micro Machines Collectible Toy", null)), false);
   assert.equal(isAccessoryProduct(card("Mickey Mouse Clubhouse Toys Laptop Decal Sticker", null)), true);
+});
+
+
+test("BUY-85012: gold charm and laptop holder are accessories", () => {
+  assert.equal(
+    isAccessoryProduct(card("Laptop Work From Home 14K Gold Charm", "Jewelry")),
+    true,
+  );
+  assert.equal(
+    isAccessoryProduct(card("9.Solutions Laptop Holder", "Camera Accessories")),
+    true,
+  );
+});
+
+test("BUY-85012: generic title Laptop is flagged", () => {
+  assert.equal(isGenericDeviceTitle(card("Laptop", null), "laptop"), true);
+  assert.equal(isGenericDeviceTitle(card("Dell Inspiron 15.6\" Laptop", null), "laptop"), false);
+});
+
+test("BUY-85012: charm and holder rank below real laptops for q=laptop", () => {
+  const real = card("Dell Inspiron 15.6\" Laptop Intel i5 16GB 512GB SSD", "Laptops", {
+    imageUrl: "https://example.com/dell.jpg",
+    price: 899,
+    brand: "Dell",
+  });
+  const charm = card("Laptop Work From Home 14K Gold Charm", "Jewelry", {
+    imageUrl: "https://example.com/charm.jpg",
+    price: 95,
+    brand: "Charmco",
+  });
+  const holder = card("9.Solutions Laptop Holder", "Camera Accessories", {
+    imageUrl: "https://example.com/holder.jpg",
+    price: 95,
+  });
+  const generic = card("Laptop", null, {
+    imageUrl: "https://example.com/generic.jpg",
+    price: 300,
+    merchant: "Abumatul.Myshopify.Com",
+  });
+  const ranked = sortProductsByRelevance([charm, holder, generic, real], "laptop");
+  assert.equal(ranked[0].name, real.name);
+  assert.ok(rankProduct(real, "laptop") > rankProduct(charm, "laptop"));
+  assert.ok(rankProduct(real, "laptop") > rankProduct(holder, "laptop"));
+  assert.ok(rankProduct(real, "laptop") > rankProduct(generic, "laptop"));
 });
