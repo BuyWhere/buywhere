@@ -39,7 +39,7 @@ export function PopularComparisons({ variant = "hero" }: PopularComparisonsProps
   if (variant === "footer") {
     return (
       <section className="border-t border-gray-100 bg-white py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 mb-5">
             Popular comparisons
           </p>
@@ -64,7 +64,7 @@ export function PopularComparisons({ variant = "hero" }: PopularComparisonsProps
 
   return (
     <section className="bg-white py-16">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700 mb-2">
             Editor picks

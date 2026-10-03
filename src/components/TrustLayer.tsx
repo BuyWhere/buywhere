@@ -35,7 +35,7 @@ const trustIndicators = [
 export function TrustLayer() {
   return (
     <section className="pt-10 pb-16 bg-gray-50 border-t border-gray-100" aria-labelledby="trust-heading">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
             <h2 id="trust-heading" className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
