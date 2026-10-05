@@ -14,20 +14,15 @@
   "backupQueries": [
     "MacBook Air",
     "MacBook Pro",
-    "MacBook laptop",
-    "Windows laptop",
-    "student laptop"
+    "Apple MacBook",
+    "MacBook laptop"
   ],
   "minPrice": 300,
   "requiredProductTerms": [
-    "laptop",
-    "notebook",
     "macbook",
-    "zenbook",
-    "yoga",
-    "thinkpad",
-    "swift",
-    "vivobook"
+    "apple macbook",
+    "macbook air",
+    "macbook pro"
   ],
   "excludeAccessories": true,
   "refreshedLabel": "Updated August 30, 2026",
