@@ -110,7 +110,19 @@ export async function runFxRefresh(): Promise<FxRefreshResult> {
       return openErRates.get(target);
     };
 
-    for (const targetCurrency of TARGET_CURRENCIES) {
+    // 2026-10-02: refresh EVERY quote the providers return, not just TARGET_CURRENCIES.
+    // The loader only trusts rows fetched in the last 24h, so AUD/CAD/INR/HKD/... (loaded once
+    // on 07-31, never in this list) silently dropped out of price conversion.
+    if (!openErRates) {
+      try { openErRates = await fetchFromOpenErApi(BASE_CURRENCY); }
+      catch (err) { errors.push(`open.er-api fetch failed: ${toErrorMessage(err)}`); openErRates = new Map(); }
+    }
+    const allTargets = new Set<string>([
+      ...TARGET_CURRENCIES,
+      ...frankfurterRates.keys(),
+      ...(openErRates as Map<string, number>).keys(),
+    ]);
+    for (const targetCurrency of allTargets) {
       if (targetCurrency === BASE_CURRENCY) {
         await upsertRate(pool, {
           base_currency: BASE_CURRENCY,
