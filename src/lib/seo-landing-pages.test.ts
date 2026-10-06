@@ -1844,6 +1844,21 @@ test("BUY-78306 loader: JSON intent-page with non-empty fallbackProducts keeps J
   );
 });
 
+test("BUY-84239: /laptop-singapore MacBook query is gated to MacBook products", () => {
+  const config = seoLandingPages["laptop-singapore"];
+  assert.ok(config, "laptop-singapore config must exist");
+  assert.equal(config.searchQuery, "MacBook");
+  assert.deepEqual(
+    config.requiredProductTerms,
+    ["macbook", "apple macbook", "macbook air", "macbook pro"],
+    "MacBook-led page must not admit generic Windows/student laptop rows",
+  );
+  assert.ok(
+    !(config.backupQueries ?? []).some((query) => /\b(?:windows|student|asus|lenovo)\b/i.test(query)),
+    "backup queries must stay MacBook/Apple scoped so top-up rows cannot outrank MacBooks",
+  );
+});
+
 test("BUY-79816: Best Denki Magento placeholders fail URL heuristic", () => {
   assert.equal(
     looksLikeRetailerPlaceholderUrl(

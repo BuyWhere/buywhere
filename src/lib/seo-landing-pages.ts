@@ -2455,9 +2455,9 @@ const seoLandingPagesTs: Record<string, SeoLandingPageConfig> = {
     // searchCategory undefined so the live API call drops the category
     // parameter and relies on the searchQuery + filters.
     excludeAccessories: true,
-    backupQueries: ["MacBook laptop", "MacBook Air", "MacBook Pro", "ASUS laptop", "Lenovo laptop"],
+    backupQueries: ["MacBook Air", "MacBook Pro", "Apple MacBook", "MacBook laptop"],
     minPrice: 300,
-    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
+    requiredProductTerms: ["macbook", "apple macbook", "macbook air", "macbook pro"],
     compactCatalogCards: true,
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
