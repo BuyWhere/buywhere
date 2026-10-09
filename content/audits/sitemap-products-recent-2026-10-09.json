@@ -1,0 +1,3008 @@
+{
+  "date": "2026-10-09",
+  "lastmod": "2026-10-09T14:14:41.520Z",
+  "generated_at": "2026-10-09T14:14:41.522Z",
+  "source_queue": "content/audits/midnight-indexing-queue-2026-10-09.json",
+  "entries": [
+    {
+      "url": "https://buywhere.ai/products/us/digital-gift-card-59545239",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-calm-multi-correction-serum-65573812",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-hydrogel-treatment-masks-59545246",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-matte-spf-50-59545248",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-flex-spf-50-59562546",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/even-up-multi-correction-serum-59545249",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-sheer-matte-spf-30-sunscreen-brush-65573857",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/tint-du-soleil-whipped-mineral-foundation-spf-30-59385492",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/natural-finish-mineral-foundation-spf-20-59545250",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-bronze-spf-50-59545255",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-glow-spf-50-59545256",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-brush-on-shield-spf-50-multipack-59545260",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-brush-on-shield-spf-50-59545262",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-color-balm-spf-50-59545263",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-sport-stick-spf-50-59545267",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mineral-corrector-palette-spf-20-59562525",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mattifying-primer-spf-20-53198803",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/calming-primer-spf-20-59545268",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/bronzing-primer-spf-20-59545269",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/even-up-clinical-pigment-perfector-spf-50-59545275",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-calm-clinical-redness-corrector-spf-50-59545276",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-classic-spf-50-59545281",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/pep-up-collagen-boost-face-and-neck-serum-59545288",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/face-shield-spf-50-brush-custom-duo-59545187",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/head-to-toe-protection-59545215",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/peptide-lip-shine-spf-30-59545218",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-serum-and-hydrogel-masks-55297780",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/even-up-trio-55297781",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-calm-trio-65571537",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barrier-pro-essential-duo-55890915",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-firm-and-repair-cream-59545220",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-lash-serum-mascara-59385480",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barrier-pro-1-step-cleanser-59545222",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barrier-pro-essential-moisturizer-59545225",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-concentrate-serum-59545196",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/no-show-mineral-sunscreen-spf-50-65573762",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sheer-matte-spf-30-sunscreen-brush-59545226",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sport-stick-spf-50-59545227",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-protection-no-show-mineral-sunscreen-spf-50-59545228",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/hydrating-mist-setting-spray-59545231",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/brush-on-shield-spf-50-59545232",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-spf-50-59545233",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-brush-on-shield-59545889",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-3-in-1-renewal-therapy-spf-35-59545237",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-brush-on-shield-glow-spf-50-59545238",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-brush-on-shield-bronze-spf-50-59545197",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-face-shield-spf-50-59545191",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/savanna-s-favorites-59545204",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/healthy-skin-habits-59385469",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-protection-body-shield-glow-spf-50-55185219",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-protection-no-show-body-shield-spf-50-65571430",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/esthetician-curated-for-oily-skin-59545205",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/esthetician-curated-for-dry-skin-59545206",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/esthetician-curated-for-sensitivity-59545207",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/esthetician-curated-for-aging-59545208",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/esthetician-curated-for-hyperpigmentation-59385470",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/brightening-primer-spf-20-59545212",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barrier-pro-collection-trio-59545213",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/barrier-pro-serum-spray-59545214",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/angled-brush-01-65501741",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/everyday-glam-55297074",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/brush-on-shield-custom-trio-65644093",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/color-balm-spf-50-custom-trio-55297107",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/travel-size-barrier-pro-1-step-cleanser-55890906",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/sunforgettable-total-protection-color-balm-spf-50-55297209",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/total-eye-collection-55297210",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-crossover-sneakers-62132242",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-crossover-sneakers-62132346",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-sneakers-62132349",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/gift-card-62132367",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-zer-grand-laser-wingtip-oxfords-62132362",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-washington-grand-laser-wingtip-oxfords-62132364",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-washington-grand-laser-wingtip-oxfords-62132365",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/harrison-grand-32mm-belt-62132338",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/32mm-washington-perforated-belt-61600494",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/digital-gift-card-62132368",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-zer-grand-laser-wingtip-oxfords-62132360",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/dawson-32mm-perforated-belt-62132340",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/dawson-32mm-perforated-belt-62132339",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/lewis-32mm-burnished-leather-belt-62132342",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-sneakers-62132343",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-sneakers-62132347",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-sneakers-62132348",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-rally-laser-cut-sneakers-62132354",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-rally-laser-cut-sneakers-62132355",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-rally-laser-cut-sneakers-62132356",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-rally-laser-cut-sneakers-62132357",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-zer-grand-laser-wingtip-oxfords-62132366",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-crosscourt-sneakers-61600486",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/35mm-washington-perforated-35mm-belt-62132337",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-crosscourt-sneakers-62132321",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-pique-textured-crew-socks-62132335",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-pique-textured-crew-socks-62132336",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-crossover-sneakers-62132312",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-2-zer-grand-stitchlite-wingtip-oxfords-62132320",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-sneakers-62132317",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-laser-cut-liner-2-pack-62132326",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cedar-shoe-tree-62132313",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-sneakers-62132318",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-classic-argyle-crew-socks-62132333",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-3-pair-liner-socks-61600485",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-american-classics-penny-loafers-62132314",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-american-classics-penny-loafers-62132315",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-sneakers-62132319",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-2-zer-grand-stitchlite-wingtip-oxfords-62132322",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-2-zer-grand-stitchlite-wingtip-oxfords-62132323",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-3-pair-liner-socks-62132324",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-3-pair-liner-socks-62132325",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-laser-cut-liner-2-pack-62132327",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-performance-no-show-socks-62132328",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-performance-no-show-socks-62132329",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-tonal-argyle-crew-socks-62132331",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-tonal-argyle-crew-socks-62132332",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-wingtip-oxfords-62132277",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-32mm-hinged-buckle-belt-62132288",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-zer-grand-laser-wingtip-oxfords-62132295",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-platform-wingtip-oxfords-62132306",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-wingtip-oxfords-62132278",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-platform-wingtip-oxfords-62132307",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-american-classics-penny-loafers-62132308",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/32mm-reversible-feather-edge-belt-61600484",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-remastered-wingtip-oxfords-62132296",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-remastered-wingtip-oxfords-62132297",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-wingtip-oxfords-62132279",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-waterproof-chukka-boots-62132281",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-waterproof-chukka-boots-62132282",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-32mm-hinged-buckle-belt-62132289",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-25mm-slim-double-loop-belt-62132290",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-35mm-reversible-stretch-belt-62132293",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-remastered-wingtip-oxfords-62132294",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-remastered-stitchlite-wingtip-oxfords-62132299",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-remastered-stitchlite-wingtip-oxfords-62132300",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-premier-sneakers-62132301",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-premier-sneakers-62132302",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-golf-shoes-62132303",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-topspin-golf-shoes-62132304",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-platform-wingtip-oxfords-62132305",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/32mm-reversible-feather-edge-belt-62132310",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-angleace-sneakers-62132253",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-gissella-drivers-62132266",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-angleace-sneakers-62132254",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-angleace-sneakers-62132255",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-daily-court-sneakers-62132244",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-daily-court-sneakers-62132245",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-daily-court-sneakers-62132247",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-energyweave-perforated-plain-toe-oxfords-62132249",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-energyweave-stitchlite-wingtip-oxfords-62132252",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-quadstar-running-sneakers-62132256",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-quadstar-running-sneakers-62132259",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-kittery-court-sneakers-62132260",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-kittery-court-sneakers-62132261",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-kittery-court-sneakers-62132262",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62132263",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-4-zer-grand-penny-loafers-61600468",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-american-classics-hampton-loafers-62132265",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-gissella-drivers-62132267",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-remix-oxfords-62132269",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-2-0-oxfords-62132271",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-2-0-oxfords-62132272",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-remix-oxfords-62132273",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-remix-oxfords-62132274",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-crossover-sneakers-62132275",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-wingtip-oxfords-62132276",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-daily-court-sneakers-62132128",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-stitchlite-oxfords-62132129",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62132220",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/32mm-beveled-edge-modern-3pc-belt-set-62132227",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-davis-leather-backpack-62132241",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-angleace-sneakers-62132130",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-stitchlite-oxfords-62132201",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-premier-sneakers-62132202",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-energyweave-stitchlite-wingtip-oxfords-62132204",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-crosscourt-arlowe-sneakers-62132210",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-breakaway-lace-to-toe-sneakers-62132212",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-crosscourt-arlowe-sneakers-62132213",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-breakaway-lace-to-toe-sneakers-62132214",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-stitchlite-oxfords-62132215",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-davies-grand-penny-driving-shoes-62132221",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-davies-grand-penny-driving-shoes-62132222",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-premier-sneakers-62132223",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-soft-twill-zip-up-coat-62132224",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-waterproof-chukka-boots-62132230",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-wingtip-oxfords-62132231",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-wingtip-oxfords-61600460",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-wingtip-oxfords-62132232",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-quadstar-running-sneakers-62132238",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-quadstar-running-sneakers-62132239",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62132131",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-court-sneakers-62132163",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-backpack-62132175",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-ambition-angelica-pumps-62132181",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-court-skyweave-sneakers-62132184",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ledley-grand-penny-loafers-62132152",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-danby-travel-loafers-62132157",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ledley-grand-penny-loafers-62132153",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ledley-grand-cap-toe-oxfords-62132154",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-payson-soft-bow-loafers-62132159",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-venetian-loafers-62132164",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-venetian-loafers-62132165",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ledley-grand-cap-toe-oxfords-62132167",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-constantina-sandals-62132171",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-backpack-62132174",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-wholecut-oxfords-62132180",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-mile-sneakers-62132182",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-court-skyweave-sneakers-62132185",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-max-platform-sneakers-62132187",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-breakaway-lace-to-toe-sneakers-62132190",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-treena-lug-loafers-62132193",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-max-platform-sneakers-62132194",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-jaya-travel-ballet-flats-62132195",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-jaya-travel-ballet-flats-62132196",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62132197",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-6-zer-grand-laser-quick-on-oxfords-62132102",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-venetian-loafers-62132112",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-court-sneakers-62132141",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62132126",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-mile-sneakers-62132147",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-hansell-slingback-pumps-62132103",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-energyweave-low-profile-sneakers-62132104",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-mansfield-grand-plain-toe-quick-on-oxfords-62132106",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-mansfield-grand-plain-toe-quick-on-oxfords-62132108",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-venetian-loafers-62132110",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-ashland-ii-golf-shoes-62132113",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-varsity-stripe-mid-crew-socks-62132114",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-kittery-court-sneakers-62132124",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-tennis-2-0-sneakers-62132019",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-tennis-2-0-sneakers-62132020",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-tennis-2-0-sneakers-62132134",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-tennis-2-0-sneakers-62132135",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-tennis-2-0-sneakers-62132136",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-color-block-stripe-dress-crew-socks-62132137",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-court-sneakers-62132138",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-court-sneakers-62132142",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-wholecut-oxfords-62132143",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-cap-toe-oxfords-62132148",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-shayla-block-heel-pumps-62132149",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-constantina-sandals-62132150",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-truette-pumps-62132061",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-gretel-driving-loafer-62132065",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-plain-toe-oxfords-62132078",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-gretel-driving-loafer-62132064",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-stitchlite-wingtip-oxfords-62132079",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-stitchlite-wingtip-oxfords-62132080",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-slimline-sneakers-62132085",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-slimline-sneakers-62132083",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-bow-wedges-62132057",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-bow-wedges-62132058",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-truette-pumps-62132063",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-flap-medium-backpack-62132067",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-wingtip-oxfords-62132069",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-slimline-sneakers-62132084",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-stitchlite-wingtip-oxfords-62132070",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-tennis-2-0-sneakers-62132071",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-tennis-2-0-sneakers-62132072",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-wingtip-oxfords-62132073",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-wingtip-oxfords-62132074",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-plain-toe-oxfords-62132075",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-plain-toe-oxfords-62132077",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-energyweave-low-profile-sneakers-62132082",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-cap-toe-oxfords-62132092",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-all-day-golf-shoes-62132097",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-6-zer-grand-laser-quick-on-oxfords-62132100",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-dopp-kit-62132029",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-stripe-dress-crew-socks-62132013",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-multi-stripe-dress-crew-socks-62132014",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-3-pair-diamond-textured-super-soft-low-cut-socks-62132005",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-tova-bow-ballet-flats-62132052",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-mod-stripe-dress-crew-socks-62132006",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-dash-dress-crew-socks-62132009",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-clocking-dress-crew-socks-62132010",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-clocking-dress-crew-socks-62132011",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bomber-style-jacket-62132024",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-phone-case-pouch-62132027",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-dopp-kit-62132028",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-backpack-62132030",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-rachel-card-case-62132032",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-wallet-on-a-chain-62132035",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-6-zer-grand-laser-quick-on-oxfords-62132038",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-foster-grand-wholecut-oxfords-62132039",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-foster-grand-wholecut-oxfords-62132040",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-ambition-azzura-strappy-wedge-sandal-62132044",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-ambition-azzura-strappy-wedge-sandal-62132045",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-ambition-angelica-pumps-62132048",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-tova-bow-ballet-flats-62132053",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-peep-toe-bow-wedges-62132054",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-peep-toe-bow-wedges-62132055",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-peep-toe-bow-wedges-62132056",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-31mm-oval-centerbar-belt-62131951",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-31mm-oval-centerbar-belt-62131950",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-donohue-grand-bit-driving-loafers-62131971",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-jaya-travel-ballet-flats-62131986",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-peyton-flatform-sandals-62131974",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-jaya-travel-ballet-flats-62131981",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-varsity-stripe-mid-crew-socks-61600408",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-founders-polo-shirt-62131939",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cobbler-polo-shirt-62131940",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ashland-polo-shirt-62131943",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ashland-polo-shirt-62131944",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ashland-polo-shirt-62131945",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-ashland-polo-shirt-62131948",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-trafton-polo-shirt-62131949",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-cloudfeel-asbury-slip-on-loafers-62131958",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-estella-flat-thong-sandals-62131961",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-estella-flat-thong-sandals-62131962",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-emalia-slide-bow-sandals-62131964",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-donohue-grand-bit-driving-loafers-62131970",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-20mm-harness-belt-with-feather-edge-62131989",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-bomber-jacket-62131991",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-sneakers-62131992",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-stitchlite-venetian-loafers-62131994",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-zer-grand-rella-stitchlite-venetian-loafers-62131996",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-20mm-harness-belt-with-feather-edge-62131997",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-darlene-sandals-62131880",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-skyweave-polo-shirt-62131881",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-artisan-vest-62131919",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-skyweave-polo-shirt-62131924",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-last-stitch-quarter-zip-61600397",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cobbler-polo-shirt-62131885",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-8-short-62131913",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-8-short-62131914",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-trafton-polo-shirt-62131887",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-artisan-vest-62131921",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-trafton-polo-shirt-62131886",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-cloudfeel-asbury-mary-jane-ballet-flats-62131897",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cobbler-polo-shirt-62131902",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-trafton-polo-shirt-62131907",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-cloudfeel-asbury-slip-on-loafers-62131909",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-8-short-62131912",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-windward-jacket-62131915",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-windward-jacket-62131916",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-windward-jacket-62131918",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-skyweave-polo-shirt-62131922",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-skyweave-polo-shirt-62131923",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-links-polo-shirt-62131925",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-founders-polo-shirt-62131934",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-founders-polo-shirt-62131935",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-founders-polo-shirt-62131938",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/grand-sole-cleaner-61600383",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/mini-deluxe-travel-kit-62131852",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-knit-ballet-sock-liner-2-pack-62131866",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/shoe-cream-62131854",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/suede-cleaner-bar-brush-62131855",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-and-suede-protector-62131841",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-pack-sock-liner-62131846",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-2-pack-sock-liner-62131848",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-wool-blend-car-coat-62131850",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/all-purpose-cleaner-62131851",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/shine-sponge-62131856",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/polish-dauber-brush-61600384",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/leather-conditioner-62131857",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-knit-ballet-sock-liner-2-pack-62131862",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-knit-ballet-sock-liner-2-pack-62131864",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-knit-ballet-sock-liner-2-pack-62131865",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-zer-grand-3-pair-liner-socks-61600390",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-casual-cushion-sock-liner-2-pack-62131867",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-casual-cushion-sock-liner-2-pack-62131868",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-casual-cushion-sock-liner-2-pack-62131869",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/washington-perforated-card-case-62131870",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/washington-perforated-card-case-62131871",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-35mm-stretch-web-belt-62131876",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-darlene-sandals-62131878",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-darlene-sandals-62131879",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-car-coat-62131674",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-2-pair-ruffle-quarter-ankle-socks-62131675",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-card-case-62131803",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-twill-nylon-down-jacket-with-trapunto-stitch-details-62131793",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-soft-twill-zip-up-coat-62131830",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-crosscourt-daily-laser-sneakers-62131840",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-slim-card-case-62131807",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-leather-slimfold-wallet-62131806",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-twill-nylon-down-jacket-with-trapunto-stitch-details-61600369",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-serge-twill-wool-coat-62131796",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-leather-wallet-62131804",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-leather-trifold-wallet-62131805",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cortlandt-backpack-62131838",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-cortlandt-backpack-62131839",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-leather-trifold-wallet-61600370",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-stripe-colorblock-dress-crew-socks-61600371",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-packable-rain-jacket-62131811",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-signature-packable-hooded-rain-jacket-62131812",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-emily-nylon-crossbody-62131816",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-32mm-hinged-buckle-belt-62131821",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-stripe-liner-62131823",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-stripe-liner-62131826",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-diamond-microfiber-dress-crew-socks-62131827",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/central-duffle-bag-62131828",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-stand-collar-car-coat-62131832",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-stand-collar-leather-jacket-62131670",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-rachel-compact-wallet-with-removable-card-case-62131714",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-remastered-stitchlite-oxfords-62131754",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-wool-blend-car-coat-62131774",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bridget-mary-jane-ballet-flats-62131695",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-treena-lug-oxfords-62131719",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bridget-mary-jane-ballet-flats-62131735",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-3-pack-dot-sock-liners-62131746",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/32mm-beveled-edge-modern-3pc-belt-set-62131749",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-cap-toe-oxfords-62131701",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-cap-toe-oxfords-62131707",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-crossbody-bag-62131711",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-messenger-bag-62131712",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-25mm-slim-double-loop-belt-62131756",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-crossover-golf-shoes-62131758",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-golf-shoes-62131761",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-platform-venetian-loafers-62131762",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-platform-venetian-loafers-62131769",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/35mm-tubular-stretch-cord-belt-62131771",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-american-classics-hampton-loafers-62131777",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-essential-backpack-62131779",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-essential-backpack-62131780",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bucket-hat-62131781",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-3-pair-textured-stripe-super-soft-low-cut-socks-62131787",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-car-coat-62131671",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-luxe-oval-sunglasses-61600356",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-flap-small-backpack-62131629",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-flap-small-backpack-62131662",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-leather-wallet-62131690",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-card-case-62131689",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-leather-slimfold-wallet-62131691",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-leather-slimfold-wallet-62131692",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-two-tone-z-fold-wallet-62131633",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-flap-medium-backpack-62131663",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-isabella-bucket-bag-62131664",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-energyweave-low-profile-sneakers-62131639",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-oxfords-62131640",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-oxfords-62131641",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-energyweave-low-profile-sneakers-62131644",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-oxfords-62131649",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-loafers-62131651",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grand-ambition-alette-buckle-loafers-62131657",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-all-day-golf-shoes-62131658",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-isabella-bucket-bag-62131668",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-penny-loafers-62131677",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-horizon-penny-loafers-62131678",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-golf-shoes-62131680",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-catherine-medium-satchel-62131682",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bold-oval-sunglasses-62131685",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-triboro-slim-card-case-61600357",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-stitchlite-oxfords-62131588",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-messenger-bag-62131612",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-oaklynn-double-band-footbed-sandals-62131567",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-low-profile-sneakers-62131569",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-bold-oval-sunglasses-62131579",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-key-west-tote-crossbody-bag-62131584",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-key-west-tote-bag-62131586",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-35mm-striped-canvas-stretch-belt-61600324",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-35mm-leather-stretch-braid-belt-62131591",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-riginalgrand-cityspectre-stitchlite-oxfords-62131595",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-edgy-cateye-sunglasses-62131606",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-carson-golf-shoe-bag-62131607",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-messenger-bag-62131608",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-crossbody-bag-62131609",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-judson-brushed-twill-backpack-62131610",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-messenger-bag-62131611",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-sling-bag-61600336",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-sling-bag-61600337",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-backpack-62131613",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-backpack-62131615",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-briefcase-62131616",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-damon-briefcase-62131617",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-isabella-hobo-bag-62131625",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-oxfords-62131627",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-loafers-62131628",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-32mm-reversible-perforated-belt-61600315",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-luxe-slip-on-sneakers-62131213",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-skyweave-low-profile-sneakers-62131441",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-estella-flat-thong-sandals-62131501",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-neoclassic-venetian-loafers-62131524",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-kami-buckle-sandals-62131557",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-turf-skyweave-sneakers-62131488",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-truette-pumps-62131480",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-rachel-card-case-62131481",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grand-neoclassic-plain-toe-oxfords-62131527",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-kami-buckle-sandals-62131558",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-kami-buckle-sandals-62131560",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-oaklynn-double-band-footbed-sandals-62131564",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-go-to-malta-peep-toe-bow-wedges-62131482",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-turf-skyweave-sneakers-62131484",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-angleace-sneakers-62131485",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-grandpr-turf-skyweave-sneakers-62131489",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-topspin-sneakers-62131496",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-constantina-sandals-62131499",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-oaklynn-double-band-footbed-sandals-62131537",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-stitchlite-oxfords-62131542",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-stitchlite-oxfords-62131543",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-riginalgrand-cityspectre-stitchlite-oxfords-62131544",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-premier-sneakers-62131556",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-oaklynn-double-band-footbed-sandals-62131566",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-turf-2-0-sneakers-62131415",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/men-s-wyeth-grand-penny-loafers-62131453",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-bucket-bag-62131408",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-bucket-bag-62131409",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-bucket-bag-62131410",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-juliette-small-tote-crossbody-bag-62131414",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-turf-2-0-sneakers-62131416",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-grandpr-turf-2-0-sneakers-62131417",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-alexandria-small-flap-backpack-62131422",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-lady-satchel-62131428",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-esme-vertical-wallet-62131432",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-oaklynn-double-band-footbed-sandals-62131435",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    },
+    {
+      "url": "https://buywhere.ai/products/us/women-s-dillon-block-heel-thong-sandals-62131436",
+      "lastModified": "2026-10-09T14:14:41.520Z",
+      "changeFrequency": "weekly",
+      "priority": 0.7
+    }
+  ]
+}
