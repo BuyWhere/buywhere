@@ -3031,7 +3031,15 @@ async function handleIngestProducts(args: Record<string, unknown>) {
          is_active = true,
          region = COALESCE(EXCLUDED.region, products.region),
          country_code = COALESCE(EXCLUDED.country_code, products.country_code),
-         updated_at = NOW()`,
+         updated_at = NOW()
+         WHERE (products.title, products.description, products.price, products.currency, products.url,
+                products.brand, products.category_path, products.merchant_id, products.metadata, products.is_active)
+           IS DISTINCT FROM
+               (EXCLUDED.title, EXCLUDED.description, EXCLUDED.price, EXCLUDED.currency, EXCLUDED.url,
+                EXCLUDED.brand, EXCLUDED.category_path, EXCLUDED.merchant_id, EXCLUDED.metadata, true)
+            OR (NULLIF(EXCLUDED.image_url, '') IS NOT NULL AND products.image_url IS DISTINCT FROM EXCLUDED.image_url)
+            OR (products.region IS NULL AND EXCLUDED.region IS NOT NULL)
+            OR (products.country_code IS NULL AND EXCLUDED.country_code IS NOT NULL)`,
       values
     );
 

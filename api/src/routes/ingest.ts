@@ -339,6 +339,49 @@ function normalizeSource(source: string): string {
   return SOURCE_NORMALIZATION[source] || source;
 }
 
+// 2026-10-07: resolve a store's label server-side so "shopify_x.com", "shopify_x_com",
+// "shopify_xcom" and "Shopify_WWW.x.com" all write to the label the store already has.
+// (sku, source) accepted every spelling, which produced 109 twin row sets.
+// Lookup key: lowercase, drop "www.", drop every '.', '_' and '-'. The most-used existing
+// label for a key wins; a genuinely new store gets the underscore form.
+export function sourceLabelKey(source: string): string {
+  return source.toLowerCase().replace(/(^|[_.])www\./, '$1').replace(/[._-]/g, '');
+}
+export function mintSourceLabel(source: string): string {
+  return source.toLowerCase().replace(/(^|[_.])www\./, '$1').replace(/[.-]/g, '_');
+}
+let labelMap: Map<string, string> | null = null;
+let labelMapAt = 0;
+let labelMapLoading: Promise<void> | null = null;
+async function loadLabelMap(): Promise<void> {
+  const { rows } = await db.query<{ source: string; n: string }>(
+    `SELECT source, count(*) AS n FROM ingestion_runs WHERE source IS NOT NULL GROUP BY source`
+  );
+  const best = new Map<string, { label: string; n: number }>();
+  for (const r of rows) {
+    const k = sourceLabelKey(r.source);
+    const n = Number(r.n);
+    const cur = best.get(k);
+    if (!cur || n > cur.n) best.set(k, { label: r.source, n });
+  }
+  labelMap = new Map([...best].map(([k, v]) => [k, v.label]));
+  labelMapAt = Date.now();
+}
+export async function resolveSourceLabel(raw: string): Promise<string> {
+  const source = normalizeSource(raw);
+  if (!/^shopify[_.]/i.test(source)) return source;
+  if (!labelMap || Date.now() - labelMapAt > 10 * 60_000) {
+    labelMapLoading ??= loadLabelMap().catch(e => { console.warn('[ingest] label map load failed:', (e as Error).message); }).finally(() => { labelMapLoading = null; });
+    if (!labelMap) await labelMapLoading;
+  }
+  const k = sourceLabelKey(source);
+  const existing = labelMap?.get(k);
+  if (existing) return existing;
+  const minted = mintSourceLabel(source);
+  labelMap?.set(k, minted);
+  return minted;
+}
+
 // BUY-78311: Validate that currency matches expected currency for country_code.
 // Returns {valid: true} if ok, {valid: false, reason} if invalid.
 function validateCurrencyForCountry(
@@ -699,7 +742,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const source = normalizeSource(String(body.source || ''));
+    const source = await resolveSourceLabel(String(body.source || ''));
     if (!source || source === 'undefined') {
       res.status(400).json({
         run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
@@ -732,6 +775,40 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // 2026-10-07 ingest guards (enforced here because scripts cannot be trusted to obey):
+    //  - one in-flight request per store; a concurrent one gets 429 + Retry-After
+    //  - a store whose last pass started < INGEST_STORE_GATE_DAYS ago (default 7) is refused
+    //    with 409 unless body.force === true. Batches of an ongoing pass (any batch for the
+    //    store within the last 30 min) are always allowed, so multi-request passes still work.
+    const lockKey = `bw:ingest:inflight:${source}`;
+    const gotLock = await redis.set(lockKey, '1', 'EX', 300, 'NX').catch(() => 'OK');
+    if (gotLock !== 'OK') {
+      res.set('Retry-After', '30');
+      res.status(429).json({
+        run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
+        errors: [{ index: 0, sku: 'request', error: `Another ingest for ${source} is in progress; send batches sequentially`, code: 'concurrent_ingest' }],
+      });
+      return;
+    }
+    res.on('close', () => { redis.del(lockKey).catch(() => {}); });
+
+    const gateDays = Number(process.env.INGEST_STORE_GATE_DAYS ?? '7');
+    if (gateDays > 0 && body.force !== true) {
+      try {
+        const passActive = await redis.get(`bw:ingest:pass:${source}`);
+        const lastPassStart = Number(await redis.get(`bw:ingest:pass_start:${source}`)) || 0;
+        if (!passActive && lastPassStart && Date.now() - lastPassStart < gateDays * 86400_000) {
+          res.status(409).json({
+            run_id: null, status: 'skipped', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
+            errors: [{ index: 0, sku: 'request', error: `${source} was ingested ${Math.round((Date.now() - lastPassStart) / 3600_000)}h ago (gate ${gateDays}d); pass force:true to override`, code: 'recently_ingested' }],
+          });
+          return;
+        }
+        if (!passActive) await redis.set(`bw:ingest:pass_start:${source}`, String(Date.now()), 'EX', 30 * 86400);
+        await redis.set(`bw:ingest:pass:${source}`, '1', 'EX', 1800);
+      } catch { /* redis down: fail open */ }
+    }
+
     const validProducts: IngestProductItem[] = [];
     const errors: IngestError[] = [];
 
@@ -739,6 +816,16 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       const { valid, error } = validateProduct(body.products[i], i, source);
       if (valid) validProducts.push(valid);
       if (error) errors.push(error);
+    }
+
+    // 2026-10-07: dedupe within the request (same sku+country sent twice = one write).
+    {
+      const seen = new Map<string, IngestProductItem>();
+      for (const vp of validProducts) seen.set(`${vp.sku}|${(vp as { country_code?: string }).country_code ?? ''}`, vp);
+      if (seen.size < validProducts.length) {
+        res.set('X-Ingest-Deduped', String(validProducts.length - seen.size));
+        validProducts.splice(0, validProducts.length, ...seen.values());
+      }
     }
 
     if (validProducts.length === 0) {
@@ -935,6 +1022,14 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            updated_at = NOW()
+         WHERE (products.title, products.description, products.price, products.currency, products.url,
+                products.brand, products.category_path, products.merchant_id, products.metadata, products.is_active)
+           IS DISTINCT FROM
+               (EXCLUDED.title, EXCLUDED.description, EXCLUDED.price, EXCLUDED.currency, EXCLUDED.url,
+                EXCLUDED.brand, EXCLUDED.category_path, EXCLUDED.merchant_id, EXCLUDED.metadata, true)
+            OR (NULLIF(EXCLUDED.image_url, '') IS NOT NULL AND products.image_url IS DISTINCT FROM EXCLUDED.image_url)
+            OR (products.region IS NULL AND EXCLUDED.region IS NOT NULL)
+            OR (products.country_code IS NULL AND EXCLUDED.country_code IS NOT NULL)
          RETURNING (xmax = 0) AS inserted, sku`,
           values
         ),
@@ -1067,6 +1162,10 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
 
     if (rowsInserted > 0 || rowsUpdated > 0) {
       try {
+        // 2026-10-07: these KEYS scans + deletes ran on every 10-row batch, emptying the whole
+        // search cache ~once a second during ingest. Throttle to at most once per 10 minutes.
+        const flushNow = (await redis.set('bw:ingest:cache_flush', '1', 'EX', 600, 'NX')) === 'OK';
+        if (flushNow) {
         const keys = await redis.keys('products:*');
         if (keys.length > 0) await redis.del(...keys);
         const searchKeys = await redis.keys('search:*');
@@ -1076,6 +1175,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         // first-hit snapshot for the full MCP_FTS_CACHE_TTL.
         const ftsKeys = await redis.keys('fts:v7:*');
         if (ftsKeys.length > 0) await redis.del(...ftsKeys);
+        }
 
         await redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1000));
         await redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));
