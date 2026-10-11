@@ -73,6 +73,80 @@ def test_product_detail_invalid_id_404():
     assert resp.status_code in (404, 400), f"Expected 404/400 for missing product, got {resp.status_code}"
 
 
+@pytest.mark.products
+def test_products_list_merchant_id_filter_returns_only_that_merchant():
+    """BUY-86406 regression: merchant_id=X must return only X's products."""
+    # Use prettyballerinas.com as a known merchant with products in the catalog
+    resp = requests.get(
+        f"{BASE_URL}/v1/products",
+        params={"merchant_id": "prettyballerinas.com", "limit": 5},
+        timeout=TIMEOUT,
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+    data = resp.json()
+    items = data.get("data", data.get("results", []))
+    for item in items:
+        assert item.get("merchant_id") == "prettyballerinas.com", (
+            f"Filter returned wrong merchant: {item.get('merchant_id')}"
+        )
+
+
+@pytest.mark.products
+def test_products_list_merchant_id_nonexistent_returns_empty():
+    """BUY-86406 regression: merchant_id=nonexistent returns empty page."""
+    resp = requests.get(
+        f"{BASE_URL}/v1/products",
+        params={"merchant_id": "nonexistent_xyz_zzz_com_buy86406test", "limit": 5},
+        timeout=TIMEOUT,
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+    data = resp.json()
+    items = data.get("data", data.get("results", []))
+    assert len(items) == 0, f"Expected 0 items for nonexistent merchant, got {len(items)}"
+
+
+@pytest.mark.products
+def test_products_list_merchant_alias_filter():
+    """BUY-86406 regression: 'merchant' and 'merchant_domain' are aliases for merchant_id."""
+    for param in ("merchant", "merchant_domain"):
+        resp = requests.get(
+            f"{BASE_URL}/v1/products",
+            params={param: "prettyballerinas.com", "limit": 3},
+            timeout=TIMEOUT,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        items = data.get("data", data.get("results", []))
+        for item in items:
+            assert item.get("merchant_id") == "prettyballerinas.com", (
+                f"'{param}' alias returned wrong merchant: {item.get('merchant_id')}"
+            )
+
+
+@pytest.mark.products
+def test_products_list_different_merchants_return_different_results():
+    """BUY-86406 regression: ?merchant_id=A and ?merchant_id=B return different result sets."""
+    resp_a = requests.get(
+        f"{BASE_URL}/v1/products",
+        params={"merchant_id": "prettyballerinas.com", "limit": 3},
+        timeout=TIMEOUT,
+    )
+    resp_b = requests.get(
+        f"{BASE_URL}/v1/products",
+        params={"merchant_id": "sunbear.com", "limit": 3},
+        timeout=TIMEOUT,
+    )
+    assert resp_a.status_code == 200
+    assert resp_b.status_code == 200
+    items_a = resp_a.json().get("data", resp_a.json().get("results", []))
+    items_b = resp_b.json().get("data", resp_b.json().get("results", []))
+    # If both have results, merchants must differ
+    if items_a and items_b:
+        assert items_a[0].get("merchant_id") != items_b[0].get("merchant_id"), (
+            "Different merchant_id params returned identical first result"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Categories scope
 # ---------------------------------------------------------------------------
