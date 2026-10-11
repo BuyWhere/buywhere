@@ -561,47 +561,6 @@ async function tryTierSearch(
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx}`;
 
-
-  // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
-  // products parent table JOIN that causes 500s during ingest load (1-2 hr
-  // INSERT transactions hold ShareUpdateExclusiveLock, blocking the tier search
-  // HOT-path for every REST search request -> 500.
-  // MCP search_products already uses this pattern (direct child-table FTS +
-  // bounded PK lookup -> no ingest contention). The child table has all columns
-  // needed for search results (affiliate_url = NULL, matching MCP contract).
-  const childCols = `sp.id, sp.merchant_id AS domain, sp.merchant_id, sp.url, NULL::text AS affiliate_url,
-    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
-    jsonb_build_object('brand', sp.brand, 'category', sp.category,
-      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
-    sp.source AS _source`;
-  // BUY-84236: a bare head term (hoodie, socks) on a 26-47M-row child costs ~20ms of cold
-  // volume IO per heap page; 200 candidates is ~300 pages. Ranking barely matters for
-  // such terms, so size the candidate set to the page instead (min 60, max 200).
-  const childCandCap = lexemes.length === 1 ? Math.max(60, Math.min(200, (p.limit + p.offset) * 3)) : 200;
-  const childMkQuery = (match: string, extraFilter = '') => `
-    WITH cand AS (
-      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${nativeCurCand}
-      LIMIT ${childCandCap}
-    ), top AS (
-      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
-            (${laptopBoost.replace(/sp\./g, 'c.')}) *
-            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
-            (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
-            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
-            (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
-            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
-      FROM cand c
-      ORDER BY rank DESC LIMIT 200
-    )
-    SELECT ${childCols}, top.rank AS _fts_rank
-    FROM top JOIN ${ftsTable} sp ON sp.id = top.id
-    ORDER BY ${orderPrefix}top.rank DESC
-    LIMIT $${limitIdx}`;
-
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
   // BUY-63738 + BUY-77675: add accessory penalty to title fallback queries so
