@@ -9,9 +9,11 @@ import Footer from '@/components/Footer';
 import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { PlatformChip } from '@/components/ui/PlatformChip';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
+import WishlistButton from '@/components/WishlistButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 import { attachProductCardClickAttribution } from '@/lib/click-attribution';
 import { formatPriceWithDecimals } from '@/lib/currency';
+import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -112,6 +114,26 @@ function normalizeCountry(value?: string): CountryValue {
 
 function getCountryOption(value: CountryValue) {
   return COUNTRY_OPTIONS.find((option) => option.value === value) ?? COUNTRY_OPTIONS[0];
+}
+
+function slugifyProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+function resolveProductUrl(item: SearchApiItem, name: string, fallbackCurrency: string): string {
+  const id = String(item.id ?? '').trim();
+  const slug = slugifyProductName(name);
+  if (!id || !slug) return '#';
+
+  const country = fallbackCurrency.toUpperCase() === 'SGD' ? 'sg' : 'us';
+  return `/products/${country}/${slug}/${encodeURIComponent(id)}`;
 }
 
 // BUY-72907: Extract the actual retailer domain from product URLs.
@@ -680,7 +702,10 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     scrapedVia,
     source: item.source ?? null,
     imageUrl,
-    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
+    // BUY-84631: search cards must link to BuyWhere PDPs, not bare catalog
+    // slugs from upstream item.url (e.g. /HP-Victus-...), because those routes
+    // 404 in production. The PDP renders the outbound CTA separately.
+    href: resolveProductUrl(item, name, fallbackCurrency),
     // BUY-67977: derive brand from the title when the API does not provide
     // one, so the meta slot renders a consistent brand line across all cards
     // in a grid row (rather than only the rare rows where the ingest lane
@@ -896,7 +921,12 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
     >
       <div
         // BUY-75930: unified bg-white frame with image container (was bg-slate-100 + white image = mismatch)
-        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-white"
+        // BUY-84422: removed border-b border-slate-100 (old mobile separator) and added
+        //   rounded-t-[20px] to visually blend the image into the card.
+        //   The p-2 padding was removed from <img> — it created an "inner white image box"
+        //   inset that made the image area look like a distinct white block sitting on the
+        //   container, creating a visible seam between image and details on mobile.
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden rounded-t-[20px] bg-white"
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
@@ -924,14 +954,32 @@ function SearchCard({ product, currency }: { product: SearchCardProduct; currenc
             // card image beyond the grid column on desktop. Keep BUY-64736's
             // max-h-[220px] / max-w-full / object-contain bounds so the image
             // can never exceed its 220px-tall card frame.
-            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+            // BUY-84422: removed p-2 — that 8px inset created a visible white-bordered
+            // inner box that made the image area look like a distinct block, creating a
+            // seam between the image and details sections on mobile.
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain"
             style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
             data-testid="search-product-image"
           />
         ) : imageState === 'error' || !product.imageUrl ? (
           <BrandedPlaceholder />
         ) : null}
-        <div className="absolute right-2 top-2 z-20">
+        <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-1.5">
+          {/* BUY-84243 / BUY-82212: icon-only save control must expose an
+              accessible name + pressed state. WishlistButton already ships
+              aria-label="Save {name} to wishlist" / aria-pressed. */}
+          <WishlistButton
+            product={{
+              id: String(product.id),
+              name: product.name,
+              image: product.imageUrl || '',
+              currentPrice: product.price !== null ? String(product.price) : null,
+              merchant: product.merchant,
+              buyUrl: product.href,
+              productUrl: product.href,
+            }}
+            className="h-9 w-9"
+          />
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
@@ -1327,6 +1375,13 @@ export default function SearchResultsClient({
                 ? 'Searching...'
                 : `${total.toLocaleString()} results for “${debouncedQuery}”`}
             </span>
+            <div className="mt-1 font-normal">
+              <AffiliateDisclosure
+                region={activeCountry.apiValue === 'SG' ? 'SG' : 'US'}
+                variant="inline"
+                className="text-[11px] leading-4"
+              />
+            </div>
           </div>
         ) : null}
 
@@ -1558,6 +1613,13 @@ export default function SearchResultsClient({
                     ? `${total.toLocaleString()} results for “${debouncedQuery}”`
                     : `${initialQuery ? `Search results for “${initialQuery}”` : 'Search Products — BuyWhere'}`}
                 </h1>
+                {/* BUY-84619: FTC affiliate disclosure next to SERP View Deal CTAs */}
+                <p className="mt-2">
+                  <AffiliateDisclosure
+                    region={activeCountry.apiValue === 'SG' ? 'SG' : 'US'}
+                    variant="inline"
+                  />
+                </p>
               </div>
 
               {/* BUY-69622: Only render loading indicator after hydration to avoid

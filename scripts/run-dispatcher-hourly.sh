@@ -39,12 +39,16 @@ if [[ -z "$CATALOG_DB_URL" ]]; then
   exit 1
 fi
 
+# sakura.proxy.rlwy.net presents a self-signed/intermediate chain (CN=localhost).
+# Node pg rejects it unless PG_SSL_REJECT_UNAUTHORIZED=0 (dispatcher_v6_hourly.js).
+export PG_SSL_REJECT_UNAUTHORIZED="${PG_SSL_REJECT_UNAUTHORIZED:-0}"
+
 # Run the dispatcher
 log "Starting dispatcher_v6_hourly.js..."
 PAPERCLIP_TMPDIR="${PAPERCLIP_TMPDIR:-/tmp}"
 DISPATCHER_STDOUT="$PAPERCLIP_TMPDIR/dispatcher-stdout.log"
 DISPATCHER_STDERR="$PAPERCLIP_TMPDIR/dispatcher-stderr.log"
-(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" node scripts/dispatcher_v6_hourly.js --json 1>"$DISPATCHER_STDOUT" 2>"$DISPATCHER_STDERR") || {
+(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" PG_SSL_REJECT_UNAUTHORIZED="$PG_SSL_REJECT_UNAUTHORIZED" node scripts/dispatcher_v6_hourly.js --json 1>"$DISPATCHER_STDOUT" 2>"$DISPATCHER_STDERR") || {
   log_err "Dispatcher failed (exit $?)"
   exit 1
 }
