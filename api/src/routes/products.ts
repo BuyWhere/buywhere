@@ -926,6 +926,8 @@ router.get(
     // BUY-77897: accept both `country_code` (canonical) and `country` (alias used by most callers)
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    const merchantId = (req.query.merchant_id as string | undefined) || (req.query.merchant as string | undefined) || (req.query.merchant_domain as string | undefined);
+    const source = req.query.source as string | undefined;
 
     // Sort — whitelist to safe columns, default to created_at desc
     const sortProvided = typeof req.query.sort === 'string' && req.query.sort.trim() !== '';
@@ -934,7 +936,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v5:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v6:${currency}:${countryCode}:${category || ''}:${merchantId || ''}:${source || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -983,6 +985,16 @@ router.get(
       // case-insensitively so "electronics" and "Electronics" both work.
       conditions.push(`LOWER(category_path[1]) = LOWER($${idx})`);
       params.push(category);
+      idx++;
+    }
+    if (merchantId) {
+      conditions.push(`merchant_id = $${idx}`);
+      params.push(merchantId);
+      idx++;
+    }
+    if (source) {
+      conditions.push(`source = $${idx}`);
+      params.push(source);
       idx++;
     }
 
