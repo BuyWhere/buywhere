@@ -1055,9 +1055,17 @@ router.get(
     // updated_at 2026-09-01). Routing those markets at the child table made
     // GET /v1/products p1 look 110 days stale while catalog MAX(updated_at)
     // was current. Only use a child table when it is a known live copy.
+    // BUY-86406: when merchant_id or source filters are set, route to the
+    // parent `products` table. The child partitions are partial snapshots
+    // (most recent IDs only) and the index on merchant_id lives on the parent.
+    // Without this, the filter returns 0 rows for any merchant whose data
+    // is not in the (much smaller) child partition.
     const LIVE_LIST_CHILD_COUNTRIES = new Set(['SG', 'US']);
+    const filterRequiresParent = Boolean(merchantId || source);
     const LIST_TABLE =
-      /^[A-Z]{2}$/.test(countryCode) && LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
+      !filterRequiresParent &&
+      /^[A-Z]{2}$/.test(countryCode) &&
+      LIVE_LIST_CHILD_COUNTRIES.has(countryCode)
         ? `products_partitioned_${countryCode.toLowerCase()}`
         : 'products';
 
