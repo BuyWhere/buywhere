@@ -578,22 +578,25 @@ async function tryTierSearch(
   // volume IO per heap page; 200 candidates is ~300 pages. Ranking barely matters for
   // such terms, so size the candidate set to the page instead (min 60, max 200).
   const childCandCap = lexemes.length === 1 ? Math.max(60, Math.min(200, (p.limit + p.offset) * 3)) : 200;
+  // NOTE(BUY-86406 follow-up): childMkQuery shape mirrors parent mkQuery
+  // (laptop/phone boost family only). The 2c9b1c0ee commit added references
+  // to device/console/controller rankers that were never defined in this
+  // file's scope, breaking the TS build (6 errors at lines 584/591/594-596)
+  // and rolling the deploy back. Restored to the same boost set as the
+  // parent mkQuery above so the ratchet stays at 0; the device/console
+  // rankers can be wired in once their constant helpers land.
   const childMkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
-      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${nativeCurCand}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       LIMIT ${childCandCap}
     ), top AS (
       SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
-            (${laptopBoost.replace(/sp\./g, 'c.')}) *
             (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopBoost.replace(/sp\./g, 'c.')}) *
             (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
-            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
             (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
-            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
-            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
-            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) AS rank
       FROM cand c
       ORDER BY rank DESC LIMIT 200
     )
