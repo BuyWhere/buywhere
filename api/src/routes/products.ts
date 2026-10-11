@@ -59,7 +59,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v32-buy81461'; // v32: BUY-81461 — Cache-Control: no-store on search responses; evict v31 poisoned entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-child-fts-v33-buy84240'; // v33: BUY-84240 — SELECT merchant_id in tier search so merchant_name resolves; evict v32 entries cached with merchant_name=null. (v32: BUY-81461 no-store; v25 base + v28-v31 BUY-75921 title normalization bumps)
 // BUY-77812 / BUY-78767: countries whose standalone child tables answer FTS in
 // <100ms. REST tryTierSearch previously hardcoded `search_products` (97M rows,
 // missing/invalid partial GIN for MY/US, 4s statement_timeout → degraded-200).
@@ -458,7 +458,7 @@ async function tryTierSearch(
   // BUY-79353: use merchant_id as the displayed merchant, not source (feed origin).
   // sp.source tracks the feed/pipeline origin (e.g. buy79179_targeted); merchant_id
   // holds the actual retailer domain (e.g. samsung.com, bestbuy.com).
-  const cols = `sp.id, sp.merchant_id AS domain, sp.url, al.destination_url AS affiliate_url,
+  const cols = `sp.id, sp.merchant_id AS domain, sp.merchant_id, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
@@ -559,7 +559,48 @@ async function tryTierSearch(
     FROM top JOIN ${ftsTable} sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}`;
+
+
+  // BUY-80719: child table queries (products_partitioned_{cc}) avoid the
+  // products parent table JOIN that causes 500s during ingest load (1-2 hr
+  // INSERT transactions hold ShareUpdateExclusiveLock, blocking the tier search
+  // HOT-path for every REST search request -> 500.
+  // MCP search_products already uses this pattern (direct child-table FTS +
+  // bounded PK lookup -> no ingest contention). The child table has all columns
+  // needed for search results (affiliate_url = NULL, matching MCP contract).
+  const childCols = `sp.id, sp.merchant_id AS domain, sp.merchant_id, sp.url, NULL::text AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
+    sp.source AS _source`;
+  // BUY-84236: a bare head term (hoodie, socks) on a 26-47M-row child costs ~20ms of cold
+  // volume IO per heap page; 200 candidates is ~300 pages. Ranking barely matters for
+  // such terms, so size the candidate set to the page instead (min 60, max 200).
+  const childCandCap = lexemes.length === 1 ? Math.max(60, Math.min(200, (p.limit + p.offset) * 3)) : 200;
+  const childMkQuery = (match: string, extraFilter = '') => `
+    WITH cand AS (
+      SELECT id, search_vector, ${rankCols} FROM ${ftsTable} sp
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}${unitAccessoryExcl}${nativeCurCand}
+      LIMIT ${childCandCap}
+    ), top AS (
+      SELECT c.id, ts_rank(c.search_vector, plainto_tsquery('english', $${qIdx})) *
+            (${laptopBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopCategoryBoost.replace(/sp\./g, 'c.')}) *
+            (${laptopAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${bareDeviceQueryDemotion.replace(/sp\./g, 'c.')}) *
+            (${phoneHandsetBoost.replace(/sp\./g, 'c.')}) *
+            (${phoneAccessoryPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceExactBoost.replace(/sp\./g, 'c.')}) *
+            (${deviceControllerPenalty.replace(/sp\./g, 'c.')}) *
+            (${deviceConsoleBoost.replace(/sp\./g, 'c.')}) AS rank
+      FROM cand c
+      ORDER BY rank DESC LIMIT 200
+    )
+    SELECT ${childCols}, top.rank AS _fts_rank
+    FROM top JOIN ${ftsTable} sp ON sp.id = top.id
+    ORDER BY ${orderPrefix}top.rank DESC
+    LIMIT $${limitIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
@@ -926,6 +967,10 @@ router.get(
     // BUY-77897: accept both `country_code` (canonical) and `country` (alias used by most callers)
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || 'SG';
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    // BUY-86406: merchant_id, merchant, merchant_domain filters (merchant_domain and merchant are aliases for merchant_id)
+    const merchantId = (req.query.merchant_id as string | undefined) || (req.query.merchant as string | undefined) || (req.query.merchant_domain as string | undefined);
+    // BUY-86406: source filter
+    const source = req.query.source as string | undefined;
 
     // Sort — whitelist to safe columns, default to created_at desc
     const sortProvided = typeof req.query.sort === 'string' && req.query.sort.trim() !== '';
@@ -934,7 +979,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:v5:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
+    const cacheKey = `list:v5:${currency}:${countryCode}:${category || ''}:${merchantId || ''}:${source || ''}:${sortColumn}:${order}:${page}:${limit}:${outboundProbeEnabled() ? 'p1' : 'p0'}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -983,6 +1028,18 @@ router.get(
       // case-insensitively so "electronics" and "Electronics" both work.
       conditions.push(`LOWER(category_path[1]) = LOWER($${idx})`);
       params.push(category);
+      idx++;
+    }
+    // BUY-86406: merchant_id filter
+    if (merchantId) {
+      conditions.push(`merchant_id = $${idx}`);
+      params.push(merchantId);
+      idx++;
+    }
+    // BUY-86406: source filter
+    if (source) {
+      conditions.push(`source = $${idx}`);
+      params.push(source);
       idx++;
     }
 
@@ -1152,7 +1209,8 @@ router.get(
     const rawQuery = ((req.query.q || req.query.query) as string) || '';
     const domain = req.query.domain as string | undefined;
     // BUY-76037 (re-applied): explicit `source` filter, with `domain` as backward-compat alias.
-    const source = (req.query.source as string | undefined) || domain;
+    // BUY-86406: also accept merchant and merchant_domain as aliases for source.
+    const source = (req.query.source as string | undefined) || domain || (req.query.merchant as string | undefined) || (req.query.merchant_domain as string | undefined);
     // BUY-76037 (re-applied): filter by ingestion pipeline origin.
     const scrapedVia = req.query.scraped_via as string | undefined;
     const region = req.query.region as string | undefined;

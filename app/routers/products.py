@@ -163,6 +163,10 @@ async def list_products(
     q: Optional[str] = Query(None, max_length=500, description="Full-text search query (compat alias for /v1/products/search)"),
     country: Optional[str] = Query(None, max_length=2, description="Filter by country code (e.g., SG, US, VN)"),
     country_code: Optional[str] = Query(None, max_length=2, description="Alias for country"),
+    merchant_id: Optional[str] = Query(None, description="Filter by merchant_id (exact match)"),
+    merchant: Optional[str] = Query(None, description="Filter by merchant domain (alias for merchant_id)"),
+    merchant_domain: Optional[str] = Query(None, description="Filter by merchant domain (alias for merchant_id)"),
+    source: Optional[str] = Query(None, description="Filter by source/platform"),
     limit: int = Query(20, ge=1, le=100, description="Results per page (1-100)"),
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
     sort_by: Optional[str] = Query(None, description="Sort order: relevance, price_asc, price_desc, newest"),
@@ -174,11 +178,18 @@ async def list_products(
 
     if country_code:
         country = country_code
+    # Normalize merchant filters: merchant, merchant_domain are aliases for merchant_id
+    if merchant:
+        merchant_id = merchant
+    if merchant_domain:
+        merchant_id = merchant_domain
 
     cache_key = cache.build_cache_key(
         "v1:products:list",
         q=q,
         country=country.upper() if country else None,
+        merchant_id=merchant_id,
+        source=source,
         limit=limit,
         offset=offset,
         sort_by=sort_by,
@@ -200,6 +211,12 @@ async def list_products(
 
     if country:
         base_query = base_query.where(Product.country_code == country.upper())
+
+    if merchant_id:
+        base_query = base_query.where(Product.merchant_id == merchant_id)
+
+    if source:
+        base_query = base_query.where(Product.source == source)
 
     if sort_by == "price_asc":
         base_query = base_query.order_by(Product.price.asc())
