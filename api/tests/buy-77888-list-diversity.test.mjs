@@ -17,7 +17,8 @@ describe('BUY-77888 list diversity', () => {
     assert.match(listRoute, /list:v5:/);
     assert.match(listRoute, /applyListDiversity/);
     assert.match(listRoute, /listVariantDedupKey/);
-    assert.match(listRoute, /sortProvided \? limit : LIST_DIVERSITY_FETCH/);
-    assert.match(listRoute, /sortProvided \? offset : 0/);
+    assert.match(listRoute, /skipDiversity \? limit : LIST_DIVERSITY_FETCH/);
+    assert.match(listRoute, /skipDiversity \? offset : 0/);
+    assert.match(listRoute, /const skipDiversity = Boolean\(filterRequiresParent \|\| sortProvided\)/);
   });
 });
