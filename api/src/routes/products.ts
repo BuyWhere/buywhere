@@ -1123,17 +1123,27 @@ router.get(
       listDb = db;
       listClient = await listDb.connect();
     }
+    // BUY-86406: diversity over-fetch is for mixed-merchant browse pages.
+    // When the caller already filtered to one merchant (or asked for an
+    // explicit sort), skip it — fetching 400 wide rows from parent products
+    // is the timeout trigger on large merchants.
+    const skipDiversity = Boolean(filterRequiresParent || sortProvided);
     try {
+      // BUY-86406: merchant_id/source filters hit the parent `products` table.
+      // A 4s timeout is enough for the child PK path, but a cold replica
+      // index scan of a large merchant (prettyballerinas ~16k, cambriabike
+      // ~38k) plus LIMIT 400 over-fetch for diversity regularly trips 4s
+      // and 500s the endpoint. Use 8s whenever we are on the parent table.
       // BUY-79280: parent-table updated_at DESC for frozen children is ~50-90ms
       // on primary; keep 8s so a cold replica catch-up does not 500 the list.
       await listClient.query(
-        `SET statement_timeout = '${LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '4s' : '8s'}'`,
+        `SET statement_timeout = '${filterRequiresParent || !LIVE_LIST_CHILD_COUNTRIES.has(countryCode) ? '8s' : '4s'}'`,
       );
       // BUY-77920: newest partition rows are often USD (cross-listed). Filtering
       // currency=SGD AND ORDER BY id DESC never terminates — the planner walks
       // the id index looking for SGD and hits the 30s LB timeout. List by
       // indexed is_active/country_code + id DESC, then drop rows with no price.
-      const fetchLimit = sortProvided ? limit : LIST_DIVERSITY_FETCH;
+      const fetchLimit = skipDiversity ? limit : LIST_DIVERSITY_FETCH;
       dataResult = await listClient.query(
         `SELECT ${SELECT_COLUMNS}
          FROM ${LIST_TABLE} products
@@ -1142,7 +1152,7 @@ router.get(
            AND products.price > 0
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, fetchLimit, sortProvided ? offset : 0]
+        [...params, fetchLimit, skipDiversity ? offset : 0]
       );
     } finally {
       listClient.release(true); // release back to pool, rolling back any open transaction
@@ -1150,7 +1160,7 @@ router.get(
 
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const listRows = sortProvided
+    const listRows = skipDiversity
       ? dataResult.rows
       : applyListDiversity(dataResult.rows as Record<string, unknown>[], limit, offset);
     const data = await mapProducts(listRows as Array<Record<string, unknown>>, currency, false);
