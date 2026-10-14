@@ -20,6 +20,7 @@ interface BrandData {
 async function getBrandData(slug: string): Promise<BrandData> {
   const res = await fetch(`${apiBase()}/v1/brand/${slug}`, { headers: apiHeaders(),
     next: { revalidate: 900 },
+    signal: AbortSignal.timeout(8000),
   });
   if (res.status === 404) {
     // Definitive does-not-exist → caller should notFound()
