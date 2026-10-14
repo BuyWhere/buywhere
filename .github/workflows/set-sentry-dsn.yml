@@ -1,0 +1,104 @@
+# set-sentry-dsn — Sets SENTRY_DSN env var on Railway before deploy (BUY-64685).
+# Uses RAILWAY_TOKEN (from secrets) with GraphQL variableUpsert mutation.
+name: Set Sentry DSN on Railway
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual changes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  SERVICE_ID: 945e8a6d-6f89-41f1-8256-b8cc6a872a33
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+
+jobs:
+  set-dsn:
+    name: Set SENTRY_DSN on Railway
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Sentry DSN via Railway GraphQL
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_PRODUCTION }}
+          DRY_RUN: ${{ github.inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "=== DRY RUN - would set SENTRY_DSN ==="
+            echo "DSN length: ${#SENTRY_DSN}"
+            exit 0
+          fi
+
+          echo "=== Setting SENTRY_DSN on Railway ==="
+          echo "DSN: ${SENTRY_DSN:0:30}..."
+
+          # Use variableUpsert to set the env var
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: Mozilla/5.0" \
+            -d "{
+              \"query\": \"mutation {
+                variableUpsert(input: {
+                  name: \\"SENTRY_DSN\\",
+                  value: \\"$SENTRY_DSN\\",
+                  environmentId: \\"$ENV_ID\\",
+                  serviceId: \\"$SERVICE_ID\\"
+                }) {
+                  id
+                }
+              }\"
+            }")
+
+          echo "Response: $RESP"
+          ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('variableUpsert',{}).get('id','ERROR'))")
+          echo "Variable ID: $ID"
+
+          if [[ "$ID" == "ERROR" || -z "$ID" ]]; then
+            echo "FAILED to set SENTRY_DSN"
+            exit 1
+          fi
+
+          echo "=== SENTRY_DSN set successfully ==="
+
+      - name: Trigger deploy after setting DSN
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "=== Triggering Railway deploy ==="
+
+          # Trigger deploy of current SHA
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+
+          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          echo "Deployment ID: $DID"
+
+          echo "Waiting for deploy to complete..."
+          for i in $(seq 1 36); do
+            S=$(curl -sf "$GQL" \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] Deployment status: $S"
+            case "$S" in
+              SUCCESS) echo "Deploy succeeded!"; exit 0 ;;
+              FAILED|CRASHED|REMOVED) echo "Deploy failed!"; exit 1 ;;
+            esac
+            sleep 25
+          done
+          echo "Timeout waiting for deploy"
+          exit 1
