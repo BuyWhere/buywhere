@@ -34,6 +34,7 @@ export interface CanonicalProduct {
 export interface SearchResponse {
   results: CanonicalProduct[];
   total: number;
+  meta?: { degraded?: boolean; cached?: boolean };
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;

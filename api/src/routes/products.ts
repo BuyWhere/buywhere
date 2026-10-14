@@ -264,11 +264,15 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false
+      filteredProducts, total, limit, offset, responseTimeMs, false, false
     );
 
     // Cache result in Redis (fire-and-forget)
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    // BUY-61977: skip cache write for degraded envelopes — without this, a single
+    // 10s US-search timeout poisons the cache for 1h and bricks the MCP tool matrix.
+    if (!responseBody.meta?.degraded) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    }
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
@@ -371,8 +375,13 @@ router.get(
     );
     const total = parseInt(countResult.rows[0].count, 10);
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, false);
+    // BUY-61977: skip cache write when the deals query timed out (57014/57000) — a 1-hour
+    // degraded envelope poisons every subsequent request and bricks MCP get_deals even after
+    // the upstream recovers. Version-bump invalidates old poisoned keys.
+    if (!responseBody.meta?.degraded) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    }
     res.json(responseBody);
   }
 );
