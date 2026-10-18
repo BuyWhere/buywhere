@@ -42,6 +42,7 @@ import { getCatalogHealth, overallStatus } from './lib/catalogHealth';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
 import adminProbesRouter from './routes/admin/probes';
+import adminHeapRouter from './routes/admin/heap';
 import adminMetricsTruthRouter from './routes/admin/metricsTruth';
 import { db, redis } from './config';
 // Imported (not require()d by path string) so tsc emits the JSON into dist/;
@@ -583,6 +584,7 @@ export function createApp() {
 
   // BUY-67318: outbound-link probe status debug endpoint.
   app.use(adminProbesRouter);
+  app.use(adminHeapRouter);
 
   // BUY-75314: canonical business metrics (clicks, API, catalog, indexation,
   // traffic, growth, dead links) per /home/paperclip/ops-canon/METRICS-DEFINITIONS.md.

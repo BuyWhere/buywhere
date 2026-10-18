@@ -41,6 +41,11 @@ function checkInternalRateLimit(key: string): boolean {
   const minuteKey = Math.floor(now / 60_000);
   const dayKey = Math.floor(now.valueOf() / (24 * 60 * 60 * 1000));
   const m = internalTokenBucket.get(`${key}:${minuteKey}`);
+  if (!m) {
+    // 2026-10-18: drop expired buckets; a new key per minute was never removed (small leak).
+    for (const [k, v] of internalTokenBucket) if (v.resetAt <= now) internalTokenBucket.delete(k);
+    for (const [k, v] of internalDailyBucket) if (v.resetAt <= now) internalDailyBucket.delete(k);
+  }
   if (!m) internalTokenBucket.set(`${key}:${minuteKey}`, { count: 1, resetAt: minuteKey * 60_000 + 60_000 });
   else {
     m.count++;
