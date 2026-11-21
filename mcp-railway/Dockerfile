@@ -4,7 +4,12 @@ WORKDIR /app
 
 # Build context is mcp-railway/ so paths are relative to that directory
 COPY package.json package-lock.json ./
-RUN npm ci
+# BUY-67516: install devDeps explicitly so the `tsc` build step has typescript +
+# @types/* even when Railway's build runs under NODE_ENV=production (which makes
+# a bare `npm ci` skip devDependencies, leaving the build with no compiler and a
+# cascade of FAILED deploys). `npm prune --production` below still strips them
+# from the final runtime image.
+RUN npm ci --include=dev
 
 COPY tsconfig.json ./
 COPY src/ ./src/
