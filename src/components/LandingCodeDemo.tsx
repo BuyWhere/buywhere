@@ -11,7 +11,7 @@ export default function LandingCodeDemo() {
               <span className="ml-2 text-xs text-gray-300 font-mono">search.js</span>
             </div>
             <pre tabIndex={0} className="p-4 text-sm text-gray-200 font-mono overflow-x-auto leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-inset">{`const response = await fetch(
-  "https://api.buywhere.io/v1/products/search",
+  "https://api.buywhere.ai/v1/products/search",
   {
     method: "POST",
     headers: {
